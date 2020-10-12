@@ -178,6 +178,9 @@ typedef struct mips_elf_abiflags_v0 {
 
 #define EM_RX           173     /* Renesas RX family */
 
+#define EM_MCST_ELBRUS  176     /* MCST Elbrus */
+#define EM_E2K_OLD	49	/* `e_machine' used in old binaries for E2K  */
+
 #define EM_RISCV        243     /* RISC-V */
 
 #define EM_NANOMIPS     249     /* Wave Computing nanoMIPS */
@@ -1414,6 +1417,82 @@ typedef struct {
 #define EF_RISCV_FLOAT_ABI_QUAD   0x0006
 #define EF_RISCV_RVE              0x0008
 #define EF_RISCV_TSO              0x0010
+
+/* E2k specific definitions.  */
+
+/* Values for Elf32/64_Ehdr.e_flags.  */
+
+#define EF_E2K_IPD              3
+#define EF_E2K_X86APP           4
+#define EF_E2K_4MB_PAGES        8
+#define EF_E2K_INCOMPAT         16
+#define EF_E2K_PM               32
+#define EF_E2K_BUG_75842        64
+
+/* E2k relocs.  */
+
+#define R_E2K_32_ABS		0		/* Direct 32 bit */
+#define R_E2K_32_PC		2		/* PC relative 32 bit */
+#define R_E2K_32_JMP_SLOT	8		/* Create PLT entry */
+#define R_E2K_32_COPY		9		/* Copy relocation */
+#define R_E2K_32_RELATIVE	10		/* Adjust by program base */
+#define R_E2K_32_IRELATIVE	11
+#define R_E2K_32_SIZE		12
+
+#define R_E2K_64_ABS		50		/* Direct 64 bit */
+#define R_E2K_64_ABS_LIT	51		/* Direct 64 bit for literal */
+#define R_E2K_64_PC_LIT		54		/* PC relative 64 bit for literal */
+#define R_E2K_64_JMP_SLOT	63		/* Create PLT entry */
+#define R_E2K_64_COPY		64		/* Copy relocation */
+#define R_E2K_64_RELATIVE	65		/* Adjust by program base */
+#define R_E2K_64_RELATIVE_LIT	66		/* Adjust by program base for literal */
+#define R_E2K_64_IRELATIVE	67
+#define R_E2K_64_SIZE		68
+#define R_E2K_64_GOTOFF		69
+
+#define R_E2K_TLS_GDMOD		70
+#define R_E2K_TLS_GDREL		71
+#define R_E2K_TLS_IE		74
+#define R_E2K_32_TLS_LE		75
+#define R_E2K_64_TLS_LE		76
+#define R_E2K_TLS_32_DTPMOD     80              /* ID of module containing symbol */
+#define R_E2K_TLS_32_DTPREL     81
+#define R_E2K_TLS_64_DTPMOD     82              /* ID of module containing symbol */
+#define R_E2K_TLS_64_DTPREL     83
+#define R_E2K_TLS_32_TPREL      84
+#define R_E2K_TLS_64_TPREL      85
+
+#define R_E2K_AP		100
+#define R_E2K_PL		101
+
+#define R_E2K_GOT		108		/* 32 bit GOT entry */
+#define R_E2K_GOTOFF		109		/* 32 bit offset to GOT */
+#define R_E2K_DISP		110		/* PC relative 28 bit for DISP */
+#define R_E2K_PREF		111
+#define R_E2K_NONE		112		/* No reloc */
+
+
+/* Legal values for d_tag field of Elf32_Dyn.  */
+
+/* FIXME: find out whether old dynamic tags may be renamed and their names
+ *   be used by modern ones or new names should be customized for modern tags.
+ *   This concerns DT_E2K_LAZY renamed to DT_E2K_LAZY_DEFECTIVE.  */
+#define DT_E2K_LAZY_DEFECTIVE   (DT_LOPROC + 0)
+#define DT_E2K_LAZY             (DT_LOPROC + 1)
+
+/* This tag will be hopefully used for a limited period of time. `DT_LOPROC + 1'
+ *   has already been reserved in glibc-2.16 and binutils-2.23.1 to mark
+ *   non-defective lazy binding implementation without this awful Bug #75842 taken
+ *   into account.  */
+#define DT_E2K_LAZY_BUG_75842   (DT_LOPROC + 2)
+#define DT_E2K_LAZY_GOT         (DT_LOPROC + 3)
+
+#define DT_E2K_INIT_GOT		(DT_LOPROC + 0x101c)
+#define DT_E2K_EXPORT_PL	(DT_LOPROC + 0x101d)
+#define DT_E2K_EXPORT_PLSZ	(DT_LOPROC + 0x101e)
+#define DT_E2K_REAL_PLTGOT	(DT_LOPROC + 0x101f)
+
+#define DT_E2K_NUM		0x1020
 
 typedef struct elf32_rel {
   Elf32_Addr	r_offset;
