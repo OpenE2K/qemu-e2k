@@ -1514,6 +1514,29 @@ static void elf_core_copy_regs(target_elf_gregset_t *regs,
 
 #endif /* TARGET_XTENSA */
 
+#ifdef TARGET_E2K
+
+#define elf_check_arch(x) ((x) == EM_MCST_ELBRUS || (x) == EM_E2K_OLD)
+#define ELF_START_MMAP          0x80000000
+#define ELF_CLASS               ELFCLASS64
+#define ELF_ARCH                EM_MCST_ELBRUS
+#define ELF_EXEC_PAGESIZE       4096
+#define ELF_NREG 256
+typedef target_elf_greg_t target_elf_gregset_t[ELF_NREG];
+#define USE_ELF_CORE_DUMP
+
+static inline void init_thread(struct target_pt_regs *regs, struct image_info *infop)
+{
+    // TODO
+}
+
+static void elf_core_copy_regs(target_elf_gregset_t *regs, const CPUE2KState *env)
+{
+    // TODO
+}
+
+#endif /* TARGET_E2K */
+
 #ifndef ELF_PLATFORM
 #define ELF_PLATFORM (NULL)
 #endif
