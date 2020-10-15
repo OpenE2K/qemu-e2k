@@ -1,3 +1,1 @@
 TARGET_ARCH=e2k
-TARGET_SYSTBL_ABI=common
-TARGET_SYSTBL=syscall_64.tbl
