@@ -20,7 +20,6 @@
 typedef uint64_t e2k_greg_t; // double word
 
 struct target_pt_regs {
-    
     /* special registers */
     uint64_t wd; // Current window descriptor (WD)
         
