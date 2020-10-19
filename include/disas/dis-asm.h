@@ -235,6 +235,23 @@ enum bfd_architecture
 #define bfd_mach_cris_v32      32
 #define bfd_mach_cris_v10_v32  1032
   bfd_arch_microblaze, /* Xilinx MicroBlaze.  */
+  bfd_arch_e2k,       /* MCST E2K. */
+/* It's crucial that the underlying `bfd_mach_e2k*' have the same values as */
+/* the corresponding `E_E2K_MACH_*'s!!! */
+#define bfd_mach_e2k_generic    0
+#define bfd_mach_e2k_ev1        1
+/* This is interpreted as the common subset of all Elbrus V2 iterations.
+   Currently it is the same as the common subset of all elbrus-2c+.  */
+#define bfd_mach_e2k_ev2        2
+#define bfd_mach_e2k_ev3        3
+#define bfd_mach_e2k_ev4        4
+#define bfd_mach_e2k_ev5        5
+#define bfd_mach_e2k_ev6        6
+/* Values 16, 17 and 18 used to be reserved for the first three iterations
+   of `elbrus-v2'. See `include/elf/e2k.h' for why they can't be reused right
+   now. */
+#define bfd_mach_e2k_8c        19
+#define bfd_mach_e2k_1cplus    20
   bfd_arch_moxie,      /* The Moxie core.  */
   bfd_arch_ia64,      /* HP/Intel ia64 */
 #define bfd_mach_ia64_elf64    64
@@ -403,6 +420,14 @@ typedef struct disassemble_info {
   int cap_mode;
   int cap_insn_unit;
   int cap_insn_split;
+  
+  /* If non-zero then try not disassemble beyond this address, even if
+     there are values left in the buffer.  This address is the address
+     of the nearest symbol forwards from the start of the disassembly,
+     and it is assumed that it lies on the boundary between instructions.
+     If an instruction spans this address then this is an error in the
+     file being disassembled.  */
+  bfd_vma stop_vma;
 
 } disassemble_info;
 
@@ -459,6 +484,7 @@ int print_insn_xtensa           (bfd_vma, disassemble_info*);
 int print_insn_riscv32          (bfd_vma, disassemble_info*);
 int print_insn_riscv64          (bfd_vma, disassemble_info*);
 int print_insn_rx(bfd_vma, disassemble_info *);
+int print_insn_e2k              (bfd_vma, disassemble_info*);
 
 #ifdef CONFIG_CAPSTONE
 bool cap_disas_target(disassemble_info *info, uint64_t pc, size_t size);
