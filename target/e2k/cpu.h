@@ -5,7 +5,7 @@
 #include "cpu-qom.h"
 #include "exec/cpu-defs.h"
 
-struct CPUE2KState {
+typedef struct CPUArchState {
     
     /* register file */ 
     uint64_t gregs[32]; /* general registers */
@@ -18,13 +18,13 @@ struct CPUE2KState {
     
     /* special registers */
     uint64_t *wreg; /* pointer to current window */
-    uint32_t br;    /* base register offset, max 128 */
+    uint32_t br;    /* base rsegister offset, max 128 */
     uint64_t ip, nip; /* instruction address, next instruction address */
     
     uint32_t pfpfr; // Packed Floating Point Flag Register (PFPFR)
     uint32_t fpcr; // Floating point control register (FPCR)
     uint32_t fpsr; // Floating point state register (FPSR)
-};
+} CPUE2KState;
 
 /**
  * E2KCPU:
@@ -32,7 +32,7 @@ struct CPUE2KState {
  *
  * An Elbrus CPU.
  */
-struct E2KCPU {
+struct ArchCPU {
     /*< private >*/
     CPUState parent_obj;
     /*< public >*/
