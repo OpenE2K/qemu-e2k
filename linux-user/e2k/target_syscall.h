@@ -2,7 +2,7 @@
 #define E2K_TARGET_SYSCALL_H
 
 #define UNAME_MACHINE "e2k"
-#define UNAME_MINUMIM_RELEASE "2.6.32"
+#define UNAME_MINIMUM_RELEASE "2.6.32"
 
 #define	E2K_MAXNR	128			/* The total number of */
 						/* quad-NRs */

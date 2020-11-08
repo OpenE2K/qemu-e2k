@@ -364,44 +364,44 @@ typedef struct
 
 
 
-int parse_alf_args (char **, const e2k_opcode_templ *);
-int parse_copf2_args (char **, const e2k_opcode_templ *);
-int parse_pref_args (char **, const e2k_opcode_templ *);
-int parse_copf4_args (char **, const e2k_opcode_templ *);
-int parse_nop_args (char **, const e2k_opcode_templ *);
-int parse_setcmd_args (char **, const e2k_opcode_templ *);
-int parse_setsft_args (char **, const e2k_opcode_templ *);
-int parse_wait_args (char **, const e2k_opcode_templ *);
-int parse_ct_args (char **, const e2k_opcode_templ *);
-int parse_hcall_args (char **, const e2k_opcode_templ *);
-int parse_ipd_args (char **, const e2k_opcode_templ *);
+static int parse_alf_args (char **s, const e2k_opcode_templ *t) { return 0; }
+static int parse_copf2_args (char **s, const e2k_opcode_templ *t) { return 0; }
+static int parse_pref_args (char **s, const e2k_opcode_templ *t) { return 0; }
+static int parse_copf4_args (char **s, const e2k_opcode_templ *t) { return 0; }
+static int parse_nop_args (char **s, const e2k_opcode_templ *t) { return 0; }
+static int parse_setcmd_args (char **s, const e2k_opcode_templ *t) { return 0; }
+static int parse_setsft_args (char **s, const e2k_opcode_templ *t) { return 0; }
+static int parse_wait_args (char **s, const e2k_opcode_templ *t) { return 0; }
+static int parse_ct_args (char **s, const e2k_opcode_templ *t) { return 0; }
+static int parse_hcall_args (char **s, const e2k_opcode_templ *t) { return 0; }
+static int parse_ipd_args (char **s, const e2k_opcode_templ *t) { return 0; }
 
-int parse_loop_mode_args (char **, const e2k_opcode_templ *);
-int parse_alc_args (char **, const e2k_opcode_templ *);
-int parse_abn_args (char **, const e2k_opcode_templ *);
-int parse_abp_args (char **, const e2k_opcode_templ *);
-int parse_abg_args (char **, const e2k_opcode_templ *);
-int parse_bap_args (char **, const e2k_opcode_templ *);
-int parse_eap_args (char **, const e2k_opcode_templ *);
+static int parse_loop_mode_args (char **s, const e2k_opcode_templ *t) { return 0; }
+static int parse_alc_args (char **s, const e2k_opcode_templ *t) { return 0; }
+static int parse_abn_args (char **s, const e2k_opcode_templ *t) { return 0; }
+static int parse_abp_args (char **s, const e2k_opcode_templ *t) { return 0; }
+static int parse_abg_args (char **s, const e2k_opcode_templ *t) { return 0; }
+static int parse_bap_args (char **s, const e2k_opcode_templ *t) { return 0; }
+static int parse_eap_args (char **s, const e2k_opcode_templ *t) { return 0; }
 
 
-int parse_pass_args (char **, const e2k_opcode_templ *);
-int parse_andp_args (char **, const e2k_opcode_templ *);
-int parse_landp_args (char **, const e2k_opcode_templ *);
-int parse_ibranch_args (char **, const e2k_opcode_templ *);
-int parse_done_hret_glaunch_args (char **, const e2k_opcode_templ *);
+static int parse_pass_args (char **s, const e2k_opcode_templ *t) { return 0; }
+static int parse_andp_args (char **s, const e2k_opcode_templ *t) { return 0; }
+static int parse_landp_args (char **s, const e2k_opcode_templ *t) { return 0; }
+static int parse_ibranch_args (char **s, const e2k_opcode_templ *t) { return 0; }
+static int parse_done_hret_glaunch_args (char **s, const e2k_opcode_templ *t) { return 0; }
 
-int parse_incr_args (char **, const e2k_opcode_templ *);
-int parse_mova_args (char **, const e2k_opcode_templ *);
-int parse_fapb_args (char **, const e2k_opcode_templ *);
-int parse_movep_args (char **, const e2k_opcode_templ *);
+static int parse_incr_args (char **s, const e2k_opcode_templ *t) { return 0; }
+static int parse_mova_args (char **s, const e2k_opcode_templ *t) { return 0; }
+static int parse_fapb_args (char **s, const e2k_opcode_templ *t) { return 0; }
+static int parse_movep_args (char **s, const e2k_opcode_templ *t) { return 0; }
 
-int parse_flushts_args (char **, const e2k_opcode_templ *);
+static int parse_flushts_args (char **s, const e2k_opcode_templ *t) { return 0; }
 
-int parse_cpl_args (char **, const e2k_opcode_templ *);
+static int parse_cpl_args (char **s, const e2k_opcode_templ *t) { return 0; }
 
-int parse_set_mark_args (char **, const e2k_opcode_templ *);
-int parse_vfdi_args (char **, const e2k_opcode_templ *);
+static int parse_set_mark_args (char **s, const e2k_opcode_templ *t) { return 0; }
+static int parse_vfdi_args (char **s, const e2k_opcode_templ *t) { return 0; }
 
 
 
