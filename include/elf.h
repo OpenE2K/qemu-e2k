@@ -172,7 +172,7 @@ typedef struct mips_elf_abiflags_v0 {
 
 #define EM_UNICORE32    110     /* UniCore32 */
 
-#define EM_MCST_ELBRUS  176     /* MCST Elbrus */
+#define EM_MCST_ELBRUS  175     /* MCST Elbrus */
 #define EM_E2K_OLD	49	/* `e_machine' used in old binaries for E2K  */
 
 #define EM_RISCV        243     /* RISC-V */
