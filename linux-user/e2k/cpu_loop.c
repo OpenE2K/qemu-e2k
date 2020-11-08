@@ -25,10 +25,10 @@
 void cpu_loop(CPUE2KState *env)
 {
     CPUState *cs = env_cpu(env);
-    int trapnr, n, sig;
-    target_siginfo_t info;
-    target_ulong addr;
-    abi_long ret;
+    int trapnr; //TODO , n, sig;
+    //target_siginfo_t info;
+    //target_ulong addr;
+    //abi_long ret;
 
     while (1) {
         cpu_exec_start(cs);
@@ -48,5 +48,6 @@ void cpu_loop(CPUE2KState *env)
 
 void target_cpu_copy_regs(CPUE2KState *env, struct target_pt_regs *regs)
 {
+    env->ip = regs->ip;
     // TODO
 }
