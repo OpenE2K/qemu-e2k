@@ -28,6 +28,7 @@
 OBJECT_DECLARE_TYPE(E2KCPU, E2KCPUClass,
                     E2K_CPU)
 
+typedef struct e2k_def_t e2k_def_t;
 /**
  * E2KCPUClass:
  * @parent_realize: The parent class' realize handler.
@@ -42,6 +43,7 @@ struct E2KCPUClass {
 
     DeviceRealize parent_realize;
     DeviceReset parent_reset;
+    e2k_def_t *cpu_def;
 };
 
 

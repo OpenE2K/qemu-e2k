@@ -86,7 +86,7 @@
 
 #elif defined(TARGET_PPC) || defined(TARGET_ALPHA) || \
       defined(TARGET_SPARC) || defined(TARGET_MICROBLAZE) || \
-      defined(TARGET_MIPS)
+      defined(TARGET_MIPS) || defined(TARGET_E2K)
 
 #define TARGET_IOC_SIZEBITS	13
 #define TARGET_IOC_DIRBITS	3
@@ -1606,6 +1606,55 @@ struct target_stat64 {
 
 	unsigned int	__unused1;
 	unsigned int	__unused2;
+};
+
+#elif defined(TARGET_E2K)
+#define TARGET_STAT_HAVE_NSEC
+struct target_stat {
+    unsigned long   st_dev;
+    unsigned long   st_ino;
+    unsigned int    st_mode;
+    unsigned int    st_nlink;
+    unsigned int    st_uid;
+    unsigned int    st_gid;
+    unsigned long   st_rdev;
+    unsigned long   __pad1;
+    long            st_size;
+    int             st_blksize;
+    int             __pad2;
+    long            st_blocks;
+    int             target_st_atime;
+    unsigned int    target_st_atime_nsec;
+    int     		target_st_mtime;
+    unsigned int    target_st_mtime_nsec;
+    int             target_st_ctime;
+    unsigned int    target_st_ctime_nsec;
+    unsigned int    __unused4;
+    unsigned int    __unused5;
+};
+
+#define TARGET_HAS_STRUCT_STAT64
+struct target_stat64 {
+    unsigned long long st_dev;
+    unsigned long long st_ino;
+    unsigned int       st_mode;
+    unsigned int       st_nlink;
+    unsigned int       st_uid;
+    unsigned int       st_gid;
+    unsigned long long st_rdev;
+    unsigned long long __pad0;
+    long long          st_size;
+    int                st_blksize;
+    int                __pad1;
+    long long          st_blocks;
+    int                target_st_atime;
+    unsigned int       target_st_atime_nsec;
+    int                target_st_mtime;
+    unsigned int       target_st_mtime_nsec;
+    int                target_st_ctime;
+    unsigned int       target_st_ctime_nsec;
+    unsigned int       __unused4;
+    unsigned int       __unused5;
 };
 
 #elif defined(TARGET_PPC)

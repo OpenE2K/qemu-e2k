@@ -28,13 +28,24 @@
 
 //#define DEBUG_FEATURES
 
+void cpu_e2k_set_id(CPUE2KState *env, unsigned int cpu);
+void e2k_cpu_dump_state(CPUState *cs, FILE *f, int flags);
+
 static void e2k_cpu_reset(DeviceState *dev)
 {
+    CPUState *cs = CPU(dev);
+    E2KCPU *cpu = E2K_CPU(cs);
+    E2KCPUClass *ecc = E2K_CPU_GET_CLASS(cpu);
+    CPUE2KState *env = &cpu->env;
+
+    ecc->parent_reset(dev);
+
+    memset(env, 0, offsetof(CPUE2KState, end_reset_fields));
 }
 
 static bool e2k_cpu_exec_interrupt(CPUState *cs, int interrupt_request)
 {
-    
+    return false;
 }
 
 static void cpu_e2k_disas_set_info(CPUState *cpu, disassemble_info *info)
@@ -43,30 +54,54 @@ static void cpu_e2k_disas_set_info(CPUState *cpu, disassemble_info *info)
 }
 
 
-void cpu_e2k_set_id(CPUSPARCState *env, unsigned int cpu)
+void cpu_e2k_set_id(CPUE2KState *env, unsigned int cpu)
 {
+    // TODO
+    qemu_log_mask(LOG_UNIMP, "cpu_e2k_set_id: not implemented\n");
 }
+
+static const struct e2k_def_t e2k_defs[] = {
+    {
+        .name = "any",
+        .isa_version = 0xffffffff,
+    }
+};
 
 void e2k_cpu_dump_state(CPUState *cs, FILE *f, int flags)
 {
+    E2KCPU *cpu = E2K_CPU(cs);
+    CPUE2KState *env = &cpu->env;
+
+    qemu_fprintf(f, "ip: " TARGET_FMT_lx "  nip: " TARGET_FMT_lx "\n", env->ip,
+                 env->nip);
 }
 
 static void e2k_cpu_set_pc(CPUState *cs, vaddr value)
 {
+    E2KCPU *cpu = E2K_CPU(cs);
+
+    cpu->env.ip = value;
+    // FIXME: what next IP should be?
+    cpu->env.nip = value + 8;
 }
 
 static void e2k_cpu_synchronize_from_tb(CPUState *cs, TranslationBlock *tb)
 {
+    E2KCPU *cpu = E2K_CPU(cs);
 
+    cpu->env.ip = tb->pc;
+    cpu->env.nip = tb->cs_base;
 }
 
 static bool e2k_cpu_has_work(CPUState *cs)
 {
+    // TODO
     return true;
 }
 
 static char *e2k_cpu_type_name(const char *cpu_model)
 {
+    // TODO
     char *name = g_strdup_printf("%s", cpu_model);
     return name;
 }
@@ -84,23 +119,60 @@ static ObjectClass *e2k_cpu_class_by_name(const char *cpu_model)
 
 static void e2k_cpu_realizefn(DeviceState *dev, Error **errp)
 {
+    CPUState *cs = CPU(dev);
+    E2KCPUClass *ecc = E2K_CPU_GET_CLASS(dev);
+    Error *local_err = NULL;
+    E2KCPU *cpu = E2K_CPU(dev);
+    CPUE2KState *env = &cpu->env;
+
+    env->version = env->def.isa_version;
+
+    cpu_exec_realizefn(cs, &local_err);
+    if (local_err != NULL) {
+        error_propagate(errp, local_err);
+        return;
+    }
+
+    qemu_init_vcpu(cs);
+
+    ecc->parent_realize(dev, errp);
+}
+
+static void e2k_cpu_initfn(Object* obj)
+{
+    E2KCPU *cpu = E2K_CPU(obj);
+    E2KCPUClass *ecc = E2K_CPU_GET_CLASS(obj);
+    CPUE2KState *env = &cpu->env;
+
+    cpu_set_cpustate_pointers(cpu);
+
+    if (ecc->cpu_def) {
+        env->def = *ecc->cpu_def;
+    }
 }
 
 static void e2k_cpu_class_init(ObjectClass *oc, void *data)
 {
-    E2KCPUClass *scc = E2K_CPU_CLASS(oc);
+    E2KCPUClass *ecc = E2K_CPU_CLASS(oc);
     CPUClass *cc = CPU_CLASS(oc);
     DeviceClass *dc = DEVICE_CLASS(oc);
 
     device_class_set_parent_realize(dc, e2k_cpu_realizefn,
-                                    &scc->parent_realize);
-    
-    device_class_set_parent_reset(dc, e2k_cpu_reset, &scc->parent_reset);
+                                    &ecc->parent_realize);
 
+    device_class_set_parent_reset(dc, e2k_cpu_reset, &ecc->parent_reset);
+
+    cc->has_work = e2k_cpu_has_work;
+    cc->dump_state = e2k_cpu_dump_state;
+    cc->set_pc = e2k_cpu_set_pc;
+    cc->cpu_exec_interrupt = e2k_cpu_exec_interrupt;
+    cc->synchronize_from_tb = e2k_cpu_synchronize_from_tb;
+    cc->class_by_name = e2k_cpu_class_by_name;
     cc->disas_set_info = cpu_e2k_disas_set_info;
+    cc->tcg_initialize = e2k_tcg_initialize;
 }
 
-static const TypeInfo sparc_cpu_type_info = {
+static const TypeInfo e2k_cpu_type_info = {
     .name = TYPE_E2K_CPU,
     .parent = TYPE_CPU,
     .instance_size = sizeof(E2KCPU),
@@ -112,11 +184,11 @@ static const TypeInfo sparc_cpu_type_info = {
 
 static void e2k_cpu_cpudef_class_init(ObjectClass *oc, void *data)
 {
-    E2KCCPUClass *scc = E2K_CPU_CLASS(oc);
-    scc->cpu_def = data;
+    E2KCPUClass *ecc = E2K_CPU_CLASS(oc);
+    ecc->cpu_def = data;
 }
 
-/*static void e2k_register_cpudef_type(const struct e2k_def_t *def)
+static void e2k_register_cpudef_type(const struct e2k_def_t *def)
 {
     char *typename = e2k_cpu_type_name(def->name);
     TypeInfo ti = {
@@ -130,11 +202,14 @@ static void e2k_cpu_cpudef_class_init(ObjectClass *oc, void *data)
     g_free(typename);
 }
 
-static void sparc_cpu_register_types(void)
+static void e2k_cpu_register_types(void)
 {
     int i;
 
-    type_register_static(&sparc_cpu_type_info);
+    type_register_static(&e2k_cpu_type_info);
+    for (i = 0; i < ARRAY_SIZE(e2k_defs); i++) {
+        e2k_register_cpudef_type(&e2k_defs[i]);
+    }
 }
 
-type_init(sparc_cpu_register_types)
+type_init(e2k_cpu_register_types)

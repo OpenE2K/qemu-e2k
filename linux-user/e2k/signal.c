@@ -76,6 +76,7 @@ struct target_sigcontext {
 void setup_frame(int sig, struct target_sigaction *ka,
                  target_sigset_t *set, CPUE2KState *env)
 {
+    qemu_log_mask(LOG_UNIMP, "setup_frame: not implemented\n");
 }
 
 void setup_rt_frame(int sig, struct target_sigaction *ka,
@@ -87,6 +88,8 @@ void setup_rt_frame(int sig, struct target_sigaction *ka,
 
 long do_sigreturn(CPUE2KState *env)
 {
+    // TODO
+    return 0;
 }
 
 long do_rt_sigreturn(CPUE2KState *env)
@@ -94,4 +97,12 @@ long do_rt_sigreturn(CPUE2KState *env)
     trace_user_do_rt_sigreturn(env, 0);
     qemu_log_mask(LOG_UNIMP, "do_rt_sigreturn: not implemented\n");
     return -TARGET_ENOSYS;
+}
+
+abi_long do_swapcontext(CPUArchState *env, abi_ulong uold_ctx,
+                        abi_ulong unew_ctx, abi_long ctx_size)
+{
+    // TODO
+    qemu_log_mask(LOG_UNIMP, "do_swapcontext: not implemented\n");
+    return 0;
 }

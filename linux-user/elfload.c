@@ -1527,12 +1527,15 @@ typedef target_elf_greg_t target_elf_gregset_t[ELF_NREG];
 
 static inline void init_thread(struct target_pt_regs *regs, struct image_info *infop)
 {
+    regs->ip = infop->entry;
     // TODO
+    qemu_log_mask(LOG_UNIMP, "init_thread: not implemented\n");
 }
 
 static void elf_core_copy_regs(target_elf_gregset_t *regs, const CPUE2KState *env)
 {
     // TODO
+    qemu_log_mask(LOG_UNIMP, "elf_core_copy_regs: not implemented\n");
 }
 
 #endif /* TARGET_E2K */
