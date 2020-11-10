@@ -9,6 +9,7 @@ void e2k_tcg_initialize(void);
 
 #define MMU_USER_IDX 1
 #define CPU_RESOLVING_TYPE TYPE_E2K_CPU
+#define WREGS_SIZE 224
 
 struct e2k_def_t {
 	const char *name;
@@ -17,11 +18,18 @@ struct e2k_def_t {
 
 typedef struct {
     
-    /* register file */ 
-    CPU_QuadU gregs[32]; /* general registers */
-    CPU_QuadU pregs[224]; /* procedure regs, access through wreg */
-    uint8_t greg_tags[32];
-    uint8_t preg_tags[224];
+    /* register file */
+    target_ulong gregs[32]; // global regs
+    target_ulong wregs[WREGS_SIZE]; // window regs
+    unsigned int wbs; // window regs offset (* 2)
+    unsigned int wsz; // window regs size (* 2)
+    unsigned int nfx; // TODO
+    unsigned int dbl; // TODO
+    unsigned int rbs; // based regs offset (* 2)
+    unsigned int rsz; // based regs window size (* 2 + 2)
+    unsigned int rcur; // based regs current index (* 2)
+    unsigned int psz; // pred regs window size
+
     
     /* control registers */
     target_ulong ctpr1; // Control Transfer Preparation Register (CTPR)
@@ -29,8 +37,6 @@ typedef struct {
     target_ulong ctpr3;
     
     /* special registers */
-    target_ulong *wreg; /* pointer to current window */
-    uint32_t br;    /* base rsegister offset, max 128 */
     target_ulong ip, nip; /* instruction address, next instruction address */
     
     uint32_t pfpfr; // Packed Floating Point Flag Register (PFPFR)

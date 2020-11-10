@@ -71,9 +71,28 @@ void e2k_cpu_dump_state(CPUState *cs, FILE *f, int flags)
 {
     E2KCPU *cpu = E2K_CPU(cs);
     CPUE2KState *env = &cpu->env;
+    unsigned int i;
 
     qemu_fprintf(f, "ip: " TARGET_FMT_lx "  nip: " TARGET_FMT_lx "\n", env->ip,
                  env->nip);
+
+    for (i = 0; i < 192; i += 4) {
+        const char *s1 = i < 10 ? "  " : (i < 100 ? " " : "");
+        const char *s2 = i + 2 < 10 ? "  " : (i + 2 < 100 ? " " : "");
+        qemu_fprintf(f, "%s%%r%d = %16lx  ", s1, i    , env->wregs[i]);
+        qemu_fprintf(f, "%s%%r%d = %16lx  ", s1, i + 1, env->wregs[i + 1]);
+        qemu_fprintf(f, "%s%%r%d = %16lx  ", s2, i + 2, env->wregs[i + 2]);
+        qemu_fprintf(f, "%s%%r%d = %16lx\n", s2, i + 3, env->wregs[i + 3]);
+    }
+
+    for (i = 0; i < 32; i += 4) {
+        const char *s1 = i < 10 ? "  " : (i < 100 ? " " : "");
+        const char *s2 = i + 2 < 10 ? "  " : (i + 2 < 100 ? " " : "");
+        qemu_fprintf(f, "%s%%g%d = %16lx  ", s1, i    , env->gregs[i]);
+        qemu_fprintf(f, "%s%%g%d = %16lx  ", s1, i + 1, env->gregs[i + 1]);
+        qemu_fprintf(f, "%s%%g%d = %16lx  ", s2, i + 2, env->gregs[i + 2]);
+        qemu_fprintf(f, "%s%%g%d = %16lx\n", s2, i + 3, env->gregs[i + 3]);
+    }
 }
 
 static void e2k_cpu_set_pc(CPUState *cs, vaddr value)
