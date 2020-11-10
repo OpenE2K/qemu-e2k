@@ -3,6 +3,7 @@
 #include "disas/disas.h"
 #include "exec/translator.h"
 #include "tcg/tcg-op.h"
+#include "exec/log.h"
 
 #define TEMP_COUNT_32 16
 #define TEMP_COUNT_64 16
@@ -1158,8 +1159,10 @@ static void e2k_tr_tb_stop(DisasContextBase *db, CPUState *cs)
 
 static void e2k_tr_disas_log(const DisasContextBase *db, CPUState *cpu)
 {
-    // TODO: e2k_tr_disas_log
-    qemu_log_mask(LOG_UNIMP, "e2k_tr_disas_log: not implemented\n");
+    DisasContext *dc = container_of(db, DisasContext, base);
+
+    qemu_log("IN: %s\n", lookup_symbol(dc->base.pc_first));
+    log_target_disas(cpu, dc->base.pc_first, dc->base.tb->size);
 }
 
 static const TranslatorOps e2k_tr_ops = {
