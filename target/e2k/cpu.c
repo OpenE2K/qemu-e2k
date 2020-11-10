@@ -73,8 +73,8 @@ void e2k_cpu_dump_state(CPUState *cs, FILE *f, int flags)
     CPUE2KState *env = &cpu->env;
     unsigned int i;
 
-    qemu_fprintf(f, "ip: " TARGET_FMT_lx "  nip: " TARGET_FMT_lx "\n", env->ip,
-                 env->nip);
+    qemu_fprintf(f, "ip: " TARGET_FMT_lx "\n", env->ip);
+    qemu_fprintf(f, "pregs: %016lx\n", env->pregs);
 
     for (i = 0; i < 192; i += 4) {
         const char *s1 = i < 10 ? "  " : (i < 100 ? " " : "");
@@ -100,8 +100,6 @@ static void e2k_cpu_set_pc(CPUState *cs, vaddr value)
     E2KCPU *cpu = E2K_CPU(cs);
 
     cpu->env.ip = value;
-    // FIXME: what next IP should be?
-    cpu->env.nip = value + 8;
 }
 
 static void e2k_cpu_synchronize_from_tb(CPUState *cs, TranslationBlock *tb)
@@ -109,7 +107,6 @@ static void e2k_cpu_synchronize_from_tb(CPUState *cs, TranslationBlock *tb)
     E2KCPU *cpu = E2K_CPU(cs);
 
     cpu->env.ip = tb->pc;
-    cpu->env.nip = tb->cs_base;
 }
 
 static bool e2k_cpu_has_work(CPUState *cs)

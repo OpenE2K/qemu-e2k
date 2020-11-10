@@ -21,6 +21,7 @@ typedef struct {
     /* register file */
     target_ulong gregs[32]; // global regs
     target_ulong wregs[WREGS_SIZE]; // window regs
+    uint64_t pregs;
     unsigned int wbs; // window regs offset (* 2)
     unsigned int wsz; // window regs size (* 2)
     unsigned int nfx; // TODO
@@ -32,12 +33,10 @@ typedef struct {
 
     
     /* control registers */
-    target_ulong ctpr1; // Control Transfer Preparation Register (CTPR)
-    target_ulong ctpr2;
-    target_ulong ctpr3;
+    target_ulong ctprs[3]; // Control Transfer Preparation Register (CTPR)
     
     /* special registers */
-    target_ulong ip, nip; /* instruction address, next instruction address */
+    target_ulong ip; /* instruction address, next instruction address */
     
     uint32_t pfpfr; // Packed Floating Point Flag Register (PFPFR)
     uint32_t fpcr; // Floating point control register (FPCR)
@@ -72,7 +71,7 @@ static inline void cpu_get_tb_cpu_state(CPUE2KState *env, target_ulong *pc,
                                         target_ulong *cs_base, uint32_t *pflags)
 {
     *pc = env->ip;
-    *cs_base = env->nip;
+    *cs_base = 0;
     *pflags = MMU_USER_IDX;
 }
 
