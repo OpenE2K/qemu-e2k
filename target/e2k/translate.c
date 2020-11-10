@@ -862,7 +862,8 @@ static Result gen_alc(DisasContext *dc, CPUE2KState *env, int chan)
 {
     const struct unpacked_instr *instr = &dc->instr;
     unsigned int als = instr->als[chan];
-    int opc = als >> 24;
+    int opc = (als >> 24) & 0x7f;
+    int sm  = als >> 31;
     unsigned int dst = als & 0xff;
     Result res = { 0 };
 
@@ -978,7 +979,7 @@ static Result gen_alc(DisasContext *dc, CPUE2KState *env, int chan)
         gen_exception(dc, 1);
         break;
     default:
-        qemu_log_mask(LOG_UNIMP, "gen_alc: undefined instruction 0x%x\n", opc);
+        qemu_log_mask(LOG_UNIMP, "gen_alc: undefined instruction 0x%x %s\n", opc, sm ? "(speculative)" : "");
         break;
     }
 
