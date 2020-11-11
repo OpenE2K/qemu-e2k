@@ -14,6 +14,7 @@ static TCGv_ptr cpu_win_ptr;
 static TCGv_i64 cpu_wregs[WREGS_SIZE];
 static TCGv_i64 cpu_gregs[32];
 static TCGv cpu_pc;
+static TCGv_i32 cpu_is_jmp;
 static TCGv_i64 cpu_pregs;
 static TCGv cpu_ctprs[3];
 static TCGv_i32 cpu_wbs;
@@ -390,6 +391,16 @@ static inline void gen_wrap_i32(TCGv_i32 ret, TCGv_i32 x, TCGv_i32 y)
     tcg_temp_free_i32(t0);
 }
 
+static inline void reset_is_jmp()
+{
+    tcg_gen_movi_i32(cpu_is_jmp, 0);
+}
+
+static inline void set_is_jmp()
+{
+    tcg_gen_movi_i32(cpu_is_jmp, 1);
+}
+
 static inline void gen_rcur_move()
 {
     TCGv_i32 tmp = tcg_temp_new_i32();
@@ -701,6 +712,8 @@ static void gen_cs0(DisasContext *dc, CPUE2KState *env)
                 int sdisp = ((int) (disp << 4)) >> 1;
                 target_ulong tgt = dc->pc + sdisp;
                 TCGv dest = tcg_const_i64(tgt);
+                // TODO: temporary, need to move in ctcond evaluate
+                set_is_jmp();
                 dc->jmp.dest = dest;
                 dc->jmp.cond = cond;
             }
@@ -1172,13 +1185,15 @@ static void gen_jmp(DisasContext *dc, target_ulong next_pc)
     // TODO: temporary only preg cond
     if (cond_type == 2) {
         TCGv_i64 preg = get_preg(dc, psrc);
+        TCGv_i64 cond = tcg_const_i64(1);
         TCGv next = tcg_const_tl(next_pc);
         dc->base.is_jmp = DISAS_NORETURN;
         tcg_gen_movcond_i64(TCG_COND_EQ, cpu_pc,
-            preg, tcg_const_i64(1),
+            preg, cond,
             dc->jmp.dest, next
         );
         tcg_gen_exit_tb(NULL, 0);
+        tcg_temp_free(cond);
     }
 
     /* These types of conditions involve a (probably negated) predicate
@@ -1274,6 +1289,8 @@ static target_ulong disas_e2k_insn(DisasContext *dc, CPUState *cs)
     unsigned int i;
     target_ulong pc_next = unpack_instr(env, dc->pc, instr);
 
+    reset_is_jmp();
+
     if (dc->instr.cs0_present) {
         gen_cs0(dc, env);
     }
@@ -1324,17 +1341,19 @@ static target_ulong disas_e2k_insn(DisasContext *dc, CPUState *cs)
     // FIXME: not working in cond branches
     // Change windowing registers
     if (dc->jmp.cond == COND_NEVER) {
-        // move based if not branch
-        if (abn >> 1 != 0) {
-            gen_rcur_move();
-        }
-    // TODO: handle any branch
-    } else if (dc->jmp.cond != COND_NEVER) {
-        // move based if branch
-        if (abn & 0x1 != 0) {
-            gen_rcur_move();
-        }
+        TCGv_i32 t0 = tcg_temp_new_i32();
+        TCGv_i32 t1 = tcg_temp_new_i32();
+        TCGv_i32 zero = tcg_const_i32(0);
+
+        tcg_gen_addi_i32(t0, cpu_rcur, 2);
+        gen_wrap_i32(t1, t0, cpu_rsz);
+        tcg_gen_movcond_i32(TCG_COND_EQ, cpu_rcur, cpu_is_jmp, zero, t1, cpu_rcur);
+
+        tcg_temp_free_i32(zero);
+        tcg_temp_free_i32(t1);
+        tcg_temp_free_i32(t0);
     }
+    // TODO: move based if branch
 
     // Control transfer
     if (env->interrupt_index != 0) {
@@ -1465,11 +1484,11 @@ void e2k_tcg_initialize(void) {
     unsigned int i;
 
     for (i = 0; i < ARRAY_SIZE(r32); i++) {
-        *r32[i].ptr = tcg_global_mem_new(cpu_env, r32[i].off, r32[i].name);
+        *r32[i].ptr = tcg_global_mem_new_i32(cpu_env, r32[i].off, r32[i].name);
     }
 
     for (i = 0; i < ARRAY_SIZE(r64); i++) {
-        *r64[i].ptr = tcg_global_mem_new(cpu_env, r64[i].off, r64[i].name);
+        *r64[i].ptr = tcg_global_mem_new_i64(cpu_env, r64[i].off, r64[i].name);
     }
 
     for (i = 0; i < ARRAY_SIZE(rtl); i++) {
@@ -1477,11 +1496,12 @@ void e2k_tcg_initialize(void) {
     }
 
     cpu_win_ptr = tcg_global_mem_new_ptr(cpu_env, offsetof(CPUE2KState, win_ptr), "win_ptr");
+    cpu_is_jmp = tcg_global_mem_new_i32(cpu_env, offsetof(CPUE2KState, is_jmp), "is_jmp");
 
     for (i = 0; i < WREGS_SIZE; i++) {
         snprintf(buf, ARRAY_SIZE(buf), "%%r%d", i);
         cpu_wregs[i] = tcg_global_mem_new(cpu_win_ptr,
-            i * sizeof(target_ulong),
+            i * REG_SIZE,
             buf);
     }
 

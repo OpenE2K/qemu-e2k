@@ -34,6 +34,7 @@ typedef struct {
     unsigned int rcur; // based regs current index (* 2)
     unsigned int psz; // pred regs window size
 
+    unsigned int is_jmp;
     
     /* control registers */
     target_ulong ctprs[3]; // Control Transfer Preparation Register (CTPR)
