@@ -211,6 +211,7 @@ static target_ulong disas_e2k_insn(DisasContext *dc, CPUState *cs)
     /* TODO: exception, check bundle_len */
     target_ulong pc_next = dc->pc + bundle_len;
 
+    dc->jmp.dest = tcg_const_i64(0);
     dc->jmp.cond = tcg_const_i64(0);
 
     e2k_alc_gen(dc);
@@ -252,6 +253,7 @@ static target_ulong disas_e2k_insn(DisasContext *dc, CPUState *cs)
         break;
     }
 
+    tcg_temp_free_i64(dc->jmp.dest);
     tcg_temp_free_i64(dc->jmp.cond);
 
     /* Free temporary values */
