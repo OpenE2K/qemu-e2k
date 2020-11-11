@@ -1191,29 +1191,6 @@ static target_ulong disas_e2k_insn(DisasContext *dc, CPUState *cs)
         dc->alc[i] = gen_alc(dc, env, i);
     }
 
-    for (i = 0; i < 6; i++) {
-        Result *res = &dc->alc[i];
-        if (!instr->als_present[i]) {
-            continue;
-        }
-        switch(res->tag) {
-        case RESULT_BASED_REG:
-            gen_store_breg(dc, res->u.reg.i, res->u.reg.v);
-            break;
-        case RESULT_REGULAR_REG:
-            gen_store_wreg(dc, res->u.reg.i, res->u.reg.v);
-            break;
-        case RESULT_GLOBAL_REG:
-            gen_store_greg(dc, res->u.reg.i, res->u.reg.v);
-            break;
-        case RESULT_PREG:
-            set_preg(dc, res->u.reg.i, res->u.reg.v);
-            break;
-        default:
-            break;
-        }
-    }
-
     unsigned int ss = dc->instr.ss;
     unsigned int vfdi = (ss & 0x04000000) >> 26;
     unsigned int abg = (ss & 0x01800000) >> 23;
@@ -1242,6 +1219,30 @@ static target_ulong disas_e2k_insn(DisasContext *dc, CPUState *cs)
         dc->base.is_jmp = DISAS_NORETURN;
     } else if (dc->jmp.cond != 0) {
         gen_jmp(dc, pc_next);
+    }
+
+    // Commit results after all instructions in the bundle was executed
+    for (i = 0; i < 6; i++) {
+        Result *res = &dc->alc[i];
+        if (!instr->als_present[i]) {
+            continue;
+        }
+        switch(res->tag) {
+        case RESULT_BASED_REG:
+            gen_store_breg(dc, res->u.reg.i, res->u.reg.v);
+            break;
+        case RESULT_REGULAR_REG:
+            gen_store_wreg(dc, res->u.reg.i, res->u.reg.v);
+            break;
+        case RESULT_GLOBAL_REG:
+            gen_store_greg(dc, res->u.reg.i, res->u.reg.v);
+            break;
+        case RESULT_PREG:
+            set_preg(dc, res->u.reg.i, res->u.reg.v);
+            break;
+        default:
+            break;
+        }
     }
 
     // Free temporary values.
