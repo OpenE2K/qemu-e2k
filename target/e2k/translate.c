@@ -7,15 +7,24 @@
 
 #define TEMP_COUNT_32 16
 #define TEMP_COUNT_64 16
-#define TEMP_COUNT_TL 4
+#define TEMP_COUNT_TL 8
 #define COND_NEVER 0
 #define COND_ALWAYS 1
 
+static TCGv_ptr cpu_win_ptr;
 static TCGv_i64 cpu_wregs[WREGS_SIZE];
 static TCGv_i64 cpu_gregs[32];
 static TCGv cpu_pc;
 static TCGv_i64 cpu_pregs;
 static TCGv cpu_ctprs[3];
+static TCGv_i32 cpu_wbs;
+static TCGv_i32 cpu_wsz;
+static TCGv_i32 cpu_nfx;
+static TCGv_i32 cpu_dbl;
+static TCGv_i32 cpu_rbs;
+static TCGv_i32 cpu_rsz;
+static TCGv_i32 cpu_rcur;
+static TCGv_i32 cpu_psz;
 
 enum ResultType {
     RESULT_NONE,
@@ -417,13 +426,15 @@ static inline unsigned int wreg_index(DisasContext *dc, int reg)
 
 static inline TCGv_i64 gen_load_wreg(DisasContext *dc, int reg)
 {
-    return cpu_wregs[wreg_index(dc, reg)];
+    TCGv_i64 tmp = get_temp(dc);
+    tcg_gen_ld_i64(tmp, cpu_win_ptr, reg * sizeof(target_ulong));
+    return tmp;
 }
 
 static inline void gen_store_wreg(DisasContext *dc, int reg, TCGv_i64 val)
 {
     unsigned int i = wreg_index(dc, reg);
-    tcg_gen_mov_i64(cpu_wregs[i], val);
+    tcg_gen_st_i64(val, cpu_win_ptr, i * sizeof(target_ulong));
 }
 
 static inline unsigned int breg_index(DisasContext *dc, int reg)
@@ -438,14 +449,16 @@ static inline unsigned int breg_index(DisasContext *dc, int reg)
 
 static inline TCGv_i64 gen_load_breg(DisasContext *dc, int reg)
 {
+    TCGv_i64 tmp = get_temp(dc);
     unsigned int i = breg_index(dc, reg);
-    return cpu_wregs[i];
+    tcg_gen_ld_i64(tmp, cpu_win_ptr, i * sizeof(target_ulong));
+    return tmp;
 }
 
 static inline void gen_store_breg(DisasContext *dc, int reg, TCGv_i64 val)
 {
     unsigned int i = breg_index(dc, reg);
-    tcg_gen_mov_i64(cpu_wregs[i], val);
+    tcg_gen_st_i64(val, cpu_win_ptr, i * sizeof(target_ulong));
 }
 
 static inline TCGv_i64 gen_load_greg(DisasContext *dc, int reg)
@@ -1012,6 +1025,9 @@ static Result gen_alc(DisasContext *dc, CPUE2KState *env, int chan)
             TCGv_i64 reg = get_temp_i64(dc);
             // TODO: move to separate function
             switch(cmp_op) {
+            case 1: // unsigned less
+                tcg_gen_setcond_i64(TCG_COND_LEU, tmp_dst, cpu_src1, cpu_src2);
+                break;
             case 2: // equal
                 tcg_gen_setcond_i64(TCG_COND_EQ, tmp_dst, cpu_src1, cpu_src2);
                 break;
@@ -1191,27 +1207,6 @@ static target_ulong disas_e2k_insn(DisasContext *dc, CPUState *cs)
         dc->alc[i] = gen_alc(dc, env, i);
     }
 
-    unsigned int ss = dc->instr.ss;
-    unsigned int vfdi = (ss & 0x04000000) >> 26;
-    unsigned int abg = (ss & 0x01800000) >> 23;
-    unsigned int abn = (ss & 0x00600000) >> 21;
-    unsigned int abp = (ss & 0x000c0000) >> 18;
-    unsigned int alc = (ss & 0x00030000) >> 16;
-
-    // Change windowing registers
-    if (dc->jmp.cond == COND_NEVER) {
-        // move based if not branch
-        if (abn >> 1 != 0) {
-            dc->rcur = (dc->rcur + 1) % (dc->rsz + 1);
-        }
-    // TODO: handle any branch
-    } else if (dc->jmp.cond != COND_NEVER) {
-        // move based if branch
-        if (abn & 0x1 != 0) {
-            dc->rcur = (dc->rcur + 1) % (dc->rsz + 1);
-        }
-    }
-
     // Control transfer
     if (env->interrupt_index != 0) {
         tcg_gen_movi_tl(cpu_pc, dc->pc);
@@ -1242,6 +1237,28 @@ static target_ulong disas_e2k_insn(DisasContext *dc, CPUState *cs)
             break;
         default:
             break;
+        }
+    }
+
+    // Change windowing registers after commit is done.
+    unsigned int ss = dc->instr.ss;
+    unsigned int vfdi = (ss & 0x04000000) >> 26;
+    unsigned int abg = (ss & 0x01800000) >> 23;
+    unsigned int abn = (ss & 0x00600000) >> 21;
+    unsigned int abp = (ss & 0x000c0000) >> 18;
+    unsigned int alc = (ss & 0x00030000) >> 16;
+
+    // Change windowing registers
+    if (dc->jmp.cond == COND_NEVER) {
+        // move based if not branch
+        if (abn >> 1 != 0) {
+            dc->rcur = (dc->rcur + 1) % (dc->rsz + 1);
+        }
+    // TODO: handle any branch
+    } else if (dc->jmp.cond != COND_NEVER) {
+        // move based if branch
+        if (abn & 0x1 != 0) {
+            dc->rcur = (dc->rcur + 1) % (dc->rsz + 1);
         }
     }
 
@@ -1362,6 +1379,17 @@ void restore_state_to_opc(CPUE2KState *env, TranslationBlock *tb,
 void e2k_tcg_initialize(void) {
     char buf[8] = { 0 };
 
+    static const struct { TCGv_i32 *ptr; int off; const char *name; } r32[] = {
+        { &cpu_wbs, offsetof(CPUE2KState, wbs), "wbs" },
+        { &cpu_wsz, offsetof(CPUE2KState, wsz), "wsz" },
+        { &cpu_nfx, offsetof(CPUE2KState, nfx), "nfx" },
+        { &cpu_dbl, offsetof(CPUE2KState, dbl), "dbl" },
+        { &cpu_rbs, offsetof(CPUE2KState, rbs), "rbs" },
+        { &cpu_rsz, offsetof(CPUE2KState, rsz), "rsz" },
+        { &cpu_rcur, offsetof(CPUE2KState, rcur), "rcur" },
+        { &cpu_psz, offsetof(CPUE2KState, psz), "psz" },
+    };
+
     static const struct { TCGv_i64 *ptr; int off; const char *name; } r64[] = {
         { &cpu_pregs, offsetof(CPUE2KState, pregs), "pregs" },
     };
@@ -1372,6 +1400,10 @@ void e2k_tcg_initialize(void) {
 
     unsigned int i;
 
+    for (i = 0; i < ARRAY_SIZE(r32); i++) {
+        *r32[i].ptr = tcg_global_mem_new(cpu_env, r32[i].off, r32[i].name);
+    }
+
     for (i = 0; i < ARRAY_SIZE(r64); i++) {
         *r64[i].ptr = tcg_global_mem_new(cpu_env, r64[i].off, r64[i].name);
     }
@@ -1380,10 +1412,12 @@ void e2k_tcg_initialize(void) {
         *rtl[i].ptr = tcg_global_mem_new(cpu_env, rtl[i].off, rtl[i].name);
     }
 
+    cpu_win_ptr = tcg_global_mem_new_ptr(cpu_env, offsetof(CPUE2KState, win_ptr), "win_ptr");
+
     for (i = 0; i < WREGS_SIZE; i++) {
         snprintf(buf, ARRAY_SIZE(buf), "%%r%d", i);
-        cpu_wregs[i] = tcg_global_mem_new(cpu_env,
-            offsetof(CPUE2KState, wregs[i]),
+        cpu_wregs[i] = tcg_global_mem_new(cpu_win_ptr,
+            i * sizeof(target_ulong),
             buf);
     }
 
