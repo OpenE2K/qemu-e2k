@@ -49,19 +49,14 @@ static void gen_cs0(DisasContext *dc)
     if (type == IBRANCH || type == DONE || type == HRET || type == GLAUNCH) {
         /* IBRANCH, DONE, HRET and GLAUNCH are special because they require SS
            to be properly encoded.  */
-        if (! bundle->ss_present
-            /* SS.ctop should be equal to zero for IBRANCH, DONE, HRET and
-               GLAUNCH (see C.17.1.1, note that they don't mention the latter two
-               instructions there which is probably an omission ).  */
-                || (bundle->ss & 0x00000c00))
+        if (!bundle->ss_present || (bundle->ss & 0x00000c00))
         {
-            // TODO: invalid
+            // TODO: exeption invalid bundle
             abort();
-        }
         /* Don't output either of the aforementioned instructions under "never"
            condition. Don't disassemble CS0 being a part of HCALL. Unlike ldis
            HCALL is currently disassembled on behalf of CS1.  */
-        else if ((bundle->ss & 0x1ff)
+        } else if ((bundle->ss & 0x1ff)
               && !(bundle->cs1_present
               /* CS1.opc == CALL */
               && (bundle->cs1 & 0xf0000000) >> 28 == 5
@@ -77,9 +72,7 @@ static void gen_cs0(DisasContext *dc)
                 /* Calculate a signed displacement in bytes. */
                 int sdisp = ((int) (disp << 4)) >> 1;
                 target_ulong tgt = dc->pc + sdisp;
-                TCGv dest = e2k_get_temp(dc);
-                tcg_gen_movi_tl(dest, tgt);
-                dc->jmp.dest = dest;
+                tcg_gen_movi_tl(dc->jmp.dest, tgt);
             }
         }
     } else {
@@ -90,21 +83,27 @@ static void gen_cs0(DisasContext *dc)
             abort();
         }
 
-        if (type == DISP
-            || type == SDISP
-            || type == LDISP
-            /* Note that RETURN is said to be COPF1. I can't understand what its
+        if (type == DISP || type == SDISP || type == LDISP) {
+            /* TODO: SDISP tag */
+            unsigned int disp = (cs0 & 0x0fffffff);
+            /* Calculate a signed displacement in bytes. */
+            int sdisp = ((int) (disp << 4)) >> 1;
+            target_ulong tgt = dc->pc + sdisp;
+            tcg_gen_movi_tl(e2k_cs.ctprs[ctpr], tgt);
+        }
+
+        if (/* Note that RETURN is said to be COPF1. I can't understand what its
               `CS0.param' is needed for: all of the bits except the three
                lowermost ones are undefined, while the latter also known as "type"
                field should be filled in with zeroes.  */
-            || type == RETURN
+            type == RETURN
             /* GETTSD has as meaningless `CS0.param' as RETURN. The only
                difference is that its `CS0.param.type' should be equal to `1'. I
                wonder if I should check for that and output something like
                "invalid gettsd" if this turns out not to be the case . . .  */
             || type == GETTSD)
         {
-            // ctpr
+            // TODO
         }
 
         if (type == SDISP) {
@@ -310,11 +309,15 @@ static void gen_cs1(DisasContext *dc)
 
 static void gen_jmp(DisasContext *dc)
 {
-    unsigned int ctcond = GET_FIELD(dc->bundle.ss, 0, 8);
-    unsigned int cond_type = (ctcond & 0x1e0) >> 5;
-    unsigned int psrc = (ctcond & 0x01f);
+    unsigned int psrc = GET_FIELD(dc->bundle.ss, 0, 4);
+    unsigned int cond_type = GET_FIELD(dc->bundle.ss, 5, 8);
+    unsigned int ctpr = GET_FIELD(dc->bundle.ss, 10, 11);
 
     /* TODO: check CPU behavior if present ibranch and ctpr is not zero */
+
+    if (ctpr != 0) {
+        tcg_gen_mov_tl(dc->jmp.dest, e2k_cs.ctprs[ctpr]);
+    }
 
     if (cond_type == 1) {
         dc->base.is_jmp = STATIC_JUMP;
