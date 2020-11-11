@@ -133,8 +133,8 @@ static void gen_channel(DisasContext *dc, int chan)
 {
     const UnpackedBundle *bundle = &dc->bundle;
     unsigned int als = bundle->als[chan];
-    int opc = (als >> 24) & 0x7f;
-    int sm  = als >> 31;
+    int opc = GET_FIELD(als, 24, 30);
+    int sm  = GET_BIT(als, 31);
     unsigned int dst = als & 0xff;
     bool is_cmp = false;
     Result res = { 0 };
@@ -246,25 +246,23 @@ static void gen_channel(DisasContext *dc, int chan)
         // TODO: getfd
         abort();
         break;
-    case 0x21: // cmp{op}sd
-        do {
-            is_cmp = true;
-            unsigned int cmp_op = (als & 0xe0) >> 5;
-//            unsigned int index = als & 0x1f;
-            // TODO: move to separate function
-            switch(cmp_op) {
-            case 1: // unsigned less
-                tcg_gen_setcond_i64(TCG_COND_LEU, tmp_dst, cpu_src1, cpu_src2);
-                break;
-            case 2: // equal
-                tcg_gen_setcond_i64(TCG_COND_EQ, tmp_dst, cpu_src1, cpu_src2);
-                break;
-            default:
-                abort();
-                break;
-            }
-        } while(0);
+    case 0x21: { // cmp{op}sd
+        is_cmp = true;
+        unsigned int cmp_op = GET_FIELD(als, 5, 7);
+        // TODO: move to separate function
+        switch(cmp_op) {
+        case 1: // unsigned less
+            tcg_gen_setcond_i64(TCG_COND_LEU, tmp_dst, cpu_src1, cpu_src2);
+            break;
+        case 2: // equal
+            tcg_gen_setcond_i64(TCG_COND_EQ, tmp_dst, cpu_src1, cpu_src2);
+            break;
+        default:
+            abort();
+            break;
+        }
         break;
+    }
     case 0x40: // TODO: udivs used as temporary UD
         e2k_gen_exception(dc, 1);
         break;
