@@ -4,6 +4,9 @@ e2k_ss.add(files(
   'helper.c',
   'helper_int.c',
   'translate.c',
+  'translate/state.c',
+  'translate/win.c',
+  'translate/alc.c',
 ))
 
 # no softmmu support yet
