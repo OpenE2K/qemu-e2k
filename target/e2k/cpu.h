@@ -9,7 +9,7 @@ void e2k_tcg_initialize(void);
 
 #define MMU_USER_IDX 1
 #define CPU_RESOLVING_TYPE TYPE_E2K_CPU
-#define WREGS_SIZE 224
+#define WREGS_SIZE 192
 
 struct e2k_def_t {
 	const char *name;
@@ -21,6 +21,7 @@ typedef struct {
     /* register file */
     target_ulong gregs[32]; // global regs
     target_ulong wregs[WREGS_SIZE]; // window regs
+    target_ulong *win_ptr;
     uint64_t pregs;
     unsigned int wbs; // window regs offset (* 2)
     unsigned int wsz; // window regs size (* 2)
