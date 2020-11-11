@@ -8,7 +8,7 @@
 
 struct CPUE2KStateTCG e2k_cpu;
 
-#define GET_BIT(v, index) (((v) >> index) & 1)
+#define GET_BIT(v, index) (((v) >> (index)) & 1)
 #define GET_FIELD(v, start, end) \
     (((v) >> (start)) & ((1 << ((end) - (start) + 1)) - 1))
 
@@ -254,17 +254,17 @@ static inline void gen_wrap_i32(TCGv_i32 ret, TCGv_i32 x, TCGv_i32 y)
     tcg_temp_free_i32(t0);
 }
 
-static inline void reset_is_jmp()
+static inline void reset_is_jmp(void)
 {
     tcg_gen_movi_i32(e2k_cpu.is_jmp, 0);
 }
 
-static inline void set_is_jmp()
+static inline void set_is_jmp(void)
 {
     tcg_gen_movi_i32(e2k_cpu.is_jmp, 1);
 }
 
-static inline void gen_rcur_move()
+static inline void gen_rcur_move(void)
 {
     TCGv_i32 tmp = tcg_temp_new_i32();
     tcg_gen_addi_i32(tmp, e2k_cpu.rcur, 2);
@@ -612,8 +612,8 @@ static void gen_cs0(DisasContext *dc, CPUE2KState *env)
                     || type == LDISP
                     || type == PUTTSD)
         {
-            unsigned int disp = (cs0 & 0x0fffffff);
-            int sgnd_disp = ((int) (disp << 4)) >> 1;
+//            unsigned int disp = (cs0 & 0x0fffffff);
+//            int sgnd_disp = ((int) (disp << 4)) >> 1;
             /* PUTTSD obviously doesn't take %ctpr{j} parameter. TODO: beware of
                an optional predicate which may control its execution which is
                encoded via `SS.ctcond.psrc' and `SS.ts_opc == PUTTSDC{P,N}' in
@@ -627,9 +627,9 @@ static void gen_cs0(DisasContext *dc, CPUE2KState *env)
         }
 
         if (type == PREF) {
-            unsigned int pdisp = (bundle->cs0 & 0x0ffffff0) >> 4;
-            unsigned int ipd = (bundle->cs0 & 0x00000008) >> 3;
-            unsigned int prefr = bundle->cs0 & 0x00000007;
+//            unsigned int pdisp = (bundle->cs0 & 0x0ffffff0) >> 4;
+//            unsigned int ipd = (bundle->cs0 & 0x00000008) >> 3;
+//            unsigned int prefr = bundle->cs0 & 0x00000007;
         }
     }
 }
@@ -669,7 +669,7 @@ static void gen_cs1(DisasContext *dc, CPUE2KState *env)
                 /* Find out if VFRPSZ is always encoded together with SETWD. This
                 seems to be the case even if no SETWD has been explicitly
                 specified.  */
-                unsigned int rpsz = (bundle->lts[0] & 0x0001f000) >> 12;
+//                unsigned int rpsz = (bundle->lts[0] & 0x0001f000) >> 12;
 //                my_printf ("vfrpsz rpsz = 0x%x", rpsz);
             }
         }
@@ -716,7 +716,7 @@ static void gen_cs1(DisasContext *dc, CPUE2KState *env)
         /* Verify that CS1.param.sft = CS1.param[27] is equal to zero as required
         in C.14.3.  */
         unsigned int sft = (cs1 & 0x08000000) >> 27;
-        unsigned int eir = (cs1 & 0x000000ff);
+//        unsigned int eir = (cs1 & 0x000000ff);
 
         if (sft) {
 //            my_printf ("%s", mcpu >= 2 ? "setsft" : "unimp");
@@ -724,30 +724,30 @@ static void gen_cs1(DisasContext *dc, CPUE2KState *env)
 //            my_printf ("setei 0x%x", eir);
         }
     } else if (opc == WAIT) {
-        unsigned int ma_c = (cs1 & 0x00000020) >> 5;
-        unsigned int fl_c = (cs1 & 0x00000010) >> 4;
+//        unsigned int ma_c = (cs1 & 0x00000020) >> 5;
+//        unsigned int fl_c = (cs1 & 0x00000010) >> 4;
         unsigned int ld_c = (cs1 & 0x00000008) >> 3;
         unsigned int st_c = (cs1 & 0x00000004) >> 2;
-        unsigned int all_e = (cs1 & 0x00000002) >> 1;
-        unsigned int all_c = cs1 & 0x00000001;
+//        unsigned int all_e = (cs1 & 0x00000002) >> 1;
+//        unsigned int all_c = cs1 & 0x00000001;
 
         if (env->version >= 5) {
             /* `sa{l,s}' fields are `elbrus-v5'-specific. Each of them makes sense
             only in the presence of `{ld,st}_c == 1' respectively.  */
             if (ld_c) {
-                unsigned int sal = (cs1 & 0x00000100) >> 8;
+//                unsigned int sal = (cs1 & 0x00000100) >> 8;
 //                my_printf ("sal = %d, ", sal);
             }
 
             if (st_c) {
-                unsigned int sas = (cs1 & 0x00000080) >> 7;
+//                unsigned int sas = (cs1 & 0x00000080) >> 7;
 //                my_printf ("sas = %d, ", sas);
             }
         }
 
         if (env->version >= 2) {
           /* `trap' field was introduced starting from `elbrus-v2'.  */
-            unsigned int trap = (cs1 & 0x00000040) >> 6;
+//            unsigned int trap = (cs1 & 0x00000040) >> 6;
 //          my_printf ("trap = %d, ", trap);
         }
 
@@ -757,7 +757,7 @@ static void gen_cs1(DisasContext *dc, CPUE2KState *env)
         unsigned int ctop = (bundle->ss & 0x00000c00) >> 10;
         /* In C.17.4 it's said that other bits in CS1.param except for the
            seven lowermost ones are ignored.  */
-        unsigned int wbs = cs1 & 0x7f;
+//        unsigned int wbs = cs1 & 0x7f;
 
         if (ctop) {
 //            my_printf ("call %%ctpr%d, wbs = 0x%x", ctop, wbs);
@@ -771,7 +771,7 @@ static void gen_cs1(DisasContext *dc, CPUE2KState *env)
                 /* CS0.opc == HCALL, which means
                 CS0.opc.ctpr == CS0.opc.ctp_opc == 0 */
                 if (cs0_opc == 0) {
-                    unsigned int hdisp = (cs0 & 0x1e) >> 1;
+//                    unsigned int hdisp = (cs0 & 0x1e) >> 1;
 //                    my_printf ("hcall 0x%x, wbs = 0x%x", hdisp, wbs);
 //                    print_ctcond (info, instr->ss & 0x1ff);
                 }
@@ -781,7 +781,7 @@ static void gen_cs1(DisasContext *dc, CPUE2KState *env)
         }
     } else if (opc == MAS_OPC) {
         /* Note that LDIS doesn't print it out as a standalone instruction.  */
-        unsigned int mas = cs1 & 0x0fffffff;
+//        unsigned int mas = cs1 & 0x0fffffff;
 
 //        my_printf ("mas 0x%x", mas);
     } else if (opc == FLUSHR) {
@@ -801,9 +801,9 @@ static void gen_cs1(DisasContext *dc, CPUE2KState *env)
     } else if (opc == BG) {
         /* Hopefully, `vfbg' is the only instruction encoded by BG. I'm currently
            unable to find other ones in `iset-v5.single' at least . . .  */
-        unsigned int chkm4 = (cs1 & 0x00010000) >> 16;
-        unsigned int dmask = (cs1 & 0x0000ff00) >> 8;
-        unsigned int umsk = cs1 & 0x000000ff;
+//        unsigned int chkm4 = (cs1 & 0x00010000) >> 16;
+//        unsigned int dmask = (cs1 & 0x0000ff00) >> 8;
+//        unsigned int umsk = cs1 & 0x000000ff;
 
         /* Print its fields in the order proposed in C.14.10.  */
 //        my_printf ("vfbg umask = 0x%x, dmask = 0x%x, chkm4 = 0x%x",
@@ -980,7 +980,6 @@ static Result gen_alc(DisasContext *dc, CPUE2KState *env, int chan)
             is_cmp = true;
             unsigned int cmp_op = (als & 0xe0) >> 5;
 //            unsigned int index = als & 0x1f;
-            TCGv_i64 reg = get_temp_i64(dc);
             // TODO: move to separate function
             switch(cmp_op) {
             case 1: // unsigned less
@@ -1036,7 +1035,7 @@ static void gen_jmp(DisasContext *dc, target_ulong next_pc)
     unsigned int ctcond = dc->jmp.cond;
     unsigned int cond_type = (ctcond & 0x1e0) >> 5;
     unsigned int psrc = (ctcond & 0x01f);
-    bool not_preg = cond_type == 3 || cond_type == 7 || cond_type == 0xe;
+//    bool not_preg = cond_type == 3 || cond_type == 7 || cond_type == 0xe;
 
     if (cond_type == 1) {
         dc->base.is_jmp = DISAS_NORETURN;
@@ -1099,7 +1098,7 @@ static void gen_jmp(DisasContext *dc, target_ulong next_pc)
         /* It's not clearly said in C.17.1.2 of iset-vX.single if the uppermost
            fourth bit in `psrc' has any meaning at all.  */
         if (psrc & 0xf) {
-            static const int conv[] = {0, 1, 3, 4};
+//            static const int conv[] = {0, 1, 3, 4};
             int i;
 
             // %dt_al
@@ -1115,23 +1114,23 @@ static void gen_jmp(DisasContext *dc, target_ulong next_pc)
     if (cond_type == 9) {
         unsigned int type = (psrc & 0x18) >> 3;
         if (type == 0) {
-            static const int cmp_num_to_alc[] = {0, 1, 3, 4};
-            unsigned int cmp_num = (psrc & 0x6) >> 1;
-            unsigned int neg = psrc & 0x1;
+//            static const int cmp_num_to_alc[] = {0, 1, 3, 4};
+//            unsigned int cmp_num = (psrc & 0x6) >> 1;
+//            unsigned int neg = psrc & 0x1;
 
 //            my_printf ("%%MLOCK || %s%%cmp%d", neg ? "~" : "",
 //                cmp_num_to_alc[cmp_num]);
         } else if (type == 1) {
-            unsigned int cmp_jk = (psrc & 0x4) >> 2;
-            unsigned int negj = (psrc & 0x2) >> 1;
-            unsigned int negk = psrc & 0x1;
+//            unsigned int cmp_jk = (psrc & 0x4) >> 2;
+//            unsigned int negj = (psrc & 0x2) >> 1;
+//            unsigned int negk = psrc & 0x1;
 
 //            my_printf ("%%MLOCK || %s%%cmp%d || %s%%cmp%d",
 //                     negj ? "~" : "", cmp_jk == 0 ? 0 : 3,
 //                     negk ? "~" : "", cmp_jk == 0 ? 1 : 4);
         } else if (type == 2) {
-            unsigned int clp_num = (psrc & 0x6) >> 1;
-            unsigned int neg = psrc & 0x1;
+//            unsigned int clp_num = (psrc & 0x6) >> 1;
+//            unsigned int neg = psrc & 0x1;
 
             // "%%MLOCK || %s%%clp%d", neg ? "~" : "", clp_num
         }
@@ -1196,15 +1195,15 @@ static target_ulong disas_e2k_insn(DisasContext *dc, CPUState *cs)
     }
 
     // Change windowing registers after commit is done.
-    unsigned int ss = dc->bundle.ss;
-    unsigned int vfdi = (ss & 0x04000000) >> 26;
-    unsigned int abg = (ss & 0x01800000) >> 23;
-    unsigned int abn = (ss & 0x00600000) >> 21;
-    unsigned int abp = (ss & 0x000c0000) >> 18;
-    unsigned int alc = (ss & 0x00030000) >> 16;
+//    unsigned int ss = dc->bundle.ss;
+//    unsigned int vfdi = (ss & 0x04000000) >> 26;
+//    unsigned int abg = (ss & 0x01800000) >> 23;
+//    unsigned int abn = (ss & 0x00600000) >> 21;
+//    unsigned int abp = (ss & 0x000c0000) >> 18;
+//    unsigned int alc = (ss & 0x00030000) >> 16;
 
     // FIXME: not working in cond branches
-    // Change windowing registers
+    // TODO: Change windowing registers
     if (dc->jmp.cond == COND_NEVER) {
         TCGv_i32 t0 = tcg_temp_new_i32();
         TCGv_i32 t1 = tcg_temp_new_i32();
@@ -1279,8 +1278,8 @@ static void e2k_tr_translate_insn(DisasContextBase *db, CPUState *cs)
 static void e2k_tr_tb_start(DisasContextBase *db, CPUState *cs)
 {
     DisasContext *dc = container_of(db, DisasContext, base);
-    E2KCPU *cpu = E2K_CPU(cs);
-    CPUE2KState *env = &cpu->env;
+//    E2KCPU *cpu = E2K_CPU(cs);
+//    CPUE2KState *env = &cpu->env;
 
     dc->jmp.cond = COND_NEVER;
     dc->jmp.dest = NULL;
@@ -1288,9 +1287,9 @@ static void e2k_tr_tb_start(DisasContextBase *db, CPUState *cs)
 
 static void e2k_tr_tb_stop(DisasContextBase *db, CPUState *cs)
 {
-    DisasContext *dc = container_of(db, DisasContext, base);
-    E2KCPU *cpu = E2K_CPU(cs);
-    CPUE2KState *env = &cpu->env;
+//    DisasContext *dc = container_of(db, DisasContext, base);
+//    E2KCPU *cpu = E2K_CPU(cs);
+//    CPUE2KState *env = &cpu->env;
 }
 
 static void e2k_tr_disas_log(const DisasContextBase *db, CPUState *cpu)
