@@ -10,6 +10,8 @@ void e2k_tcg_initialize(void);
 #define MMU_USER_IDX 1
 #define CPU_RESOLVING_TYPE TYPE_E2K_CPU
 #define WREGS_SIZE 192
+// size of regular reg in bytes
+#define REG_SIZE (sizeof(target_ulong))
 
 struct e2k_def_t {
 	const char *name;
