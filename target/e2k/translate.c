@@ -4,102 +4,11 @@
 #include "exec/translator.h"
 #include "tcg/tcg-op.h"
 #include "exec/log.h"
+#include "translate.h"
 
-#define TEMP_COUNT_32 16
-#define TEMP_COUNT_64 16
-#define TEMP_COUNT_TL 8
-#define COND_NEVER 0
+struct CPUE2KStateTCG e2k_cpu;
 
-static TCGv_ptr cpu_win_ptr;
-static TCGv_i64 cpu_wregs[WREGS_SIZE];
-static TCGv_i64 cpu_gregs[32];
-static TCGv cpu_pc;
-static TCGv_i32 cpu_is_jmp;
-static TCGv_i64 cpu_pregs;
-static TCGv cpu_ctprs[3];
-static TCGv_i32 cpu_wbs;
-static TCGv_i32 cpu_wsz;
-static TCGv_i32 cpu_nfx;
-static TCGv_i32 cpu_dbl;
-static TCGv_i32 cpu_rbs;
-static TCGv_i32 cpu_rsz;
-static TCGv_i32 cpu_rcur;
-static TCGv_i32 cpu_psz;
-
-enum ResultType {
-    RESULT_NONE,
-    RESULT_BASED_REG,
-    RESULT_REGULAR_REG,
-    RESULT_GLOBAL_REG,
-    RESULT_PREG,
-};
-
-typedef struct {
-    enum ResultType tag;
-    union {
-        struct {
-            unsigned int i;
-            TCGv_i64 v;
-        } reg;
-    } u;
-} Result;
-
-static struct unpacked_instr {
-  unsigned int hs;
-  unsigned int ss;
-  unsigned int als[6];
-  unsigned int cs0;
-  unsigned short ales[6];
-  unsigned int cs1;
-  unsigned short aas[6];
-  unsigned short half_gap;
-
-  /* It should be impossible to have more than 16 words of GAP
-     in principle.  */
-  unsigned int gap[16];
-
-  unsigned int lts[4];
-  unsigned int pls[3];
-  unsigned int cds[3];
-
-  unsigned char ss_present;
-  unsigned char als_present[6];
-  unsigned char cs0_present;
-  unsigned char ales_present[6];
-  unsigned char cs1_present;
-  unsigned char aas_present[6];
-  unsigned char half_gap_present;
-  unsigned char gap_present[16];
-  unsigned char lts_present[4];
-  unsigned char pls_present[3];
-  unsigned char cds_present[3];
-
-  unsigned int api_l[2];
-  unsigned int api_r[2];
-} unpacked_instr;
-
-typedef struct {
-    DisasContextBase base;
-    struct unpacked_instr instr;
-    target_ulong pc;
-
-    // Temporary values.
-    TCGv_i32 t32[TEMP_COUNT_32];
-    TCGv_i64 t64[TEMP_COUNT_64];
-    TCGv ttl[TEMP_COUNT_TL];
-    // Allocated temporary values count.
-    int t32_len;
-    int t64_len;
-    int ttl_len;
-
-    struct {
-        // raw condition code from SS[8:0]
-        unsigned int cond;
-        TCGv dest;
-    } jmp;
-    Result alc[6];
-} DisasContext;
-
+#define GET_BIT(v, index) (((v) >> index) & 1)
 #define GET_FIELD(v, start, end) \
     (((v) >> (start)) & ((1 << ((end) - (start) + 1)) - 1))
 
@@ -121,229 +30,183 @@ typedef struct {
 #define GET_LIT(i) ((i) & 0x03)
 #define GET_GLOBAL(i) ((i) & 0x1f)
 
-// TODO: return error on invalid instruction
-static target_ulong unpack_instr(CPUE2KState *env, target_ulong pc,
-                                 struct unpacked_instr *instr)
+/* returns zero if bundle is invalid */
+static target_ulong unpack_bundle(CPUE2KState *env,
+    target_ulong pc, UnpackedBundle *bundle)
 {
-  unsigned int i;
-  target_ulong gap, pos = pc, next_pc = pos + 8;
-  int hsyll_cntr = 0;
-  unsigned int hs;
-  unsigned int mdl;
-  memset (instr, 0, sizeof (unpacked_instr));
+    unsigned int gap;
+    unsigned int pos = 0;
+    unsigned int mdl;
+    unsigned int hsyll_cntr = 0;
+    unsigned int i;
+    uint32_t hs;
 
-  hs = translator_ldl(env, pos);
-  pos += 4;
-  instr->hs = hs;
-  next_pc += ((hs & 0x70) >> 4) * 8;
+    memset(bundle, 0, sizeof(UnpackedBundle));
 
-  /* Check for SS.  */
-  if (hs & (0x1 << 12))
-    {
-      instr->ss_present = 1;
-      instr->ss = translator_ldl(env, pos);
-      pos += 4;
-    }
-
-  /* Check for available ALS syllables.  */
-  for (i = 0; i < 6; i++)
-    {
-      if (hs & (1 << (26 + i)))
-        {
-          instr->als_present[i] = 1;
-          instr->als[i] = translator_ldl(env, pos);
-          pos += 4;
-        }
-    }
-
-  /* Check for CS0.  */
-  if (hs & (0x1 << 14))
-  {
-    instr->cs0_present = 1;
-    instr->cs0 = translator_ldl(env, pos);
+    bundle->hs = hs = translator_ldl(env, pc + pos);
     pos += 4;
-  }
 
-  /* If either `ALES5' or `ALES2' has been marked as present in HS, set its
-     value to default to properly account for the case when it's not allocated.
-     `ALES_PRESENT[{2,5}]' are treated this way in the code below: 0 means that
-     the syllable has been neither marked in HS, nor allocated; 1 - marked in
-     HS, but not allocated; 2 - not marked in HS, but allocated; 3 - both marked
-     in HS and allocated.  */
-  if (hs & (0x1 << 25))
-    {
-      instr->ales_present[5] = 1;
-      instr->ales[5] = 0x01c0;
+    /* Check for SS.  */
+    if (GET_BIT(hs, 12)) {
+        bundle->ss_present = true;
+        bundle->ss = translator_ldl(env, pc + pos);
+        pos += 4;
     }
 
-  if (hs & (0x1 << 22))
-    {
-      instr->ales_present[2] = 1;
-      instr->ales[2] = 0x01c0;
-    }
-
-
-  /* Calculate the size of f1 fragment in bytes. For a valid instruction it
-     should be equal to either of `pos', `pos + 4' or `pos + 8'. What should I
-     do if it's not?  */
-  mdl = pc + ((hs & 0xf) + 1) * 4;
-
-  /* The following condition means that ALES{2,5} are physically present within
-     the wide instruction. However, they should be probably taken into account
-     only if HS.ale{2,5} are set. Should I disassemble them if these bits are
-     not set but the syllables physically exist?  */
-  if (((hs & (0x1 << 15)) && mdl == pos + 8)
-      || (!(hs & (0x1 << 15)) && mdl == pos + 4))
-    {
-      /* Fill in ALES5 and ALES2 syllables even if none of them is specified in
-         HS as present. This will let me output this syllable into disassembly
-         whichever case takes place. */
-      instr->ales[5] = translator_lduw(env, pos);
-      instr->ales[2] = translator_lduw(env, pos + 2);
-
-      /* Adjust `ALES_PRESENT[{5,2}]' as proposed above now that we know that
-         they are allocated.  */
-      instr->ales_present[5] |= 0x2;
-      instr->ales_present[2] |= 0x2;
-
-      pos += 4;
-    }
-
-  /* Check for CS1.  */
-  if (hs & (0x1 << 15))
-    {
-      instr->cs1_present = 1;
-      instr->cs1 = translator_ldl(env, pos);
-      pos += 4;
-    }
-
-  /* A primitive control just for a moment.  */
-  if (mdl != pos)
-    {
-    /* This is either an APB instruction or an invalid one. Let's stupidly
-       believe that the former takes place and signalize our caller about
-       that by returning 0.  */
-
-      return next_pc;
-    }
-
-
-  /* Check for ALES{0,1,3,4}.  */
-  for (i = 0; i < 5; i++)
-    {
-      if (i == 2)
-        continue;
-
-      if (hs & (0x1 << (20 + i)))
-        {
-          instr->ales_present[i] = 1;
-
-          /* Recall the idiotic order of half-syllables in the packed wide
-             instruction.  */
-          instr->ales[i] = translator_lduw(env,
-              pos + 2 * ((hsyll_cntr & ~0x1) + 1 - (hsyll_cntr & 0x1)));
-          hsyll_cntr++;
+    /* Check for available ALS syllables.  */
+    for (i = 0; i < 6; i++) {
+        if (GET_BIT(hs, 26 + i)) {
+            bundle->als_present[i] = true;
+            bundle->als[i] = translator_ldl(env, pc + pos);
+            pos += 4;
         }
     }
 
-  /* Check for AASj half-syllables. To encode them SS syllable of SF1 type
-     should be present.  */
-  if (instr->ss_present && (instr->ss & (0x1 << 20)) == 0)
-    {
-      for (i = 0; i < 4; i++)
-        {
-          if (instr->ss & (0x1 << (12 + i)))
-            {
-              instr->aas_present[i >> 1] = 1;
-              instr->aas_present[2 + i] = 1;
+    /* Check for CS0.  */
+    if (GET_BIT(hs, 14)) {
+        bundle->cs0_present = true;
+        bundle->cs0 = translator_ldl(env, pc + pos);
+        pos += 4;
+    }
+
+    if (GET_BIT(hs, 25)) {
+        bundle->ales_present[5] = ALES_ALLOCATED;
+        bundle->ales[5] = 0x01c0;
+    }
+
+    if (GET_BIT(hs, 22)) {
+        bundle->ales_present[2] = ALES_ALLOCATED;
+        bundle->ales[2] = 0x01c0;
+    }
+
+    /* Calculate the size of f1 fragment in bytes. For a valid bundle it
+       should be equal to either of `pos', `pos + 4' or `pos + 8'. What should I
+       do if it's not?  */
+    /* TODO: exception */
+    mdl = ((hs & 0xf) + 1) * 4;
+
+    /* The following condition means that ALES{2,5} are physically present within
+       the wide instruction. However, they should be probably taken into account
+       only if HS.ale{2,5} are set. Should I disassemble them if these bits are
+       not set but the syllables physically exist?  */
+    if ((GET_BIT(hs, 15) && mdl == pos + 8) ||
+        (!GET_BIT(hs, 15) && mdl == pos + 4)) {
+        /* Fill in ALES5 and ALES2 syllables even if none of them is specified in
+           HS as present. This will let me output this syllable into disassembly
+           whichever case takes place. */
+        bundle->ales[5] = translator_lduw(env, pc + pos);
+        bundle->ales[2] = translator_lduw(env, pc + pos + 2);
+
+        /* Adjust `ALES_PRESENT[{5,2}]' as proposed above now that we know that
+           they are allocated.  */
+        bundle->ales_present[5] |= ALES_PRESENT;
+        bundle->ales_present[2] |= ALES_PRESENT;
+
+        pos += 4;
+    }
+
+    /* Check for CS1.  */
+    if (GET_BIT(hs, 15)) {
+        bundle->cs1_present = 1;
+        bundle->cs1 = translator_ldl(env, pc + pos);
+        pos += 4;
+    }
+
+    /* A primitive control just for a moment.  */
+    if (mdl != pos) {
+        /* This is either an APB instruction or an invalid one. Let's stupidly
+           believe that the former takes place and signalize our caller about
+           that by returning 0.  */
+        return 0;
+    }
+
+    /* Check for ALES{0,1,3,4}.  */
+    for (i = 0; i < 5; i++) {
+        if (i == 2)
+            continue;
+
+        if (GET_BIT(hs, 20 + i)) {
+            unsigned int offset = 2 * ((hsyll_cntr & ~0x1) + 1 - (hsyll_cntr & 0x1));
+            bundle->ales_present[i] = ALES_PRESENT;
+
+            /* Recall the idiotic order of half-syllables in the packed wide
+               instruction.  */
+            bundle->ales[i] = translator_lduw(env, pc + pos + offset);
+            hsyll_cntr++;
+        }
+    }
+
+    /* Check for AASj half-syllables. To encode them SS syllable of SF1 type
+       should be present.  */
+    if (bundle->ss_present && !GET_BIT(bundle->ss, 20)) {
+        for (i = 0; i < 4; i++) {
+            if (GET_BIT(bundle->ss, 12 + i)) {
+                bundle->aas_present[i >> 1] = true;
+                bundle->aas_present[i + 2] = true;
             }
         }
 
-      for (i = 0; i < 6; i++)
-        {
-          if (instr->aas_present[i])
-            {
-              /* Recall the idiotic order of half-syllables in the packed wide
-                 instruction. Note that the first AAS half-syllable may share a
-                 syllable with the last ALES.  */
-              instr->aas[i] = translator_lduw(env,
-                  pos + 2 * ((hsyll_cntr & ~0x1) + 1 - (hsyll_cntr & 0x1)));
-              hsyll_cntr++;
+        for (i = 0; i < 6; i++) {
+            if (bundle->aas_present[i]) {
+                unsigned int offset = 2 * ((hsyll_cntr & ~0x1) + 1 - (hsyll_cntr & 0x1));
+                /* Recall the idiotic order of half-syllables in the packed wide
+                   instruction. Note that the first AAS half-syllable may share a
+                   syllable with the last ALES.  */
+                bundle->aas[i] = translator_lduw(env, pc + pos + offset);
+                hsyll_cntr++;
             }
         }
     }
 
-  if (hsyll_cntr & 0x1)
-    {
-      /* Simplify the calculation of offset in BUF[] a bit by taking the above
-         condition into account.  */
-      instr->half_gap = translator_lduw(env, pos + 2 * (hsyll_cntr & ~0x1));
-      instr->half_gap_present = 1;
+    /* align half-syllables */
+    hsyll_cntr += hsyll_cntr & 1;
 
-      /* Ensure that hsyll_cntr is even. This is implied when calculating GAP
-         below.  */
-      hsyll_cntr++;
+    /* Calculate the next 32-bit syllable's position. It may be the uppermost LTS
+       syllable. Note that I don't consider the case when LTS syllables reuse the
+       values encoded in the preceding ones, though according to `iset-v5.single'
+       this is quite legal. GAS doesn't produce such a code. Hopefully neither LAS
+       has ever done that . . .  */
+    gap = pos + 2 * hsyll_cntr;
+
+    /* Set POS to point to the last syllable in the current wide instruction and
+       extract CDSj and PLSj syllables if any.  */
+    pos = ((GET_FIELD(hs, 4, 6) + 1) << 3) - 4;
+
+    /* Check for CDSj syllables.  */
+    for (i = 0; i < GET_FIELD(hs, 16, 17); i++) {
+        bundle->cds_present[i] = true;
+        bundle->cds[i] = translator_ldl(env, pc + pos);
+        pos -= 4;
     }
 
-  /* Calculate the next 32-bit syllable's position. It may be the uppermost LTS
-     syllable. Note that I don't consider the case when LTS syllables reuse the
-     values encoded in the preceding ones, though according to `iset-v5.single'
-     this is quite legal. GAS doesn't produce such a code. Hopefully neither LAS
-     has ever done that . . .  */
-  gap = pos + 2 * hsyll_cntr;
-
-  /* Set POS to point to the last syllable in the current wide instruction and
-     extract CDSj and PLSj syllables if any.  */
-  pos = pc + ((((hs & 0x70) >> 4) + 1) << 3) - 4;
-
-  /* Check for CDSj syllables.  */
-  for (i = 0; i < ((hs & 0x30000) >> 16); i++)
-    {
-      instr->cds_present[i] = 1;
-      instr->cds[i] = translator_ldl(env, pos);
-      pos -= 4;
+    /* Check for PLSj syllables.  */
+    for (i = 0; i < GET_FIELD(hs, 18, 19); i++) {
+        bundle->pls_present[i] = true;
+        bundle->pls[i] = translator_ldl(env, pc + pos);
+        pos -= 4;
     }
 
+    /* Now POS should point to the lowermost LTS0 syllable if any. If there are
+       no LTSj syllables in this instruction, POS should point to the last
+       syllable consisting of half-syllables.
 
-  /* Check for PLSj syllables.  */
-  for (i = 0; i < ((hs & 0xc0000) >> 18); i++)
-    {
-      instr->pls_present[i] = 1;
-      instr->pls[i] = translator_ldl(env, pos);
-      pos -= 4;
+       If neither of these conditions holds true, believe that it's not a valid
+       synchronous instruction by analogy with the middle point test above.
+       Engineers are said to customize instructions with references to missing
+       literal syllables occasionally, but the lack of space for more substantial
+       syllables should not be allowed for.  */
+    if (pos < gap && pos != gap - 4) {
+        return 0;
     }
 
-  /* Now POS should point to the lowermost LTS0 syllable if any. If there are
-     no LTSj syllables in this instruction, POS should point to the last
-     syllable consisting of half-syllables.
-
-     If neither of these conditions holds true, believe that it's not a valid
-     synchronous instruction by analogy with the middle point test above.
-     Engineers are said to customize instructions with references to missing
-     literal syllables occasionally, but the lack of space for more substantial
-     syllables should not be allowed for.  */
-  if (pos < gap && pos != gap - 4)
-    return next_pc;
-
-  /* Extract available LTSj syllables.  */
-  for (i = 0; i < 4 && pos >= gap; i++)
-    {
-      instr->lts_present[i] = 1;
-      instr->lts[i] = translator_ldl(env, pos);
-      pos -= 4;
+    /* Extract available LTSj syllables.  */
+    for (i = 0; i < 4 && pos >= gap; i++) {
+        bundle->lts_present[i] = true;
+        bundle->lts[i] = translator_ldl(env, pc + pos);
+        pos -= 4;
     }
 
-  /* It makes sense to enumerate GAP syllables in a normal order unlike LTS
-     ones.  */
-  for (i = 0; i < 16 && gap <= pos; i++)
-    {
-      instr->gap_present[i] = 1;
-      instr->gap[i] = translator_ldl(env, gap);
-      gap += 4;
-    }
-
-
-  return next_pc;
+    return 8 + GET_FIELD(hs, 4, 6) * 8;
 }
 
 static inline TCGv_i32 get_temp_i32(DisasContext *dc)
@@ -366,7 +229,7 @@ static inline TCGv get_temp(DisasContext *dc)
 
 static inline void save_state(DisasContext *dc)
 {
-    tcg_gen_movi_tl(cpu_pc, dc->pc);
+    tcg_gen_movi_tl(e2k_cpu.pc, dc->pc);
 }
 
 static void gen_exception(DisasContext *dc, int which)
@@ -393,19 +256,19 @@ static inline void gen_wrap_i32(TCGv_i32 ret, TCGv_i32 x, TCGv_i32 y)
 
 static inline void reset_is_jmp()
 {
-    tcg_gen_movi_i32(cpu_is_jmp, 0);
+    tcg_gen_movi_i32(e2k_cpu.is_jmp, 0);
 }
 
 static inline void set_is_jmp()
 {
-    tcg_gen_movi_i32(cpu_is_jmp, 1);
+    tcg_gen_movi_i32(e2k_cpu.is_jmp, 1);
 }
 
 static inline void gen_rcur_move()
 {
     TCGv_i32 tmp = tcg_temp_new_i32();
-    tcg_gen_addi_i32(tmp, cpu_rcur, 2);
-    gen_wrap_i32(cpu_rcur, tmp, cpu_rsz);
+    tcg_gen_addi_i32(tmp, e2k_cpu.rcur, 2);
+    gen_wrap_i32(e2k_cpu.rcur, tmp, e2k_cpu.rsz);
     tcg_temp_free_i32(tmp);
 }
 
@@ -414,7 +277,7 @@ static inline TCGv_i64 get_preg(DisasContext *dc, int reg)
     TCGv_i64 ret = get_temp(dc);
     TCGv_i64 tmp = tcg_temp_new_i64();
     assert(reg < 32);
-    tcg_gen_shri_i64(tmp, cpu_pregs, reg * 2);
+    tcg_gen_shri_i64(tmp, e2k_cpu.pregs, reg * 2);
     // TODO: should return preg tag?
     tcg_gen_andi_i64(ret, tmp, 0x01);
     tcg_temp_free_i64(tmp);
@@ -426,10 +289,10 @@ static inline void gen_store_preg(int reg, TCGv_i64 val)
     TCGv_i64 t0 = tcg_temp_new_i64();
     TCGv_i64 t1 = tcg_temp_new_i64();
     TCGv_i64 t2 = tcg_temp_new_i64();
-    tcg_gen_andi_i64(t0, cpu_pregs, ~(3 << (reg * 2)));
+    tcg_gen_andi_i64(t0, e2k_cpu.pregs, ~(3 << (reg * 2)));
     tcg_gen_andi_i64(t1, val, 0x03);
     tcg_gen_shli_i64(t2, t1, reg * 2);
-    tcg_gen_or_i64(cpu_pregs, t0, t2);
+    tcg_gen_or_i64(e2k_cpu.pregs, t0, t2);
     tcg_temp_free_i64(t2);
     tcg_temp_free_i64(t1);
     tcg_temp_free_i64(t0);
@@ -444,7 +307,7 @@ static inline void gen_wreg_offset(TCGv_i32 ret, int reg)
     TCGv_i32 t1 = tcg_temp_new_i32();
     TCGv_i32 t2 = tcg_const_i32(WREGS_SIZE);
 
-    tcg_gen_addi_i32(t0, cpu_wbs, reg);     // t = win_start + reg_index
+    tcg_gen_addi_i32(t0, e2k_cpu.wbs, reg);     // t = win_start + reg_index
     gen_wrap_i32(t1, t0, t2);           // t = t % WIN_REGS_COUNT
     tcg_gen_muli_i32(ret, t1, REG_SIZE);    // t = t * REG_SIZE_IN_BYTES
 
@@ -459,7 +322,7 @@ static inline void gen_wreg_ptr(TCGv_ptr ret, int reg)
     TCGv_ptr t1 = tcg_temp_new_ptr();
     gen_wreg_offset(t0, reg);
     tcg_gen_ext_i32_ptr(t1, t0);
-    tcg_gen_add_ptr(ret, cpu_win_ptr, t1);
+    tcg_gen_add_ptr(ret, e2k_cpu.win_ptr, t1);
     tcg_temp_free_ptr(t1);
     tcg_temp_free_i32(t0);
 }
@@ -495,12 +358,12 @@ static inline void gen_breg_offset(TCGv_i32 ret, int reg)
     TCGv_i32 t6 = tcg_temp_new_i32();
 
     // t2 = (index + rsz + rcur) % rsz
-    tcg_gen_sub_i32(t0, cpu_rsz, cpu_rcur);
+    tcg_gen_sub_i32(t0, e2k_cpu.rsz, e2k_cpu.rcur);
     tcg_gen_addi_i32(t1, t0, reg);
-    gen_wrap_i32(t2, t1, cpu_rsz);
+    gen_wrap_i32(t2, t1, e2k_cpu.rsz);
 
     // (t2 + wbs + rbs) % WIN_REGS_COUNT
-    tcg_gen_add_i32(t3, cpu_wbs, cpu_rbs);
+    tcg_gen_add_i32(t3, e2k_cpu.wbs, e2k_cpu.rbs);
     tcg_gen_add_i32(t4, t2, t3);
     gen_wrap_i32(t6, t4, t5);
 
@@ -522,7 +385,7 @@ static inline void gen_breg_ptr(TCGv_ptr ret, int reg)
     TCGv_ptr t1 = tcg_temp_new_ptr();
     gen_breg_offset(t0, reg);
     tcg_gen_ext_i32_ptr(t1, t0);
-    tcg_gen_add_ptr(ret, cpu_win_ptr, t1);
+    tcg_gen_add_ptr(ret, e2k_cpu.win_ptr, t1);
     tcg_temp_free_ptr(t1);
     tcg_temp_free_i32(t0);
 }
@@ -549,13 +412,13 @@ static inline TCGv_i64 gen_load_greg(DisasContext *dc, int reg)
 {
     // TODO: rotated gregs
     assert(reg < 32);
-    return cpu_gregs[reg];
+    return e2k_cpu.gregs[reg];
 }
 
 static inline void gen_store_greg(DisasContext *dc, int reg, TCGv_i64 val)
 {
     // TODO: rotated gregs
-    tcg_gen_mov_i64(cpu_gregs[reg], val);
+    tcg_gen_mov_i64(e2k_cpu.gregs[reg], val);
 }
 
 static TCGv_i64 get_src1(DisasContext *dc, unsigned int als)
@@ -595,9 +458,9 @@ static TCGv_i64 get_src2(DisasContext *dc, unsigned int als)
     } else if (IS_LIT(src2)) {
         TCGv t = get_temp_i64(dc);
         unsigned int i = GET_LIT(src2);
-        uint64_t lit = dc->instr.lts[i];
+        uint64_t lit = dc->bundle.lts[i];
         // TODO: exception
-        assert(dc->instr.lts_present[i]);
+        assert(dc->bundle.lts_present[i]);
         if (IS_LIT16_LO(src2) && i < 2) {
             lit &= 0xffff;
         } else if (IS_LIT16_HI(src2) && i < 2) {
@@ -606,8 +469,8 @@ static TCGv_i64 get_src2(DisasContext *dc, unsigned int als)
             // nop
         } else if (IS_LIT64(src2) && i < 3) {
             // TODO: exception
-            assert(dc->instr.lts_present[i + 1]);
-            lit |= ((uint64_t) dc->instr.lts[i + 1]) << 32;
+            assert(dc->bundle.lts_present[i + 1]);
+            lit |= ((uint64_t) dc->bundle.lts[i + 1]) << 32;
         } else {
             // TODO: exception
             abort();
@@ -661,8 +524,8 @@ static void gen_cs0(DisasContext *dc, CPUE2KState *env)
         {DISP, LDISP, SDISP, GETTSD},
         {DISP, NOTHING, SDISP, RETURN}
     };
-    const struct unpacked_instr *instr = &dc->instr;
-    unsigned int cs0 = instr->cs0;
+    const UnpackedBundle *bundle = &dc->bundle;
+    uint32_t cs0 = bundle->cs0;
 
     unsigned int ctpr = (cs0 & 0xc0000000) >> 30;
     unsigned int ctp_opc = (cs0 & 0x30000000) >> 28;
@@ -682,11 +545,11 @@ static void gen_cs0(DisasContext *dc, CPUE2KState *env)
     if (type == IBRANCH || type == DONE || type == HRET || type == GLAUNCH) {
         /* IBRANCH, DONE, HRET and GLAUNCH are special because they require SS
            to be properly encoded.  */
-        if (! instr->ss_present
+        if (! bundle->ss_present
             /* SS.ctop should be equal to zero for IBRANCH, DONE, HRET and
                GLAUNCH (see C.17.1.1, note that they don't mention the latter two
                instructions there which is probably an omission ).  */
-                || (instr->ss & 0x00000c00))
+                || (bundle->ss & 0x00000c00))
         {
             // TODO: invalid
             abort();
@@ -694,14 +557,14 @@ static void gen_cs0(DisasContext *dc, CPUE2KState *env)
         /* Don't output either of the aforementioned instructions under "never"
            condition. Don't disassemble CS0 being a part of HCALL. Unlike ldis
            HCALL is currently disassembled on behalf of CS1.  */
-        else if ((instr->ss & 0x1ff)
-              && !(instr->cs1_present
+        else if ((bundle->ss & 0x1ff)
+              && !(bundle->cs1_present
               /* CS1.opc == CALL */
-              && (instr->cs1 & 0xf0000000) >> 28 == 5
+              && (bundle->cs1 & 0xf0000000) >> 28 == 5
               /* CS1.param.ctopc == HCALL  */
-              && (instr->cs1 & 0x380) >> 7 == 2))
+              && (bundle->cs1 & 0x380) >> 7 == 2))
         {
-            unsigned int cond = instr->ss & 0x1ff;
+            unsigned int cond = bundle->ss & 0x1ff;
             if (type == IBRANCH) {
                 /* C0F2 has `disp' field. In `C0F1' it's called `param'. Is this
                    the only difference between these two formats?  Funnily enough,
@@ -764,9 +627,9 @@ static void gen_cs0(DisasContext *dc, CPUE2KState *env)
         }
 
         if (type == PREF) {
-            unsigned int pdisp = (instr->cs0 & 0x0ffffff0) >> 4;
-            unsigned int ipd = (instr->cs0 & 0x00000008) >> 3;
-            unsigned int prefr = instr->cs0 & 0x00000007;
+            unsigned int pdisp = (bundle->cs0 & 0x0ffffff0) >> 4;
+            unsigned int ipd = (bundle->cs0 & 0x00000008) >> 3;
+            unsigned int prefr = bundle->cs0 & 0x00000007;
         }
     }
 }
@@ -786,8 +649,8 @@ static void gen_cs1(DisasContext *dc, CPUE2KState *env)
         BG
     };
 
-    const struct unpacked_instr *instr = &dc->instr;
-    unsigned int cs1 = instr->cs1;
+    const UnpackedBundle *bundle = &dc->bundle;
+    unsigned int cs1 = bundle->cs1;
     unsigned int opc = (cs1 & 0xf0000000) >> 28;
 
     if (opc == SETR0 || opc == SETR1 || opc == SETBR) {
@@ -800,13 +663,13 @@ static void gen_cs1(DisasContext *dc, CPUE2KState *env)
         a binary with these commands by hand right now.  */
 
         if (opc == SETR1) {
-            if (! instr->lts_present[0]) {
+            if (! bundle->lts_present[0]) {
 //                my_printf ("<bogus vfrpsz>");
             } else {
                 /* Find out if VFRPSZ is always encoded together with SETWD. This
                 seems to be the case even if no SETWD has been explicitly
                 specified.  */
-                unsigned int rpsz = (instr->lts[0] & 0x0001f000) >> 12;
+                unsigned int rpsz = (bundle->lts[0] & 0x0001f000) >> 12;
 //                my_printf ("vfrpsz rpsz = 0x%x", rpsz);
             }
         }
@@ -814,22 +677,22 @@ static void gen_cs1(DisasContext *dc, CPUE2KState *env)
         // FIXME: Should windowing registers be precomputed or not?
 
         if (opc == SETR0 || opc == SETR1) {
-            if (! instr->lts_present[0]) {
+            if (! bundle->lts_present[0]) {
                 // TODO: <bogus setwd>
                 abort();
             } else {
-                unsigned int lts0 = instr->lts[0];
+                unsigned int lts0 = bundle->lts[0];
                 unsigned int wsz = (lts0 & 0x00000fe0) >> 5;
                 unsigned int nfx = (lts0 & 0x00000010) >> 4;
 
-                tcg_gen_movi_i32(cpu_wsz, wsz * 2);
-                tcg_gen_movi_i32(cpu_nfx, nfx);
+                tcg_gen_movi_i32(e2k_cpu.wsz, wsz * 2);
+                tcg_gen_movi_i32(e2k_cpu.nfx, nfx);
 
                 if (env->version >= 3) {
                     // DBL parameter of SETWD was added only starting from
                     // elbrus-v3.
                     unsigned int dbl = (lts0 & 0x00000008) >> 3;
-                    tcg_gen_movi_i32(cpu_dbl, dbl);
+                    tcg_gen_movi_i32(e2k_cpu.dbl, dbl);
                 }
             }
         }
@@ -839,15 +702,15 @@ static void gen_cs1(DisasContext *dc, CPUE2KState *env)
             unsigned int rsz = (cs1 & 0x00000fc0) >> 6;
             unsigned int rbs = cs1 & 0x0000003f;
 
-            tcg_gen_movi_i32(cpu_rcur, rcur * 2);
-            tcg_gen_movi_i32(cpu_rsz, rsz * 2 + 2);
-            tcg_gen_movi_i32(cpu_rbs, rbs * 2);
+            tcg_gen_movi_i32(e2k_cpu.rcur, rcur * 2);
+            tcg_gen_movi_i32(e2k_cpu.rsz, rsz * 2 + 2);
+            tcg_gen_movi_i32(e2k_cpu.rbs, rbs * 2);
         }
 
         if (setbp) {
             unsigned int psz = (cs1 & 0x007c0000) >> 18;
 
-            tcg_gen_movi_i32(cpu_psz, psz);
+            tcg_gen_movi_i32(e2k_cpu.psz, psz);
         }
     } else if (opc == SETEI) {
         /* Verify that CS1.param.sft = CS1.param[27] is equal to zero as required
@@ -891,7 +754,7 @@ static void gen_cs1(DisasContext *dc, CPUE2KState *env)
 //      my_printf ("ma_c = %d, fl_c = %d, ld_c = %d, st_c = %d, all_e = %d, "
 //                 "all_c = %d", ma_c, fl_c, ld_c, st_c, all_e, all_c);
     } else if (opc == CALL) {
-        unsigned int ctop = (instr->ss & 0x00000c00) >> 10;
+        unsigned int ctop = (bundle->ss & 0x00000c00) >> 10;
         /* In C.17.4 it's said that other bits in CS1.param except for the
            seven lowermost ones are ignored.  */
         unsigned int wbs = cs1 & 0x7f;
@@ -902,8 +765,8 @@ static void gen_cs1(DisasContext *dc, CPUE2KState *env)
         } else {
             unsigned int cs1_ctopc = (cs1 & 0x380) >> 7;
             /* CS1.param.ctpopc == HCALL. CS0 is required to encode HCALL.  */
-            if (cs1_ctopc == 2 && instr->cs0_present) {
-                unsigned int cs0 = instr->cs0;
+            if (cs1_ctopc == 2 && bundle->cs0_present) {
+                unsigned int cs0 = bundle->cs0;
                 unsigned int cs0_opc = (cs0 & 0xf0000000) >> 28;
                 /* CS0.opc == HCALL, which means
                 CS0.opc.ctpr == CS0.opc.ctp_opc == 0 */
@@ -997,8 +860,8 @@ static void gen_op21_i32(TCGv_i64 ret, TCGv_i64 s1, TCGv_i64 s2, TCGv_i64 dst,
 
 static Result gen_alc(DisasContext *dc, CPUE2KState *env, int chan)
 {
-    const struct unpacked_instr *instr = &dc->instr;
-    unsigned int als = instr->als[chan];
+    const UnpackedBundle *bundle = &dc->bundle;
+    unsigned int als = bundle->als[chan];
     int opc = (als >> 24) & 0x7f;
     int sm  = als >> 31;
     unsigned int dst = als & 0xff;
@@ -1177,7 +1040,7 @@ static void gen_jmp(DisasContext *dc, target_ulong next_pc)
 
     if (cond_type == 1) {
         dc->base.is_jmp = DISAS_NORETURN;
-        tcg_gen_mov_tl(cpu_pc, dc->jmp.dest);
+        tcg_gen_mov_tl(e2k_cpu.pc, dc->jmp.dest);
         tcg_gen_exit_tb(NULL, 0);
         return;
     }
@@ -1188,7 +1051,7 @@ static void gen_jmp(DisasContext *dc, target_ulong next_pc)
         TCGv_i64 cond = tcg_const_i64(1);
         TCGv next = tcg_const_tl(next_pc);
         dc->base.is_jmp = DISAS_NORETURN;
-        tcg_gen_movcond_i64(TCG_COND_EQ, cpu_pc,
+        tcg_gen_movcond_i64(TCG_COND_EQ, e2k_cpu.pc,
             preg, cond,
             dc->jmp.dest, next
         );
@@ -1285,22 +1148,24 @@ static target_ulong disas_e2k_insn(DisasContext *dc, CPUState *cs)
 {
     E2KCPU *cpu = E2K_CPU(cs);
     CPUE2KState *env = &cpu->env;
-    struct unpacked_instr *instr = &dc->instr;
+    UnpackedBundle *bundle = &dc->bundle;
     unsigned int i;
-    target_ulong pc_next = unpack_instr(env, dc->pc, instr);
+    unsigned int bundle_len = unpack_bundle(env, dc->pc, bundle);
+    /* TODO: exception, check bundle_len */
+    target_ulong pc_next = dc->pc + bundle_len;
 
     reset_is_jmp();
 
-    if (dc->instr.cs0_present) {
+    if (bundle->cs0_present) {
         gen_cs0(dc, env);
     }
 
-    if (dc->instr.cs1_present) {
+    if (bundle->cs1_present) {
         gen_cs1(dc, env);
     }
 
     for (i = 0; i < 6; i++) {
-        if (!instr->als_present[i]) {
+        if (!bundle->als_present[i]) {
             continue;
         }
         dc->alc[i] = gen_alc(dc, env, i);
@@ -1309,7 +1174,7 @@ static target_ulong disas_e2k_insn(DisasContext *dc, CPUState *cs)
     // Commit results after all instructions in the bundle was executed
     for (i = 0; i < 6; i++) {
         Result *res = &dc->alc[i];
-        if (!instr->als_present[i]) {
+        if (!bundle->als_present[i]) {
             continue;
         }
         switch(res->tag) {
@@ -1331,7 +1196,7 @@ static target_ulong disas_e2k_insn(DisasContext *dc, CPUState *cs)
     }
 
     // Change windowing registers after commit is done.
-    unsigned int ss = dc->instr.ss;
+    unsigned int ss = dc->bundle.ss;
     unsigned int vfdi = (ss & 0x04000000) >> 26;
     unsigned int abg = (ss & 0x01800000) >> 23;
     unsigned int abn = (ss & 0x00600000) >> 21;
@@ -1345,9 +1210,11 @@ static target_ulong disas_e2k_insn(DisasContext *dc, CPUState *cs)
         TCGv_i32 t1 = tcg_temp_new_i32();
         TCGv_i32 zero = tcg_const_i32(0);
 
-        tcg_gen_addi_i32(t0, cpu_rcur, 2);
-        gen_wrap_i32(t1, t0, cpu_rsz);
-        tcg_gen_movcond_i32(TCG_COND_EQ, cpu_rcur, cpu_is_jmp, zero, t1, cpu_rcur);
+        tcg_gen_addi_i32(t0, e2k_cpu.rcur, 2);
+        gen_wrap_i32(t1, t0, e2k_cpu.rsz);
+        tcg_gen_movcond_i32(TCG_COND_EQ, e2k_cpu.rcur,
+            e2k_cpu.is_jmp, zero,
+            t1, e2k_cpu.rcur);
 
         tcg_temp_free_i32(zero);
         tcg_temp_free_i32(t1);
@@ -1357,7 +1224,7 @@ static target_ulong disas_e2k_insn(DisasContext *dc, CPUState *cs)
 
     // Control transfer
     if (env->interrupt_index != 0) {
-        tcg_gen_movi_tl(cpu_pc, dc->pc);
+        tcg_gen_movi_tl(e2k_cpu.pc, dc->pc);
         tcg_gen_exit_tb(NULL, 0);
         dc->base.is_jmp = DISAS_NORETURN;
     } else if (dc->jmp.cond != 0) {
@@ -1406,8 +1273,7 @@ static void e2k_tr_translate_insn(DisasContextBase *db, CPUState *cs)
 {
     DisasContext *dc = container_of(db, DisasContext, base);
     dc->pc = dc->base.pc_next;
-    target_ulong pc_next = disas_e2k_insn(dc, cs);
-    dc->base.pc_next = pc_next;
+    dc->base.pc_next = disas_e2k_insn(dc, cs);
 }
 
 static void e2k_tr_tb_start(DisasContextBase *db, CPUState *cs)
@@ -1463,22 +1329,22 @@ void e2k_tcg_initialize(void) {
     char buf[8] = { 0 };
 
     static const struct { TCGv_i32 *ptr; int off; const char *name; } r32[] = {
-        { &cpu_wbs, offsetof(CPUE2KState, wbs), "wbs" },
-        { &cpu_wsz, offsetof(CPUE2KState, wsz), "wsz" },
-        { &cpu_nfx, offsetof(CPUE2KState, nfx), "nfx" },
-        { &cpu_dbl, offsetof(CPUE2KState, dbl), "dbl" },
-        { &cpu_rbs, offsetof(CPUE2KState, rbs), "rbs" },
-        { &cpu_rsz, offsetof(CPUE2KState, rsz), "rsz" },
-        { &cpu_rcur, offsetof(CPUE2KState, rcur), "rcur" },
-        { &cpu_psz, offsetof(CPUE2KState, psz), "psz" },
+        { &e2k_cpu.wbs, offsetof(CPUE2KState, wbs), "wbs" },
+        { &e2k_cpu.wsz, offsetof(CPUE2KState, wsz), "wsz" },
+        { &e2k_cpu.nfx, offsetof(CPUE2KState, nfx), "nfx" },
+        { &e2k_cpu.dbl, offsetof(CPUE2KState, dbl), "dbl" },
+        { &e2k_cpu.rbs, offsetof(CPUE2KState, rbs), "rbs" },
+        { &e2k_cpu.rsz, offsetof(CPUE2KState, rsz), "rsz" },
+        { &e2k_cpu.rcur, offsetof(CPUE2KState, rcur), "rcur" },
+        { &e2k_cpu.psz, offsetof(CPUE2KState, psz), "psz" },
     };
 
     static const struct { TCGv_i64 *ptr; int off; const char *name; } r64[] = {
-        { &cpu_pregs, offsetof(CPUE2KState, pregs), "pregs" },
+        { &e2k_cpu.pregs, offsetof(CPUE2KState, pregs), "pregs" },
     };
 
     static const struct { TCGv *ptr; int off; const char *name; } rtl[] = {
-        { &cpu_pc, offsetof(CPUE2KState, ip), "pc" },
+        { &e2k_cpu.pc, offsetof(CPUE2KState, ip), "pc" },
     };
 
     unsigned int i;
@@ -1495,26 +1361,26 @@ void e2k_tcg_initialize(void) {
         *rtl[i].ptr = tcg_global_mem_new(cpu_env, rtl[i].off, rtl[i].name);
     }
 
-    cpu_win_ptr = tcg_global_mem_new_ptr(cpu_env, offsetof(CPUE2KState, win_ptr), "win_ptr");
-    cpu_is_jmp = tcg_global_mem_new_i32(cpu_env, offsetof(CPUE2KState, is_jmp), "is_jmp");
+    e2k_cpu.win_ptr = tcg_global_mem_new_ptr(cpu_env, offsetof(CPUE2KState, win_ptr), "win_ptr");
+    e2k_cpu.is_jmp = tcg_global_mem_new_i32(cpu_env, offsetof(CPUE2KState, is_jmp), "is_jmp");
 
     for (i = 0; i < WREGS_SIZE; i++) {
         snprintf(buf, ARRAY_SIZE(buf), "%%r%d", i);
-        cpu_wregs[i] = tcg_global_mem_new(cpu_win_ptr,
+        e2k_cpu.wregs[i] = tcg_global_mem_new(e2k_cpu.win_ptr,
             i * REG_SIZE,
             buf);
     }
 
     for (i = 0; i < 32; i++) {
         snprintf(buf, ARRAY_SIZE(buf), "%%g%d", i);
-        cpu_gregs[i] = tcg_global_mem_new(cpu_env,
+        e2k_cpu.gregs[i] = tcg_global_mem_new(cpu_env,
             offsetof(CPUE2KState, gregs[i]),
             buf);
     }
 
     for (i = 0; i < 3; i++) {
         snprintf(buf, ARRAY_SIZE(buf), "%%ctpr%d", i + 1);
-        cpu_ctprs[i] = tcg_global_mem_new(cpu_env,
+        e2k_cpu.ctprs[i] = tcg_global_mem_new(cpu_env,
             offsetof(CPUE2KState, ctprs[i]),
             buf
         );
