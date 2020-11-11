@@ -41,6 +41,8 @@ static void e2k_cpu_reset(DeviceState *dev)
     ecc->parent_reset(dev);
 
     memset(env, 0, offsetof(CPUE2KState, end_reset_fields));
+
+    env->win_ptr = env->wregs;
 }
 
 static bool e2k_cpu_exec_interrupt(CPUState *cs, int interrupt_request)
