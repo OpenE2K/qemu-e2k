@@ -313,7 +313,8 @@ static void gen_jmp(DisasContext *dc)
     unsigned int ctcond = GET_FIELD(dc->bundle.ss, 0, 8);
     unsigned int cond_type = (ctcond & 0x1e0) >> 5;
     unsigned int psrc = (ctcond & 0x01f);
-//    bool not_preg = cond_type == 3 || cond_type == 7 || cond_type == 0xe;
+
+    /* TODO: check CPU behavior if present ibranch and ctpr is not zero */
 
     if (cond_type == 1) {
         dc->base.is_jmp = STATIC_JUMP;
@@ -321,23 +322,23 @@ static void gen_jmp(DisasContext *dc)
         return;
     }
 
-    if (cond_type == 2) {
-        dc->base.is_jmp = DYNAMIC_JUMP;
+    dc->base.is_jmp = DYNAMIC_JUMP;
+
+    if (cond_type == 2 || cond_type == 6 || cond_type == 0xf) {
+        /* if pred is true */
         tcg_gen_mov_i64(dc->jmp.cond, e2k_get_preg(dc, psrc));
-        return;
+    } else if (cond_type == 3 || cond_type == 7 || cond_type == 0xe) {
+        /* if pred is false */
+        TCGv_i64 one = tcg_const_i64(1);
+        TCGv_i64 zero = tcg_const_i64(0);
+        tcg_gen_movcond_i64(TCG_COND_EQ, dc->jmp.cond,
+            e2k_get_preg(dc, psrc), zero,
+            one, zero);
+        tcg_temp_free_i64(zero);
+        tcg_temp_free_i64(one);
     }
 
-    /* These types of conditions involve a (probably negated) predicate
-       register. */
-    if (cond_type == 2
-        || cond_type == 3
-        || cond_type == 6
-        || cond_type == 7
-        || cond_type == 0xe
-        || cond_type == 0xf)
-    {
-        // preg
-    }
+    /* TODO: other kinds of conditions */
 
     if (cond_type == 4
         || cond_type == 6
