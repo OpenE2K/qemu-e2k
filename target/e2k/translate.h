@@ -3,7 +3,8 @@
 
 #include "exec/translator.h"
 
-#define COND_NEVER 0
+#define STATIC_JUMP DISAS_TARGET_0
+#define DYNAMIC_JUMP DISAS_TARGET_1
 
 #define GET_BIT(v, index) (((v) >> (index)) & 1)
 #define GET_FIELD(v, start, end) \
@@ -99,6 +100,8 @@ typedef struct DisasContext {
     UnpackedBundle bundle;
     target_ulong pc;
 
+    int version;
+
     // Temporary values.
     TCGv_i32 t32[16];
     TCGv_i64 t64[16];
@@ -110,12 +113,10 @@ typedef struct DisasContext {
 
     Result alc[6];
     struct {
-        // raw condition code from SS[8:0]
-        unsigned int cond;
         TCGv dest;
+        TCGv_i64 cond;
     } jmp;
 } DisasContext;
-
 
 static inline TCGv_i32 e2k_get_temp_i32(DisasContext *dc)
 {
@@ -156,6 +157,8 @@ TCGv_i64 e2k_get_greg(DisasContext *dc, int reg);
 void e2k_gen_store_greg(int reg, TCGv_i64 val);
 
 void e2k_gen_exception(DisasContext *dc, int which);
+
+void e2k_control_gen(DisasContext *dc);
 
 void e2k_alc_gen(DisasContext *dc);
 void e2k_alc_commit(DisasContext *dc);
