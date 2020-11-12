@@ -85,7 +85,7 @@ static void gen_cs0(DisasContext *dc)
 
         if (type == DISP || type == SDISP || type == LDISP) {
             /* TODO: SDISP tag */
-            unsigned int disp = (cs0 & 0x0fffffff);
+            unsigned int disp = GET_FIELD(cs0, 0, 27);
             /* Calculate a signed displacement in bytes. */
             int sdisp = ((int) (disp << 4)) >> 1;
             target_ulong tgt = dc->pc + sdisp;
