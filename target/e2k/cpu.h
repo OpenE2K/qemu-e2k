@@ -25,16 +25,14 @@ typedef struct {
     target_ulong wregs[WREGS_SIZE]; // window regs
     target_ulong *win_ptr;
     uint64_t pregs;
-    unsigned int wbs; // window regs offset (* 2)
-    unsigned int wsz; // window regs size (* 2)
-    unsigned int nfx; // TODO
-    unsigned int dbl; // TODO
-    unsigned int rbs; // based regs offset (* 2)
-    unsigned int rsz; // based regs window size (* 2 + 2)
-    unsigned int rcur; // based regs current index (* 2)
-    unsigned int psz; // pred regs window size
-
-    unsigned int is_jmp;
+    uint32_t wbs; // window regs offset (* 2)
+    uint32_t wsz; // window regs size (* 2)
+    uint32_t nfx; // TODO
+    uint32_t dbl; // TODO
+    uint32_t rbs; // based regs offset (* 2)
+    uint32_t rsz; // based regs window size (* 2 + 2)
+    uint32_t rcur; // based regs current index (* 2)
+    uint32_t psz; // pred regs window size
     
     /* control registers */
     target_ulong ctprs[3]; // Control Transfer Preparation Register (CTPR)

@@ -6,9 +6,10 @@
 #define STATIC_JUMP DISAS_TARGET_0
 #define DYNAMIC_JUMP DISAS_TARGET_1
 
+#define GEN_MASK(start, end) (((1 << ((end) - (start) + 1)) - 1) << start)
 #define GET_BIT(v, index) (((v) >> (index)) & 1)
 #define GET_FIELD(v, start, end) \
-    (((v) >> (start)) & ((1 << ((end) - (start) + 1)) - 1))
+    (((v) & GEN_MASK(start, end)) >> (start))
 
 #define IS_BASED(i) (((i) & 0x80) == 0)
 #define IS_REGULAR(i) (((i) & 0xc0) == 0x80)
@@ -145,6 +146,33 @@ static inline void e2k_gen_wrap_i32(TCGv_i32 ret, TCGv_i32 x, TCGv_i32 y)
     tcg_gen_movcond_i32(TCG_COND_LTU, ret, x, y, x, t0);
 
     tcg_temp_free_i32(t0);
+}
+
+static inline void e2k_gen_get_field_i64(TCGv_i64 ret, TCGv_i64 val,
+    unsigned int start, unsigned int end)
+{
+    TCGv_i64 t0 = tcg_temp_new_i64();
+
+    tcg_gen_and_i64(t0, val, GEN_MASK(start, end));
+    tcg_gen_shli_i64(ret, t0, start);
+
+    tcg_temp_free_i64(t0);
+}
+
+static inline void e2k_gen_set_field_i64(TCGv_i64 ret, TCGv_i64 val,
+    uint64_t field, unsigned int start, unsigned int end)
+{
+    uint64_t mask = GEN_MASK(start, end);
+    TCGv_i64 t0 = tcg_const_i64(~mask);
+    TCGv_i64 t1 = tcg_const_i64((field << start) & mask);
+    TCGv_i64 t2 = tcg_temp_new_i64();
+
+    tcg_gen_and_i64(t2, val, t0);
+    tcg_gen_or_i64(ret, t2, t1);
+
+    tcg_temp_free_i64(t2);
+    tcg_temp_free_i64(t1);
+    tcg_temp_free_i64(t0);
 }
 
 TCGv_i64 e2k_get_preg(DisasContext *dc, int reg);

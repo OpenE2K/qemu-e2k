@@ -10,13 +10,16 @@ static inline void gen_abn_inc(DisasContext *dc, TCGCond cond)
     TCGv_i32 t0 = tcg_temp_new_i32();
     TCGv_i32 t1 = tcg_temp_new_i32();
     TCGv_i32 one = tcg_const_i32(1);
+    TCGv_i32 jmp_cond = tcg_temp_new_i32();
 
     tcg_gen_addi_i32(t0, e2k_cs.rcur, 2);
     e2k_gen_wrap_i32(t1, t0, e2k_cs.rsz);
+    tcg_gen_extrl_i64_i32(jmp_cond, dc->jmp.cond);
     tcg_gen_movcond_i32(cond, e2k_cs.rcur,
-        dc->jmp.cond, one,
+        jmp_cond, one,
         t1, e2k_cs.rcur);
 
+    tcg_temp_free_i32(jmp_cond);
     tcg_temp_free_i32(one);
     tcg_temp_free_i32(t1);
     tcg_temp_free_i32(t0);
