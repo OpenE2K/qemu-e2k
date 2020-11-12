@@ -1,7 +1,5 @@
 #include "qemu/osdep.h"
 #include "qemu.h"
-#include "tcg/tcg-op.h"
-#include "exec/translator.h"
 #include "exec/log.h"
 #include "disas/disas.h"
 #include "translate.h"
@@ -202,76 +200,6 @@ void e2k_gen_exception(DisasContext *dc, int which)
     dc->base.is_jmp = DISAS_NORETURN;
 }
 
-static target_ulong disas_e2k_insn(DisasContext *dc, CPUState *cs)
-{
-    E2KCPU *cpu = E2K_CPU(cs);
-    CPUE2KState *env = &cpu->env;
-    UnpackedBundle *bundle = &dc->bundle;
-    unsigned int bundle_len = unpack_bundle(env, dc->pc, bundle);
-    /* TODO: exception, check bundle_len */
-    target_ulong pc_next = dc->pc + bundle_len;
-
-    dc->jmp.dest = tcg_const_i64(0);
-    dc->jmp.cond = tcg_const_i64(0);
-
-    e2k_alc_gen(dc);
-    e2k_control_gen(dc);
-
-    e2k_alc_commit(dc);
-    e2k_win_commit(dc);
-
-    /* Control transfer */
-    switch(dc->base.is_jmp) {
-    case DISAS_NEXT:
-    case DISAS_TOO_MANY:
-        dc->base.pc_next = pc_next;
-        break;
-    case DISAS_NORETURN:
-        /* exception */
-        tcg_gen_movi_tl(e2k_cs.pc, dc->pc);
-        tcg_gen_exit_tb(NULL, 0);
-        break;
-    case STATIC_JUMP:
-        tcg_gen_mov_i64(e2k_cs.pc, dc->jmp.dest);
-        tcg_gen_exit_tb(NULL, 0);
-        break;
-    case DYNAMIC_JUMP: {
-        TCGv_i64 one = tcg_const_i64(1);
-        TCGv_i64 next = tcg_const_i64(pc_next);
-        tcg_gen_movcond_i64(TCG_COND_EQ, e2k_cs.pc,
-            dc->jmp.cond, one,
-            dc->jmp.dest, next
-        );
-        tcg_temp_free_i64(next);
-        tcg_temp_free_i64(one);
-        tcg_gen_exit_tb(NULL, 0);
-        break;
-    }
-    default:
-        /* TODO: unreachable */
-        abort();
-        break;
-    }
-
-    tcg_temp_free_i64(dc->jmp.dest);
-    tcg_temp_free_i64(dc->jmp.cond);
-
-    /* Free temporary values */
-    while(dc->t32_len) {
-        tcg_temp_free_i32(dc->t32[--dc->t32_len]);
-    }
-
-    while(dc->t64_len) {
-        tcg_temp_free_i64(dc->t64[--dc->t64_len]);
-    }
-
-    while(dc->ttl_len) {
-        tcg_temp_free(dc->ttl[--dc->ttl_len]);
-    }
-
-    return pc_next;
-}
-
 static void e2k_tr_init_disas_context(DisasContextBase *db, CPUState *cs)
 {
     DisasContext *dc = container_of(db, DisasContext, base);
@@ -299,19 +227,80 @@ static bool e2k_tr_breakpoint_check(DisasContextBase *db, CPUState *cs,
 static void e2k_tr_translate_insn(DisasContextBase *db, CPUState *cs)
 {
     DisasContext *dc = container_of(db, DisasContext, base);
+    E2KCPU *cpu = E2K_CPU(cs);
+    CPUE2KState *env = &cpu->env;
+    UnpackedBundle *bundle = &dc->bundle;
     dc->pc = dc->base.pc_next;
-    disas_e2k_insn(dc, cs);
+    unsigned int bundle_len = unpack_bundle(env, dc->pc, bundle);
+    /* TODO: exception, check bundle_len */
+    dc->base.pc_next = dc->pc + bundle_len;
+
+    e2k_alc_gen(dc);
+    e2k_control_gen(dc);
+
+    e2k_alc_commit(dc);
+    e2k_win_commit(dc);
+
+    /* Free temporary values */
+    while(dc->t32_len) {
+        tcg_temp_free_i32(dc->t32[--dc->t32_len]);
+    }
+
+    while(dc->t64_len) {
+        tcg_temp_free_i64(dc->t64[--dc->t64_len]);
+    }
+
+    while(dc->ttl_len) {
+        tcg_temp_free(dc->ttl[--dc->ttl_len]);
+    }
 }
 
 static void e2k_tr_tb_start(DisasContextBase *db, CPUState *cs)
 {
+    DisasContext *dc = container_of(db, DisasContext, base);
+
+    dc->jmp.dest = tcg_const_i64(0);
+    dc->jmp.cond = tcg_const_i64(0);
 }
 
 static void e2k_tr_tb_stop(DisasContextBase *db, CPUState *cs)
 {
-//    DisasContext *dc = container_of(db, DisasContext, base);
-//    E2KCPU *cpu = E2K_CPU(cs);
+    DisasContext *dc = container_of(db, DisasContext, base);
+    E2KCPU *cpu = E2K_CPU(cs);
 //    CPUE2KState *env = &cpu->env;
+
+    /* Control transfer */
+    switch(dc->base.is_jmp) {
+    case DISAS_NEXT:
+    case DISAS_TOO_MANY:
+        break;
+    case DISAS_NORETURN:
+        /* exception */
+        tcg_gen_movi_tl(e2k_cs.pc, dc->pc);
+        tcg_gen_exit_tb(NULL, 0);
+        break;
+    case STATIC_JUMP:
+        tcg_gen_mov_i64(e2k_cs.pc, dc->jmp.dest);
+        tcg_gen_exit_tb(NULL, 0);
+        break;
+    case DYNAMIC_JUMP: {
+        TCGv_i64 one = tcg_const_i64(1);
+        tcg_gen_movcond_i64(TCG_COND_EQ, e2k_cs.pc,
+            dc->jmp.cond, one,
+            dc->jmp.dest, e2k_cs.pc
+        );
+        tcg_temp_free_i64(one);
+        tcg_gen_exit_tb(NULL, 0);
+        break;
+    }
+    default:
+        /* TODO: unreachable */
+        abort();
+        break;
+    }
+
+    tcg_temp_free_i64(dc->jmp.dest);
+    tcg_temp_free_i64(dc->jmp.cond);
 }
 
 static void e2k_tr_disas_log(const DisasContextBase *db, CPUState *cpu)

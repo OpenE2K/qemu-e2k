@@ -1,8 +1,6 @@
 #include "qemu/osdep.h"
 #include "qemu.h"
-#include "tcg/tcg-op.h"
 #include "exec/log.h"
-#include "exec/translator.h"
 #include "translate.h"
 
 static TCGv_i64 get_src1(DisasContext *dc, unsigned int als)

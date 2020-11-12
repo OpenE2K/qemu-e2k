@@ -1,15 +1,17 @@
 #ifndef E2K_TRANSLATE_H
 #define E2K_TRANSLATE_H
 
+#include "tcg/tcg-op.h"
 #include "exec/translator.h"
 
 #define STATIC_JUMP DISAS_TARGET_0
 #define DYNAMIC_JUMP DISAS_TARGET_1
 
-#define GEN_MASK(start, end) (((1 << ((end) - (start) + 1)) - 1) << start)
+#define GEN_MASK(type, start, end) \
+    ((((type) 1 << ((end) - (start) + 1)) - 1) << start)
 #define GET_BIT(v, index) (((v) >> (index)) & 1)
 #define GET_FIELD(v, start, end) \
-    (((v) & GEN_MASK(start, end)) >> (start))
+    (((v) >> (start)) & ((1 << ((end) - (start) + 1)) - 1))
 
 #define IS_BASED(i) (((i) & 0x80) == 0)
 #define IS_REGULAR(i) (((i) & 0xc0) == 0x80)
@@ -29,7 +31,27 @@
 #define GET_LIT(i) ((i) & 0x03)
 #define GET_GLOBAL(i) ((i) & 0x1f)
 
-typedef enum AlesFlag {
+#define CTPR_BASE_OFF 0
+#define CTPR_BASE_END 47
+#define CTPR_TAG_OFF 54
+#define CTPR_TAG_END 56
+#define CTPR_OPC_OFF 57
+#define CTPR_OPC_END 58
+#define CTPR_IPD_OFF 59
+#define CTPR_IPD_END 60
+
+typedef enum {
+    CTPR_TAG_RETURN = 0x2,
+    CTPR_TAG_DISP = 0x3,
+    CTPR_TAG_LDISP = 0x3,
+    CTPR_TAG_SDISP = 0x5,
+} CtprTag;
+
+typedef enum {
+    CTPR_OPC_LDISP = 0x1,
+} CtprOpc;
+
+typedef enum {
     ALES_NONE = 0x00,
     ALES_PRESENT = 0x01,
     ALES_ALLOCATED = 0x02,
@@ -38,7 +60,6 @@ typedef enum AlesFlag {
 typedef struct CPUE2KStateTCG {
     TCGv pc;
     TCGv ctprs[3];
-    TCGv_i32 is_jmp;
     TCGv_i32 wbs;
     TCGv_i32 wsz;
     TCGv_i32 nfx;
@@ -153,7 +174,7 @@ static inline void e2k_gen_get_field_i64(TCGv_i64 ret, TCGv_i64 val,
 {
     TCGv_i64 t0 = tcg_temp_new_i64();
 
-    tcg_gen_and_i64(t0, val, GEN_MASK(start, end));
+    tcg_gen_andi_i64(t0, val, GEN_MASK(uint64_t, start, end));
     tcg_gen_shli_i64(ret, t0, start);
 
     tcg_temp_free_i64(t0);
@@ -162,7 +183,7 @@ static inline void e2k_gen_get_field_i64(TCGv_i64 ret, TCGv_i64 val,
 static inline void e2k_gen_set_field_i64(TCGv_i64 ret, TCGv_i64 val,
     uint64_t field, unsigned int start, unsigned int end)
 {
-    uint64_t mask = GEN_MASK(start, end);
+    uint64_t mask = GEN_MASK(uint64_t, start, end);
     TCGv_i64 t0 = tcg_const_i64(~mask);
     TCGv_i64 t1 = tcg_const_i64((field << start) & mask);
     TCGv_i64 t2 = tcg_temp_new_i64();

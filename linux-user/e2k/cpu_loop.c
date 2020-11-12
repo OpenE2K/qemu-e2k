@@ -37,6 +37,19 @@ void cpu_loop(CPUE2KState *env)
         process_queued_cpu_work(cs);
 
         switch (trapnr) {
+        case E2K_EXCP_SYSCALL: {
+            /* TODO: wrap register indices */
+            uint64_t *regs = &env->wregs[env->wbs * 2];
+            abi_ulong ret = do_syscall(env, regs[0],
+                regs[1], regs[2], regs[3], regs[4],
+                regs[5], regs[6], regs[7], regs[8]);
+            if (ret == -TARGET_ERESTARTSYS) {
+                /* TODO: restart syscall */
+            } else if (ret != -TARGET_QEMU_ESIGRETURN) {
+                regs[0] = ret;
+            }
+            break;
+        }
         default:
             fprintf(stderr, "Unhandled trap: 0x%x\n", trapnr);
             cpu_dump_state(cs, stderr, 0);
