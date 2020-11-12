@@ -1,8 +1,6 @@
 #include "qemu/osdep.h"
 #include "qemu.h"
-#include "tcg/tcg-op.h"
 #include "exec/log.h"
-#include "exec/translator.h"
 #include "translate.h"
 
 TCGv_i64 e2k_get_preg(DisasContext *dc, int reg)
