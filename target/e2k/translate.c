@@ -188,6 +188,7 @@ static target_ulong unpack_bundle(CPUE2KState *env,
 static inline void save_state(DisasContext *dc)
 {
     tcg_gen_movi_tl(e2k_cs.pc, dc->pc);
+    tcg_gen_movi_tl(e2k_cs.pc, dc->npc);
 }
 
 void e2k_gen_exception(DisasContext *dc, int which)
@@ -233,7 +234,7 @@ static void e2k_tr_translate_insn(DisasContextBase *db, CPUState *cs)
     dc->pc = dc->base.pc_next;
     unsigned int bundle_len = unpack_bundle(env, dc->pc, bundle);
     /* TODO: exception, check bundle_len */
-    dc->base.pc_next = dc->pc + bundle_len;
+    dc->base.pc_next = dc->npc = dc->pc + bundle_len;
 
     e2k_alc_gen(dc);
     e2k_control_gen(dc);
@@ -259,6 +260,7 @@ static void e2k_tr_tb_start(DisasContextBase *db, CPUState *cs)
 {
     DisasContext *dc = container_of(db, DisasContext, base);
 
+    dc->is_call = false;
     dc->jmp.dest = tcg_const_i64(0);
     dc->jmp.cond = tcg_const_i64(0);
 }
@@ -266,29 +268,36 @@ static void e2k_tr_tb_start(DisasContextBase *db, CPUState *cs)
 static void e2k_tr_tb_stop(DisasContextBase *db, CPUState *cs)
 {
     DisasContext *dc = container_of(db, DisasContext, base);
-    E2KCPU *cpu = E2K_CPU(cs);
-//    CPUE2KState *env = &cpu->env;
 
     /* Control transfer */
     switch(dc->base.is_jmp) {
     case DISAS_NEXT:
     case DISAS_TOO_MANY:
         break;
-    case DISAS_NORETURN:
-        /* exception */
+    case DISAS_CALL: {
         tcg_gen_movi_tl(e2k_cs.pc, dc->pc);
+        tcg_gen_movi_tl(e2k_cs.pc, dc->npc);
+        gen_helper_call(cpu_env, e2k_cs.ctprs[dc->call_ctpr], dc->jmp.cond);
         tcg_gen_exit_tb(NULL, 0);
         break;
+    }
+    case DISAS_NORETURN: {
+        /* exception */
+        tcg_gen_exit_tb(NULL, 0);
+        break;
+    }
     case STATIC_JUMP:
         tcg_gen_mov_i64(e2k_cs.pc, dc->jmp.dest);
         tcg_gen_exit_tb(NULL, 0);
         break;
     case DYNAMIC_JUMP: {
         TCGv_i64 one = tcg_const_i64(1);
+        TCGv_i64 npc = tcg_const_i64(dc->npc);
         tcg_gen_movcond_i64(TCG_COND_EQ, e2k_cs.pc,
             dc->jmp.cond, one,
-            dc->jmp.dest, e2k_cs.pc
+            dc->jmp.dest, npc
         );
+        tcg_temp_free_i64(npc);
         tcg_temp_free_i64(one);
         tcg_gen_exit_tb(NULL, 0);
         break;
@@ -347,6 +356,7 @@ void e2k_tcg_initialize(void) {
         { &e2k_cs.rsz, offsetof(CPUE2KState, rsz), "rsz" },
         { &e2k_cs.rcur, offsetof(CPUE2KState, rcur), "rcur" },
         { &e2k_cs.psz, offsetof(CPUE2KState, psz), "psz" },
+        { &e2k_cs.syscall_wbs, offsetof(CPUE2KState, syscall_wbs), "syscall_wbs" },
     };
 
     static const struct { TCGv_i64 *ptr; int off; const char *name; } r64[] = {

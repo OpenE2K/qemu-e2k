@@ -14,7 +14,8 @@ void e2k_tcg_initialize(void);
 #define REG_SIZE (sizeof(target_ulong))
 
 typedef enum {
-    E2K_EXCP_SYSCALL = 0x01,
+    E2K_EXCP_UNIMPL = 0x01,
+    E2K_EXCP_SYSCALL = 0x02,
 } Exception;
 
 struct e2k_def_t {
@@ -29,14 +30,15 @@ typedef struct {
     target_ulong wregs[WREGS_SIZE]; // window regs
     target_ulong *win_ptr;
     uint64_t pregs;
-    uint32_t wbs; // window regs offset (* 2)
-    uint32_t wsz; // window regs size (* 2)
+    uint32_t wbs; // Real window regs offset, in bundle it comes divided by 2
+    uint32_t wsz; // Real window regs size, in bundle it comes divided by 2
     uint32_t nfx; // TODO
     uint32_t dbl; // TODO
-    uint32_t rbs; // based regs offset (* 2)
-    uint32_t rsz; // based regs window size (* 2 + 2)
-    uint32_t rcur; // based regs current index (* 2)
+    uint32_t rbs; // Real based regs offset, in bundle it comes divided by 2
+    uint32_t rsz; // Real based regs size, in bundle it comes divided by 2 minus 2
+    uint32_t rcur; // Real based regs current index, in bundle it comes divided by 2
     uint32_t psz; // pred regs window size
+    uint32_t syscall_wbs;
     
     /* control registers */
     target_ulong ctprs[3]; // Control Transfer Preparation Register (CTPR)
