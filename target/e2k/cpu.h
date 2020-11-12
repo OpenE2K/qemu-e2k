@@ -40,6 +40,9 @@ typedef struct {
     uint32_t psz; // pred regs window size
     uint32_t syscall_wbs;
     
+    uint64_t usd_lo;
+    uint64_t usd_hi;
+
     /* control registers */
     target_ulong ctprs[3]; // Control Transfer Preparation Register (CTPR)
     

@@ -83,6 +83,68 @@ static TCGv_i64 get_dst(DisasContext *dc, unsigned int als)
     }
 }
 
+static inline void gen_andn_i32(TCGv_i32 ret, TCGv_i32 x, TCGv_i32 y)
+{
+    TCGv_i32 t0 = tcg_temp_new_i32();
+    tcg_gen_and_i32(t0, x, y);
+    tcg_gen_not_i32(ret, t0);
+    tcg_temp_free_i32(t0);
+}
+
+static inline void gen_andn_i64(TCGv_i64 ret, TCGv_i64 x, TCGv_i64 y)
+{
+    TCGv_i64 t0 = tcg_temp_new_i64();
+    tcg_gen_and_i64(t0, x, y);
+    tcg_gen_not_i64(ret, t0);
+    tcg_temp_free_i64(t0);
+}
+
+static inline void gen_orn_i32(TCGv_i32 ret, TCGv_i32 x, TCGv_i32 y)
+{
+    TCGv_i32 t0 = tcg_temp_new_i32();
+    tcg_gen_or_i32(t0, x, y);
+    tcg_gen_not_i32(ret, t0);
+    tcg_temp_free_i32(t0);
+}
+
+static inline void gen_orn_i64(TCGv_i64 ret, TCGv_i64 x, TCGv_i64 y)
+{
+    TCGv_i64 t0 = tcg_temp_new_i64();
+    tcg_gen_or_i64(t0, x, y);
+    tcg_gen_not_i64(ret, t0);
+    tcg_temp_free_i64(t0);
+}
+
+static inline void gen_xorn_i32(TCGv_i32 ret, TCGv_i32 x, TCGv_i32 y)
+{
+    TCGv_i32 t0 = tcg_temp_new_i32();
+    tcg_gen_xor_i32(t0, x, y);
+    tcg_gen_not_i32(ret, t0);
+    tcg_temp_free_i32(t0);
+}
+
+static inline void gen_xorn_i64(TCGv_i64 ret, TCGv_i64 x, TCGv_i64 y)
+{
+    TCGv_i64 t0 = tcg_temp_new_i64();
+    tcg_gen_xor_i64(t0, x, y);
+    tcg_gen_not_i64(ret, t0);
+    tcg_temp_free_i64(t0);
+}
+
+static void gen_merge_i32(TCGv_i32 ret, TCGv_i32 x, TCGv_i32 y, TCGv_i32 cond)
+{
+    TCGv_i32 one = tcg_const_i32(1);
+    tcg_gen_movcond_i32(TCG_COND_EQ, ret, cond, one, x, y);
+    tcg_temp_free_i32(one);
+}
+
+static void gen_merge_i64(TCGv_i64 ret, TCGv_i64 x, TCGv_i64 y, TCGv_i64 cond)
+{
+    TCGv_i64 one = tcg_const_i64(1);
+    tcg_gen_movcond_i64(TCG_COND_EQ, ret, cond, one, x, y);
+    tcg_temp_free_i64(one);
+}
+
 static void gen_op2_i32(TCGv_i64 ret, TCGv_i64 s1, TCGv_i64 s2, TCGv_i64 dst,
     void (*op)(TCGv_i32, TCGv_i32, TCGv_i32))
 {
@@ -103,147 +165,102 @@ static void gen_op2_i32(TCGv_i64 ret, TCGv_i64 s1, TCGv_i64 s2, TCGv_i64 dst,
     tcg_temp_free_i32(lo1);
 }
 
-static void gen_op21_i32(TCGv_i64 ret, TCGv_i64 s1, TCGv_i64 s2, TCGv_i64 dst,
-    void (*op1)(TCGv_i32, TCGv_i32, TCGv_i32),
-    void (*op2)(TCGv_i32, TCGv_i32))
+static void gen_alopf1_i32(DisasContext *dc, int chan,
+    void (*op)(TCGv_i32, TCGv_i32, TCGv_i32))
 {
-    TCGv_i32 lo1 = tcg_temp_new_i32();
-    TCGv_i32 lo2 = tcg_temp_new_i32();
-    TCGv_i32 dst_hi = tcg_temp_new_i32();
-    TCGv_i32 t0 = tcg_temp_new_i32();
-    TCGv_i32 t1 = tcg_temp_new_i32();
+    uint32_t als = dc->bundle.als[chan];
+    Result *res = &dc->alc[chan];
+    int dst = als & 0xff;
+    TCGv_i64 t0 = e2k_get_temp_i64(dc);
 
-    tcg_gen_extrl_i64_i32(lo1, s1);
-    tcg_gen_extrl_i64_i32(lo2, s2);
-    tcg_gen_extrh_i64_i32(dst_hi, dst);
-    (*op1)(t0, lo1, lo2);
-    (*op2)(t1, t0);
-    tcg_gen_concat_i32_i64(ret, t1, dst_hi);
+    gen_op2_i32(t0, get_src1(dc, als), get_src2(dc, als), get_dst(dc, als), op);
+    res->u.reg.v = t0;
 
-    tcg_temp_free_i32(t1);
-    tcg_temp_free_i32(t0);
-    tcg_temp_free_i32(dst_hi);
-    tcg_temp_free_i32(lo2);
-    tcg_temp_free_i32(lo1);
+    if (IS_BASED(dst)) {
+        res->tag = RESULT_BASED_REG;
+        res->u.reg.i = GET_BASED(dst);
+    } else if (IS_REGULAR(dst)) {
+        res->tag = RESULT_REGULAR_REG;
+        res->u.reg.i = GET_REGULAR(dst);
+    } else if (IS_GLOBAL(dst)) {
+        res->tag = RESULT_GLOBAL_REG;
+        res->u.reg.i = GET_GLOBAL(dst);
+    } else {
+        /* TODO: exception */
+        abort();
+    }
 }
 
-static void gen_channel(DisasContext *dc, int chan)
+static void gen_alopf1_i64(DisasContext *dc, int chan,
+    void (*op)(TCGv_i64, TCGv_i64, TCGv_i64))
 {
-    const UnpackedBundle *bundle = &dc->bundle;
-    unsigned int als = bundle->als[chan];
+    uint32_t als = dc->bundle.als[chan];
+    Result *res = &dc->alc[chan];
+    int dst = als & 0xff;
+    TCGv_i64 t0 = e2k_get_temp_i64(dc);
+
+    (*op)(t0, get_src1(dc, als), get_src2(dc, als));
+    res->u.reg.v = t0;
+
+    if (IS_BASED(dst)) {
+        res->tag = RESULT_BASED_REG;
+        res->u.reg.i = GET_BASED(dst);
+    } else if (IS_REGULAR(dst)) {
+        res->tag = RESULT_REGULAR_REG;
+        res->u.reg.i = GET_REGULAR(dst);
+    } else if (IS_GLOBAL(dst)) {
+        res->tag = RESULT_GLOBAL_REG;
+        res->u.reg.i = GET_GLOBAL(dst);
+    } else {
+        /* TODO: exception */
+        abort();
+    }
+}
+
+static void gen_alopf_simple(DisasContext *dc, int chan)
+{
+    uint32_t als = dc->bundle.als[chan];
     int opc = GET_FIELD(als, 24, 30);
     int sm  = GET_BIT(als, 31);
-    unsigned int dst = als & 0xff;
     bool is_cmp = false;
     Result res = { 0 };
 
     TCGv_i64 cpu_src1 = get_src1(dc, als);
     TCGv_i64 cpu_src2 = get_src2(dc, als);
     TCGv_i64 tmp_dst = e2k_get_temp_i64(dc);
-    TCGv_i64 t64 = e2k_get_temp_i64(dc);
 
     switch(opc) {
-    case 0x00: // ands
-        gen_op2_i32(tmp_dst, cpu_src1, cpu_src2, get_dst(dc, als), tcg_gen_and_i32);
-        break;
-    case 0x01: // andd
-        tcg_gen_and_i64(tmp_dst, cpu_src1, cpu_src2);
-        break;
-    case 0x02: // andns
-        gen_op21_i32(tmp_dst, cpu_src1, cpu_src2, get_dst(dc, als), tcg_gen_add_i32, tcg_gen_not_i32);
-        break;
-    case 0x03: // andnd
-        tcg_gen_and_i64(t64, cpu_src1, cpu_src2);
-        tcg_gen_not_i64(tmp_dst, t64);
-        break;
-    case 0x04: // ors
-        gen_op2_i32(tmp_dst, cpu_src1, cpu_src2, get_dst(dc, als), tcg_gen_or_i32);
-        break;
-    case 0x05: // ord
-        tcg_gen_or_i64(tmp_dst, cpu_src1, cpu_src2);
-        break;
-    case 0x06: // orns
-        gen_op21_i32(tmp_dst, cpu_src1, cpu_src2, get_dst(dc, als), tcg_gen_or_i32, tcg_gen_not_i32);
-        break;
-    case 0x07: // ornd
-        tcg_gen_or_i64(t64, cpu_src1, cpu_src2);
-        tcg_gen_not_i64(tmp_dst, t64);
-        break;
-    case 0x08: // xors
-        gen_op2_i32(tmp_dst, cpu_src1, cpu_src2, get_dst(dc, als), tcg_gen_xor_i32);
-        break;
-    case 0x09: // xord
-        tcg_gen_xor_i64(tmp_dst, cpu_src1, cpu_src2);
-        break;
-    case 0x0a: // xorns
-        gen_op21_i32(tmp_dst, cpu_src1, cpu_src2, get_dst(dc, als), tcg_gen_xor_i32, tcg_gen_not_i32);
-        break;
-    case 0x0b: // xornd
-        tcg_gen_xor_i64(t64, cpu_src1, cpu_src2);
-        tcg_gen_not_i64(tmp_dst, t64);
-        break;
-    case 0x0c:
-        // TODO: sxt
-        abort();
-        break;
-    case 0x0e:
-        // TODO: merges
-        abort();
-        break;
-    case 0x0f:
-        // TODO: merged
-        abort();
-        break;
-    case 0x10: // adds
-        gen_op2_i32(tmp_dst, cpu_src1, cpu_src2, get_dst(dc, als), tcg_gen_add_i32);
-        break;
-    case 0x11: // addd
-        tcg_gen_add_i64(tmp_dst, cpu_src1, cpu_src2);
-        break;
-    case 0x12: // subs
-        gen_op2_i32(tmp_dst, cpu_src1, cpu_src2, get_dst(dc, als), tcg_gen_sub_i32);
-        break;
-    case 0x13: // subd
-        tcg_gen_sub_i64(tmp_dst, cpu_src1, cpu_src2);
-        break;
-    case 0x14: // scls
-        gen_op2_i32(tmp_dst, cpu_src1, cpu_src2, get_dst(dc, als), tcg_gen_rotl_i32);
-        break;
-    case 0x15: // scld
-        tcg_gen_rotl_i64(tmp_dst, cpu_src1, cpu_src2);
-        break;
-    case 0x16: // scrs
-        gen_op2_i32(tmp_dst, cpu_src1, cpu_src2, get_dst(dc, als), tcg_gen_rotr_i32);
-        break;
-    case 0x17: // scrd
-        tcg_gen_rotr_i64(tmp_dst, cpu_src1, cpu_src2);
-        break;
-    case 0x18: // shls
-        gen_op2_i32(tmp_dst, cpu_src1, cpu_src2, get_dst(dc, als), tcg_gen_shl_i32);
-        break;
-    case 0x19: // shld
-        tcg_gen_shl_i64(tmp_dst, cpu_src1, cpu_src2);
-        break;
-    case 0x1a: // shrs
-        gen_op2_i32(tmp_dst, cpu_src1, cpu_src2, get_dst(dc, als), tcg_gen_shr_i32);
-        break;
-    case 0x1b: // shrd
-        tcg_gen_shr_i64(tmp_dst, cpu_src1, cpu_src2);
-        break;
-    case 0x1c:
-        gen_op2_i32(tmp_dst, cpu_src1, cpu_src2, get_dst(dc, als), tcg_gen_sar_i32);
-        break;
-    case 0x1d: // sard
-        tcg_gen_sar_i64(tmp_dst, cpu_src1, cpu_src2);
-        break;
-    case 0x1e:
-        // TODO: getfs
-        abort();
-        break;
-    case 0x1f:
-        // TODO: getfd
-        abort();
-        break;
+    case 0x00: /* ands */ gen_alopf1_i32(dc, chan, tcg_gen_and_i32); break;
+    case 0x01: /* andd */ gen_alopf1_i64(dc, chan, tcg_gen_and_i64); break;
+    case 0x02: /* andns */ gen_alopf1_i32(dc, chan, gen_andn_i32); break;
+    case 0x03: /* andnd */ gen_alopf1_i64(dc, chan, gen_andn_i64); break;
+    case 0x04: /* ors */ gen_alopf1_i32(dc, chan, tcg_gen_or_i32); break;
+    case 0x05: /* ord */ gen_alopf1_i64(dc, chan, tcg_gen_or_i64); break;
+    case 0x06: /* orns */ gen_alopf1_i32(dc, chan, gen_orn_i32); break;
+    case 0x07: /* ornd */ gen_alopf1_i64(dc, chan, gen_orn_i64); break;
+    case 0x08: /* xors */ gen_alopf1_i32(dc, chan, tcg_gen_xor_i32); break;
+    case 0x09: /* xord */ gen_alopf1_i64(dc, chan, tcg_gen_xor_i64); break;
+    case 0x0a: /* xorns */ gen_alopf1_i32(dc, chan, gen_xorn_i32); break;
+    case 0x0b: /* xornd */ gen_alopf1_i64(dc, chan, gen_xorn_i64); break;
+    case 0x0c: /* TODO: sxt */ gen_alopf1_i64(dc, chan, gen_helper_sxt); break;
+    case 0x0e: /* TODO: merges */ abort(); break;
+    case 0x0f: /* TODO: merged */ abort(); break;
+    case 0x10: /* adds */ gen_alopf1_i32(dc, chan, tcg_gen_add_i32); break;
+    case 0x11: /* addd */ gen_alopf1_i64(dc, chan, tcg_gen_add_i64); break;
+    case 0x12: /* subs */ gen_alopf1_i32(dc, chan, tcg_gen_sub_i32); break;
+    case 0x13: /* subd */ gen_alopf1_i64(dc, chan, tcg_gen_sub_i64); break;
+    case 0x14: /* scls */ gen_alopf1_i32(dc, chan, tcg_gen_rotl_i32); break;
+    case 0x15: /* scld */ gen_alopf1_i64(dc, chan, tcg_gen_rotl_i64); break;
+    case 0x16: /* scrs */ gen_alopf1_i32(dc, chan, tcg_gen_rotr_i32); break;
+    case 0x17: /* scrd */ gen_alopf1_i64(dc, chan, tcg_gen_rotr_i64); break;
+    case 0x18: /* shls */ gen_alopf1_i32(dc, chan, tcg_gen_shl_i32); break;
+    case 0x19: /* shld */ gen_alopf1_i64(dc, chan, tcg_gen_shl_i64); break;
+    case 0x1a: /* shrs */ gen_alopf1_i32(dc, chan, tcg_gen_shr_i32); break;
+    case 0x1b: /* shrd */ gen_alopf1_i64(dc, chan, tcg_gen_shr_i64); break;
+    case 0x1c: /* sars */ gen_alopf1_i32(dc, chan, tcg_gen_sar_i32); break;
+    case 0x1d: /* sard */ gen_alopf1_i64(dc, chan, tcg_gen_sar_i64); break;
+    case 0x1e: /* TODO: getfs */ abort(); break;
+    case 0x1f: /* TODO: getfd */ abort(); break;
     case 0x21: { // cmp{op}sd
         is_cmp = true;
         unsigned int cmp_op = GET_FIELD(als, 5, 7);
@@ -273,28 +290,28 @@ static void gen_channel(DisasContext *dc, int chan)
         res.tag = RESULT_PREG;
         res.u.reg.i = als & 0x1f;
         res.u.reg.v = tmp_dst;
-    } else {
-        if (IS_BASED(dst)) {
-            unsigned int i = GET_BASED(dst);
-            res.tag = RESULT_BASED_REG;
-            res.u.reg.i = i;
-            res.u.reg.v = tmp_dst;
-        } else if (IS_REGULAR(dst)) {
-            unsigned int i = GET_REGULAR(dst);
-            res.tag = RESULT_REGULAR_REG;
-            res.u.reg.i = i;
-            res.u.reg.v = tmp_dst;
-        } else if (IS_GLOBAL(dst)) {
-            unsigned int i = GET_GLOBAL(dst);
-            res.tag = RESULT_GLOBAL_REG;
-            res.u.reg.i = i;
-            res.u.reg.v = tmp_dst;
-        } else {
-            abort();
-        }
+        dc->alc[chan] = res;
     }
+}
 
-    dc->alc[chan] = res;
+static void gen_channel(DisasContext *dc, int chan)
+{
+    const UnpackedBundle *bundle = &dc->bundle;
+
+    switch(bundle->ales_present[chan]) {
+    case ALES_NONE:
+        gen_alopf_simple(dc, chan);
+        break;
+    case ALES_ALLOCATED: // 2 or 5 channel
+        abort();
+        break;
+    case ALES_PRESENT:
+        abort();
+        break;
+    default:
+        g_assert_not_reached();
+        break;
+    }
 }
 
 void e2k_alc_gen(DisasContext *dc)
