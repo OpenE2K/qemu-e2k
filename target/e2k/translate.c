@@ -303,8 +303,7 @@ static void e2k_tr_tb_stop(DisasContextBase *db, CPUState *cs)
         break;
     }
     default:
-        /* TODO: unreachable */
-        abort();
+        g_assert_not_reached();
         break;
     }
 

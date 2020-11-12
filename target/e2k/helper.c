@@ -29,3 +29,26 @@ void helper_call(CPUE2KState *env, uint64_t ctpr, uint64_t cond)
         abort();
     }
 }
+
+uint64_t helper_sxt(uint64_t x, uint64_t y)
+{
+    int size;
+
+    switch (x & 3) {
+    case 0:
+        size = 8;
+        break;
+    case 1:
+        size = 16;
+        break;
+    default:
+        size = 32;
+        break;
+    }
+
+    if (x & 4) {
+        return y & GEN_MASK(uint64_t, 0, size);
+    } else {
+        return (((int64_t) y) << (64 - size) >> (64 - size));
+    }
+}
