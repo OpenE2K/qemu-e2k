@@ -263,7 +263,8 @@ static void gen_cs1(DisasContext *dc)
         unsigned int wbs = cs1 & 0x7f;
 
         if (ctop) {
-            tcg_gen_movi_i32(e2k_cs.wbs, wbs);
+            dc->is_call = true;
+            tcg_gen_movi_i32(e2k_cs.syscall_wbs, wbs * 2);
 //            my_printf ("call %%ctpr%d, wbs = 0x%x", ctop, wbs);
 //            print_ctcond (info, instr->ss & 0x1ff);
         } else {
@@ -324,115 +325,117 @@ static void gen_jmp(DisasContext *dc)
     unsigned int cond_type = GET_FIELD(dc->bundle.ss, 5, 8);
     unsigned int ctpr = GET_FIELD(dc->bundle.ss, 10, 11);
 
+    if (cond_type == 1) {
+        dc->base.is_jmp = STATIC_JUMP;
+        tcg_gen_movi_i64(dc->jmp.cond, 1);
+    } else {
+        dc->base.is_jmp = DYNAMIC_JUMP;
+
+        if (cond_type == 2 || cond_type == 6 || cond_type == 0xf) {
+            /* if pred is true */
+            tcg_gen_mov_i64(dc->jmp.cond, e2k_get_preg(dc, psrc));
+        } else if (cond_type == 3 || cond_type == 7 || cond_type == 0xe) {
+            /* if pred is false */
+            TCGv_i64 one = tcg_const_i64(1);
+            TCGv_i64 zero = tcg_const_i64(0);
+            tcg_gen_movcond_i64(TCG_COND_EQ, dc->jmp.cond,
+                e2k_get_preg(dc, psrc), zero,
+                one, zero);
+            tcg_temp_free_i64(zero);
+            tcg_temp_free_i64(one);
+        }
+
+        /* TODO: other kinds of conditions */
+
+        if (cond_type == 4
+            || cond_type == 6
+            || cond_type == 0xe)
+        {
+            if (cond_type == 6 || cond_type == 0xe) {
+                // or
+            }
+
+            // %LOOP_END
+        }
+
+        if (cond_type == 5
+            || cond_type == 7
+            || cond_type == 0xf)
+        {
+            if(cond_type == 7
+                || cond_type == 0xf)
+            {
+                // AND
+            }
+            // %NOT_LOOP_END
+        }
+
+        if (cond_type == 8) {
+            // %MLOCK
+            /* It's not clearly said in C.17.1.2 of iset-vX.single if the uppermost
+               fourth bit in `psrc' has any meaning at all.  */
+            if (psrc & 0xf) {
+    //            static const int conv[] = {0, 1, 3, 4};
+                int i;
+
+                // %dt_al
+                for (i = 0; i < 4; i++) {
+                    if (psrc & (1 << i)) {
+                        // i
+                    }
+                }
+            }
+        }
+
+        /* `lock_cond || pl_cond' control transfer conditions.  */
+        if (cond_type == 9) {
+            unsigned int type = (psrc & 0x18) >> 3;
+            if (type == 0) {
+    //            static const int cmp_num_to_alc[] = {0, 1, 3, 4};
+    //            unsigned int cmp_num = (psrc & 0x6) >> 1;
+    //            unsigned int neg = psrc & 0x1;
+
+    //            my_printf ("%%MLOCK || %s%%cmp%d", neg ? "~" : "",
+    //                cmp_num_to_alc[cmp_num]);
+            } else if (type == 1) {
+    //            unsigned int cmp_jk = (psrc & 0x4) >> 2;
+    //            unsigned int negj = (psrc & 0x2) >> 1;
+    //            unsigned int negk = psrc & 0x1;
+
+    //            my_printf ("%%MLOCK || %s%%cmp%d || %s%%cmp%d",
+    //                     negj ? "~" : "", cmp_jk == 0 ? 0 : 3,
+    //                     negk ? "~" : "", cmp_jk == 0 ? 1 : 4);
+            } else if (type == 2) {
+    //            unsigned int clp_num = (psrc & 0x6) >> 1;
+    //            unsigned int neg = psrc & 0x1;
+
+                // "%%MLOCK || %s%%clp%d", neg ? "~" : "", clp_num
+            }
+        }
+
+        if (cond_type >= 0xa && cond_type <= 0xd) {
+            // reserved condition type
+            qemu_log_mask(LOG_UNIMP, "Undefined control transfer type %#x\n", cond_type);
+            abort();
+        }
+    }
+
     /* TODO: check CPU behavior if present ibranch and ctpr is not zero */
 
     /* TODO: different kinds of ct */
     if (ctpr != 0) {
+        if (dc->is_call) {
+            /* TODO: call save state */
+            dc->call_ctpr = ctpr;
+            dc->base.is_jmp = DISAS_CALL;
+            return;
+        }
         TCGv_i64 t0 = tcg_temp_new_i64();
 
-        /* TODO: use save_state */
-        tcg_gen_movi_i64(e2k_cs.pc, dc->pc);
-        gen_helper_check_syscall_ctpr(cpu_env, e2k_cs.ctprs[ctpr]);
         tcg_gen_andi_i64(t0, e2k_cs.ctprs[ctpr], GEN_MASK(uint64_t, 0, 47));
         tcg_gen_mov_tl(dc->jmp.dest, t0);
 
         tcg_temp_free_i64(t0);
-    }
-
-    if (cond_type == 1) {
-        dc->base.is_jmp = STATIC_JUMP;
-        tcg_gen_movi_i64(dc->jmp.cond, 1);
-        return;
-    }
-
-    dc->base.is_jmp = DYNAMIC_JUMP;
-
-    if (cond_type == 2 || cond_type == 6 || cond_type == 0xf) {
-        /* if pred is true */
-        tcg_gen_mov_i64(dc->jmp.cond, e2k_get_preg(dc, psrc));
-    } else if (cond_type == 3 || cond_type == 7 || cond_type == 0xe) {
-        /* if pred is false */
-        TCGv_i64 one = tcg_const_i64(1);
-        TCGv_i64 zero = tcg_const_i64(0);
-        tcg_gen_movcond_i64(TCG_COND_EQ, dc->jmp.cond,
-            e2k_get_preg(dc, psrc), zero,
-            one, zero);
-        tcg_temp_free_i64(zero);
-        tcg_temp_free_i64(one);
-    }
-
-    /* TODO: other kinds of conditions */
-
-    if (cond_type == 4
-        || cond_type == 6
-        || cond_type == 0xe)
-    {
-        if (cond_type == 6 || cond_type == 0xe) {
-            // or
-        }
-
-        // %LOOP_END
-    }
-
-    if (cond_type == 5
-        || cond_type == 7
-        || cond_type == 0xf)
-    {
-        if(cond_type == 7
-            || cond_type == 0xf)
-        {
-            // AND
-        }
-        // %NOT_LOOP_END
-    }
-
-    if (cond_type == 8) {
-        // %MLOCK
-        /* It's not clearly said in C.17.1.2 of iset-vX.single if the uppermost
-           fourth bit in `psrc' has any meaning at all.  */
-        if (psrc & 0xf) {
-//            static const int conv[] = {0, 1, 3, 4};
-            int i;
-
-            // %dt_al
-            for (i = 0; i < 4; i++) {
-                if (psrc & (1 << i)) {
-                    // i
-                }
-            }
-        }
-    }
-
-    /* `lock_cond || pl_cond' control transfer conditions.  */
-    if (cond_type == 9) {
-        unsigned int type = (psrc & 0x18) >> 3;
-        if (type == 0) {
-//            static const int cmp_num_to_alc[] = {0, 1, 3, 4};
-//            unsigned int cmp_num = (psrc & 0x6) >> 1;
-//            unsigned int neg = psrc & 0x1;
-
-//            my_printf ("%%MLOCK || %s%%cmp%d", neg ? "~" : "",
-//                cmp_num_to_alc[cmp_num]);
-        } else if (type == 1) {
-//            unsigned int cmp_jk = (psrc & 0x4) >> 2;
-//            unsigned int negj = (psrc & 0x2) >> 1;
-//            unsigned int negk = psrc & 0x1;
-
-//            my_printf ("%%MLOCK || %s%%cmp%d || %s%%cmp%d",
-//                     negj ? "~" : "", cmp_jk == 0 ? 0 : 3,
-//                     negk ? "~" : "", cmp_jk == 0 ? 1 : 4);
-        } else if (type == 2) {
-//            unsigned int clp_num = (psrc & 0x6) >> 1;
-//            unsigned int neg = psrc & 0x1;
-
-            // "%%MLOCK || %s%%clp%d", neg ? "~" : "", clp_num
-        }
-    }
-
-    if (cond_type >= 0xa && cond_type <= 0xd) {
-        // reserved condition type
-        qemu_log_mask(LOG_UNIMP, "Undefined control transfer type %#x\n", cond_type);
-        abort();
     }
 }
 

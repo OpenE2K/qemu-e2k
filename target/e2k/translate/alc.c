@@ -262,7 +262,7 @@ static void gen_channel(DisasContext *dc, int chan)
         break;
     }
     case 0x40: // TODO: udivs used as temporary UD
-        e2k_gen_exception(dc, 1);
+        e2k_gen_exception(dc, E2K_EXCP_UNIMPL);
         break;
     default:
         qemu_log_mask(LOG_UNIMP, "gen_alc: undefined instruction 0x%x %s\n", opc, sm ? "(speculative)" : "");
