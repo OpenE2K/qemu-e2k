@@ -39,7 +39,7 @@ void cpu_loop(CPUE2KState *env)
         switch (trapnr) {
         case E2K_EXCP_SYSCALL: {
             /* TODO: wrap register indices */
-            uint64_t *regs = &env->wregs[env->wbs * 2];
+            uint64_t *regs = &env->wregs[env->wbs + env->syscall_wbs];
             abi_ulong ret = do_syscall(env, regs[0],
                 regs[1], regs[2], regs[3], regs[4],
                 regs[5], regs[6], regs[7], regs[8]);
@@ -62,5 +62,4 @@ void cpu_loop(CPUE2KState *env)
 void target_cpu_copy_regs(CPUE2KState *env, struct target_pt_regs *regs)
 {
     env->ip = regs->ip;
-    // TODO
 }

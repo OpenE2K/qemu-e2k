@@ -6,6 +6,7 @@
 
 #define STATIC_JUMP DISAS_TARGET_0
 #define DYNAMIC_JUMP DISAS_TARGET_1
+#define DISAS_CALL DISAS_TARGET_2
 
 #define GEN_MASK(type, start, end) \
     ((((type) 1 << ((end) - (start) + 1)) - 1) << start)
@@ -68,6 +69,7 @@ typedef struct CPUE2KStateTCG {
     TCGv_i32 rsz;
     TCGv_i32 rcur;
     TCGv_i32 psz;
+    TCGv_i32 syscall_wbs;
     TCGv_ptr win_ptr;
     TCGv_i64 wregs[WREGS_SIZE];
     TCGv_i64 gregs[32];
@@ -121,12 +123,15 @@ typedef struct DisasContext {
     DisasContextBase base;
     UnpackedBundle bundle;
     target_ulong pc;
+    target_ulong npc;
+    bool is_call;
+    int call_ctpr;
 
     int version;
 
     // Temporary values.
     TCGv_i32 t32[16];
-    TCGv_i64 t64[16];
+    TCGv_i64 t64[32];
     TCGv ttl[8];
     // Allocated temporary values count.
     int t32_len;
