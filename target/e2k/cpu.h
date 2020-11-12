@@ -13,6 +13,10 @@ void e2k_tcg_initialize(void);
 // size of regular reg in bytes
 #define REG_SIZE (sizeof(target_ulong))
 
+typedef enum {
+    E2K_EXCP_SYSCALL = 0x01,
+} Exception;
+
 struct e2k_def_t {
 	const char *name;
 	uint32_t isa_version;

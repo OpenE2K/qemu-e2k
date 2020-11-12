@@ -1,8 +1,6 @@
 #include "qemu/osdep.h"
 #include "qemu.h"
-#include "tcg/tcg-op.h"
 #include "exec/log.h"
-#include "exec/translator.h"
 #include "translate.h"
 
 static inline void gen_abn_inc(DisasContext *dc, TCGCond cond)

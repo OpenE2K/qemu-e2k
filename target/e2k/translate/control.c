@@ -1,8 +1,6 @@
 #include "qemu/osdep.h"
 #include "qemu.h"
-#include "tcg/tcg-op.h"
 #include "exec/log.h"
-#include "exec/translator.h"
 #include "translate.h"
 
 static void gen_cs0(DisasContext *dc)
@@ -82,14 +80,26 @@ static void gen_cs0(DisasContext *dc)
             // invalid
             abort();
         }
-
-        if (type == DISP || type == SDISP || type == LDISP) {
-            /* TODO: SDISP tag */
+        int ipd = GET_FIELD(bundle->ss, 30, 31);
+        if (type == DISP || type == LDISP) {
             unsigned int disp = GET_FIELD(cs0, 0, 27);
             /* Calculate a signed displacement in bytes. */
             int sdisp = ((int) (disp << 4)) >> 1;
-            target_ulong tgt = dc->pc + sdisp;
-            tcg_gen_movi_tl(e2k_cs.ctprs[ctpr], tgt);
+            uint64_t reg = (dc->pc + sdisp) |
+                ((uint64_t) CTPR_TAG_DISP << CTPR_TAG_OFF) |
+                ((uint64_t) ipd << CTPR_IPD_OFF);
+            if (type == LDISP) {
+                reg |= (uint64_t) CTPR_OPC_LDISP << CTPR_OPC_OFF;
+            }
+            tcg_gen_movi_tl(e2k_cs.ctprs[ctpr], reg);
+        } else if (type == SDISP) {
+            unsigned int disp = GET_FIELD(cs0, 0, 27) << 11;
+            /* FIXME: trap address */
+            target_ulong base = ((uint64_t) 0xe2 << 40) | disp;
+            uint64_t reg = (dc->pc + base) |
+                ((uint64_t) CTPR_TAG_SDISP << CTPR_TAG_OFF) |
+                ((uint64_t) ipd << CTPR_IPD_OFF);
+            tcg_gen_movi_tl(e2k_cs.ctprs[ctpr], reg);
         }
 
         if (/* Note that RETURN is said to be COPF1. I can't understand what its
@@ -250,9 +260,10 @@ static void gen_cs1(DisasContext *dc)
         unsigned int ctop = (bundle->ss & 0x00000c00) >> 10;
         /* In C.17.4 it's said that other bits in CS1.param except for the
            seven lowermost ones are ignored.  */
-//        unsigned int wbs = cs1 & 0x7f;
+        unsigned int wbs = cs1 & 0x7f;
 
         if (ctop) {
+            tcg_gen_movi_i32(e2k_cs.wbs, wbs);
 //            my_printf ("call %%ctpr%d, wbs = 0x%x", ctop, wbs);
 //            print_ctcond (info, instr->ss & 0x1ff);
         } else {
@@ -315,8 +326,17 @@ static void gen_jmp(DisasContext *dc)
 
     /* TODO: check CPU behavior if present ibranch and ctpr is not zero */
 
+    /* TODO: different kinds of ct */
     if (ctpr != 0) {
-        tcg_gen_mov_tl(dc->jmp.dest, e2k_cs.ctprs[ctpr]);
+        TCGv_i64 t0 = tcg_temp_new_i64();
+
+        /* TODO: use save_state */
+        tcg_gen_movi_i64(e2k_cs.pc, dc->pc);
+        gen_helper_check_syscall_ctpr(cpu_env, e2k_cs.ctprs[ctpr]);
+        tcg_gen_andi_i64(t0, e2k_cs.ctprs[ctpr], GEN_MASK(uint64_t, 0, 47));
+        tcg_gen_mov_tl(dc->jmp.dest, t0);
+
+        tcg_temp_free_i64(t0);
     }
 
     if (cond_type == 1) {
