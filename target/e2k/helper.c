@@ -16,7 +16,10 @@ void helper_raise_exception(CPUE2KState *env, int tt)
 void helper_call(CPUE2KState *env, uint64_t ctpr, uint64_t cond)
 {
     int tag = GET_FIELD(ctpr, CTPR_TAG_OFF, CTPR_TAG_END);
-    if (tag == CTPR_TAG_SDISP && cond) {
+    if (!cond) {
+        return;
+    }
+    if (tag == CTPR_TAG_SDISP) {
         CPUState *cs = env_cpu(env);
 
         cs->exception_index = E2K_EXCP_SYSCALL;
