@@ -211,9 +211,7 @@ static void gen_cs1(DisasContext *dc)
         }
 
         if (setbp) {
-            unsigned int psz = (cs1 & 0x007c0000) >> 18;
-
-            tcg_gen_movi_i32(e2k_cs.psz, psz);
+            tcg_gen_movi_i64(e2k_cs.psz, GET_FIELD(cs1, 18, 23));
         }
     } else if (opc == SETEI) {
         /* Verify that CS1.param.sft = CS1.param[27] is equal to zero as required

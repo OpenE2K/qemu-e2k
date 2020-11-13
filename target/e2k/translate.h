@@ -68,7 +68,8 @@ typedef struct CPUE2KStateTCG {
     TCGv_i32 rbs;
     TCGv_i32 rsz;
     TCGv_i32 rcur;
-    TCGv_i32 psz;
+    TCGv_i64 psz;
+    TCGv_i64 pcur;
     TCGv_i32 syscall_wbs;
     TCGv_ptr win_ptr;
     TCGv_i64 wregs[WREGS_SIZE];
@@ -177,6 +178,17 @@ static inline void e2k_gen_wrap_i32(TCGv_i32 ret, TCGv_i32 x, TCGv_i32 y)
     tcg_temp_free_i32(t0);
 }
 
+// FIXME: x must not be greater than y * 2
+static inline void e2k_gen_wrap_i64(TCGv_i64 ret, TCGv_i64 x, TCGv_i64 y)
+{
+    TCGv_i64 t0 = tcg_temp_new_i64();
+
+    tcg_gen_sub_i64(t0, x, y);
+    tcg_gen_movcond_i64(TCG_COND_LTU, ret, x, y, x, t0);
+
+    tcg_temp_free_i64(t0);
+}
+
 static inline void e2k_gen_get_field_i64(TCGv_i64 ret, TCGv_i64 val,
     unsigned int start, unsigned int end)
 {
@@ -204,7 +216,7 @@ static inline void e2k_gen_set_field_i64(TCGv_i64 ret, TCGv_i64 val,
     tcg_temp_free_i64(t0);
 }
 
-TCGv_i64 e2k_gen_preg(TCGv_i64 ret, int reg);
+void e2k_gen_preg(TCGv_i64 ret, int reg);
 TCGv_i64 e2k_get_preg(DisasContext *dc, int reg);
 void e2k_gen_store_preg(int reg, TCGv_i64 val);
 TCGv_i64 e2k_get_wreg(DisasContext *dc, int reg);

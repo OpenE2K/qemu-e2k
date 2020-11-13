@@ -354,12 +354,13 @@ void e2k_tcg_initialize(void) {
         { &e2k_cs.rbs, offsetof(CPUE2KState, rbs), "rbs" },
         { &e2k_cs.rsz, offsetof(CPUE2KState, rsz), "rsz" },
         { &e2k_cs.rcur, offsetof(CPUE2KState, rcur), "rcur" },
-        { &e2k_cs.psz, offsetof(CPUE2KState, psz), "psz" },
         { &e2k_cs.syscall_wbs, offsetof(CPUE2KState, syscall_wbs), "syscall_wbs" },
     };
 
     static const struct { TCGv_i64 *ptr; int off; const char *name; } r64[] = {
         { &e2k_cs.pregs, offsetof(CPUE2KState, pregs), "pregs" },
+        { &e2k_cs.psz, offsetof(CPUE2KState, psz), "psz" },
+        { &e2k_cs.pcur, offsetof(CPUE2KState, pcur), "pcur" },
         { &e2k_cs.usd_lo, offsetof(CPUE2KState, usd_lo), "%usd.lo" },
         { &e2k_cs.usd_hi, offsetof(CPUE2KState, usd_hi), "%usd.hi" },
     };
