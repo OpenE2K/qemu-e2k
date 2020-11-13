@@ -131,18 +131,108 @@ static inline void gen_xorn_i64(TCGv_i64 ret, TCGv_i64 x, TCGv_i64 y)
     tcg_temp_free_i64(t0);
 }
 
-static void gen_merge_i32(TCGv_i32 ret, TCGv_i32 x, TCGv_i32 y, TCGv_i32 cond)
+/*
+ * ret[31:0] = x[31:0]
+ * ret[63:32] = y[63:32]
+ */
+static inline void gen_movehl_i64(TCGv_i64 ret, TCGv_i64 x, TCGv_i64 y)
+{
+    TCGv_i32 lo = tcg_temp_new_i32();
+    TCGv_i32 hi = tcg_temp_new_i32();
+
+    tcg_gen_extrl_i64_i32(lo, x);
+    tcg_gen_extrh_i64_i32(hi, y);
+    tcg_gen_concat_i32_i64(ret, lo, hi);
+
+    tcg_temp_free_i32(hi);
+    tcg_temp_free_i32(lo);
+}
+
+static inline void gen_merge_i32(TCGv_i32 ret, TCGv_i32 x, TCGv_i32 y, TCGv_i32 cond)
 {
     TCGv_i32 one = tcg_const_i32(1);
     tcg_gen_movcond_i32(TCG_COND_EQ, ret, cond, one, x, y);
     tcg_temp_free_i32(one);
 }
 
-static void gen_merge_i64(TCGv_i64 ret, TCGv_i64 x, TCGv_i64 y, TCGv_i64 cond)
+static inline void gen_merge_i64(TCGv_i64 ret, TCGv_i64 x, TCGv_i64 y, TCGv_i64 cond)
 {
     TCGv_i64 one = tcg_const_i64(1);
     tcg_gen_movcond_i64(TCG_COND_EQ, ret, cond, one, x, y);
     tcg_temp_free_i64(one);
+}
+
+static inline bool is_mrgc(uint16_t rlp, int chan)
+{
+    int is_mrgc = GET_BIT(rlp, 15);
+    int cluster = GET_BIT(rlp, 14);
+    int alc_mask = GET_FIELD(rlp, 10, 12);
+    int alc = GET_BIT(alc_mask, chan % 3);
+
+    return is_mrgc && (cluster == (chan > 2)) && (alc != 0);
+}
+
+static uint16_t find_mrgc(DisasContext *dc, int chan)
+{
+    unsigned int i;
+
+    for (i = 0; dc->bundle.cds_present[i]; i++) {
+        uint32_t cds = dc->bundle.cds[i];
+        uint16_t rlp0 = cds >> 16;
+        uint16_t rlp1 = cds & 0xffff;
+
+        if (is_mrgc(rlp0, chan)) {
+            return rlp0;
+        }
+        if (is_mrgc(rlp1, chan)) {
+            return rlp1;
+        }
+    }
+
+    return 0;
+}
+
+static inline void gen_cond_psrc(TCGv_i64 ret, uint8_t psrc)
+{
+    if ((psrc & 0xe0) == 0x60) {
+        e2k_gen_preg(ret, psrc & 0x1f);
+    } else {
+        /* TODO: lcntex, spred, pcnt */
+        abort();
+    }
+}
+
+static inline void gen_mrgc_i64(DisasContext *dc, int chan, TCGv_i64 ret)
+{
+    uint16_t rlp = find_mrgc(dc, chan);
+    TCGv_i64 t0;
+    TCGv_i64 t1;
+    TCGv_i64 inv;
+
+    if(rlp == 0) {
+        /* TODO: exception */
+        abort();
+    }
+
+    t0 = tcg_temp_new_i64();
+    t1 = tcg_temp_new_i64();
+    inv = tcg_const_i64(GET_BIT(rlp, 7 + chan % 3));
+
+    gen_cond_psrc(t0, rlp & 0x7f);
+    tcg_gen_not_i64(t1, t0);
+    tcg_gen_movcond_i64(TCG_COND_EQ, ret, t0, inv, t0, t1);
+
+    tcg_temp_free_i64(inv);
+    tcg_temp_free_i64(t1);
+    tcg_temp_free_i64(t0);
+}
+
+static inline void gen_mrgc_i32(DisasContext *dc, int chan, TCGv_i32 ret)
+{
+    TCGv_i64 t0 = tcg_temp_new_i64();
+    gen_mrgc_i64(dc, chan, t0);
+    tcg_gen_extrl_i64_i32(ret, t0);
+    tcg_temp_free(t0);
 }
 
 static void gen_op2_i32(TCGv_i64 ret, TCGv_i64 s1, TCGv_i64 s2, TCGv_i64 dst,
@@ -217,6 +307,69 @@ static void gen_alopf1_i64(DisasContext *dc, int chan,
     }
 }
 
+static void gen_alopf1_mrgc_i32(DisasContext *dc, int chan)
+{
+    uint32_t als = dc->bundle.als[chan];
+    uint8_t dst = als & 0xff;
+    Result *res = &dc->alc[chan];
+    TCGv_i64 t0 = tcg_temp_new_i64();
+    TCGv_i64 t1 = e2k_get_temp_i64(dc);
+    TCGv_i64 cond = tcg_temp_new_i64();
+
+    gen_mrgc_i64(dc, chan, cond);
+    gen_merge_i64(t0, get_src1(dc, als), get_src2(dc, als), cond);
+    gen_movehl_i64(t1, t0, get_dst(dc, als));
+
+    tcg_temp_free_i64(cond);
+    tcg_temp_free_i64(t0);
+
+    res->u.reg.v = t1;
+
+    if (IS_BASED(dst)) {
+        res->tag = RESULT_BASED_REG;
+        res->u.reg.i = GET_BASED(dst);
+    } else if (IS_REGULAR(dst)) {
+        res->tag = RESULT_REGULAR_REG;
+        res->u.reg.i = GET_REGULAR(dst);
+    } else if (IS_GLOBAL(dst)) {
+        res->tag = RESULT_GLOBAL_REG;
+        res->u.reg.i = GET_GLOBAL(dst);
+    } else {
+        /* TODO: exception */
+        abort();
+    }
+}
+
+static void gen_alopf1_mrgc_i64(DisasContext *dc, int chan)
+{
+    uint32_t als = dc->bundle.als[chan];
+    Result *res = &dc->alc[chan];
+    int dst = als & 0xff;
+    TCGv_i64 t0 = e2k_get_temp_i64(dc);
+    TCGv_i64 cond = tcg_temp_new_i64();
+
+    gen_mrgc_i64(dc, chan, cond);
+    gen_merge_i64(t0, get_src1(dc, als), get_src2(dc, als), cond);
+
+    tcg_temp_free_i64(cond);
+
+    res->u.reg.v = t0;
+
+    if (IS_BASED(dst)) {
+        res->tag = RESULT_BASED_REG;
+        res->u.reg.i = GET_BASED(dst);
+    } else if (IS_REGULAR(dst)) {
+        res->tag = RESULT_REGULAR_REG;
+        res->u.reg.i = GET_REGULAR(dst);
+    } else if (IS_GLOBAL(dst)) {
+        res->tag = RESULT_GLOBAL_REG;
+        res->u.reg.i = GET_GLOBAL(dst);
+    } else {
+        /* TODO: exception */
+        abort();
+    }
+}
+
 static void gen_alopf_simple(DisasContext *dc, int chan)
 {
     uint32_t als = dc->bundle.als[chan];
@@ -242,9 +395,9 @@ static void gen_alopf_simple(DisasContext *dc, int chan)
     case 0x09: /* xord */ gen_alopf1_i64(dc, chan, tcg_gen_xor_i64); break;
     case 0x0a: /* xorns */ gen_alopf1_i32(dc, chan, gen_xorn_i32); break;
     case 0x0b: /* xornd */ gen_alopf1_i64(dc, chan, gen_xorn_i64); break;
-    case 0x0c: /* TODO: sxt */ gen_alopf1_i64(dc, chan, gen_helper_sxt); break;
-    case 0x0e: /* TODO: merges */ abort(); break;
-    case 0x0f: /* TODO: merged */ abort(); break;
+    case 0x0c: /* sxt */ gen_alopf1_i64(dc, chan, gen_helper_sxt); break;
+    case 0x0e: /* merges */ gen_alopf1_mrgc_i32(dc, chan); break;
+    case 0x0f: /* merged */ gen_alopf1_mrgc_i64(dc, chan); break;
     case 0x10: /* adds */ gen_alopf1_i32(dc, chan, tcg_gen_add_i32); break;
     case 0x11: /* addd */ gen_alopf1_i64(dc, chan, tcg_gen_add_i64); break;
     case 0x12: /* subs */ gen_alopf1_i32(dc, chan, tcg_gen_sub_i32); break;

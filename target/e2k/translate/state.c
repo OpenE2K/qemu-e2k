@@ -6,6 +6,12 @@
 TCGv_i64 e2k_get_preg(DisasContext *dc, int reg)
 {
     TCGv_i64 ret = e2k_get_temp_i64(dc);
+    e2k_gen_preg(ret, reg);
+    return ret;
+}
+
+TCGv_i64 e2k_gen_preg(TCGv_i64 ret, int reg)
+{
     TCGv_i64 tmp = tcg_temp_new_i64();
     assert(reg < 32);
     tcg_gen_shri_i64(tmp, e2k_cs.pregs, reg * 2);
