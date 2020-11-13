@@ -62,4 +62,6 @@ void cpu_loop(CPUE2KState *env)
 void target_cpu_copy_regs(CPUE2KState *env, struct target_pt_regs *regs)
 {
     env->ip = regs->ip;
+    env->usd_hi = regs->usd_hi;
+    env->usd_lo = regs->usd_lo;
 }
