@@ -47,7 +47,7 @@ uint64_t helper_sxt(uint64_t x, uint64_t y)
     }
 
     if (x & 4) {
-        return y & GEN_MASK(uint64_t, 0, size);
+        return y & GEN_MASK(0, size);
     } else {
         return (((int64_t) y) << (64 - size) >> (64 - size));
     }
