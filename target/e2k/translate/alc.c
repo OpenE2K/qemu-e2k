@@ -3,7 +3,7 @@
 #include "exec/log.h"
 #include "translate.h"
 
-static TCGv_i64 get_src1(DisasContext *dc, unsigned int als)
+static TCGv_i64 get_src1(DisasContext *dc, uint32_t als)
 {
     unsigned int src1 = GET_FIELD(als, 16, 27);
     if (IS_BASED(src1)) {
@@ -23,7 +23,7 @@ static TCGv_i64 get_src1(DisasContext *dc, unsigned int als)
     }
 }
 
-static TCGv_i64 get_src2(DisasContext *dc, unsigned int als)
+static TCGv_i64 get_src2(DisasContext *dc, uint32_t als)
 {
     unsigned int src2 = GET_FIELD(als, 8, 15);
     if (IS_BASED(src2)) {
@@ -44,9 +44,9 @@ static TCGv_i64 get_src2(DisasContext *dc, unsigned int als)
         // TODO: exception
         assert(dc->bundle.lts_present[i]);
         if (IS_LIT16_LO(src2) && i < 2) {
-            lit &= 0xffff;
+            lit = ((int64_t) lit & 0xffff) << 48 >> 48;
         } else if (IS_LIT16_HI(src2) && i < 2) {
-            lit >>= 16;
+            lit = ((int64_t) lit >> 16) << 48 >> 48;
         } else if (IS_LIT32(src2)) {
             // nop
         } else if (IS_LIT64(src2) && i < 3) {
@@ -257,18 +257,14 @@ static inline void gen_mrgc_i32(DisasContext *dc, int chan, TCGv_i32 ret)
     tcg_temp_free(t0);
 }
 
-static inline void gen_rwd(DisasContext *dc, int chan)
+static inline void gen_rr_i64(TCGv_i64 ret, uint8_t state_reg)
 {
-    uint32_t als = dc->bundle.als[chan];
-    TCGv_i64 src2 = get_src2(dc, als);
-    uint8_t state_reg = als;
-
     switch (state_reg) {
     case 0x2c: /* %usd.hi */
-        tcg_gen_mov_i64(e2k_cs.usd_hi, src2);
+        tcg_gen_mov_i64(ret, e2k_cs.usd_hi);
         break;
     case 0x2d: /* %usd.lo */
-        tcg_gen_mov_i64(e2k_cs.usd_lo, src2);
+        tcg_gen_mov_i64(ret, e2k_cs.usd_lo);
         break;
     default:
         /* TODO: exception */
@@ -283,20 +279,78 @@ static inline void gen_rrd(DisasContext *dc, int chan)
     uint8_t state_reg = GET_FIELD(als, 16, 23);
     TCGv_i64 ret = e2k_get_temp_i64(dc);
 
+    gen_rr_i64(ret, state_reg);
+    store_reg_alc_result(dc, chan, ret);
+}
+
+static inline void gen_rrs(DisasContext *dc, int chan)
+{
+    uint32_t als = dc->bundle.als[chan];
+    uint8_t state_reg = GET_FIELD(als, 16, 23);
+    TCGv_i64 t0 = tcg_temp_new_i64();
+    TCGv_i64 t1 = e2k_get_temp_i64(dc);
+
+    gen_rr_i64(t0, state_reg);
+    gen_movehl_i64(t1, t0, get_dst(dc, als));
+    store_reg_alc_result(dc, chan, t1);
+
+    tcg_temp_free_i64(t0);
+}
+
+static inline void gen_rw_i64(uint8_t state_reg, TCGv_i64 val)
+{
     switch (state_reg) {
     case 0x2c: /* %usd.hi */
-        tcg_gen_mov_i64(ret, e2k_cs.usd_hi);
+        /* FIXME: user cannot write */
+        tcg_gen_mov_i64(e2k_cs.usd_hi, val);
         break;
     case 0x2d: /* %usd.lo */
-        tcg_gen_mov_i64(ret, e2k_cs.usd_lo);
+        /* FIXME: user cannot write */
+        tcg_gen_mov_i64(e2k_cs.usd_lo, val);
         break;
     default:
         /* TODO: exception */
         abort();
         break;
     }
+}
 
-    store_reg_alc_result(dc, chan, ret);
+static inline void gen_rwd(DisasContext *dc, int chan)
+{
+    uint32_t als = dc->bundle.als[chan];
+    TCGv_i64 src2 = get_src2(dc, als);
+    gen_rw_i64(als & 0xff, src2);
+}
+
+static inline void gen_rws(DisasContext *dc, int chan)
+{
+    uint32_t als = dc->bundle.als[chan];
+    uint8_t state_reg = als & 0xff;
+    TCGv_i64 t0 = tcg_temp_new_i64();
+    TCGv_i64 t1 = tcg_temp_new_i64();
+
+    gen_rr_i64(t0, state_reg);
+    gen_movehl_i64(t1, get_src2(dc, als), t0);
+    gen_rw_i64(state_reg, t1);
+
+    tcg_temp_free_i64(t1);
+    tcg_temp_free_i64(t0);
+}
+
+static void gen_getsp(DisasContext *dc, int chan)
+{
+    uint32_t als = dc->bundle.als[chan];
+    TCGv_i64 src2 = get_src2(dc, als);
+    TCGv_i64 t0 = tcg_temp_new_i64();
+    TCGv_i64 t1 = tcg_temp_new_i64();
+
+    /* TODO: exception stack overflow */
+    tcg_gen_extract_i64(t0, e2k_cs.usd_lo, 0, 48);
+    tcg_gen_add_i64(t1, t0, src2);
+    tcg_gen_deposit_i64(e2k_cs.usd_lo, e2k_cs.usd_lo, t1, 0, 48);
+
+    tcg_temp_free_i64(t1);
+    tcg_temp_free_i64(t0);
 }
 
 static void gen_op2_i32(TCGv_i64 ret, TCGv_i64 s1, TCGv_i64 s2, TCGv_i64 dst,
@@ -373,12 +427,7 @@ static void gen_alopf_simple(DisasContext *dc, int chan)
     uint32_t als = dc->bundle.als[chan];
     int opc = GET_FIELD(als, 24, 30);
     int sm  = GET_BIT(als, 31);
-    bool is_cmp = false;
     Result res = { 0 };
-
-    TCGv_i64 cpu_src1 = get_src1(dc, als);
-    TCGv_i64 cpu_src2 = get_src2(dc, als);
-    TCGv_i64 tmp_dst = e2k_get_temp_i64(dc);
 
     switch(opc) {
     case 0x00: /* ands */ gen_alopf1_i32(dc, chan, tcg_gen_and_i32); break;
@@ -413,7 +462,10 @@ static void gen_alopf_simple(DisasContext *dc, int chan)
     case 0x1e: /* TODO: getfs */ abort(); break;
     case 0x1f: /* TODO: getfd */ abort(); break;
     case 0x21: { // cmp{op}sd
-        is_cmp = true;
+        TCGv_i64 cpu_src1 = get_src1(dc, als);
+        TCGv_i64 cpu_src2 = get_src2(dc, als);
+        TCGv_i64 tmp_dst = e2k_get_temp_i64(dc);
+
         unsigned int cmp_op = GET_FIELD(als, 5, 7);
         // TODO: move to separate function
         switch(cmp_op) {
@@ -427,6 +479,12 @@ static void gen_alopf_simple(DisasContext *dc, int chan)
             abort();
             break;
         }
+
+        res.tag = RESULT_PREG;
+        res.u.reg.i = als & 0x1f;
+        res.u.reg.v = tmp_dst;
+        dc->alc[chan] = res;
+
         break;
     }
     case 0x40: // TODO: udivs used as temporary UD
@@ -436,13 +494,6 @@ static void gen_alopf_simple(DisasContext *dc, int chan)
         qemu_log_mask(LOG_UNIMP, "gen_alc: undefined instruction 0x%x %s\n", opc, sm ? "(speculative)" : "");
         break;
     }
-
-    if (is_cmp) {
-        res.tag = RESULT_PREG;
-        res.u.reg.i = als & 0x1f;
-        res.u.reg.v = tmp_dst;
-        dc->alc[chan] = res;
-    }
 }
 
 static void gen_ext1(DisasContext *dc, int chan)
@@ -450,13 +501,19 @@ static void gen_ext1(DisasContext *dc, int chan)
     uint8_t opc = GET_FIELD(dc->bundle.als[chan], 24, 30);
 
     switch (opc) {
-    case 0x3c: /* rws */ break; /* TODO: only channel 1 */
+    case 0x58: {
+        if (chan == 0 || chan == 3) {
+            gen_getsp(dc, chan);
+        }
+        /* TODO: exception */
+        break;
+    }
+    case 0x3c: /* rws */ gen_rws(dc, chan); break; /* TODO: only channel 1 */
     case 0x3d: /* rwd */ gen_rwd(dc, chan); break; /* TODO: only channel 1 */
-    case 0x3e: /* rrs */ break; /* TODO: only channel 1 */
+    case 0x3e: /* rrs */ gen_rrs(dc, chan); break; /* TODO: only channel 1 */
     case 0x3f: /* rrd */ gen_rrd(dc, chan); break; /* TODO: only channel 1 */
     default:
         /* TODO: exception */
-        abort();
         break;
     }
 }
@@ -473,8 +530,7 @@ static void gen_channel(DisasContext *dc, int chan)
         abort();
         break;
     case ALES_PRESENT: {
-        uint16_t ales = bundle->ales[chan];
-        uint8_t opc = ales >> 8;
+        uint8_t opc = GET_FIELD(bundle->ales[chan], 8, 15);
         switch (opc) {
         case 0x01:
             gen_ext1(dc, chan);
@@ -500,6 +556,7 @@ void e2k_alc_gen(DisasContext *dc)
         if (!dc->bundle.als_present[i]) {
             continue;
         }
+        dc->alc[i].tag = RESULT_NONE;
         gen_channel(dc, i);
     }
 }
