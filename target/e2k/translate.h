@@ -32,15 +32,6 @@
 #define GET_LIT(i) ((i) & 0x03)
 #define GET_GLOBAL(i) ((i) & 0x1f)
 
-#define CTPR_BASE_OFF 0
-#define CTPR_BASE_END 47
-#define CTPR_TAG_OFF 54
-#define CTPR_TAG_END 56
-#define CTPR_OPC_OFF 57
-#define CTPR_OPC_END 58
-#define CTPR_IPD_OFF 59
-#define CTPR_IPD_END 60
-
 typedef enum {
     CTPR_TAG_RETURN = 0x2,
     CTPR_TAG_DISP = 0x3,
@@ -70,6 +61,7 @@ typedef struct CPUE2KStateTCG {
     TCGv_i32 rcur;
     TCGv_i64 psz;
     TCGv_i64 pcur;
+    TCGv_i64 lsr;
     TCGv_i32 syscall_wbs;
     TCGv_ptr win_ptr;
     TCGv_i64 wregs[WREGS_SIZE];
@@ -142,7 +134,9 @@ typedef struct DisasContext {
     int t64_len;
     int ttl_len;
 
+    /* TODO: move to CPUE2KState */
     Result alc[6];
+    /* TODO: move to CPUE2KState */
     struct {
         TCGv dest;
         TCGv_i64 cond;
@@ -213,6 +207,26 @@ static inline void e2k_gen_set_field_i64(TCGv_i64 ret, TCGv_i64 val,
 
     tcg_temp_free_i64(t2);
     tcg_temp_free_i64(t1);
+    tcg_temp_free_i64(t0);
+}
+
+static inline void e2k_gen_lcnt(TCGv_i64 ret)
+{
+    tcg_gen_andi_i64(ret, e2k_cs.lsr, (1UL << 32) - 1);
+}
+
+static inline void e2k_gen_ecnt(TCGv_i64 ret)
+{
+    tcg_gen_extract_i64(ret, e2k_cs.lsr, LSR_ECNT_OFF, LSR_ECNT_LEN);
+}
+
+static inline void e2k_gen_pcnt(TCGv_i32 ret)
+{
+    TCGv_i64 t0 = tcg_temp_new_i64();
+
+    tcg_gen_extract_i64(t0, e2k_cs.lsr, LSR_PCNT_OFF, LSR_PCNT_LEN);
+    tcg_gen_extrl_i64_i32(ret, t0);
+
     tcg_temp_free_i64(t0);
 }
 

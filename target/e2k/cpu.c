@@ -80,6 +80,7 @@ void e2k_cpu_dump_state(CPUState *cs, FILE *f, int flags)
     qemu_fprintf(f, "usd_hi: %016lx, usd_lo: %016lx\n",
         env->usd_hi, env->usd_lo);
     qemu_fprintf(f, "psz: %d, pcur: %d\n", (int) env->psz, (int) env->pcur);
+    qemu_fprintf(f, "lsr: %016lx\n", env->lsr);
 
     for (i = 0; i < 192; i += 4) {
         const char *s1 = i < 10 ? "  " : (i < 100 ? " " : "");

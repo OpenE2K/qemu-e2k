@@ -3,6 +3,137 @@
 #include "exec/log.h"
 #include "translate.h"
 
+static inline void gen_alc_dec(DisasContext *dc, TCGCond cond)
+{
+    TCGv_i64 one = tcg_const_i64(1);
+    TCGv_i32 zero = tcg_const_i32(0);
+    TCGv_i32 t0 = tcg_temp_new_i32();
+    TCGv_i32 t1 = tcg_temp_new_i32();
+    TCGv_i32 t2 = tcg_temp_new_i32();
+    TCGv_i32 t3 = tcg_temp_new_i32();
+    TCGv_i32 t4 = tcg_temp_new_i32();
+    TCGv_i32 t5 = tcg_temp_new_i32();
+    TCGv_i32 t6 = tcg_temp_new_i32();
+    TCGv_i64 t7 = tcg_temp_new_i64();
+
+    tcg_gen_extrl_i64_i32(t0, e2k_cs.lsr);
+    tcg_gen_subi_i32(t1, t0, 1);
+    tcg_gen_movcond_i32(TCG_COND_LTU, t2, t1, t0, t1, t0);
+    tcg_gen_setcondi_i32(TCG_COND_EQ, t3, t1, 0);
+    tcg_gen_shli_i32(t4, t3, LSR_OVER_OFF - 32);
+    tcg_gen_extrh_i64_i32(t5, e2k_cs.lsr);
+    tcg_gen_or_i32(t6, t5, t4);
+    tcg_gen_concat_i32_i64(t7, t2, t6);
+    tcg_gen_movcond_i64(cond, e2k_cs.lsr,
+        dc->jmp.cond, one,
+        t7, e2k_cs.lsr);
+
+    tcg_temp_free_i64(t7);
+    tcg_temp_free_i32(t6);
+    tcg_temp_free_i32(t5);
+    tcg_temp_free_i32(t4);
+    tcg_temp_free_i32(t3);
+    tcg_temp_free_i32(t2);
+    tcg_temp_free_i32(t1);
+    tcg_temp_free_i32(t0);
+    tcg_temp_free_i32(zero);
+    tcg_temp_free_i64(one);
+}
+
+static inline void gen_abp_inc(DisasContext *dc, TCGCond cond)
+{
+    TCGv_i64 t0 = tcg_temp_new_i64();
+    TCGv_i64 t1 = tcg_temp_new_i64();
+    TCGv_i64 one = tcg_const_i64(1);
+
+    tcg_gen_subi_i64(t0, e2k_cs.pcur, 1);
+    tcg_gen_umin_i64(t1, t0, e2k_cs.psz);
+    tcg_gen_movcond_i64(cond, e2k_cs.pcur, dc->jmp.cond, one, t1, e2k_cs.pcur);
+
+    tcg_temp_free_i64(one);
+    tcg_temp_free_i64(t1);
+    tcg_temp_free_i64(t0);
+}
+
+static inline void gen_abn_inc(DisasContext *dc, TCGCond cond)
+{
+    TCGv_i32 t0 = tcg_temp_new_i32();
+    TCGv_i32 t1 = tcg_temp_new_i32();
+    TCGv_i32 one = tcg_const_i32(1);
+    TCGv_i32 jmp_cond = tcg_temp_new_i32();
+
+    tcg_gen_addi_i32(t0, e2k_cs.rcur, 2);
+    e2k_gen_wrap_i32(t1, t0, e2k_cs.rsz);
+    tcg_gen_extrl_i64_i32(jmp_cond, dc->jmp.cond);
+    tcg_gen_movcond_i32(cond, e2k_cs.rcur,
+        jmp_cond, one,
+        t1, e2k_cs.rcur);
+
+    tcg_temp_free_i32(jmp_cond);
+    tcg_temp_free_i32(one);
+    tcg_temp_free_i32(t1);
+    tcg_temp_free_i32(t0);
+}
+
+void e2k_win_commit(DisasContext *dc)
+{
+    // Change windowing registers after commit is done.
+    uint32_t ss = dc->bundle.ss;
+//    unsigned int vfdi = (ss & 0x04000000) >> 26;
+//    unsigned int abg = (ss & 0x01800000) >> 23;
+
+    if (GET_BIT(ss, 16)) {
+        gen_alc_dec(dc, TCG_COND_EQ);
+    }
+    if (GET_BIT(ss, 17)) {
+        gen_alc_dec(dc, TCG_COND_NE);
+    }
+    if (GET_BIT(ss, 18)) {
+        gen_abp_inc(dc, TCG_COND_EQ);
+    }
+    if (GET_BIT(ss, 19)) {
+        gen_abp_inc(dc, TCG_COND_NE);
+    }
+    if (GET_BIT(ss, 21)) {
+        gen_abn_inc(dc, TCG_COND_EQ);
+    }
+    if (GET_BIT(ss, 22)) {
+        gen_abn_inc(dc, TCG_COND_NE);
+    }
+}
+
+static inline void gen_is_last_iter(TCGv_i64 ret)
+{
+    TCGv_i64 t0 = tcg_temp_new_i64();
+    TCGv_i64 t1 = tcg_temp_new_i64();
+    TCGv_i64 t2 = tcg_temp_new_i64();
+
+    e2k_gen_lcnt(t0);
+    tcg_gen_setcondi_i64(TCG_COND_LTU, t1, t0, 2);
+    tcg_gen_extract_i64(t2, e2k_cs.lsr, LSR_VLC_OFF, 1);
+    tcg_gen_and_i64(ret, t1, t2);
+
+    tcg_temp_free(t2);
+    tcg_temp_free(t1);
+    tcg_temp_free(t0);
+}
+
+static inline void gen_is_loop_end(TCGv_i64 ret)
+{
+    TCGv_i64 t0 = tcg_temp_new_i64();
+    TCGv_i64 t1 = tcg_temp_new_i64();
+    TCGv_i64 t2 = tcg_temp_new_i64();
+
+    e2k_gen_ecnt(t0);
+    tcg_gen_setcondi_i64(TCG_COND_EQ, t1, t0, 0);
+    gen_is_last_iter(t2);
+    tcg_gen_and_i64(ret, t1, t2);
+
+    tcg_temp_free_i64(t2);
+    tcg_temp_free_i64(t1);
+    tcg_temp_free_i64(t0);
+}
+
 static void gen_cs0(DisasContext *dc)
 {
     typedef enum {
@@ -327,16 +458,19 @@ static void gen_jmp(DisasContext *dc)
         dc->base.is_jmp = STATIC_JUMP;
         tcg_gen_movi_i64(dc->jmp.cond, 1);
     } else {
+        /* TODO: single assign */
+        TCGv_i64 cond = tcg_temp_new_i64();
+
         dc->base.is_jmp = DYNAMIC_JUMP;
 
         if (cond_type == 2 || cond_type == 6 || cond_type == 0xf) {
             /* if pred is true */
-            tcg_gen_mov_i64(dc->jmp.cond, e2k_get_preg(dc, psrc));
+            tcg_gen_mov_i64(cond, e2k_get_preg(dc, psrc));
         } else if (cond_type == 3 || cond_type == 7 || cond_type == 0xe) {
             /* if pred is false */
             TCGv_i64 one = tcg_const_i64(1);
             TCGv_i64 zero = tcg_const_i64(0);
-            tcg_gen_movcond_i64(TCG_COND_EQ, dc->jmp.cond,
+            tcg_gen_movcond_i64(TCG_COND_EQ, cond,
                 e2k_get_preg(dc, psrc), zero,
                 one, zero);
             tcg_temp_free_i64(zero);
@@ -345,27 +479,35 @@ static void gen_jmp(DisasContext *dc)
 
         /* TODO: other kinds of conditions */
 
-        if (cond_type == 4
-            || cond_type == 6
-            || cond_type == 0xe)
-        {
+        if (cond_type == 4 || cond_type == 6 || cond_type == 0xe) {
+            TCGv_i64 is_loop_end = tcg_temp_new_i64();
+
+            gen_is_loop_end(is_loop_end);
+
             if (cond_type == 6 || cond_type == 0xe) {
-                // or
+                tcg_gen_or_i64(cond, cond, is_loop_end);
+            } else {
+                tcg_gen_mov_i64(cond, is_loop_end);
             }
 
-            // %LOOP_END
+            tcg_temp_free_i64(is_loop_end);
         }
 
-        if (cond_type == 5
-            || cond_type == 7
-            || cond_type == 0xf)
-        {
-            if(cond_type == 7
-                || cond_type == 0xf)
-            {
-                // AND
+        if (cond_type == 5 || cond_type == 7 || cond_type == 0xf) {
+            TCGv_i64 is_loop_end = tcg_temp_new_i64();
+            TCGv_i64 t0 = tcg_temp_new_i64();
+
+            gen_is_loop_end(is_loop_end);
+            tcg_gen_setcondi_i64(TCG_COND_EQ, t0, is_loop_end, 0);
+
+            if(cond_type == 7 || cond_type == 0xf) {
+                tcg_gen_and_i64(cond, cond, t0);
+            } else {
+                tcg_gen_mov_i64(cond, t0);
             }
-            // %NOT_LOOP_END
+
+            tcg_temp_free_i64(t0);
+            tcg_temp_free_i64(is_loop_end);
         }
 
         if (cond_type == 8) {
@@ -416,6 +558,10 @@ static void gen_jmp(DisasContext *dc)
             qemu_log_mask(LOG_UNIMP, "Undefined control transfer type %#x\n", cond_type);
             abort();
         }
+
+        tcg_gen_mov_i64(dc->jmp.cond, cond);
+
+        tcg_temp_free_i64(cond);
     }
 
     /* TODO: check CPU behavior if present ibranch and ctpr is not zero */

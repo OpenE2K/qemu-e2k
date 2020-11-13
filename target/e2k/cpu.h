@@ -13,6 +13,35 @@ void e2k_tcg_initialize(void);
 // size of regular reg in bytes
 #define REG_SIZE (sizeof(target_ulong))
 
+#define CTPR_BASE_OFF 0
+#define CTPR_BASE_END 47
+#define CTPR_TAG_OFF 54
+#define CTPR_TAG_END 56
+#define CTPR_OPC_OFF 57
+#define CTPR_OPC_END 58
+#define CTPR_IPD_OFF 59
+#define CTPR_IPD_END 60
+
+#define LSR_LCNT_OFF 0      /* loop counter */
+#define LSR_LCNT_END 31
+#define LSR_LCNT_LEN (LSR_LCNT_END - LSR_LCNT_OFF + 1)
+#define LSR_ECNT_OFF 32     /* epilogue counter */
+#define LSR_ECNT_END 36
+#define LSR_ECNT_LEN (LSR_ECNT_END - LSR_ECNT_OFF + 1)
+#define LSR_VLC_OFF 37      /* loop count valid bit */
+#define LSR_OVER_OFF 38     /* loop count overflow */
+#define LSR_LDMC_OFF 39     /* loads manual control */
+#define LSR_LDOVL_OFF 40    /* load overlap */
+#define LSR_LDOVL_END 47
+#define LSR_LDOVL_SIZE (LSR_LDOVL_END - LSR_LDOVL_OFF + 1)
+#define LSR_PCNT_OFF 48     /* prologue counter */
+#define LSR_PCNT_END 52
+#define LSR_PCNT_LEN (LSR_PCNT_END - LSR_PCNT_OFF + 1)
+#define LSR_STRMD_OFF 53    /* store remainder counter */
+#define LSR_STRMD_END 59
+#define LSR_STRMD_LEN (LSR_STRMD_END - LSR_STRMD_OFF + 1)
+#define LSR_SEMC_OFF        /* side effects manual control */
+
 typedef enum {
     E2K_EXCP_UNIMPL = 0x01,
     E2K_EXCP_SYSCALL = 0x02,
@@ -42,6 +71,8 @@ typedef struct {
     uint32_t rcur; // Real based regs current offset, in bundle it comes divided by 2
     uint64_t psz; // pred regs window size
     uint64_t pcur; // pred regs current offset
+
+    uint64_t lsr; /* loop status register */
 
     uint32_t syscall_wbs;
     
