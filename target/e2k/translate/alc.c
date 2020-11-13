@@ -83,6 +83,28 @@ static TCGv_i64 get_dst(DisasContext *dc, unsigned int als)
     }
 }
 
+/* FIXME: now only %r, %b, %g */
+static void store_reg_alc_result(DisasContext *dc, int chan, TCGv_i64 val)
+{
+    uint8_t dst = dc->bundle.als[chan];
+    Result *res = &dc->alc[chan];
+    res->u.reg.v = val;
+
+    if (IS_BASED(dst)) {
+        res->tag = RESULT_BASED_REG;
+        res->u.reg.i = GET_BASED(dst);
+    } else if (IS_REGULAR(dst)) {
+        res->tag = RESULT_REGULAR_REG;
+        res->u.reg.i = GET_REGULAR(dst);
+    } else if (IS_GLOBAL(dst)) {
+        res->tag = RESULT_GLOBAL_REG;
+        res->u.reg.i = GET_GLOBAL(dst);
+    } else {
+        /* TODO: exception */
+        abort();
+    }
+}
+
 static inline void gen_andn_i32(TCGv_i32 ret, TCGv_i32 x, TCGv_i32 y)
 {
     TCGv_i32 t0 = tcg_temp_new_i32();
@@ -235,6 +257,48 @@ static inline void gen_mrgc_i32(DisasContext *dc, int chan, TCGv_i32 ret)
     tcg_temp_free(t0);
 }
 
+static inline void gen_rwd(DisasContext *dc, int chan)
+{
+    uint32_t als = dc->bundle.als[chan];
+    TCGv_i64 src2 = get_src2(dc, als);
+    uint8_t state_reg = als;
+
+    switch (state_reg) {
+    case 0x2c: /* %usd.hi */
+        tcg_gen_mov_i64(e2k_cs.usd_hi, src2);
+        break;
+    case 0x2d: /* %usd.lo */
+        tcg_gen_mov_i64(e2k_cs.usd_lo, src2);
+        break;
+    default:
+        /* TODO: exception */
+        abort();
+        break;
+    }
+}
+
+static inline void gen_rrd(DisasContext *dc, int chan)
+{
+    uint32_t als = dc->bundle.als[chan];
+    uint8_t state_reg = GET_FIELD(als, 16, 23);
+    TCGv_i64 ret = e2k_get_temp_i64(dc);
+
+    switch (state_reg) {
+    case 0x2c: /* %usd.hi */
+        tcg_gen_mov_i64(ret, e2k_cs.usd_hi);
+        break;
+    case 0x2d: /* %usd.lo */
+        tcg_gen_mov_i64(ret, e2k_cs.usd_lo);
+        break;
+    default:
+        /* TODO: exception */
+        abort();
+        break;
+    }
+
+    store_reg_alc_result(dc, chan, ret);
+}
+
 static void gen_op2_i32(TCGv_i64 ret, TCGv_i64 s1, TCGv_i64 s2, TCGv_i64 dst,
     void (*op)(TCGv_i32, TCGv_i32, TCGv_i32))
 {
@@ -259,59 +323,25 @@ static void gen_alopf1_i32(DisasContext *dc, int chan,
     void (*op)(TCGv_i32, TCGv_i32, TCGv_i32))
 {
     uint32_t als = dc->bundle.als[chan];
-    Result *res = &dc->alc[chan];
-    int dst = als & 0xff;
     TCGv_i64 t0 = e2k_get_temp_i64(dc);
 
     gen_op2_i32(t0, get_src1(dc, als), get_src2(dc, als), get_dst(dc, als), op);
-    res->u.reg.v = t0;
-
-    if (IS_BASED(dst)) {
-        res->tag = RESULT_BASED_REG;
-        res->u.reg.i = GET_BASED(dst);
-    } else if (IS_REGULAR(dst)) {
-        res->tag = RESULT_REGULAR_REG;
-        res->u.reg.i = GET_REGULAR(dst);
-    } else if (IS_GLOBAL(dst)) {
-        res->tag = RESULT_GLOBAL_REG;
-        res->u.reg.i = GET_GLOBAL(dst);
-    } else {
-        /* TODO: exception */
-        abort();
-    }
+    store_reg_alc_result(dc, chan, t0);
 }
 
 static void gen_alopf1_i64(DisasContext *dc, int chan,
     void (*op)(TCGv_i64, TCGv_i64, TCGv_i64))
 {
     uint32_t als = dc->bundle.als[chan];
-    Result *res = &dc->alc[chan];
-    int dst = als & 0xff;
     TCGv_i64 t0 = e2k_get_temp_i64(dc);
 
     (*op)(t0, get_src1(dc, als), get_src2(dc, als));
-    res->u.reg.v = t0;
-
-    if (IS_BASED(dst)) {
-        res->tag = RESULT_BASED_REG;
-        res->u.reg.i = GET_BASED(dst);
-    } else if (IS_REGULAR(dst)) {
-        res->tag = RESULT_REGULAR_REG;
-        res->u.reg.i = GET_REGULAR(dst);
-    } else if (IS_GLOBAL(dst)) {
-        res->tag = RESULT_GLOBAL_REG;
-        res->u.reg.i = GET_GLOBAL(dst);
-    } else {
-        /* TODO: exception */
-        abort();
-    }
+    store_reg_alc_result(dc, chan, t0);
 }
 
 static void gen_alopf1_mrgc_i32(DisasContext *dc, int chan)
 {
     uint32_t als = dc->bundle.als[chan];
-    uint8_t dst = als & 0xff;
-    Result *res = &dc->alc[chan];
     TCGv_i64 t0 = tcg_temp_new_i64();
     TCGv_i64 t1 = e2k_get_temp_i64(dc);
     TCGv_i64 cond = tcg_temp_new_i64();
@@ -319,55 +349,23 @@ static void gen_alopf1_mrgc_i32(DisasContext *dc, int chan)
     gen_mrgc_i64(dc, chan, cond);
     gen_merge_i64(t0, get_src1(dc, als), get_src2(dc, als), cond);
     gen_movehl_i64(t1, t0, get_dst(dc, als));
+    store_reg_alc_result(dc, chan, t1);
 
     tcg_temp_free_i64(cond);
     tcg_temp_free_i64(t0);
-
-    res->u.reg.v = t1;
-
-    if (IS_BASED(dst)) {
-        res->tag = RESULT_BASED_REG;
-        res->u.reg.i = GET_BASED(dst);
-    } else if (IS_REGULAR(dst)) {
-        res->tag = RESULT_REGULAR_REG;
-        res->u.reg.i = GET_REGULAR(dst);
-    } else if (IS_GLOBAL(dst)) {
-        res->tag = RESULT_GLOBAL_REG;
-        res->u.reg.i = GET_GLOBAL(dst);
-    } else {
-        /* TODO: exception */
-        abort();
-    }
 }
 
 static void gen_alopf1_mrgc_i64(DisasContext *dc, int chan)
 {
     uint32_t als = dc->bundle.als[chan];
-    Result *res = &dc->alc[chan];
-    int dst = als & 0xff;
     TCGv_i64 t0 = e2k_get_temp_i64(dc);
     TCGv_i64 cond = tcg_temp_new_i64();
 
     gen_mrgc_i64(dc, chan, cond);
     gen_merge_i64(t0, get_src1(dc, als), get_src2(dc, als), cond);
+    store_reg_alc_result(dc, chan, t0);
 
     tcg_temp_free_i64(cond);
-
-    res->u.reg.v = t0;
-
-    if (IS_BASED(dst)) {
-        res->tag = RESULT_BASED_REG;
-        res->u.reg.i = GET_BASED(dst);
-    } else if (IS_REGULAR(dst)) {
-        res->tag = RESULT_REGULAR_REG;
-        res->u.reg.i = GET_REGULAR(dst);
-    } else if (IS_GLOBAL(dst)) {
-        res->tag = RESULT_GLOBAL_REG;
-        res->u.reg.i = GET_GLOBAL(dst);
-    } else {
-        /* TODO: exception */
-        abort();
-    }
 }
 
 static void gen_alopf_simple(DisasContext *dc, int chan)
@@ -447,6 +445,22 @@ static void gen_alopf_simple(DisasContext *dc, int chan)
     }
 }
 
+static void gen_ext1(DisasContext *dc, int chan)
+{
+    uint8_t opc = GET_FIELD(dc->bundle.als[chan], 24, 30);
+
+    switch (opc) {
+    case 0x3c: /* rws */ break; /* TODO: only channel 1 */
+    case 0x3d: /* rwd */ gen_rwd(dc, chan); break; /* TODO: only channel 1 */
+    case 0x3e: /* rrs */ break; /* TODO: only channel 1 */
+    case 0x3f: /* rrd */ gen_rrd(dc, chan); break; /* TODO: only channel 1 */
+    default:
+        /* TODO: exception */
+        abort();
+        break;
+    }
+}
+
 static void gen_channel(DisasContext *dc, int chan)
 {
     const UnpackedBundle *bundle = &dc->bundle;
@@ -458,9 +472,20 @@ static void gen_channel(DisasContext *dc, int chan)
     case ALES_ALLOCATED: // 2 or 5 channel
         abort();
         break;
-    case ALES_PRESENT:
-        abort();
+    case ALES_PRESENT: {
+        uint16_t ales = bundle->ales[chan];
+        uint8_t opc = ales >> 8;
+        switch (opc) {
+        case 0x01:
+            gen_ext1(dc, chan);
+            break;
+        default:
+            /* TODO */
+            abort();
+            break;
+        }
         break;
+    }
     default:
         g_assert_not_reached();
         break;

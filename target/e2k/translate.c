@@ -360,6 +360,8 @@ void e2k_tcg_initialize(void) {
 
     static const struct { TCGv_i64 *ptr; int off; const char *name; } r64[] = {
         { &e2k_cs.pregs, offsetof(CPUE2KState, pregs), "pregs" },
+        { &e2k_cs.usd_lo, offsetof(CPUE2KState, usd_lo), "%usd.lo" },
+        { &e2k_cs.usd_hi, offsetof(CPUE2KState, usd_hi), "%usd.hi" },
     };
 
     static const struct { TCGv *ptr; int off; const char *name; } rtl[] = {
