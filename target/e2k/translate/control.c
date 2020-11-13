@@ -432,7 +432,7 @@ static void gen_jmp(DisasContext *dc)
         }
         TCGv_i64 t0 = tcg_temp_new_i64();
 
-        tcg_gen_andi_i64(t0, e2k_cs.ctprs[ctpr], GEN_MASK(uint64_t, 0, 47));
+        tcg_gen_andi_i64(t0, e2k_cs.ctprs[ctpr], GEN_MASK(0, 47));
         tcg_gen_mov_tl(dc->jmp.dest, t0);
 
         tcg_temp_free_i64(t0);

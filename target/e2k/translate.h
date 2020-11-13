@@ -8,8 +8,8 @@
 #define DYNAMIC_JUMP DISAS_TARGET_1
 #define DISAS_CALL DISAS_TARGET_2
 
-#define GEN_MASK(type, start, end) \
-    ((((type) 1 << ((end) - (start) + 1)) - 1) << start)
+#define GEN_MASK(start, end) \
+    (((1UL << ((end) - (start) + 1)) - 1) << start)
 #define GET_BIT(v, index) (((v) >> (index)) & 1)
 #define GET_FIELD(v, start, end) \
     (((v) >> (start)) & ((1 << ((end) - (start) + 1)) - 1))
@@ -182,7 +182,7 @@ static inline void e2k_gen_get_field_i64(TCGv_i64 ret, TCGv_i64 val,
 {
     TCGv_i64 t0 = tcg_temp_new_i64();
 
-    tcg_gen_andi_i64(t0, val, GEN_MASK(uint64_t, start, end));
+    tcg_gen_andi_i64(t0, val, GEN_MASK(start, end));
     tcg_gen_shli_i64(ret, t0, start);
 
     tcg_temp_free_i64(t0);
@@ -191,7 +191,7 @@ static inline void e2k_gen_get_field_i64(TCGv_i64 ret, TCGv_i64 val,
 static inline void e2k_gen_set_field_i64(TCGv_i64 ret, TCGv_i64 val,
     uint64_t field, unsigned int start, unsigned int end)
 {
-    uint64_t mask = GEN_MASK(uint64_t, start, end);
+    uint64_t mask = GEN_MASK(start, end);
     TCGv_i64 t0 = tcg_const_i64(~mask);
     TCGv_i64 t1 = tcg_const_i64((field << start) & mask);
     TCGv_i64 t2 = tcg_temp_new_i64();
