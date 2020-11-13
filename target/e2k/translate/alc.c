@@ -266,6 +266,9 @@ static inline void gen_rr_i64(TCGv_i64 ret, uint8_t state_reg)
     case 0x2d: /* %usd.lo */
         tcg_gen_mov_i64(ret, e2k_cs.usd_lo);
         break;
+    case 0x83: /* %lsr */
+        tcg_gen_mov_i64(ret, e2k_cs.lsr);
+        break;
     default:
         /* TODO: exception */
         abort();
@@ -307,6 +310,9 @@ static inline void gen_rw_i64(uint8_t state_reg, TCGv_i64 val)
     case 0x2d: /* %usd.lo */
         /* FIXME: user cannot write */
         tcg_gen_mov_i64(e2k_cs.usd_lo, val);
+        break;
+    case 0x83: /* %lsr */
+        tcg_gen_mov_i64(e2k_cs.lsr, val);
         break;
     default:
         /* TODO: exception */

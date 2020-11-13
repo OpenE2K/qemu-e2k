@@ -361,8 +361,9 @@ void e2k_tcg_initialize(void) {
         { &e2k_cs.pregs, offsetof(CPUE2KState, pregs), "pregs" },
         { &e2k_cs.psz, offsetof(CPUE2KState, psz), "psz" },
         { &e2k_cs.pcur, offsetof(CPUE2KState, pcur), "pcur" },
-        { &e2k_cs.usd_lo, offsetof(CPUE2KState, usd_lo), "%usd.lo" },
-        { &e2k_cs.usd_hi, offsetof(CPUE2KState, usd_hi), "%usd.hi" },
+        { &e2k_cs.usd_lo, offsetof(CPUE2KState, usd_lo), "usd.lo" },
+        { &e2k_cs.usd_hi, offsetof(CPUE2KState, usd_hi), "usd.hi" },
+        { &e2k_cs.lsr, offsetof(CPUE2KState, lsr), "lsr" },
     };
 
     static const struct { TCGv *ptr; int off; const char *name; } rtl[] = {
