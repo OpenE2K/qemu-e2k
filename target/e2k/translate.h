@@ -74,6 +74,8 @@ typedef struct CPUE2KStateTCG {
     TCGv_i64 wregs[WREGS_SIZE];
     TCGv_i64 gregs[32];
     TCGv_i64 pregs;
+    TCGv_i64 usd_lo;
+    TCGv_i64 usd_hi;
 } CPUE2KStateTCG;
 
 extern struct CPUE2KStateTCG e2k_cs;
