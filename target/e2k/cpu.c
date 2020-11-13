@@ -77,6 +77,8 @@ void e2k_cpu_dump_state(CPUState *cs, FILE *f, int flags)
 
     qemu_fprintf(f, "ip: " TARGET_FMT_lx "\n", env->ip);
     qemu_fprintf(f, "pregs: %016lx\n", env->pregs);
+    qemu_fprintf(f, "%%usd.hi: %016lx\n", env->usd_hi);
+    qemu_fprintf(f, "%%usd.lo: %016lx\n", env->usd_lo);
 
     for (i = 0; i < 192; i += 4) {
         const char *s1 = i < 10 ? "  " : (i < 100 ? " " : "");
