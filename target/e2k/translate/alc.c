@@ -353,6 +353,21 @@ static void gen_getsp(DisasContext *dc, int chan)
     tcg_temp_free_i64(t0);
 }
 
+static void gen_ld(DisasContext *dc, int chan, MemOp memop)
+{
+    uint32_t als = dc->bundle.als[chan];
+    TCGv_i64 src1 = get_src1(dc, als);
+    TCGv_i64 src2 = get_src2(dc, als);
+    TCGv_i64 t0 = tcg_temp_new_i64();
+    TCGv_i64 t1 = e2k_get_temp_i64(dc);
+
+    tcg_gen_add_i64(t0, src1, src2);
+    tcg_gen_qemu_ld_i64(t1, t0, dc->mmuidx, memop);
+    store_reg_alc_result(dc, chan, t1);
+
+    tcg_temp_free_i64(t0);
+}
+
 static void gen_op2_i32(TCGv_i64 ret, TCGv_i64 s1, TCGv_i64 s2, TCGv_i64 dst,
     void (*op)(TCGv_i32, TCGv_i32, TCGv_i32))
 {
@@ -490,6 +505,42 @@ static void gen_alopf_simple(DisasContext *dc, int chan)
     case 0x40: // TODO: udivs used as temporary UD
         e2k_gen_exception(dc, E2K_EXCP_UNIMPL);
         break;
+    case 0x64: { /* ldb */
+        if (chan == 2 || chan == 5) {
+            /* TODO: exception */
+            abort();
+        } else {
+            gen_ld(dc, chan, MO_UB);
+        }
+        break;
+    }
+    case 0x65: { /* ldh */
+        if (chan == 2 || chan == 5) {
+            /* TODO: exception */
+            abort();
+        } else {
+            gen_ld(dc, chan, MO_TEUW);
+        }
+        break;
+    }
+    case 0x66: { /* ldw */
+        if (chan == 2 || chan == 5) {
+            /* TODO: exception */
+            abort();
+        } else {
+            gen_ld(dc, chan, MO_TEUL);
+        }
+        break;
+    }
+    case 0x67: { /* ldd */
+        if (chan == 2 || chan == 5) {
+            /* TODO: exception */
+            abort();
+        } else {
+            gen_ld(dc, chan, MO_TEQ);
+        }
+        break;
+    }
     default:
         qemu_log_mask(LOG_UNIMP, "gen_alc: undefined instruction 0x%x %s\n", opc, sm ? "(speculative)" : "");
         break;
