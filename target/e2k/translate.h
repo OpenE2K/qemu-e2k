@@ -128,6 +128,7 @@ typedef struct DisasContext {
     target_ulong npc;
     bool is_call;
     int call_ctpr;
+    int mmuidx;
 
     int version;
 
