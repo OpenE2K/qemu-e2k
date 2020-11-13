@@ -60,15 +60,15 @@ typedef struct {
     target_ulong *win_ptr;
     uint64_t pregs;
 
-    uint32_t wbs; // Real window regs offset, in bundle it comes divided by 2
-    uint32_t wsz; // Real window regs size, in bundle it comes divided by 2
+    uint32_t wbs; // window regs offset
+    uint32_t wsz; // window regs size
     uint32_t nfx; // TODO
     uint32_t dbl; // TODO
 
     /* TODO: move them to %br? */
-    uint32_t rbs; // Real based regs offset, in bundle it comes divided by 2
-    uint32_t rsz; // Real based regs size, in bundle it comes divided by 2 minus 2
-    uint32_t rcur; // Real based regs current offset, in bundle it comes divided by 2
+    uint32_t rbs; // based regs offset
+    uint32_t rsz; // based regs size
+    uint32_t rcur; // based regs current offset
     uint64_t psz; // pred regs window size
     uint64_t pcur; // pred regs current offset
 

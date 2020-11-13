@@ -79,6 +79,9 @@ void e2k_cpu_dump_state(CPUState *cs, FILE *f, int flags)
     qemu_fprintf(f, "pregs: %016lx\n", env->pregs);
     qemu_fprintf(f, "usd_hi: %016lx, usd_lo: %016lx\n",
         env->usd_hi, env->usd_lo);
+    qemu_fprintf(f, "wbs: %d, wsz: %d\n", (int) env->wbs, (int) env->wsz);
+    qemu_fprintf(f, "rbs: %d, rsz: %d, rcur: %d\n",
+        (int) env->rbs, (int) env->rsz, (int) env->rcur);
     qemu_fprintf(f, "psz: %d, pcur: %d\n", (int) env->psz, (int) env->pcur);
     qemu_fprintf(f, "lsr: %016lx\n", env->lsr);
 

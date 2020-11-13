@@ -59,18 +59,20 @@ static inline void gen_abn_inc(DisasContext *dc, TCGCond cond)
 {
     TCGv_i32 t0 = tcg_temp_new_i32();
     TCGv_i32 t1 = tcg_temp_new_i32();
+    TCGv_i32 t2 = tcg_temp_new_i32();
+    TCGv_i32 t3 = tcg_temp_new_i32();
     TCGv_i32 one = tcg_const_i32(1);
-    TCGv_i32 jmp_cond = tcg_temp_new_i32();
 
-    tcg_gen_addi_i32(t0, e2k_cs.rcur, 2);
-    e2k_gen_wrap_i32(t1, t0, e2k_cs.rsz);
-    tcg_gen_extrl_i64_i32(jmp_cond, dc->jmp.cond);
+    tcg_gen_subi_i32(t0, e2k_cs.rcur, 1);
+    tcg_gen_umin_i32(t2, t0, e2k_cs.rsz);
+    tcg_gen_extrl_i64_i32(t3, dc->jmp.cond);
     tcg_gen_movcond_i32(cond, e2k_cs.rcur,
-        jmp_cond, one,
-        t1, e2k_cs.rcur);
+        t3, one,
+        t2, e2k_cs.rcur);
 
-    tcg_temp_free_i32(jmp_cond);
     tcg_temp_free_i32(one);
+    tcg_temp_free_i32(t3);
+    tcg_temp_free_i32(t2);
     tcg_temp_free_i32(t1);
     tcg_temp_free_i32(t0);
 }
@@ -322,7 +324,7 @@ static void gen_cs1(DisasContext *dc)
                 abort();
             } else {
                 uint32_t lts0 = bundle->lts[0];
-                tcg_gen_movi_i32(e2k_cs.wsz, GET_FIELD(lts0, 5, 11) * 2);
+                tcg_gen_movi_i32(e2k_cs.wsz, GET_FIELD(lts0, 5, 11));
                 tcg_gen_movi_i32(e2k_cs.nfx, GET_BIT(lts0, 4));
 
                 if (dc->version >= 3) {
@@ -336,9 +338,9 @@ static void gen_cs1(DisasContext *dc)
             unsigned int rsz = (cs1 & 0x00000fc0) >> 6;
             unsigned int rbs = cs1 & 0x0000003f;
 
-            tcg_gen_movi_i32(e2k_cs.rcur, rcur * 2);
-            tcg_gen_movi_i32(e2k_cs.rsz, rsz * 2 + 2);
-            tcg_gen_movi_i32(e2k_cs.rbs, rbs * 2);
+            tcg_gen_movi_i32(e2k_cs.rcur, rcur);
+            tcg_gen_movi_i32(e2k_cs.rsz, rsz);
+            tcg_gen_movi_i32(e2k_cs.rbs, rbs);
         }
 
         if (setbp) {
@@ -393,7 +395,7 @@ static void gen_cs1(DisasContext *dc)
 
         if (ctop) {
             dc->is_call = true;
-            tcg_gen_movi_i32(e2k_cs.syscall_wbs, wbs * 2);
+            tcg_gen_movi_i32(e2k_cs.syscall_wbs, wbs);
 //            my_printf ("call %%ctpr%d, wbs = 0x%x", ctop, wbs);
 //            print_ctcond (info, instr->ss & 0x1ff);
         } else {

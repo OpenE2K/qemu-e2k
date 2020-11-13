@@ -39,14 +39,20 @@ void cpu_loop(CPUE2KState *env)
         switch (trapnr) {
         case E2K_EXCP_SYSCALL: {
             /* TODO: wrap register indices */
-            uint64_t *regs = &env->wregs[env->wbs + env->syscall_wbs];
+            int offset = (env->wbs + env->syscall_wbs) * 2;
+            uint64_t *regs = &env->wregs[offset];
             abi_ulong ret = do_syscall(env, regs[0],
                 regs[1], regs[2], regs[3], regs[4],
                 regs[5], regs[6], regs[7], regs[8]);
             if (ret == -TARGET_ERESTARTSYS) {
                 /* TODO: restart syscall */
             } else if (ret != -TARGET_QEMU_ESIGRETURN) {
+                unsigned int i;
+
                 regs[0] = ret;
+                for (i = 1; i < 8; i++) {
+                    regs[i] = 0;
+                }
             }
             break;
         }
