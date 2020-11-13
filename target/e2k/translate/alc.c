@@ -368,6 +368,20 @@ static void gen_ld(DisasContext *dc, int chan, MemOp memop)
     tcg_temp_free_i64(t0);
 }
 
+static void gen_st(DisasContext *dc, int chan, MemOp memop)
+{
+    uint32_t als = dc->bundle.als[chan];
+    TCGv_i64 src1 = get_src1(dc, als);
+    TCGv_i64 src2 = get_src2(dc, als);
+    TCGv_i64 src4 = get_dst(dc, als);
+    TCGv_i64 t0 = tcg_temp_new_i64();
+
+    tcg_gen_add_i64(t0, src1, src2);
+    tcg_gen_qemu_st_i64(src4, t0, dc->mmuidx, memop);
+
+    tcg_temp_free_i64(t0);
+}
+
 static void gen_op2_i32(TCGv_i64 ret, TCGv_i64 s1, TCGv_i64 s2, TCGv_i64 dst,
     void (*op)(TCGv_i32, TCGv_i32, TCGv_i32))
 {
@@ -500,6 +514,42 @@ static void gen_alopf_simple(DisasContext *dc, int chan)
         res.u.reg.v = tmp_dst;
         dc->alc[chan] = res;
 
+        break;
+    }
+    case 0x24: { /* stb */
+        if (chan == 2 || chan == 5) {
+            gen_st(dc, chan, MO_UB);
+        } else {
+            /* TODO: exception */
+            abort();
+        }
+        break;
+    }
+    case 0x25: { /* sth */
+        if (chan == 2 || chan == 5) {
+            gen_st(dc, chan, MO_TEUW);
+        } else {
+            /* TODO: exception */
+            abort();
+        }
+        break;
+    }
+    case 0x26: { /* stw */
+        if (chan == 2 || chan == 5) {
+            gen_st(dc, chan, MO_TEUL);
+        } else {
+            /* TODO: exception */
+            abort();
+        }
+        break;
+    }
+    case 0x27: { /* std */
+        if (chan == 2 || chan == 5) {
+            gen_st(dc, chan, MO_TEQ);
+        } else {
+            /* TODO: exception */
+            abort();
+        }
         break;
     }
     case 0x40: // TODO: udivs used as temporary UD
