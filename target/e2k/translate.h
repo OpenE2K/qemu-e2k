@@ -173,6 +173,19 @@ static inline void e2k_gen_wrap_i32(TCGv_i32 ret, TCGv_i32 x, TCGv_i32 y)
 }
 
 // FIXME: x must not be greater than y * 2
+static inline void e2k_gen_wrapi_i32(TCGv_i32 ret, TCGv_i32 x, uint32_t y)
+{
+    TCGv_i32 t0 = tcg_temp_new_i32();
+    TCGv_i32 t1 = tcg_const_i32(y);
+
+    tcg_gen_sub_i32(t0, x, t1);
+    tcg_gen_movcond_i32(TCG_COND_LTU, ret, x, t1, x, t0);
+
+    tcg_temp_free_i32(t1);
+    tcg_temp_free_i32(t0);
+}
+
+// FIXME: x must not be greater than y * 2
 static inline void e2k_gen_wrap_i64(TCGv_i64 ret, TCGv_i64 x, TCGv_i64 y)
 {
     TCGv_i64 t0 = tcg_temp_new_i64();

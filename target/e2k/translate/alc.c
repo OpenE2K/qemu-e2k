@@ -359,6 +359,17 @@ static void gen_getsp(DisasContext *dc, int chan)
     tcg_temp_free_i64(t0);
 }
 
+/* FIXME: movtd: don't know what it does */
+static void gen_movtd(DisasContext *dc, int chan)
+{
+    uint32_t als = dc->bundle.als[chan];
+    TCGv_i64 src2 = get_src2(dc, als);
+    TCGv_i64 t0 = e2k_get_temp_i64(dc);
+
+    tcg_gen_mov_i64(t0, src2);
+    store_reg_alc_result(dc, chan, t0);
+}
+
 static void gen_ld(DisasContext *dc, int chan, MemOp memop)
 {
     uint32_t als = dc->bundle.als[chan];
@@ -462,7 +473,6 @@ static void gen_alopf_simple(DisasContext *dc, int chan)
     uint32_t als = dc->bundle.als[chan];
     int opc = GET_FIELD(als, 24, 30);
     int sm  = GET_BIT(als, 31);
-    Result res = { 0 };
 
     switch(opc) {
     case 0x00: /* ands */ gen_alopf1_i32(dc, chan, tcg_gen_and_i32); break;
@@ -500,20 +510,24 @@ static void gen_alopf_simple(DisasContext *dc, int chan)
         TCGv_i64 cpu_src1 = get_src1(dc, als);
         TCGv_i64 cpu_src2 = get_src2(dc, als);
         TCGv_i64 tmp_dst = e2k_get_temp_i64(dc);
+        TCGCond cond = TCG_COND_NEVER;
+        Result res = { 0 };
 
         unsigned int cmp_op = GET_FIELD(als, 5, 7);
         // TODO: move to separate function
         switch(cmp_op) {
-        case 1: // unsigned less
-            tcg_gen_setcond_i64(TCG_COND_LEU, tmp_dst, cpu_src1, cpu_src2);
-            break;
-        case 2: // equal
-            tcg_gen_setcond_i64(TCG_COND_EQ, tmp_dst, cpu_src1, cpu_src2);
-            break;
-        default:
-            abort();
-            break;
+        case 0: abort(); break;
+        case 1: cond = TCG_COND_LTU; break;
+        case 2: cond = TCG_COND_EQ; break;
+        case 3: cond = TCG_COND_LEU; break;
+        case 4: abort(); break;
+        case 5: abort(); break;
+        case 6: cond = TCG_COND_LT; break;
+        case 7: cond = TCG_COND_LE; break;
+        default: g_assert_not_reached(); break;
         }
+
+        tcg_gen_setcond_i64(cond, tmp_dst, cpu_src1, cpu_src2);
 
         res.tag = RESULT_PREG;
         res.u.reg.i = als & 0x1f;
@@ -560,6 +574,14 @@ static void gen_alopf_simple(DisasContext *dc, int chan)
     }
     case 0x40: // TODO: udivs used as temporary UD
         e2k_gen_exception(dc, E2K_EXCP_UNIMPL);
+        break;
+    case 0x61:
+        if (chan == 2 || chan == 5) {
+            /* TODO: exception */
+            abort();
+        } else {
+            gen_movtd(dc, chan);
+        }
         break;
     case 0x64: { /* ldb */
         if (chan == 2 || chan == 5) {
