@@ -1,4 +1,5 @@
 #include "qemu/osdep.h"
+#include "qemu/log.h"
 #include "cpu.h"
 #include "exec/exec-all.h"
 #include "qemu/host-utils.h"
@@ -51,4 +52,14 @@ uint64_t helper_sxt(uint64_t x, uint64_t y)
     } else {
         return (((int64_t) y) << (64 - size) >> (64 - size));
     }
+}
+
+void helper_debug_i32(uint32_t x)
+{
+    qemu_log_mask(LOG_UNIMP, "log %#x\n", x);
+}
+
+void helper_debug_i64(uint64_t x)
+{
+    qemu_log_mask(LOG_UNIMP, "log %#lx\n", x);
 }

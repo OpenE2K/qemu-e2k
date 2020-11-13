@@ -43,9 +43,6 @@ static void e2k_cpu_reset(DeviceState *dev)
     memset(env, 0, offsetof(CPUE2KState, end_reset_fields));
 
     env->win_ptr = env->wregs;
-
-    env->usd_hi = 0x2088000000000UL;
-    env->usd_lo = 0x1800c2dfffffe880UL;
 }
 
 static bool e2k_cpu_exec_interrupt(CPUState *cs, int interrupt_request)
@@ -80,8 +77,9 @@ void e2k_cpu_dump_state(CPUState *cs, FILE *f, int flags)
 
     qemu_fprintf(f, "ip: " TARGET_FMT_lx "\n", env->ip);
     qemu_fprintf(f, "pregs: %016lx\n", env->pregs);
-    qemu_fprintf(f, "%%usd.hi: %016lx\n", env->usd_hi);
-    qemu_fprintf(f, "%%usd.lo: %016lx\n", env->usd_lo);
+    qemu_fprintf(f, "usd_hi: %016lx, usd_lo: %016lx\n",
+        env->usd_hi, env->usd_lo);
+    qemu_fprintf(f, "psz: %d, pcur: %d\n", (int) env->psz, (int) env->pcur);
 
     for (i = 0; i < 192; i += 4) {
         const char *s1 = i < 10 ? "  " : (i < 100 ? " " : "");

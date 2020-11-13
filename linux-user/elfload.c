@@ -1527,7 +1527,10 @@ typedef target_elf_greg_t target_elf_gregset_t[ELF_NREG];
 
 static inline void init_thread(struct target_pt_regs *regs, struct image_info *infop)
 {
+    uint64_t size = infop->start_stack - infop->stack_limit;
     regs->ip = infop->entry;
+    regs->usd_hi = size << 32;
+    regs->usd_lo = (0x1800UL << 48) | infop->start_stack;
     // TODO
     qemu_log_mask(LOG_UNIMP, "init_thread: not implemented\n");
 }
