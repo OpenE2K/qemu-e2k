@@ -201,6 +201,7 @@ static inline void e2k_gen_set_field_i64(TCGv_i64 ret, TCGv_i64 val,
     tcg_temp_free_i64(t0);
 }
 
+TCGv_i64 e2k_gen_preg(TCGv_i64 ret, int reg);
 TCGv_i64 e2k_get_preg(DisasContext *dc, int reg);
 void e2k_gen_store_preg(int reg, TCGv_i64 val);
 TCGv_i64 e2k_get_wreg(DisasContext *dc, int reg);
