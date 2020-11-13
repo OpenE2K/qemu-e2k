@@ -3,6 +3,52 @@
 #include "exec/log.h"
 #include "translate.h"
 
+static void gen_preg_offset(TCGv_i64 ret, int reg)
+{
+    assert(reg < 32);
+
+    TCGv_i64 t0 = tcg_temp_new_i64();
+    TCGv_i64 t1 = tcg_temp_new_i64();
+    TCGv_i64 t2 = tcg_temp_new_i64();
+
+    tcg_gen_addi_i64(t0, e2k_cs.pcur, reg);
+    tcg_gen_addi_i64(t1, e2k_cs.psz, 1);
+    e2k_gen_wrap_i64(t2, t0, t1);
+    tcg_gen_shli_i64(ret, t2, 1);
+
+    tcg_temp_free_i64(t2);
+    tcg_temp_free_i64(t1);
+    tcg_temp_free_i64(t0);
+}
+
+static void gen_preg_clear(TCGv_i64 ret, TCGv_i64 offset)
+{
+    TCGv_i64 t0 = tcg_const_i64(3);
+    TCGv_i64 t1 = tcg_temp_new_i64();
+    TCGv_i64 t2 = tcg_temp_new_i64();
+
+    tcg_gen_shr_i64(t1, t0, offset);
+    tcg_gen_not_i64(t2, t1);
+    tcg_gen_and_i64(ret, t2, e2k_cs.pregs);
+
+    tcg_temp_free_i64(t2);
+    tcg_temp_free_i64(t1);
+    tcg_temp_free_i64(t0);
+}
+
+void e2k_gen_preg(TCGv_i64 ret, int reg)
+{
+    TCGv_i64 t0 = tcg_temp_new_i64();
+    TCGv_i64 t1 = tcg_temp_new_i64();
+
+    gen_preg_offset(t0, reg);
+    tcg_gen_shri_i64(t1, e2k_cs.pregs, reg * 2);
+    tcg_gen_andi_i64(ret, t1, 0x01);
+
+    tcg_temp_free_i64(t1);
+    tcg_temp_free_i64(t0);
+}
+
 TCGv_i64 e2k_get_preg(DisasContext *dc, int reg)
 {
     TCGv_i64 ret = e2k_get_temp_i64(dc);
@@ -10,26 +56,19 @@ TCGv_i64 e2k_get_preg(DisasContext *dc, int reg)
     return ret;
 }
 
-TCGv_i64 e2k_gen_preg(TCGv_i64 ret, int reg)
-{
-    TCGv_i64 tmp = tcg_temp_new_i64();
-    assert(reg < 32);
-    tcg_gen_shri_i64(tmp, e2k_cs.pregs, reg * 2);
-    // TODO: should return preg tag?
-    tcg_gen_andi_i64(ret, tmp, 0x01);
-    tcg_temp_free_i64(tmp);
-    return ret;
-}
-
 void e2k_gen_store_preg(int reg, TCGv_i64 val)
 {
     TCGv_i64 t0 = tcg_temp_new_i64();
     TCGv_i64 t1 = tcg_temp_new_i64();
-    TCGv_i64 t2 = tcg_temp_new_i64();
-    tcg_gen_andi_i64(t0, e2k_cs.pregs, ~(3 << (reg * 2)));
-    tcg_gen_andi_i64(t1, val, 0x03);
-    tcg_gen_shli_i64(t2, t1, reg * 2);
-    tcg_gen_or_i64(e2k_cs.pregs, t0, t2);
+    TCGv_i64 t2 = tcg_const_i64(1);
+    TCGv_i64 t3 = tcg_temp_new_i64();
+
+    gen_preg_offset(t0, reg);
+    gen_preg_clear(t1, t0);
+    tcg_gen_shl_i64(t3, t2, t0);
+    tcg_gen_or_i64(e2k_cs.pregs, t1, t3);
+
+    tcg_temp_free_i64(t3);
     tcg_temp_free_i64(t2);
     tcg_temp_free_i64(t1);
     tcg_temp_free_i64(t0);

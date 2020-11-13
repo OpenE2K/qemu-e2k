@@ -3,6 +3,21 @@
 #include "exec/log.h"
 #include "translate.h"
 
+static inline void gen_abp_inc(DisasContext *dc, TCGCond cond)
+{
+    TCGv_i64 t0 = tcg_temp_new_i64();
+    TCGv_i64 t1 = tcg_temp_new_i64();
+    TCGv_i64 one = tcg_const_i64(1);
+
+    tcg_gen_subi_i64(t0, e2k_cs.pcur, 1);
+    tcg_gen_umin_i64(t1, t0, e2k_cs.psz);
+    tcg_gen_movcond_i64(cond, e2k_cs.pcur, dc->jmp.cond, one, t1, e2k_cs.pcur);
+
+    tcg_temp_free_i64(one);
+    tcg_temp_free_i64(t1);
+    tcg_temp_free_i64(t0);
+}
+
 static inline void gen_abn_inc(DisasContext *dc, TCGCond cond)
 {
     TCGv_i32 t0 = tcg_temp_new_i32();
@@ -29,7 +44,6 @@ void e2k_win_commit(DisasContext *dc)
     uint32_t ss = dc->bundle.ss;
 //    unsigned int vfdi = (ss & 0x04000000) >> 26;
 //    unsigned int abg = (ss & 0x01800000) >> 23;
-//    unsigned int abp = (ss & 0x000c0000) >> 18;
 //    unsigned int alc = (ss & 0x00030000) >> 16;
 
     if (GET_BIT(ss, 21)) {
@@ -37,5 +51,11 @@ void e2k_win_commit(DisasContext *dc)
     }
     if (GET_BIT(ss, 22)) {
         gen_abn_inc(dc, TCG_COND_NE);
+    }
+    if (GET_BIT(ss, 18)) {
+        gen_abp_inc(dc, TCG_COND_EQ);
+    }
+    if (GET_BIT(ss, 19)) {
+        gen_abp_inc(dc, TCG_COND_NE);
     }
 }
