@@ -50,7 +50,8 @@ typedef struct CPUE2KStateTCG {
     TCGv_i32 wsz;
     TCGv_i32 nfx;
     TCGv_i32 dbl;
-    TCGv_i32 br;
+    TCGv_i64 cr1_hi;
+    TCGv_i64 cr1_lo;
     TCGv_i64 lsr;
     TCGv_i32 syscall_wbs;
     TCGv_ptr win_ptr;
@@ -209,6 +210,29 @@ static inline void e2k_gen_set_field_i64(TCGv_i64 ret, TCGv_i64 val,
     tcg_gen_or_i64(ret, t2, t1);
 
     tcg_temp_free_i64(t2);
+    tcg_temp_free_i64(t1);
+    tcg_temp_free_i64(t0);
+}
+
+static inline void e2k_gen_get_br(TCGv_i32 ret)
+{
+    TCGv_i64 t0 = tcg_temp_new_i64();
+
+    tcg_gen_extract_i64(t0, e2k_cs.cr1_hi, CR1_HI_BR_OFF, CR1_HI_BR_LEN);
+    tcg_gen_extrl_i64_i32(ret, t0);
+
+    tcg_temp_free_i64(t0);
+}
+
+static inline void e2k_gen_set_br(TCGv_i32 val)
+{
+    TCGv_i64 t0 = tcg_temp_new_i64();
+    TCGv_i64 t1 = tcg_temp_new_i64();
+
+    tcg_gen_extu_i32_i64(t0, val);
+    tcg_gen_deposit_i64(t1, e2k_cs.cr1_hi, t0, CR1_HI_BR_OFF, CR1_HI_BR_LEN);
+    tcg_gen_mov_i64(e2k_cs.cr1_hi, t1);
+
     tcg_temp_free_i64(t1);
     tcg_temp_free_i64(t0);
 }

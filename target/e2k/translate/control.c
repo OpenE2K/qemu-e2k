@@ -156,22 +156,32 @@ void e2k_win_commit(DisasContext *dc)
         tcg_temp_free_i64(t0);
     }
 
-    if (abp) {
-        TCGv_i32 t0 = tcg_temp_new_i32();
+    if (abp || abn) {
+        TCGv_i32 br = tcg_temp_new_i32();
 
-        gen_pcur_inc(t0, e2k_cs.br);
-        gen_movcond_flag_i32(e2k_cs.br, abp, cond, t0, e2k_cs.br);
+        e2k_gen_get_br(br);
 
-        tcg_temp_free_i32(t0);
-    }
+        if (abp) {
+            TCGv_i32 t0 = tcg_temp_new_i32();
 
-    if (abn) {
-        TCGv_i32 t0 = tcg_temp_new_i32();
+            gen_pcur_inc(t0, br);
+            gen_movcond_flag_i32(br, abp, cond, t0, br);
 
-        gen_rcur_inc(t0, e2k_cs.br);
-        gen_movcond_flag_i32(e2k_cs.br, abn, cond, t0, e2k_cs.br);
+            tcg_temp_free_i32(t0);
+        }
 
-        tcg_temp_free_i32(t0);
+        if (abn) {
+            TCGv_i32 t0 = tcg_temp_new_i32();
+
+            gen_rcur_inc(t0, br);
+            gen_movcond_flag_i32(br, abn, cond, t0, br);
+
+            tcg_temp_free_i32(t0);
+        }
+
+        e2k_gen_set_br(br);
+
+        tcg_temp_free_i32(br);
     }
 
     tcg_temp_free_i32(cond);
@@ -407,16 +417,26 @@ static void gen_cs1(DisasContext *dc)
             }
         }
 
-        if (setbn) {
-            TCGv_i32 bn = tcg_const_i32(GET_FIELD(cs1, BR_BN_OFF, BR_BN_END));
-            tcg_gen_deposit_i32(e2k_cs.br, e2k_cs.br, bn, BR_BN_OFF, BR_BN_LEN);
-            tcg_temp_free_i32(bn);
-        }
+        if (setbn || setbp) {
+            TCGv_i32 br = tcg_temp_new_i32();
 
-        if (setbp) {
-            TCGv_i32 bp = tcg_const_i32(GET_FIELD(cs1, BR_PSZ_OFF, BR_PSZ_END));
-            tcg_gen_deposit_i32(e2k_cs.br, e2k_cs.br, bp, BR_BP_OFF, BR_BP_LEN);
-            tcg_temp_free_i32(bp);
+            e2k_gen_get_br(br);
+
+            if (setbn) {
+                TCGv_i32 bn = tcg_const_i32(GET_FIELD(cs1, BR_BN_OFF, BR_BN_END));
+                tcg_gen_deposit_i32(br, br, bn, BR_BN_OFF, BR_BN_LEN);
+                tcg_temp_free_i32(bn);
+            }
+
+            if (setbp) {
+                TCGv_i32 bp = tcg_const_i32(GET_FIELD(cs1, BR_PSZ_OFF, BR_PSZ_END));
+                tcg_gen_deposit_i32(br, br, bp, BR_BP_OFF, BR_BP_LEN);
+                tcg_temp_free_i32(bp);
+            }
+
+            e2k_gen_set_br(br);
+
+            tcg_temp_free_i32(br);
         }
     } else if (opc == SETEI) {
         /* Verify that CS1.param.sft = CS1.param[27] is equal to zero as required

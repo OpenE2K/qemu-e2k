@@ -7,14 +7,16 @@ static void gen_preg_offset(TCGv_i64 ret, int reg)
 {
     assert(reg < 32);
 
+    TCGv_i32 br = tcg_temp_new_i32();
     TCGv_i32 pcur = tcg_temp_new_i32();
     TCGv_i32 psz = tcg_temp_new_i32();
     TCGv_i32 t0 = tcg_temp_new_i32();
     TCGv_i32 t1 = tcg_temp_new_i32();
     TCGv_i32 t2 = tcg_temp_new_i32();
 
-    tcg_gen_extract_i32(pcur, e2k_cs.br, BR_PCUR_OFF, BR_PCUR_LEN);
-    tcg_gen_extract_i32(psz, e2k_cs.br, BR_PSZ_OFF, BR_PSZ_LEN);
+    e2k_gen_get_br(br);
+    tcg_gen_extract_i32(pcur, br, BR_PCUR_OFF, BR_PCUR_LEN);
+    tcg_gen_extract_i32(psz, br, BR_PSZ_OFF, BR_PSZ_LEN);
     tcg_gen_addi_i32(t0, pcur, reg);
     e2k_gen_wrap_i32(t1, t0, psz);
     tcg_gen_shli_i32(t2, t1, 1);
@@ -25,6 +27,7 @@ static void gen_preg_offset(TCGv_i64 ret, int reg)
     tcg_temp_free_i32(t0);
     tcg_temp_free_i32(psz);
     tcg_temp_free_i32(pcur);
+    tcg_temp_free_i32(br);
 }
 
 static void gen_preg_clear(TCGv_i64 ret, TCGv_i64 offset)
@@ -130,12 +133,12 @@ void e2k_gen_store_wreg(int reg, TCGv_i64 val)
     tcg_temp_free_ptr(ptr);
 }
 
-static inline void gen_breg_start(TCGv_i32 ret)
+static inline void gen_breg_start(TCGv_i32 ret, TCGv_i32 br)
 {
     TCGv_i32 rbs = tcg_temp_new_i32();
     TCGv_i32 t0 = tcg_temp_new_i32();
 
-    tcg_gen_extract_i32(rbs, e2k_cs.br, BR_RBS_OFF, BR_RBS_LEN);
+    tcg_gen_extract_i32(rbs, br, BR_RBS_OFF, BR_RBS_LEN);
     tcg_gen_add_i32(t0, e2k_cs.wbs, rbs);
     tcg_gen_shli_i32(ret, t0, 1);
 
@@ -145,6 +148,7 @@ static inline void gen_breg_start(TCGv_i32 ret)
 
 static inline void gen_breg_offset(TCGv_i32 ret, int reg)
 {
+    TCGv_i32 br = tcg_temp_new_i32();
     TCGv_i32 rcur = tcg_temp_new_i32();
     TCGv_i32 rsz = tcg_temp_new_i32();
     TCGv_i32 t0 = tcg_temp_new_i32();
@@ -156,10 +160,11 @@ static inline void gen_breg_offset(TCGv_i32 ret, int reg)
     TCGv_i32 t6 = tcg_temp_new_i32();
     TCGv_i32 t7 = tcg_temp_new_i32();
 
+    e2k_gen_get_br(br);
     /* TODO: exception: reg > (rsz * 2 + 2) */
     /* t = (reg + rcur * 2) % (rsz * 2 + 2) */
-    tcg_gen_extract_i32(rcur, e2k_cs.br, BR_RCUR_OFF, BR_RCUR_LEN);
-    tcg_gen_extract_i32(rsz, e2k_cs.br, BR_RSZ_OFF, BR_RSZ_LEN);
+    tcg_gen_extract_i32(rcur, br, BR_RCUR_OFF, BR_RCUR_LEN);
+    tcg_gen_extract_i32(rsz, br, BR_RSZ_OFF, BR_RSZ_LEN);
     tcg_gen_shli_i32(t0, rcur, 1);
     tcg_gen_addi_i32(t1, t0, reg);
     tcg_gen_addi_i32(t2, rsz, 1);
@@ -168,7 +173,7 @@ static inline void gen_breg_offset(TCGv_i32 ret, int reg)
 
     /* TODO: exceptioon: (reg + rbs * 2) > (wsz * 2) */
     /* t = (t + wbs * 2 + rbs * 2) % 192 */
-    gen_breg_start(t5);
+    gen_breg_start(t5, br);
     tcg_gen_add_i32(t6, t4, t5);
     e2k_gen_wrapi_i32(t7, t6, WREGS_SIZE);
 
@@ -185,6 +190,7 @@ static inline void gen_breg_offset(TCGv_i32 ret, int reg)
     tcg_temp_free_i32(t0);
     tcg_temp_free_i32(rsz);
     tcg_temp_free_i32(rcur);
+    tcg_temp_free_i32(br);
 }
 
 static inline void gen_breg_ptr(TCGv_ptr ret, int reg)

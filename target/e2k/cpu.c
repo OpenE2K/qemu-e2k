@@ -71,12 +71,12 @@ static const struct e2k_def_t e2k_defs[] = {
 
 static inline void cpu_dump_state_br(CPUE2KState *env, FILE *f, int flags)
 {
-    uint32_t br = env->br;
-    int rbs = GET_FIELD(br, BR_RBS_OFF, BR_RBS_LEN);
-    int rsz = GET_FIELD(br, BR_RSZ_OFF, BR_RSZ_LEN);
-    int rcur = GET_FIELD(br, BR_RCUR_OFF, BR_RCUR_LEN);
-    int psz = GET_FIELD(br, BR_PSZ_OFF, BR_PSZ_LEN);
-    int pcur = GET_FIELD(br, BR_PCUR_OFF, BR_PCUR_LEN);
+    uint32_t br = GET_FIELD(env->cr1_hi, CR1_HI_BR_OFF, CR1_HI_BR_END);
+    int rbs = GET_FIELD(br, BR_RBS_OFF, BR_RBS_END);
+    int rsz = GET_FIELD(br, BR_RSZ_OFF, BR_RSZ_END);
+    int rcur = GET_FIELD(br, BR_RCUR_OFF, BR_RCUR_END);
+    int psz = GET_FIELD(br, BR_PSZ_OFF, BR_PSZ_END);
+    int pcur = GET_FIELD(br, BR_PCUR_OFF, BR_PCUR_END);
 
     qemu_fprintf(f, "br         %#x\n", br);
     qemu_fprintf(f, "    rbs    %#x\n", rbs);
@@ -96,6 +96,8 @@ void e2k_cpu_dump_state(CPUState *cs, FILE *f, int flags)
     qemu_fprintf(f, "pregs: %016lx\n", env->pregs);
     qemu_fprintf(f, "usd_hi: %016lx, usd_lo: %016lx\n",
         env->usd_hi, env->usd_lo);
+    qemu_fprintf(f, "cr1_hi: %016lx, cr1_lo: %016lx\n",
+        env->cr1_hi, env->cr1_lo);
     qemu_fprintf(f, "wbs: %d, wsz: %d\n", (int) env->wbs, (int) env->wsz);
     cpu_dump_state_br(env, f, flags);
     qemu_fprintf(f, "lsr: %016lx\n", env->lsr);
