@@ -7,6 +7,12 @@
 
 void e2k_tcg_initialize(void);
 
+#define GEN_MASK(start, end) \
+    (((1UL << ((end) - (start) + 1)) - 1) << start)
+#define GET_BIT(v, index) (((v) >> (index)) & 1)
+#define GET_FIELD(v, start, end) \
+    (((v) >> (start)) & ((1UL << ((end) - (start) + 1)) - 1))
+
 #define MMU_USER_IDX 1
 #define CPU_RESOLVING_TYPE TYPE_E2K_CPU
 #define WREGS_SIZE 192
@@ -21,6 +27,28 @@ void e2k_tcg_initialize(void);
 #define CTPR_OPC_END 58
 #define CTPR_IPD_OFF 59
 #define CTPR_IPD_END 60
+
+#define BR_RBS_OFF 0        /* based regs window offset */
+#define BR_RBS_END 5
+#define BR_RBS_LEN (BR_RBS_END - BR_RBS_OFF + 1)
+#define BR_RSZ_OFF 6        /* based regs window size */
+#define BR_RSZ_END 11
+#define BR_RSZ_LEN (BR_RSZ_END - BR_RSZ_OFF + 1)
+#define BR_RCUR_OFF 12      /* based regs current index */
+#define BR_RCUR_END 17
+#define BR_RCUR_LEN (BR_RCUR_END - BR_RCUR_OFF + 1)
+#define BR_BN_OFF BR_RBS_OFF
+#define BR_BN_END BR_RCUR_END
+#define BR_BN_LEN (BR_BN_END - BR_BN_OFF + 1)
+#define BR_PSZ_OFF 18       /* based pregs window size */
+#define BR_PSZ_END 22
+#define BR_PSZ_LEN (BR_PSZ_END - BR_PSZ_OFF + 1)
+#define BR_PCUR_OFF 23      /* based pregs current index */
+#define BR_PCUR_END 27
+#define BR_PCUR_LEN (BR_PCUR_END - BR_PCUR_OFF + 1)
+#define BR_BP_OFF BR_PSZ_OFF
+#define BR_BP_END BR_PCUR_END
+#define BR_BP_LEN (BR_BP_END - BR_BP_OFF + 1)
 
 #define LSR_LCNT_OFF 0      /* loop counter */
 #define LSR_LCNT_END 31
@@ -65,13 +93,7 @@ typedef struct {
     uint32_t nfx; // TODO
     uint32_t dbl; // TODO
 
-    /* TODO: move them to %br? */
-    uint32_t rbs; // based regs offset
-    uint32_t rsz; // based regs size
-    uint32_t rcur; // based regs current offset
-    uint64_t psz; // pred regs window size
-    uint64_t pcur; // pred regs current offset
-
+    uint32_t br; /* based regs and pregs window registers */
     uint64_t lsr; /* loop status register */
 
     uint32_t syscall_wbs;

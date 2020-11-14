@@ -188,7 +188,7 @@ static target_ulong unpack_bundle(CPUE2KState *env,
 static inline void save_state(DisasContext *dc)
 {
     tcg_gen_movi_tl(e2k_cs.pc, dc->pc);
-    tcg_gen_movi_tl(e2k_cs.pc, dc->npc);
+//    tcg_gen_movi_tl(e2k_cs.pc, dc->npc);
 }
 
 void e2k_gen_exception(DisasContext *dc, int which)
@@ -287,18 +287,18 @@ static void e2k_tr_tb_stop(DisasContextBase *db, CPUState *cs)
         break;
     }
     case STATIC_JUMP:
-        tcg_gen_mov_i64(e2k_cs.pc, dc->jmp.dest);
+        tcg_gen_mov_tl(e2k_cs.pc, dc->jmp.dest);
         tcg_gen_exit_tb(NULL, 0);
         break;
     case DYNAMIC_JUMP: {
-        TCGv_i64 one = tcg_const_i64(1);
-        TCGv_i64 npc = tcg_const_i64(dc->npc);
-        tcg_gen_movcond_i64(TCG_COND_EQ, e2k_cs.pc,
+        TCGv_i64 one = tcg_const_tl(1);
+        TCGv_i64 npc = tcg_const_tl(dc->npc);
+        tcg_gen_movcond_tl(TCG_COND_EQ, e2k_cs.pc,
             dc->jmp.cond, one,
             dc->jmp.dest, npc
         );
-        tcg_temp_free_i64(npc);
-        tcg_temp_free_i64(one);
+        tcg_temp_free(npc);
+        tcg_temp_free(one);
         tcg_gen_exit_tb(NULL, 0);
         break;
     }
@@ -307,8 +307,8 @@ static void e2k_tr_tb_stop(DisasContextBase *db, CPUState *cs)
         break;
     }
 
-    tcg_temp_free_i64(dc->jmp.dest);
-    tcg_temp_free_i64(dc->jmp.cond);
+    tcg_temp_free(dc->jmp.dest);
+    tcg_temp_free(dc->jmp.cond);
 }
 
 static void e2k_tr_disas_log(const DisasContextBase *db, CPUState *cpu)
@@ -351,16 +351,12 @@ void e2k_tcg_initialize(void) {
         { &e2k_cs.wsz, offsetof(CPUE2KState, wsz), "wsz" },
         { &e2k_cs.nfx, offsetof(CPUE2KState, nfx), "nfx" },
         { &e2k_cs.dbl, offsetof(CPUE2KState, dbl), "dbl" },
-        { &e2k_cs.rbs, offsetof(CPUE2KState, rbs), "rbs" },
-        { &e2k_cs.rsz, offsetof(CPUE2KState, rsz), "rsz" },
-        { &e2k_cs.rcur, offsetof(CPUE2KState, rcur), "rcur" },
+        { &e2k_cs.br, offsetof(CPUE2KState, br), "br" },
         { &e2k_cs.syscall_wbs, offsetof(CPUE2KState, syscall_wbs), "syscall_wbs" },
     };
 
     static const struct { TCGv_i64 *ptr; int off; const char *name; } r64[] = {
         { &e2k_cs.pregs, offsetof(CPUE2KState, pregs), "pregs" },
-        { &e2k_cs.psz, offsetof(CPUE2KState, psz), "psz" },
-        { &e2k_cs.pcur, offsetof(CPUE2KState, pcur), "pcur" },
         { &e2k_cs.usd_lo, offsetof(CPUE2KState, usd_lo), "usd.lo" },
         { &e2k_cs.usd_hi, offsetof(CPUE2KState, usd_hi), "usd.hi" },
         { &e2k_cs.lsr, offsetof(CPUE2KState, lsr), "lsr" },
