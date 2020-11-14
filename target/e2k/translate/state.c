@@ -7,15 +7,24 @@ static void gen_preg_offset(TCGv_i64 ret, int reg)
 {
     assert(reg < 32);
 
-    TCGv_i64 t0 = tcg_temp_new_i64();
-    TCGv_i64 t1 = tcg_temp_new_i64();
+    TCGv_i32 pcur = tcg_temp_new_i32();
+    TCGv_i32 psz = tcg_temp_new_i32();
+    TCGv_i32 t0 = tcg_temp_new_i32();
+    TCGv_i32 t1 = tcg_temp_new_i32();
+    TCGv_i32 t2 = tcg_temp_new_i32();
 
-    tcg_gen_addi_i64(t0, e2k_cs.pcur, reg);
-    e2k_gen_wrap_i64(t1, t0, e2k_cs.psz);
-    tcg_gen_shli_i64(ret, t1, 1);
+    tcg_gen_extract_i32(pcur, e2k_cs.br, BR_PCUR_OFF, BR_PCUR_LEN);
+    tcg_gen_extract_i32(psz, e2k_cs.br, BR_PSZ_OFF, BR_PSZ_LEN);
+    tcg_gen_addi_i32(t0, pcur, reg);
+    e2k_gen_wrap_i32(t1, t0, psz);
+    tcg_gen_shli_i32(t2, t1, 1);
+    tcg_gen_extu_i32_i64(ret, t2);
 
-    tcg_temp_free_i64(t1);
-    tcg_temp_free_i64(t0);
+    tcg_temp_free_i32(t2);
+    tcg_temp_free_i32(t1);
+    tcg_temp_free_i32(t0);
+    tcg_temp_free_i32(psz);
+    tcg_temp_free_i32(pcur);
 }
 
 static void gen_preg_clear(TCGv_i64 ret, TCGv_i64 offset)
@@ -123,16 +132,21 @@ void e2k_gen_store_wreg(int reg, TCGv_i64 val)
 
 static inline void gen_breg_start(TCGv_i32 ret)
 {
+    TCGv_i32 rbs = tcg_temp_new_i32();
     TCGv_i32 t0 = tcg_temp_new_i32();
 
-    tcg_gen_add_i32(t0, e2k_cs.wbs, e2k_cs.rbs);
+    tcg_gen_extract_i32(rbs, e2k_cs.br, BR_RBS_OFF, BR_RBS_LEN);
+    tcg_gen_add_i32(t0, e2k_cs.wbs, rbs);
     tcg_gen_shli_i32(ret, t0, 1);
 
     tcg_temp_free_i32(t0);
+    tcg_temp_free_i32(rbs);
 }
 
 static inline void gen_breg_offset(TCGv_i32 ret, int reg)
 {
+    TCGv_i32 rcur = tcg_temp_new_i32();
+    TCGv_i32 rsz = tcg_temp_new_i32();
     TCGv_i32 t0 = tcg_temp_new_i32();
     TCGv_i32 t1 = tcg_temp_new_i32();
     TCGv_i32 t2 = tcg_temp_new_i32();
@@ -144,9 +158,11 @@ static inline void gen_breg_offset(TCGv_i32 ret, int reg)
 
     /* TODO: exception: reg > (rsz * 2 + 2) */
     /* t = (reg + rcur * 2) % (rsz * 2 + 2) */
-    tcg_gen_shli_i32(t0, e2k_cs.rcur, 1);
+    tcg_gen_extract_i32(rcur, e2k_cs.br, BR_RCUR_OFF, BR_RCUR_LEN);
+    tcg_gen_extract_i32(rsz, e2k_cs.br, BR_RSZ_OFF, BR_RSZ_LEN);
+    tcg_gen_shli_i32(t0, rcur, 1);
     tcg_gen_addi_i32(t1, t0, reg);
-    tcg_gen_addi_i32(t2, e2k_cs.rsz, 1);
+    tcg_gen_addi_i32(t2, rsz, 1);
     tcg_gen_shli_i32(t3, t2, 1);
     e2k_gen_wrap_i32(t4, t1, t3);
 
@@ -167,6 +183,8 @@ static inline void gen_breg_offset(TCGv_i32 ret, int reg)
     tcg_temp_free_i32(t2);
     tcg_temp_free_i32(t1);
     tcg_temp_free_i32(t0);
+    tcg_temp_free_i32(rsz);
+    tcg_temp_free_i32(rcur);
 }
 
 static inline void gen_breg_ptr(TCGv_ptr ret, int reg)

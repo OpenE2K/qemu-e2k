@@ -14,7 +14,7 @@ void helper_raise_exception(CPUE2KState *env, int tt)
     cpu_loop_exit(cs);
 }
 
-void helper_call(CPUE2KState *env, uint64_t ctpr, uint64_t cond)
+void helper_call(CPUE2KState *env, target_ulong ctpr, target_ulong cond)
 {
     int tag = GET_FIELD(ctpr, CTPR_TAG_OFF, CTPR_TAG_END);
     if (!cond) {

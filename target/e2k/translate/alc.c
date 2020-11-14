@@ -506,7 +506,7 @@ static void gen_alopf_simple(DisasContext *dc, int chan)
     case 0x1d: /* sard */ gen_alopf1_i64(dc, chan, tcg_gen_sar_i64); break;
     case 0x1e: /* TODO: getfs */ abort(); break;
     case 0x1f: /* TODO: getfd */ abort(); break;
-    case 0x21: { // cmp{op}sd
+    case 0x21: { // cmp{op}db
         TCGv_i64 cpu_src1 = get_src1(dc, als);
         TCGv_i64 cpu_src2 = get_src2(dc, als);
         TCGv_i64 tmp_dst = e2k_get_temp_i64(dc);
