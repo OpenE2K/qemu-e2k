@@ -28,6 +28,21 @@ void e2k_tcg_initialize(void);
 #define CTPR_IPD_OFF 59
 #define CTPR_IPD_END 60
 
+#define PCSP_HI_IND_OFF 0       /* index for SPILL */
+#define PCSP_HI_IND_END 31
+#define PCSP_HI_IND_LEN (PCSP_HI_IND_END - PCSP_HI_IND_OFF + 1)
+#define PCSP_HI_SIZE_OFF 32
+#define PCSP_HI_SIZE_END 63     /* procedure stack chain size */
+#define PCSP_HI_SIZE_LEN (PCSP_HI_SIZE_END - PCSP_HI_SIZE_OFF + 1)
+
+#define PCSP_LO_BASE_OFF 0      /* procedure stack chain address */
+#define PCSP_LO_BASE_END 47
+#define PCSP_LO_BASE_LEN (PCSP_LO_BASE_END - PCSP_LO_BASE_OFF + 1)
+#define PCSP_LO_READ_OFF 59
+#define PCSP_LO_READ_BIT (1UL << PCSP_LO_READ_OFF)
+#define PCSP_LO_WRITE_OFF 60
+#define PCSP_LO_WRITE_BIT (1UL << PCSP_LO_WRITE_OFF)
+
 #define CR1_HI_BR_OFF 0
 #define CR1_HI_BR_END 27
 #define CR1_HI_BR_LEN (CR1_HI_BR_END - CR1_HI_BR_OFF + 1)
@@ -118,13 +133,18 @@ typedef struct {
     target_ulong gregs[32]; // global regs
     target_ulong wregs[WREGS_SIZE]; // window regs
     target_ulong *win_ptr;
-    uint64_t pregs;
+    uint64_t pf; /* predicate file */
 
     uint32_t wbs; // window regs offset
     uint32_t wsz; // window regs size
     uint32_t nfx; // TODO
     uint32_t dbl; // TODO
 
+    uint64_t pcsp_hi;
+    uint64_t pcsp_lo;
+
+    /* cr0_hi == ip */
+    /* cr0_lo == pf */
     uint64_t cr1_hi;
     uint64_t cr1_lo;
 
