@@ -8,12 +8,6 @@
 #define DYNAMIC_JUMP DISAS_TARGET_1
 #define DISAS_CALL DISAS_TARGET_2
 
-#define GEN_MASK(start, end) \
-    (((1UL << ((end) - (start) + 1)) - 1) << start)
-#define GET_BIT(v, index) (((v) >> (index)) & 1)
-#define GET_FIELD(v, start, end) \
-    (((v) >> (start)) & ((1 << ((end) - (start) + 1)) - 1))
-
 #define IS_BASED(i) (((i) & 0x80) == 0)
 #define IS_REGULAR(i) (((i) & 0xc0) == 0x80)
 #define IS_IMM5(i) (((i) & 0xe0) == 0xc0)
@@ -56,11 +50,7 @@ typedef struct CPUE2KStateTCG {
     TCGv_i32 wsz;
     TCGv_i32 nfx;
     TCGv_i32 dbl;
-    TCGv_i32 rbs;
-    TCGv_i32 rsz;
-    TCGv_i32 rcur;
-    TCGv_i64 psz;
-    TCGv_i64 pcur;
+    TCGv_i32 br;
     TCGv_i64 lsr;
     TCGv_i32 syscall_wbs;
     TCGv_ptr win_ptr;
