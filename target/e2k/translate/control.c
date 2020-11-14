@@ -3,39 +3,37 @@
 #include "exec/log.h"
 #include "translate.h"
 
-static inline void gen_alc_dec(TCGCond cond, TCGv_i64 jmp_cond)
+static inline void gen_lcnt_dec(TCGv_i64 ret, TCGv_i64 lsr)
 {
-    TCGv_i64 one = tcg_const_i64(1);
     TCGv_i32 zero = tcg_const_i32(0);
+    TCGv_i32 lcnt = tcg_temp_new_i32();
     TCGv_i32 t0 = tcg_temp_new_i32();
     TCGv_i32 t1 = tcg_temp_new_i32();
     TCGv_i32 t2 = tcg_temp_new_i32();
     TCGv_i32 t3 = tcg_temp_new_i32();
     TCGv_i32 t4 = tcg_temp_new_i32();
     TCGv_i32 t5 = tcg_temp_new_i32();
-    TCGv_i32 t6 = tcg_temp_new_i32();
-    TCGv_i64 t7 = tcg_temp_new_i64();
 
-    tcg_gen_extrl_i64_i32(t0, e2k_cs.lsr);
-    tcg_gen_subi_i32(t1, t0, 1);
-    tcg_gen_movcond_i32(TCG_COND_LTU, t2, t1, t0, t1, t0);
-    tcg_gen_setcondi_i32(TCG_COND_EQ, t3, t1, 0);
+    tcg_gen_extrl_i64_i32(lcnt, lsr);
+    tcg_gen_subi_i32(t0, lcnt, 1);
+    tcg_gen_movcond_i32(TCG_COND_EQ, t1, lcnt, zero, zero, t0);
+
+    /* overflow bit */
+    tcg_gen_extrh_i64_i32(t2, lsr);
+    tcg_gen_setcondi_i32(TCG_COND_EQ, t3, lcnt, 1);
     tcg_gen_shli_i32(t4, t3, LSR_OVER_OFF - 32);
-    tcg_gen_extrh_i64_i32(t5, e2k_cs.lsr);
-    tcg_gen_or_i32(t6, t5, t4);
-    tcg_gen_concat_i32_i64(t7, t2, t6);
-    tcg_gen_movcond_i64(cond, e2k_cs.lsr, jmp_cond, one, t7, e2k_cs.lsr);
+    tcg_gen_or_i32(t5, t2, t4);
 
-    tcg_temp_free_i64(t7);
-    tcg_temp_free_i32(t6);
+    tcg_gen_concat_i32_i64(ret, t1, t5);
+
     tcg_temp_free_i32(t5);
     tcg_temp_free_i32(t4);
     tcg_temp_free_i32(t3);
     tcg_temp_free_i32(t2);
     tcg_temp_free_i32(t1);
     tcg_temp_free_i32(t0);
+    tcg_temp_free_i32(lcnt);
     tcg_temp_free_i32(zero);
-    tcg_temp_free_i64(one);
 }
 
 static inline void gen_pcur_inc(TCGv_i32 ret, TCGv_i32 br)
@@ -107,6 +105,35 @@ static inline void gen_movcond_flag_i32(TCGv_i32 ret, int flag, TCGv_i32 cond,
     tcg_temp_free_i32(one);
 }
 
+static inline void gen_movcond_flag_i64(TCGv_i64 ret, int flag, TCGv_i64 cond,
+    TCGv_i64 v1, TCGv_i64 v2)
+{
+    TCGv_i64 one = tcg_const_i64(1);
+    TCGCond c;
+
+    switch (flag) {
+    case 0x00:
+        c = TCG_COND_NEVER;
+        break;
+    case 0x01:
+        c = TCG_COND_EQ;
+        break;
+    case 0x02:
+        c = TCG_COND_NE;
+        break;
+    case 0x03:
+        c = TCG_COND_ALWAYS;
+        break;
+    default:
+        g_assert_not_reached();
+        break;
+    }
+
+    tcg_gen_movcond_i64(c, ret, cond, one, v1, v2);
+
+    tcg_temp_free_i64(one);
+}
+
 void e2k_win_commit(DisasContext *dc)
 {
     TCGv_i32 cond = tcg_temp_new_i32();
@@ -114,17 +141,21 @@ void e2k_win_commit(DisasContext *dc)
     uint32_t ss = dc->bundle.ss;
 //    unsigned int vfdi = (ss & 0x04000000) >> 26;
 //    unsigned int abg = (ss & 0x01800000) >> 23;
-    unsigned int abp = GET_FIELD(ss, 18, 19);
-    unsigned int abn = GET_FIELD(ss, 21, 22);
+    int alc = GET_FIELD(ss, 16, 17);
+    int abp = GET_FIELD(ss, 18, 19);
+    int abn = GET_FIELD(ss, 21, 22);
 
     tcg_gen_trunc_tl_i32(cond, dc->jmp.cond);
 
-    if (GET_BIT(ss, 16)) {
-        gen_alc_dec(TCG_COND_EQ, dc->jmp.cond);
+    if (alc) {
+        TCGv_i64 t0 = tcg_temp_new_i64();
+
+        gen_lcnt_dec(t0, e2k_cs.lsr);
+        gen_movcond_flag_i64(e2k_cs.lsr, alc, dc->jmp.cond, t0, e2k_cs.lsr);
+
+        tcg_temp_free_i64(t0);
     }
-    if (GET_BIT(ss, 17)) {
-        gen_alc_dec(TCG_COND_NE, dc->jmp.cond);
-    }
+
     if (abp) {
         TCGv_i32 t0 = tcg_temp_new_i32();
 
