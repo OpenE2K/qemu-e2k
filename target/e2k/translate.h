@@ -50,6 +50,8 @@ typedef struct CPUE2KStateTCG {
     TCGv_i32 wsz;
     TCGv_i32 nfx;
     TCGv_i32 dbl;
+    TCGv_i64 pcsp_hi;
+    TCGv_i64 pcsp_lo;
     TCGv_i64 cr1_hi;
     TCGv_i64 cr1_lo;
     TCGv_i64 lsr;
