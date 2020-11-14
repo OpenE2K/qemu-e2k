@@ -28,6 +28,38 @@ void e2k_tcg_initialize(void);
 #define CTPR_IPD_OFF 59
 #define CTPR_IPD_END 60
 
+#define CR1_HI_BR_OFF 0
+#define CR1_HI_BR_END 27
+#define CR1_HI_BR_LEN (CR1_HI_BR_END - CR1_HI_BR_OFF + 1)
+#define CR1_HI_WDBL_OFF 35
+#define CR1_HI_WDBL_BIT (1UL << CR1_HI_WDBL_OFF)
+#define CR1_HI_USSZ_OFF 36
+#define CR1_HI_USSZ_END 63
+#define CR1_HI_USSZ_LEN (CR1_HI_USSZ_END - CR1_HI_USSZ_OFF + 1)
+
+#define CR1_LO_TR_OFF 0
+#define CR1_LO_TR_END 14
+#define CR1_LO_TR_LEN (CR1_LO_TR_END - CR1_LO_TR_OFF + 1)
+#define CR1_LO_EIN_OFF 16
+#define CR1_LO_EIN_END 23
+#define CR1_LO_EIN_LEN (CR1_LO_EIN_END - CR1_LO_EIN_OFF + 1)
+#define CR1_LO_SS_OFF 24
+#define CR1_LO_SS_BIT (1UL << CR1_LO_SS_OFF)
+#define CR1_LO_WFX_OFF 25
+#define CR1_LO_WFX_BIT (1UL << CR1_LO_WFX_OFF)
+#define CR1_LO_WPSZ_OFF 26
+#define CR1_LO_WPSZ_END 32
+#define CR1_LO_WPSZ_LEN (CR1_LO_WPSZ_END - CR1_LO_WPSZ_OFF + 1)
+#define CR1_LO_WBS_OFF 33
+#define CR1_LO_WBS_END 39
+#define CR1_LO_WBS_LEN (CR1_LO_WBS_END - CR1_LO_WBS_OFF + 1)
+#define CR1_LO_CUIR_OFF 40
+#define CR1_LO_CUIR_END 56
+#define CR1_LO_CUIR_LEN (CR1_LO_CUIR_END - CR1_LO_CUIR_OFF + 1)
+#define CR1_LO_PSR_OFF 57
+#define CR1_LO_PSR_END 63
+#define CR1_LO_PSR_LEN (CR1_LO_PSR_END - CR1_LO_PSR_OFF + 1)
+
 #define BR_RBS_OFF 0        /* based regs window offset */
 #define BR_RBS_END 5
 #define BR_RBS_LEN (BR_RBS_END - BR_RBS_OFF + 1)
@@ -93,7 +125,9 @@ typedef struct {
     uint32_t nfx; // TODO
     uint32_t dbl; // TODO
 
-    uint32_t br; /* based regs and pregs window registers */
+    uint64_t cr1_hi;
+    uint64_t cr1_lo;
+
     uint64_t lsr; /* loop status register */
 
     uint32_t syscall_wbs;
