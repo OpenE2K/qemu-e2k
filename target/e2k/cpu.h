@@ -70,6 +70,8 @@ void e2k_tcg_initialize(void);
 #define PSP_LO_WRITE_OFF 60
 #define PSP_LO_WRITE_BIT (1UL << PSP_LO_WRITE_OFF)
 
+#define PSHTP
+
 #define CR1_HI_BR_OFF 0
 #define CR1_HI_BR_END 27
 #define CR1_HI_BR_LEN (CR1_HI_BR_END - CR1_HI_BR_OFF + 1)
@@ -173,6 +175,7 @@ typedef struct {
     /* Procedure stack pointer (for regs)  */
     uint64_t psp_lo;
     uint64_t psp_hi;
+    uint64_t pshtp;
 
     uint64_t lsr; /* loop status register */
 
