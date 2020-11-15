@@ -42,7 +42,7 @@ static void e2k_cpu_reset(DeviceState *dev)
 
     memset(env, 0, offsetof(CPUE2KState, end_reset_fields));
 
-    env->win_ptr = env->wregs;
+    env->wptr = &env->wregs[0];
 }
 
 static bool e2k_cpu_exec_interrupt(CPUState *cs, int interrupt_request)
@@ -93,12 +93,16 @@ void e2k_cpu_dump_state(CPUState *cs, FILE *f, int flags)
     unsigned int i;
 
     qemu_fprintf(f, "ip: " TARGET_FMT_lx "\n", env->ip);
-    qemu_fprintf(f, "pregs: %016lx\n", env->pf);
-    qemu_fprintf(f, "usd_hi: %016lx, usd_lo: %016lx\n",
-        env->usd_hi, env->usd_lo);
+    qemu_fprintf(f, "pcsp_hi: %016lx, pcsp_lo: %016lx\n",
+        env->pcsp_hi, env->pcsp_lo);
+    qemu_fprintf(f, "psp_hi: %016lx, psp_lo: %016lx\n",
+        env->psp_hi, env->psp_lo);
+    qemu_fprintf(f, "PF: %016lx\n", env->pf);
     qemu_fprintf(f, "cr1_hi: %016lx, cr1_lo: %016lx\n",
         env->cr1_hi, env->cr1_lo);
-    qemu_fprintf(f, "wbs: %d, wsz: %d\n", (int) env->wbs, (int) env->wsz);
+    qemu_fprintf(f, "usd_hi: %016lx, usd_lo: %016lx\n",
+        env->usd_hi, env->usd_lo);
+/* TODO    qemu_fprintf(f, "wbs: %d, wsz: %d\n", (int) env->wbs, (int) env->wsz); */
     cpu_dump_state_br(env, f, flags);
     qemu_fprintf(f, "lsr: %016lx\n", env->lsr);
 
