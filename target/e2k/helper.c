@@ -60,7 +60,7 @@ static inline void do_call(CPUE2KState *env, target_ulong ctpr)
     new_wbs = (wbs + env->call_wbs) % WREGS_SIZE;
     new_wsz = wsz - env->call_wbs;
 
-    if (wsz < 0) {
+    if (new_wsz < 0) {
         /* TODO: SIGSEGV */
         abort();
     }
@@ -258,4 +258,16 @@ void helper_save_pcur(CPUE2KState *env, int pcur)
         CR1_HI_BR_OFF + BR_PCUR_OFF,
         BR_PCUR_LEN
     );
+}
+
+uint64_t helper_getsp(CPUE2KState *env, uint64_t src2) {
+    uint64_t base = GET_FIELD(env->psp_lo, PSP_LO_BASE_OFF, PSP_LO_BASE_END);
+
+    base += src2;
+
+    /* TODO: stack overflow */
+    env->psp_lo = SET_FIELD(env->psp_lo, base, PSP_LO_BASE_OFF,
+        PSP_LO_BASE_LEN);
+
+    return base;
 }
