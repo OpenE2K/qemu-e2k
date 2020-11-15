@@ -14,48 +14,73 @@ void helper_raise_exception(CPUE2KState *env, int tt)
     cpu_loop_exit(cs);
 }
 
+static void pcs_push(CPUE2KState *env)
+{
+    size_t size = e2k_state_pcs_size_get(env);
+    size_t offset = e2k_state_pcs_index_get(env);
+    uint64_t *pcsp = (uint64_t *) (e2k_state_pcs_base_get(env) + offset);
+
+    if (offset + 32 > size) {
+        /* TODO: allocate more memory */
+        abort();
+    }
+
+    memcpy(pcsp, &env->pf, 8);
+    memcpy(pcsp + 1, &env->nip, 8);
+    memcpy(pcsp + 2, &env->cr1_lo, 8);
+    memcpy(pcsp + 3, &env->cr1_hi, 8);
+
+    e2k_state_pcs_index_set(env, offset + 32);
+}
+
+static void pcs_pop(CPUE2KState *env)
+{
+    size_t offset = e2k_state_pcs_index_get(env);
+    uint64_t *pcsp = (uint64_t *) (e2k_state_pcs_base_get(env) + offset - 32);
+
+    if (offset < 32) {
+        /* TODO: SIGKILL */
+        abort();
+    }
+
+    memcpy(&env->pf, pcsp, 8);
+    memcpy(&env->ip, pcsp + 1, 8);
+    memcpy(&env->cr1_lo, pcsp + 2, 8);
+    memcpy(&env->cr1_hi, pcsp + 3, 8);
+
+    e2k_state_pcs_index_set(env, offset - 32);
+}
+
 static inline void do_call(CPUE2KState *env, target_ulong ctpr)
 {
-    unsigned int offset, wbs, wsz, new_wbs, new_wsz;
-    uint64_t *pcsp = (uint64_t *)
-        GET_FIELD(env->pcsp_lo, PCSP_LO_BASE_OFF, PCSP_LO_BASE_END);
+    int wbs, wsz, new_wbs, new_wsz;
 
     wbs = e2k_state_wbs_get(env);
     wsz = e2k_state_wsz_get(env);
     new_wbs = (wbs + env->call_wbs) % WREGS_SIZE;
     new_wsz = wsz - env->call_wbs;
 
-    /* save procedure chain */
-    offset = (env->pcsp_hi & GEN_MASK(0, 31)) / 8;
-    pcsp[offset + 0] = env->pf;
-    pcsp[offset + 1] = env->nip;
-    pcsp[offset + 2] = env->cr1_lo;
-    pcsp[offset + 3] = env->cr1_hi;
-    /* TODO: check stack overflow */
-    env->pcsp_hi = env->pcsp_hi + 32;
+    if (wsz < 0) {
+        /* TODO: SIGSEGV */
+        abort();
+    }
 
-    /* TODO: check if call_wbs is less or equal then wsz */
+    /* save procedure chain info */
+    pcs_push(env);
+
     e2k_state_wbs_set(env, new_wbs);
     e2k_state_wsz_set(env, new_wsz);
-    /* TODO: check rbs/rsz after call */
+
     env->ip = GET_FIELD(ctpr, CTPR_BASE_OFF, CTPR_BASE_END);
 }
 
 static void do_return(CPUE2KState *env)
 {
-    unsigned int offset = env->pcsp_hi & GEN_MASK(0, 31);
-    uint64_t *pcsp = (uint64_t *) (GET_FIELD(env->pcsp_lo, PCSP_LO_BASE_OFF,
-        PCSP_LO_BASE_END) + offset - 32);
 //    uint64_t *psp = (uint64_t *) GET_FIELD(env->psp_lo, PSP_LO_BASE_OFF,
 //        PSP_LO_BASE_END);
 
-    env->pf = pcsp[0];
-    env->ip = pcsp[1];
-    env->nip = env->ip + 8;
-    env->cr1_lo = pcsp[2];
-    env->cr1_hi = pcsp[3];
-    /* TODO: check stack overflow */
-    env->pcsp_hi = env->pcsp_hi - 32;
+    /* restore procedure chain info */
+    pcs_pop(env);
 
     // TODO: restore regs
 }
