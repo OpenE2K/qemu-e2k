@@ -1525,19 +1525,54 @@ static void elf_core_copy_regs(target_elf_gregset_t *regs,
 typedef target_elf_greg_t target_elf_gregset_t[ELF_NREG];
 #define USE_ELF_CORE_DUMP
 
+static inline abi_ulong e2k_mmap(abi_ulong size)
+{
+    abi_ulong addr;
+    abi_ulong guard = TARGET_PAGE_SIZE;
+
+    if (size < TARGET_PAGE_SIZE) {
+        size = TARGET_PAGE_SIZE;
+    }
+    if (guard < qemu_real_host_page_size) {
+        guard = qemu_real_host_page_size;
+    }
+
+    addr = target_mmap(0, size + guard, PROT_READ | PROT_WRITE,
+        MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    if (addr == -1) {
+        perror("mmap e2k stack");
+        exit(-1);
+    }
+
+    target_mprotect(addr + size, guard, PROT_NONE);
+    return addr;
+}
+
 static inline void init_thread(struct target_pt_regs *regs, struct image_info *infop)
 {
-    uint64_t size = infop->start_stack - infop->stack_limit;
+    abi_ulong pcsp;
+    abi_ulong pcs_size = TARGET_PAGE_SIZE;
+    abi_ulong psp;
+    abi_ulong ps_size = TARGET_PAGE_SIZE * 8;
+    abi_ulong stack_size = infop->start_stack - infop->stack_limit;
+
     regs->ip = infop->entry;
-    regs->usd_hi = size << 32;
+    regs->usd_hi = stack_size << 32;
     regs->usd_lo = (0x1800UL << 48) | infop->start_stack;
-    // TODO
-    qemu_log_mask(LOG_UNIMP, "init_thread: not implemented\n");
+
+    /* FIXME: mmap to 0xc2e000003000 */
+    pcsp = e2k_mmap(pcs_size);
+    regs->pcsp_lo = (3UL << 59) | pcsp;
+    regs->pcsp_hi = pcs_size << 32;
+
+    psp = e2k_mmap(ps_size);
+    regs->psp_lo = (3UL << 59) | psp;
+    regs->psp_hi = ps_size << 32;
 }
 
 static void elf_core_copy_regs(target_elf_gregset_t *regs, const CPUE2KState *env)
 {
-    // TODO
+    /* TODO */
     qemu_log_mask(LOG_UNIMP, "elf_core_copy_regs: not implemented\n");
 }
 
