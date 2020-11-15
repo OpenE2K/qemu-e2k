@@ -188,7 +188,9 @@ static target_ulong unpack_bundle(CPUE2KState *env,
 static inline void save_state(DisasContext *dc)
 {
     tcg_gen_movi_tl(e2k_cs.pc, dc->pc);
-//    tcg_gen_movi_tl(e2k_cs.pc, dc->npc);
+    tcg_gen_movi_tl(e2k_cs.npc, dc->npc);
+    gen_helper_save_rcur(cpu_env, e2k_cs.bcur);
+    gen_helper_save_pcur(cpu_env, e2k_cs.pcur);
 }
 
 void e2k_gen_exception(DisasContext *dc, int which)
@@ -231,6 +233,7 @@ static void e2k_tr_translate_insn(DisasContextBase *db, CPUState *cs)
     E2KCPU *cpu = E2K_CPU(cs);
     CPUE2KState *env = &cpu->env;
     UnpackedBundle *bundle = &dc->bundle;
+
     dc->pc = dc->base.pc_next;
     unsigned int bundle_len = unpack_bundle(env, dc->pc, bundle);
     /* TODO: exception, check bundle_len */
@@ -259,9 +262,29 @@ static void e2k_tr_translate_insn(DisasContextBase *db, CPUState *cs)
 static void e2k_tr_tb_start(DisasContextBase *db, CPUState *cs)
 {
     DisasContext *dc = container_of(db, DisasContext, base);
+    E2KCPU *cpu = E2K_CPU(cs);
+    CPUE2KState *env = &cpu->env;
+    uint32_t br;
+    int wbs, wsz, rbs, rsz, rcur, psz, pcur;
+
+    wbs = e2k_state_wbs_get(env);
+    wsz = e2k_state_wsz_get(env);
+    br = GET_FIELD(env->cr1_hi, CR1_HI_BR_OFF, CR1_HI_BR_END);
+    rbs = GET_FIELD(br, BR_RBS_OFF, BR_RBS_END);
+    rsz = GET_FIELD(br, BR_RSZ_OFF, BR_RSZ_END);
+    rcur = GET_FIELD(br, BR_RCUR_OFF, BR_RCUR_END);
+    psz = GET_FIELD(br, BR_PSZ_OFF, BR_PSZ_END);
+    pcur = GET_FIELD(br, BR_PCUR_OFF, BR_PCUR_END);
+
+    e2k_cs.woff = tcg_const_i32(wbs * 2);
+    e2k_cs.wsize = tcg_const_i32(wsz * 2);
+    e2k_cs.boff = tcg_const_i32(rbs * 2);
+    e2k_cs.bsize = tcg_const_i32((rsz + 1) * 2);
+    e2k_cs.bcur = tcg_const_i32(rcur * 2);
+    e2k_cs.psize = tcg_const_i32(psz);
+    e2k_cs.pcur = tcg_const_i32(pcur);
 
     dc->is_call = false;
-    dc->jmp.dest = tcg_const_i64(0);
     dc->jmp.cond = tcg_const_i64(0);
 }
 
@@ -274,31 +297,26 @@ static void e2k_tr_tb_stop(DisasContextBase *db, CPUState *cs)
     case DISAS_NEXT:
     case DISAS_TOO_MANY:
         break;
-    case DISAS_CALL: {
-        tcg_gen_movi_tl(e2k_cs.pc, dc->pc);
-        tcg_gen_movi_tl(e2k_cs.pc, dc->npc);
-        gen_helper_call(cpu_env, e2k_cs.ctprs[dc->call_ctpr], dc->jmp.cond);
-        tcg_gen_exit_tb(NULL, 0);
-        break;
-    }
     case DISAS_NORETURN: {
+        save_state(dc);
         /* exception */
         tcg_gen_exit_tb(NULL, 0);
         break;
     }
-    case STATIC_JUMP:
-        tcg_gen_mov_tl(e2k_cs.pc, dc->jmp.dest);
+    case DISAS_STATIC_JUMP:
+        save_state(dc);
+        tcg_gen_movi_tl(e2k_cs.pc, dc->jmp.dest);
         tcg_gen_exit_tb(NULL, 0);
         break;
-    case DYNAMIC_JUMP: {
-        TCGv_i64 one = tcg_const_tl(1);
-        TCGv_i64 npc = tcg_const_tl(dc->npc);
-        tcg_gen_movcond_tl(TCG_COND_EQ, e2k_cs.pc,
-            dc->jmp.cond, one,
-            dc->jmp.dest, npc
-        );
-        tcg_temp_free(npc);
-        tcg_temp_free(one);
+    case DISAS_DYNAMIC_JUMP: {
+        save_state(dc);
+        gen_helper_jump(cpu_env, dc->jmp.cond, e2k_cs.ctprs[dc->jump_ctpr]);
+        tcg_gen_exit_tb(NULL, 0);
+        break;
+    }
+    case DISAS_CALL: {
+        save_state(dc);
+        gen_helper_call(cpu_env, dc->jmp.cond, e2k_cs.ctprs[dc->jump_ctpr]);
         tcg_gen_exit_tb(NULL, 0);
         break;
     }
@@ -307,7 +325,14 @@ static void e2k_tr_tb_stop(DisasContextBase *db, CPUState *cs)
         break;
     }
 
-    tcg_temp_free(dc->jmp.dest);
+    tcg_temp_free_i32(e2k_cs.woff);
+    tcg_temp_free_i32(e2k_cs.wsize);
+    tcg_temp_free_i32(e2k_cs.boff);
+    tcg_temp_free_i32(e2k_cs.bsize);
+    tcg_temp_free_i32(e2k_cs.bcur);
+    tcg_temp_free_i32(e2k_cs.psize);
+    tcg_temp_free_i32(e2k_cs.pcur);
+
     tcg_temp_free(dc->jmp.cond);
 }
 
@@ -344,29 +369,20 @@ void restore_state_to_opc(CPUE2KState *env, TranslationBlock *tb,
 }
 
 void e2k_tcg_initialize(void) {
-    char buf[8] = { 0 };
+    char buf[16] = { 0 };
 
     static const struct { TCGv_i32 *ptr; int off; const char *name; } r32[] = {
-        { &e2k_cs.wbs, offsetof(CPUE2KState, wbs), "wbs" },
-        { &e2k_cs.wsz, offsetof(CPUE2KState, wsz), "wsz" },
-        { &e2k_cs.nfx, offsetof(CPUE2KState, nfx), "nfx" },
-        { &e2k_cs.dbl, offsetof(CPUE2KState, dbl), "dbl" },
-        { &e2k_cs.syscall_wbs, offsetof(CPUE2KState, syscall_wbs), "syscall_wbs" },
+        { &e2k_cs.call_wbs, offsetof(CPUE2KState, call_wbs), "call_wbs" },
     };
 
     static const struct { TCGv_i64 *ptr; int off; const char *name; } r64[] = {
         { &e2k_cs.pregs, offsetof(CPUE2KState, pf), "pregs" },
-        { &e2k_cs.pcsp_hi, offsetof(CPUE2KState, pcsp_hi), "pcsp_hi" },
-        { &e2k_cs.pcsp_lo, offsetof(CPUE2KState, pcsp_lo), "pcsp_lo" },
-        { &e2k_cs.cr1_hi, offsetof(CPUE2KState, cr1_hi), "cr1_hi" },
-        { &e2k_cs.cr1_lo, offsetof(CPUE2KState, cr1_lo), "cr1_lo" },
-        { &e2k_cs.usd_hi, offsetof(CPUE2KState, usd_hi), "usd.hi" },
-        { &e2k_cs.usd_lo, offsetof(CPUE2KState, usd_lo), "usd.lo" },
         { &e2k_cs.lsr, offsetof(CPUE2KState, lsr), "lsr" },
     };
 
     static const struct { TCGv *ptr; int off; const char *name; } rtl[] = {
         { &e2k_cs.pc, offsetof(CPUE2KState, ip), "pc" },
+        { &e2k_cs.npc, offsetof(CPUE2KState, nip), "npc" },
     };
 
     unsigned int i;
@@ -383,27 +399,24 @@ void e2k_tcg_initialize(void) {
         *rtl[i].ptr = tcg_global_mem_new(cpu_env, rtl[i].off, rtl[i].name);
     }
 
-    e2k_cs.win_ptr = tcg_global_mem_new_ptr(cpu_env, offsetof(CPUE2KState, win_ptr), "win_ptr");
+    e2k_cs.wptr = tcg_global_mem_new_ptr(cpu_env,
+        offsetof(CPUE2KState, wptr), "wptr");
 
     for (i = 0; i < WREGS_SIZE; i++) {
         snprintf(buf, ARRAY_SIZE(buf), "%%r%d", i);
-        e2k_cs.wregs[i] = tcg_global_mem_new(e2k_cs.win_ptr,
-            i * REG_SIZE,
-            buf);
+        e2k_cs.wregs[i] = tcg_global_mem_new_i64(e2k_cs.wptr,
+            i * REG_SIZE, buf);
     }
 
-    for (i = 0; i < 32; i++) {
+    for (i = 0; i < GREGS_SIZE; i++) {
         snprintf(buf, ARRAY_SIZE(buf), "%%g%d", i);
-        e2k_cs.gregs[i] = tcg_global_mem_new(cpu_env,
-            offsetof(CPUE2KState, gregs[i]),
-            buf);
+        e2k_cs.gregs[i] = tcg_global_mem_new_i64(cpu_env,
+            offsetof(CPUE2KState, gregs[i]), buf);
     }
 
-    for (i = 0; i < 3; i++) {
+    for (i = 0; i < 4; i++) {
         snprintf(buf, ARRAY_SIZE(buf), "%%ctpr%d", i + 1);
         e2k_cs.ctprs[i] = tcg_global_mem_new(cpu_env,
-            offsetof(CPUE2KState, ctprs[i]),
-            buf
-        );
+            offsetof(CPUE2KState, ctprs[i]), buf);
     }
 }

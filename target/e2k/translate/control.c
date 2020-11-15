@@ -36,47 +36,31 @@ static inline void gen_lcnt_dec(TCGv_i64 ret, TCGv_i64 lsr)
     tcg_temp_free_i32(zero);
 }
 
-static inline void gen_pcur_inc(TCGv_i32 ret, TCGv_i32 br)
+static inline void gen_pcur_inc(TCGv_i32 ret)
 {
-    TCGv_i32 pcur = tcg_temp_new_i32();
-    TCGv_i32 psz = tcg_temp_new_i32();
     TCGv_i32 t0 = tcg_temp_new_i32();
-    TCGv_i32 t1 = tcg_temp_new_i32();
 
-    tcg_gen_extract_i32(pcur, br, BR_PCUR_OFF, BR_PCUR_LEN);
-    tcg_gen_extract_i32(psz, br, BR_PSZ_OFF, BR_PSZ_LEN);
-    tcg_gen_subi_i32(t0, pcur, 1);
-    tcg_gen_umin_i32(t1, t0, psz);
-    tcg_gen_deposit_i32(ret, br, t1, BR_PCUR_OFF, BR_PCUR_LEN);
+    tcg_gen_subi_i32(t0, e2k_cs.pcur, 1);
+    /* FIXME: terminated by signal SIGFPE (Floating point exception */
+//    tcg_gen_remu_i32(ret, t0, e2k_cs.psize);
+    /* FIXME: temp hack */
+    e2k_gen_wrap_i32(ret, t0, e2k_cs.psize);
 
-    tcg_temp_free_i32(t1);
     tcg_temp_free_i32(t0);
-    tcg_temp_free_i32(psz);
-    tcg_temp_free_i32(pcur);
 }
 
-static inline void gen_rcur_inc(TCGv_i32 ret, TCGv_i32 br)
+static inline void gen_rcur_inc(TCGv_i32 ret)
 {
-    TCGv_i32 rcur = tcg_temp_new_i32();
-    TCGv_i32 rsz = tcg_temp_new_i32();
     TCGv_i32 t0 = tcg_temp_new_i32();
-    TCGv_i32 t1 = tcg_temp_new_i32();
-    TCGv_i32 t2 = tcg_temp_new_i32();
 
-    tcg_gen_extract_i32(rcur, br, BR_RCUR_OFF, BR_RCUR_LEN);
-    tcg_gen_extract_i32(rsz, br, BR_RSZ_OFF, BR_RSZ_LEN);
-    tcg_gen_subi_i32(t0, rcur, 1);
-    tcg_gen_umin_i32(t2, t0, rsz);
-    tcg_gen_deposit_i32(ret, br, t2, BR_RCUR_OFF, BR_RCUR_LEN);
+    tcg_gen_subi_i32(t0, e2k_cs.bcur, 2);
+    tcg_gen_remu_i32(ret, t0, e2k_cs.bsize);
 
-    tcg_temp_free_i32(t2);
-    tcg_temp_free_i32(t1);
     tcg_temp_free_i32(t0);
-    tcg_temp_free_i32(rsz);
-    tcg_temp_free_i32(rcur);
 }
 
-static inline void gen_movcond_flag_i32(TCGv_i32 ret, int flag, TCGv_i32 cond,
+__attribute__((noinline))
+static void gen_movcond_flag_i32(TCGv_i32 ret, int flag, TCGv_i32 cond,
     TCGv_i32 v1, TCGv_i32 v2)
 {
     TCGv_i32 one = tcg_const_i32(1);
@@ -144,6 +128,7 @@ void e2k_win_commit(DisasContext *dc)
     int alc = GET_FIELD(ss, 16, 17);
     int abp = GET_FIELD(ss, 18, 19);
     int abn = GET_FIELD(ss, 21, 22);
+    int abg = GET_FIELD(ss, 23, 24);
 
     tcg_gen_trunc_tl_i32(cond, dc->jmp.cond);
 
@@ -156,32 +141,38 @@ void e2k_win_commit(DisasContext *dc)
         tcg_temp_free_i64(t0);
     }
 
-    if (abp || abn) {
-        TCGv_i32 br = tcg_temp_new_i32();
+    if (abp) {
+        TCGv_i32 t0 = tcg_temp_new_i32();
 
-        e2k_gen_get_br(br);
+        gen_pcur_inc(t0);
+        gen_movcond_flag_i32(e2k_cs.pcur, abp, cond, t0, e2k_cs.pcur);
 
-        if (abp) {
-            TCGv_i32 t0 = tcg_temp_new_i32();
+        tcg_temp_free_i32(t0);
+    }
 
-            gen_pcur_inc(t0, br);
-            gen_movcond_flag_i32(br, abp, cond, t0, br);
+    if (abn) {
+        TCGv_i32 t0 = tcg_temp_new_i32();
 
-            tcg_temp_free_i32(t0);
-        }
+        gen_rcur_inc(t0);
+        gen_movcond_flag_i32(e2k_cs.bcur, abn, cond, t0, e2k_cs.bcur);
 
-        if (abn) {
-            TCGv_i32 t0 = tcg_temp_new_i32();
+        tcg_temp_free_i32(t0);
+    }
 
-            gen_rcur_inc(t0, br);
-            gen_movcond_flag_i32(br, abn, cond, t0, br);
-
-            tcg_temp_free_i32(t0);
-        }
-
-        e2k_gen_set_br(br);
-
-        tcg_temp_free_i32(br);
+    switch(abg) {
+    case 0x00:
+        break;
+    case 0x01:
+        /* TODO */
+        abort();
+        break;
+    case 0x02:
+        /* TODO */
+        abort();
+        break;
+    default:
+        /* FIXME: exception or nop? */
+        break;
     }
 
     tcg_temp_free_i32(cond);
@@ -285,8 +276,8 @@ static void gen_cs0(DisasContext *dc)
                 unsigned int disp = (cs0 & 0x0fffffff);
                 /* Calculate a signed displacement in bytes. */
                 int sdisp = ((int) (disp << 4)) >> 1;
-                target_ulong tgt = dc->pc + sdisp;
-                tcg_gen_movi_tl(dc->jmp.dest, tgt);
+                dc->jmp.dest = dc->pc + sdisp;
+                dc->base.is_jmp = DISAS_STATIC_JUMP;
             }
         }
     } else {
@@ -318,17 +309,21 @@ static void gen_cs0(DisasContext *dc)
             tcg_gen_movi_tl(e2k_cs.ctprs[ctpr], reg);
         }
 
-        if (/* Note that RETURN is said to be COPF1. I can't understand what its
-              `CS0.param' is needed for: all of the bits except the three
-               lowermost ones are undefined, while the latter also known as "type"
-               field should be filled in with zeroes.  */
-            type == RETURN
-            /* GETTSD has as meaningless `CS0.param' as RETURN. The only
-               difference is that its `CS0.param.type' should be equal to `1'. I
-               wonder if I should check for that and output something like
-               "invalid gettsd" if this turns out not to be the case . . .  */
-            || type == GETTSD)
-        {
+        /* Note that RETURN is said to be COPF1. I can't understand what its
+           `CS0.param' is needed for: all of the bits except the three
+           lowermost ones are undefined, while the latter also known as "type"
+           field should be filled in with zeroes.  */
+        if (type == RETURN) {
+            uint64_t reg = ((uint64_t) CTPR_TAG_RETURN << CTPR_TAG_OFF) |
+                ((uint64_t) ipd << CTPR_IPD_OFF);
+            tcg_gen_movi_tl(e2k_cs.ctprs[ctpr], reg);
+        }
+
+        /* GETTSD has as meaningless `CS0.param' as RETURN. The only
+           difference is that its `CS0.param.type' should be equal to `1'. I
+           wonder if I should check for that and output something like
+           "invalid gettsd" if this turns out not to be the case . . .  */
+        if (type == GETTSD) {
             // TODO
         }
 
@@ -407,36 +402,40 @@ static void gen_cs1(DisasContext *dc)
                 abort();
             } else {
                 uint32_t lts0 = bundle->lts[0];
+                int wsz = GET_FIELD(lts0, 5, 11);
+                TCGv_i32 t0 = tcg_const_i32(lts0);
 
-                tcg_gen_movi_i32(e2k_cs.wsz, GET_FIELD(lts0, 5, 11));
-                tcg_gen_movi_i32(e2k_cs.nfx, GET_BIT(lts0, 4));
+                gen_helper_setwd(cpu_env, t0);
 
-                if (dc->version >= 3) {
-                    tcg_gen_movi_i32(e2k_cs.dbl, GET_BIT(lts0, 3));
-                }
+                tcg_gen_movi_i32(e2k_cs.wsize, wsz * 2);
+
+                tcg_temp_free_i32(t0);
             }
         }
 
-        if (setbn || setbp) {
-            TCGv_i32 br = tcg_temp_new_i32();
+        if (setbn) {
+            int rbs = GET_FIELD(cs1, BR_RBS_OFF, BR_RBS_END);
+            int rsz = GET_FIELD(cs1, BR_RSZ_OFF, BR_RSZ_END);
+            int rcur = GET_FIELD(cs1, BR_RCUR_OFF, BR_RCUR_END);
+            TCGv_ptr t0 = tcg_const_ptr(rbs * 2);
+            TCGv_i32 t1 = tcg_const_i32(cs1);
 
-            e2k_gen_get_br(br);
+            /* update state*/
+            gen_helper_setbn(cpu_env, t1);
 
-            if (setbn) {
-                TCGv_i32 bn = tcg_const_i32(GET_FIELD(cs1, BR_BN_OFF, BR_BN_END));
-                tcg_gen_deposit_i32(br, br, bn, BR_BN_OFF, BR_BN_LEN);
-                tcg_temp_free_i32(bn);
-            }
+            tcg_gen_movi_i32(e2k_cs.boff, rbs * 2);
+            tcg_gen_movi_i32(e2k_cs.bsize, (rsz + 1) * 2);
+            tcg_gen_movi_i32(e2k_cs.bcur, rcur * 2);
 
-            if (setbp) {
-                TCGv_i32 bp = tcg_const_i32(GET_FIELD(cs1, BR_PSZ_OFF, BR_PSZ_END));
-                tcg_gen_deposit_i32(br, br, bp, BR_BP_OFF, BR_BP_LEN);
-                tcg_temp_free_i32(bp);
-            }
+            tcg_temp_free_i32(t1);
+            tcg_temp_free_ptr(t0);
+        }
 
-            e2k_gen_set_br(br);
+        if (setbp) {
+            int psz = GET_FIELD(cs1, BR_PSZ_OFF, BR_PSZ_END);
 
-            tcg_temp_free_i32(br);
+            tcg_gen_movi_i32(e2k_cs.psize, psz);
+            tcg_gen_movi_i32(e2k_cs.pcur, 0);
         }
     } else if (opc == SETEI) {
         /* Verify that CS1.param.sft = CS1.param[27] is equal to zero as required
@@ -487,7 +486,7 @@ static void gen_cs1(DisasContext *dc)
 
         if (ctop) {
             dc->is_call = true;
-            tcg_gen_movi_i32(e2k_cs.syscall_wbs, wbs);
+            tcg_gen_movi_i32(e2k_cs.call_wbs, wbs);
 //            my_printf ("call %%ctpr%d, wbs = 0x%x", ctop, wbs);
 //            print_ctcond (info, instr->ss & 0x1ff);
         } else {
@@ -549,18 +548,20 @@ static void gen_jmp(DisasContext *dc)
     unsigned int ctpr = GET_FIELD(dc->bundle.ss, 10, 11);
 
     if (cond_type == 1) {
-        dc->base.is_jmp = STATIC_JUMP;
+        /* TODO: optimize ibranch with no cond */
         tcg_gen_movi_tl(dc->jmp.cond, 1);
-    } else {
+    } else if (cond_type > 1){
         /* TODO: single assign */
-        TCGv cond = tcg_temp_new();
+        TCGv cond = tcg_const_tl(0);
         TCGv preg = tcg_temp_new();
         TCGv loop_end = tcg_temp_new();
         TCGv not_loop_end = tcg_temp_new();
+        TCGv_i64 t0 = tcg_temp_new_i64();
 
-        dc->base.is_jmp = DYNAMIC_JUMP;
+        dc->base.is_jmp = DISAS_DYNAMIC_JUMP;
 
-        e2k_gen_preg(preg, psrc);
+        e2k_gen_preg(t0, psrc);
+        tcg_gen_trunc_i64_tl(preg, t0);
         gen_is_loop_end(loop_end);
         tcg_gen_setcondi_tl(TCG_COND_NE, not_loop_end, loop_end, 1);
 
@@ -649,6 +650,7 @@ static void gen_jmp(DisasContext *dc)
 
         tcg_gen_mov_tl(dc->jmp.cond, cond);
 
+        tcg_temp_free_i64(t0);
         tcg_temp_free(not_loop_end);
         tcg_temp_free(loop_end);
         tcg_temp_free(preg);
@@ -659,14 +661,13 @@ static void gen_jmp(DisasContext *dc)
 
     /* TODO: different kinds of ct */
     if (ctpr != 0) {
-        if (dc->is_call) {
-            /* TODO: call save state */
-            dc->call_ctpr = ctpr;
-            dc->base.is_jmp = DISAS_CALL;
-            return;
-        }
+        dc->jump_ctpr = ctpr;
 
-        tcg_gen_andi_tl(dc->jmp.dest, e2k_cs.ctprs[ctpr], GEN_MASK(0, 47));
+        if (dc->is_call) {
+            dc->base.is_jmp = DISAS_CALL;
+        } else {
+            dc->base.is_jmp = DISAS_DYNAMIC_JUMP;
+        }
     }
 }
 

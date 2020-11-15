@@ -259,21 +259,11 @@ static inline void gen_mrgc_i32(DisasContext *dc, int chan, TCGv_i32 ret)
 
 static inline void gen_rr_i64(TCGv_i64 ret, uint8_t state_reg)
 {
-    switch (state_reg) {
-    case 0x2c: /* %usd.hi */
-        tcg_gen_mov_i64(ret, e2k_cs.usd_hi);
-        break;
-    case 0x2d: /* %usd.lo */
-        tcg_gen_mov_i64(ret, e2k_cs.usd_lo);
-        break;
-    case 0x83: /* %lsr */
-        tcg_gen_mov_i64(ret, e2k_cs.lsr);
-        break;
-    default:
-        /* TODO: exception */
-        abort();
-        break;
-    }
+    TCGv_i32 t0 = tcg_const_i32(state_reg);
+
+    gen_helper_state_reg_get(ret, cpu_env, t0);
+
+    tcg_temp_free_i32(t0);
 }
 
 static inline void gen_rrd(DisasContext *dc, int chan)
@@ -302,23 +292,11 @@ static inline void gen_rrs(DisasContext *dc, int chan)
 
 static inline void gen_rw_i64(uint8_t state_reg, TCGv_i64 val)
 {
-    switch (state_reg) {
-    case 0x2c: /* %usd.hi */
-        /* FIXME: user cannot write */
-        tcg_gen_mov_i64(e2k_cs.usd_hi, val);
-        break;
-    case 0x2d: /* %usd.lo */
-        /* FIXME: user cannot write */
-        tcg_gen_mov_i64(e2k_cs.usd_lo, val);
-        break;
-    case 0x83: /* %lsr */
-        tcg_gen_mov_i64(e2k_cs.lsr, val);
-        break;
-    default:
-        /* TODO: exception */
-        abort();
-        break;
-    }
+    TCGv_i32 t0 = tcg_const_i32(state_reg);
+
+    gen_helper_state_reg_set(cpu_env, t0, val);
+
+    tcg_temp_free_i32(t0);
 }
 
 static inline void gen_rwd(DisasContext *dc, int chan)
@@ -345,18 +323,20 @@ static inline void gen_rws(DisasContext *dc, int chan)
 
 static void gen_getsp(DisasContext *dc, int chan)
 {
-    uint32_t als = dc->bundle.als[chan];
-    TCGv_i64 src2 = get_src2(dc, als);
-    TCGv_i64 t0 = tcg_temp_new_i64();
-    TCGv_i64 t1 = tcg_temp_new_i64();
+//    uint32_t als = dc->bundle.als[chan];
+//    TCGv_i64 src2 = get_src2(dc, als);
+//    TCGv_i64 t0 = tcg_temp_new_i64();
+//    TCGv_i64 t1 = tcg_temp_new_i64();
+
+    abort();
 
     /* TODO: exception stack overflow */
-    tcg_gen_extract_i64(t0, e2k_cs.usd_lo, 0, 48);
-    tcg_gen_add_i64(t1, t0, src2);
-    tcg_gen_deposit_i64(e2k_cs.usd_lo, e2k_cs.usd_lo, t1, 0, 48);
+//    tcg_gen_extract_i64(t0, e2k_cs.usd_lo, 0, 48);
+//    tcg_gen_add_i64(t1, t0, src2);
+//    tcg_gen_deposit_i64(e2k_cs.usd_lo, e2k_cs.usd_lo, t1, 0, 48);
 
-    tcg_temp_free_i64(t1);
-    tcg_temp_free_i64(t0);
+//    tcg_temp_free_i64(t1);
+//    tcg_temp_free_i64(t0);
 }
 
 /* FIXME: movtd: don't know what it does */
@@ -532,6 +512,7 @@ static void gen_alopf_simple(DisasContext *dc, int chan)
         res.tag = RESULT_PREG;
         res.u.reg.i = als & 0x1f;
         res.u.reg.v = tmp_dst;
+
         dc->alc[chan] = res;
 
         break;

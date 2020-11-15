@@ -8,16 +8,28 @@
 void e2k_tcg_initialize(void);
 
 #define GEN_MASK(start, end) \
-    (((1UL << ((end) - (start) + 1)) - 1) << start)
+    GEN_MASK_LEN((start), (end) - (start) + 1)
+#define GEN_MASK_LEN(start, len) \
+    (((1UL << (len)) - 1) << (start))
 #define GET_BIT(v, index) (((v) >> (index)) & 1)
 #define GET_FIELD(v, start, end) \
     (((v) >> (start)) & ((1UL << ((end) - (start) + 1)) - 1))
+#define SET_FIELD(v, f, s, l) \
+    ( \
+        ((v) & ~GEN_MASK_LEN((s), (l))) | \
+        ((((typeof(v)) (f)) << (s)) & GEN_MASK_LEN((s), (l))) \
+    )
 
 #define MMU_USER_IDX 1
 #define CPU_RESOLVING_TYPE TYPE_E2K_CPU
+
+#define REG_SIZE (sizeof(uint64_t))
 #define WREGS_SIZE 192
-// size of regular reg in bytes
-#define REG_SIZE (sizeof(target_ulong))
+#define GREGS_SIZE 32
+#define WREGS_MAX 64
+#define BREGS_MAX 128
+#define GREGS_MAX 24
+#define BGREGS_MAX 8
 
 #define CTPR_BASE_OFF 0
 #define CTPR_BASE_END 47
@@ -42,6 +54,21 @@ void e2k_tcg_initialize(void);
 #define PCSP_LO_READ_BIT (1UL << PCSP_LO_READ_OFF)
 #define PCSP_LO_WRITE_OFF 60
 #define PCSP_LO_WRITE_BIT (1UL << PCSP_LO_WRITE_OFF)
+
+#define PSP_HI_IND_OFF 0       /* index for SPILL */
+#define PSP_HI_IND_END 31
+#define PSP_HI_IND_LEN (PSP_HI_IND_END - PSP_HI_IND_OFF + 1)
+#define PSP_HI_SIZE_OFF 32
+#define PSP_HI_SIZE_END 63     /* procedure stack size */
+#define PSP_HI_SIZE_LEN (PSP_HI_SIZE_END - PSP_HI_SIZE_OFF + 1)
+
+#define PSP_LO_BASE_OFF 0      /* procedure stack address */
+#define PSP_LO_BASE_END 47
+#define PSP_LO_BASE_LEN (PSP_LO_BASE_END - PSP_LO_BASE_OFF + 1)
+#define PSP_LO_READ_OFF 59
+#define PSP_LO_READ_BIT (1UL << PSP_LO_READ_OFF)
+#define PSP_LO_WRITE_OFF 60
+#define PSP_LO_WRITE_BIT (1UL << PSP_LO_WRITE_OFF)
 
 #define CR1_HI_BR_OFF 0
 #define CR1_HI_BR_END 27
@@ -128,38 +155,38 @@ struct e2k_def_t {
 };
 
 typedef struct {
-    
     /* register file */
-    target_ulong gregs[32]; // global regs
-    target_ulong wregs[WREGS_SIZE]; // window regs
-    target_ulong *win_ptr;
+    uint64_t gregs[GREGS_SIZE]; /* global registers */
+    uint64_t wregs[WREGS_SIZE]; /* window registers */
+    uint64_t *wptr;
     uint64_t pf; /* predicate file */
 
-    uint32_t wbs; // window regs offset
-    uint32_t wsz; // window regs size
-    uint32_t nfx; // TODO
-    uint32_t dbl; // TODO
-
-    uint64_t pcsp_hi;
+    /* Procedure chain info = cr0_lo, cr0_hi, cr1_lo, cr1_hi */
     uint64_t pcsp_lo;
+    uint64_t pcsp_hi;
 
-    /* cr0_hi == ip */
     /* cr0_lo == pf */
-    uint64_t cr1_hi;
+    /* cr0_hi == ip */
     uint64_t cr1_lo;
+    uint64_t cr1_hi;
+
+    /* Procedure stack pointer (for regs)  */
+    uint64_t psp_lo;
+    uint64_t psp_hi;
 
     uint64_t lsr; /* loop status register */
 
-    uint32_t syscall_wbs;
-    
+    uint32_t call_wbs;
+
     uint64_t usd_lo;
     uint64_t usd_hi;
 
     /* control registers */
-    target_ulong ctprs[3]; // Control Transfer Preparation Register (CTPR)
+    target_ulong ctprs[4]; // Control Transfer Preparation Register (CTPR)
     
     /* special registers */
-    target_ulong ip; /* instruction address, next instruction address */
+    target_ulong ip; /* instruction address */
+    target_ulong nip; /* next instruction address */
     
     uint32_t pfpfr; // Packed Floating Point Flag Register (PFPFR)
     uint32_t fpcr; // Floating point control register (FPCR)
@@ -201,6 +228,28 @@ static inline void cpu_get_tb_cpu_state(CPUE2KState *env, target_ulong *pc,
 int e2k_cpu_signal_handler(int host_signum, void *pinfo, void *puc);
 
 #define cpu_signal_handler e2k_cpu_signal_handler
+
+static inline int e2k_state_wbs_get(CPUE2KState *env)
+{
+    return GET_FIELD(env->cr1_lo, CR1_LO_WBS_OFF, CR1_LO_WBS_END);
+}
+
+static inline void e2k_state_wbs_set(CPUE2KState *env, int wbs)
+{
+    env->cr1_lo = SET_FIELD(env->cr1_lo, wbs,
+        CR1_LO_WBS_OFF, CR1_LO_WBS_LEN);
+}
+
+static inline int e2k_state_wsz_get(CPUE2KState *env)
+{
+    return GET_FIELD(env->cr1_lo, CR1_LO_WPSZ_OFF, CR1_LO_WPSZ_END);
+}
+
+static inline void e2k_state_wsz_set(CPUE2KState *env, int wsz)
+{
+    env->cr1_lo = SET_FIELD(env->cr1_lo, wsz,
+        CR1_LO_WPSZ_OFF, CR1_LO_WPSZ_LEN);
+}
 
 typedef CPUE2KState CPUArchState;
 typedef E2KCPU ArchCPU;
