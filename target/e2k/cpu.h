@@ -17,7 +17,7 @@ void e2k_tcg_initialize(void);
 #define SET_FIELD(v, f, s, l) \
     ( \
         ((v) & ~GEN_MASK_LEN((s), (l))) | \
-        ((((typeof(v)) (f)) << (s)) & GEN_MASK_LEN((s), (l))) \
+        ((((typeof((v))) (f)) << (s)) & GEN_MASK_LEN((s), (l))) \
     )
 
 #define MMU_USER_IDX 1
@@ -228,6 +228,39 @@ static inline void cpu_get_tb_cpu_state(CPUE2KState *env, target_ulong *pc,
 int e2k_cpu_signal_handler(int host_signum, void *pinfo, void *puc);
 
 #define cpu_signal_handler e2k_cpu_signal_handler
+
+static inline target_ulong e2k_state_pcs_base_get(CPUE2KState *env)
+{
+    return GET_FIELD(env->pcsp_lo, PCSP_LO_BASE_OFF, PCSP_LO_BASE_END);
+}
+
+static inline void e2k_state_pcs_base_set(CPUE2KState *env, target_ulong pcsp)
+{
+    env->pcsp_lo = SET_FIELD(env->pcsp_lo, pcsp, PCSP_LO_BASE_OFF,
+        PCSP_LO_BASE_LEN);
+}
+
+static inline size_t e2k_state_pcs_index_get(CPUE2KState *env)
+{
+    return GET_FIELD(env->pcsp_hi, PCSP_HI_IND_OFF, PCSP_HI_IND_END);
+}
+
+static inline void e2k_state_pcs_index_set(CPUE2KState *env, size_t ind)
+{
+    env->pcsp_hi = SET_FIELD(env->pcsp_hi, ind, PCSP_HI_IND_OFF,
+        PCSP_HI_IND_LEN);
+}
+
+static inline size_t e2k_state_pcs_size_get(CPUE2KState *env)
+{
+    return GET_FIELD(env->pcsp_hi, PCSP_HI_SIZE_OFF, PCSP_HI_SIZE_END);
+}
+
+static inline void e2k_state_pcs_size_set(CPUE2KState *env, size_t size)
+{
+    env->pcsp_hi = SET_FIELD(env->pcsp_hi, size, PCSP_HI_SIZE_OFF,
+        PCSP_HI_SIZE_LEN);
+}
 
 static inline int e2k_state_wbs_get(CPUE2KState *env)
 {
