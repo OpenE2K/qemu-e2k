@@ -4,8 +4,8 @@
 #include "tcg/tcg-op.h"
 #include "exec/translator.h"
 
-#define STATIC_JUMP DISAS_TARGET_0
-#define DYNAMIC_JUMP DISAS_TARGET_1
+#define DISAS_STATIC_JUMP DISAS_TARGET_0
+#define DISAS_DYNAMIC_JUMP DISAS_TARGET_1
 #define DISAS_CALL DISAS_TARGET_2
 
 #define IS_BASED(i) (((i) & 0x80) == 0)
@@ -45,23 +45,21 @@ typedef enum {
 
 typedef struct CPUE2KStateTCG {
     TCGv pc;
-    TCGv ctprs[3];
-    TCGv_i32 wbs;
-    TCGv_i32 wsz;
-    TCGv_i32 nfx;
-    TCGv_i32 dbl;
-    TCGv_i64 pcsp_hi;
-    TCGv_i64 pcsp_lo;
-    TCGv_i64 cr1_hi;
-    TCGv_i64 cr1_lo;
+    TCGv npc;
+    TCGv ctprs[4];
     TCGv_i64 lsr;
-    TCGv_i32 syscall_wbs;
-    TCGv_ptr win_ptr;
+    TCGv_i32 call_wbs;
     TCGv_i64 wregs[WREGS_SIZE];
-    TCGv_i64 gregs[32];
+    TCGv_i64 gregs[GREGS_SIZE];
+    TCGv_ptr wptr; /* pointer to wregs */
+    TCGv_i32 woff; /* holds wbs * 2 */
+    TCGv_i32 wsize; /* holds wsz * 2 */
+    TCGv_i32 boff; /* holds rbs * 2 */
+    TCGv_i32 bsize; /* holds rsz * 2 + 2 */
+    TCGv_i32 bcur; /* holds rcur * 2 */
     TCGv_i64 pregs;
-    TCGv_i64 usd_lo;
-    TCGv_i64 usd_hi;
+    TCGv_i32 psize; /* holds psz */
+    TCGv_i32 pcur; /* holds pcur */
 } CPUE2KStateTCG;
 
 extern struct CPUE2KStateTCG e2k_cs;
@@ -113,7 +111,7 @@ typedef struct DisasContext {
     target_ulong pc;
     target_ulong npc;
     bool is_call;
-    int call_ctpr;
+    int jump_ctpr;
     int mmuidx;
 
     int version;
@@ -131,7 +129,7 @@ typedef struct DisasContext {
     Result alc[6];
     /* TODO: move to CPUE2KState */
     struct {
-        TCGv dest;
+        target_ulong dest; /* ibranch dst */
         TCGv_i64 cond;
     } jmp;
 } DisasContext;
@@ -212,29 +210,6 @@ static inline void e2k_gen_set_field_i64(TCGv_i64 ret, TCGv_i64 val,
     tcg_gen_or_i64(ret, t2, t1);
 
     tcg_temp_free_i64(t2);
-    tcg_temp_free_i64(t1);
-    tcg_temp_free_i64(t0);
-}
-
-static inline void e2k_gen_get_br(TCGv_i32 ret)
-{
-    TCGv_i64 t0 = tcg_temp_new_i64();
-
-    tcg_gen_extract_i64(t0, e2k_cs.cr1_hi, CR1_HI_BR_OFF, CR1_HI_BR_LEN);
-    tcg_gen_extrl_i64_i32(ret, t0);
-
-    tcg_temp_free_i64(t0);
-}
-
-static inline void e2k_gen_set_br(TCGv_i32 val)
-{
-    TCGv_i64 t0 = tcg_temp_new_i64();
-    TCGv_i64 t1 = tcg_temp_new_i64();
-
-    tcg_gen_extu_i32_i64(t0, val);
-    tcg_gen_deposit_i64(t1, e2k_cs.cr1_hi, t0, CR1_HI_BR_OFF, CR1_HI_BR_LEN);
-    tcg_gen_mov_i64(e2k_cs.cr1_hi, t1);
-
     tcg_temp_free_i64(t1);
     tcg_temp_free_i64(t0);
 }
