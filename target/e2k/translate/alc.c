@@ -323,20 +323,13 @@ static inline void gen_rws(DisasContext *dc, int chan)
 
 static void gen_getsp(DisasContext *dc, int chan)
 {
-//    uint32_t als = dc->bundle.als[chan];
-//    TCGv_i64 src2 = get_src2(dc, als);
-//    TCGv_i64 t0 = tcg_temp_new_i64();
-//    TCGv_i64 t1 = tcg_temp_new_i64();
+    uint32_t als = dc->bundle.als[chan];
+    TCGv_i64 src2 = get_src2(dc, als);
+    TCGv_i64 t0 = e2k_get_temp_i64(dc);
 
-    abort();
+    gen_helper_getsp(t0, cpu_env, src2);
 
-    /* TODO: exception stack overflow */
-//    tcg_gen_extract_i64(t0, e2k_cs.usd_lo, 0, 48);
-//    tcg_gen_add_i64(t1, t0, src2);
-//    tcg_gen_deposit_i64(e2k_cs.usd_lo, e2k_cs.usd_lo, t1, 0, 48);
-
-//    tcg_temp_free_i64(t1);
-//    tcg_temp_free_i64(t0);
+    store_reg_alc_result(dc, chan, t0);
 }
 
 /* FIXME: movtd: don't know what it does */
