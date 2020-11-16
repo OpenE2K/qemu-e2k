@@ -1866,6 +1866,7 @@ fi
 : ${cross_cc_sparc="$cross_cc_sparc64"}
 : ${cross_cc_cflags_sparc="-m32 -mcpu=supersparc"}
 : ${cross_cc_cflags_x86_64="-m64"}
+: ${cross_cc_e2k="e2k-linux-cc"}
 
 compute_target_variable() {
   if eval test -n "\"\${cross_prefix_$1}\""; then
