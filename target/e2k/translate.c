@@ -315,13 +315,11 @@ static void e2k_tr_tb_stop(DisasContextBase *db, CPUState *cs)
     case DISAS_NEXT:
     case DISAS_TOO_MANY:
         gen_goto_tb(dc, 0, dc->pc, dc->npc);
-        tcg_gen_exit_tb(NULL, 0);
         break;
     case DISAS_NORETURN:
         break;
     case DISAS_JUMP_STATIC:
         gen_goto_tb(dc, 0, dc->pc, dc->jmp.dest);
-        tcg_gen_exit_tb(NULL, 0);
         break;
     case DISAS_BRANCH_STATIC: {
         TCGv z = tcg_const_tl(0);
