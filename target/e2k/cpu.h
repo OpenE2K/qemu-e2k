@@ -30,6 +30,7 @@ void e2k_tcg_initialize(void);
 #define BREGS_MAX 128
 #define GREGS_MAX 24
 #define BGREGS_MAX 8
+#define PF_SIZE 32
 
 #define CTPR_BASE_OFF 0
 #define CTPR_BASE_END 47
