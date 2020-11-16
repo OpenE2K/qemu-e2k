@@ -1,0 +1,15 @@
+# -*- Mode: makefile -*-
+#
+# Elbrus 2000 tests
+
+E2K_SRC=$(SRC_PATH)/tests/tcg/e2k
+VPATH+=$(E2K_SRC)
+
+E2K_TESTS=hello-e2k
+TESTS+=$(E2K_TESTS)
+
+#
+# hello-e2k is a barebones app
+#
+hello-e2k: CFLAGS+=-ffreestanding
+hello-e2k: LDFLAGS+=-nostdlib

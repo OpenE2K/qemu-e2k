@@ -71,6 +71,7 @@ fi
 : ${cross_cc_cflags_sparc64="-m64 -mcpu=ultrasparc"}
 : ${cross_cc_x86_64="x86_64-linux-gnu-gcc"}
 : ${cross_cc_cflags_x86_64="-m64"}
+: ${cross_cc_e2k="e2k-linux-cc"}
 
 # tricore is special as it doesn't have a compiler
 : ${cross_as_tricore="tricore-as"}
