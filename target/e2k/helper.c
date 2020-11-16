@@ -56,6 +56,14 @@ void helper_raise_exception(CPUE2KState *env, int tt)
     cpu_loop_exit(cs);
 }
 
+void helper_debug(CPUE2KState *env)
+{
+    CPUState *cs = env_cpu(env);
+    save_state(env);
+    cs->exception_index = EXCP_DEBUG;
+    cpu_loop_exit(cs);
+}
+
 static void pcs_push(CPUE2KState *env)
 {
     size_t size = e2k_state_pcs_size_get(env);

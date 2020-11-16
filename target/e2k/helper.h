@@ -1,4 +1,5 @@
 DEF_HELPER_2(raise_exception, noreturn, env, int)
+DEF_HELPER_1(debug, void, env)
 DEF_HELPER_2(jump, tl, env, int)
 DEF_HELPER_3(branch, tl, env, int, tl)
 DEF_HELPER_2(sxt, i64, i64, i64)
