@@ -69,6 +69,14 @@ static const struct e2k_def_t e2k_defs[] = {
     }
 };
 
+static inline void cpu_dump_state_wd(CPUE2KState *env, FILE *f, int flags)
+{
+    int wbs = GET_FIELD(env->cr1_lo, CR1_LO_WBS_OFF, CR1_LO_WBS_END);
+    int wsz = GET_FIELD(env->cr1_lo, CR1_LO_WPSZ_OFF, CR1_LO_WPSZ_END);
+
+    qemu_fprintf(f, "wbs = %#x, wsz = %#x\n", wbs, wsz);
+}
+
 static inline void cpu_dump_state_br(CPUE2KState *env, FILE *f, int flags)
 {
     uint32_t br = GET_FIELD(env->cr1_hi, CR1_HI_BR_OFF, CR1_HI_BR_END);
@@ -102,7 +110,7 @@ void e2k_cpu_dump_state(CPUState *cs, FILE *f, int flags)
         env->cr1_hi, env->cr1_lo);
     qemu_fprintf(f, "usd_hi: %016lx, usd_lo: %016lx\n",
         env->usd_hi, env->usd_lo);
-/* TODO    qemu_fprintf(f, "wbs: %d, wsz: %d\n", (int) env->wbs, (int) env->wsz); */
+    cpu_dump_state_wd(env, f, flags);
     cpu_dump_state_br(env, f, flags);
     qemu_fprintf(f, "lsr: %016lx\n", env->lsr);
 

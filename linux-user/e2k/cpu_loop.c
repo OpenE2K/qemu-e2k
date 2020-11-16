@@ -54,6 +54,7 @@ void cpu_loop(CPUE2KState *env)
             );
             if (ret == -TARGET_ERESTARTSYS) {
                 /* TODO: restart syscall */
+                abort();
             } else if (ret != -TARGET_QEMU_ESIGRETURN) {
                 unsigned int i;
 
@@ -62,6 +63,7 @@ void cpu_loop(CPUE2KState *env)
                     regs[(i + offset) % WREGS_SIZE] = 0;
                 }
             }
+            env->ip = env->nip;
             break;
         }
         default:

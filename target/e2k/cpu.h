@@ -70,7 +70,34 @@ void e2k_tcg_initialize(void);
 #define PSP_LO_WRITE_OFF 60
 #define PSP_LO_WRITE_BIT (1UL << PSP_LO_WRITE_OFF)
 
-#define PSHTP
+#define PSHTP_IND_OFF 0
+#define PSHTP_IND_END 11
+#define PSHTP_IND_LEN (PSHTP_IND_END - PSHTP_IND_OFF + 1)
+#define PSHTP_FXIND_OFF 16
+#define PSHTP_FXIND_END 26
+#define PSHTP_FXIND_LEN (PSHTP_FXIND_END - PSHTP_FXIND_OFF + 1)
+#define PSHTP_TIND_OFF 32
+#define PSHTP_TIND_END 42
+#define PSHTP_TIND_LEN (PSHTP_TIND_END - PSHTP_TIND_OFF + 1)
+#define PSHTP_FX_OFF 48
+#define PSHTP_FX_BIT (1UL << PSHTP_FX_OFF)
+
+#define USD_LO_BASE_OFF 0
+#define USD_LO_BASE_END 47
+#define USD_LO_BASE_LEN (USD_LO_BASE_END - USD_LO_BASE_OFF + 1)
+#define USD_LO_PROTECTED_OFF 58
+#define USD_LO_PROTECTED_BIT (1UL << USD_LO_PROTECTED_OFF)
+#define USD_LO_READ_OFF 59
+#define USD_LO_READ_BIT (1UL << USD_LO_READ_OFF)
+#define USD_LO_WRITE_OFF 60
+#define USD_LO_WRITE_BIT (1UL << USD_LO_WRITE_OFF)
+
+#define USD_HI_CURPTR_OFF 0
+#define USD_HI_CURPTR_END 31
+#define USD_HI_CURPTR_LEN (USD_HI_CURPTR_END - USD_HI_CURPTR_OFF + 1)
+#define USD_HI_SIZE_OFF 32
+#define USD_HI_SIZE_END 63
+#define USD_HI_SIZE_LEN (USD_HI_SIZE_END - USD_HI_SIZE_OFF + 1)
 
 #define CR1_HI_BR_OFF 0
 #define CR1_HI_BR_END 27
@@ -180,6 +207,13 @@ typedef struct {
     uint64_t lsr; /* loop status register */
 
     uint32_t call_wbs;
+    uint32_t woff; /* holds wbs * 2 */
+    uint32_t wsize; /* holds wsz * 2 */
+    uint32_t boff; /* holds rbs * 2 */
+    uint32_t bsize; /* holds rsz * 2 + 2 */
+    uint32_t bcur; /* holds rcur * 2 */
+    uint32_t psize; /* holds psz */
+    uint32_t pcur; /* holds pcur */
 
     uint64_t usd_lo;
     uint64_t usd_hi;
@@ -191,6 +225,8 @@ typedef struct {
     target_ulong ip; /* instruction address */
     target_ulong nip; /* next instruction address */
     
+    uint32_t cond; /* branch condition */
+
     uint32_t pfpfr; // Packed Floating Point Flag Register (PFPFR)
     uint32_t fpcr; // Floating point control register (FPCR)
     uint32_t fpsr; // Floating point state register (FPSR)
@@ -263,6 +299,21 @@ static inline void e2k_state_pcs_size_set(CPUE2KState *env, size_t size)
 {
     env->pcsp_hi = SET_FIELD(env->pcsp_hi, size, PCSP_HI_SIZE_OFF,
         PCSP_HI_SIZE_LEN);
+}
+
+static inline target_ulong e2k_state_ps_base_get(CPUE2KState *env)
+{
+    return GET_FIELD(env->psp_lo, PSP_LO_BASE_OFF, PSP_LO_BASE_END);
+}
+
+static inline size_t e2k_state_ps_ind_get(CPUE2KState *env)
+{
+    return GET_FIELD(env->psp_hi, PSP_HI_IND_OFF, PSP_HI_IND_LEN);
+}
+
+static inline void e2k_state_ps_ind_set(CPUE2KState *env, size_t ind)
+{
+    env->psp_hi = SET_FIELD(env->psp_hi, ind, PSP_HI_IND_OFF, PSP_HI_IND_LEN);
 }
 
 static inline int e2k_state_wbs_get(CPUE2KState *env)

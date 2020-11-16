@@ -4,9 +4,20 @@
 #include "tcg/tcg-op.h"
 #include "exec/translator.h"
 
-#define DISAS_STATIC_JUMP DISAS_TARGET_0
-#define DISAS_DYNAMIC_JUMP DISAS_TARGET_1
-#define DISAS_CALL DISAS_TARGET_2
+/* ibranch disp */
+#define DISAS_JUMP_STATIC DISAS_TARGET_0
+/* ibranch disp ? cond */
+#define DISAS_BRANCH_STATIC DISAS_TARGET_1
+/*
+ * ct %ctprN
+ * call %ctprN, wbs=M
+ * */
+#define DISAS_JUMP DISAS_TARGET_2
+/*
+ * ct %ctprN ? cond
+ * call %ctprN, wbs=M ? cond
+ */
+#define DISAS_BRANCH DISAS_TARGET_3
 
 #define IS_BASED(i) (((i) & 0x80) == 0)
 #define IS_REGULAR(i) (((i) & 0xc0) == 0x80)
@@ -47,6 +58,7 @@ typedef struct CPUE2KStateTCG {
     TCGv pc;
     TCGv npc;
     TCGv ctprs[4];
+    TCGv cond;
     TCGv_i64 lsr;
     TCGv_i32 call_wbs;
     TCGv_i64 wregs[WREGS_SIZE];
@@ -110,7 +122,6 @@ typedef struct DisasContext {
     UnpackedBundle bundle;
     target_ulong pc;
     target_ulong npc;
-    bool is_call;
     int jump_ctpr;
     int mmuidx;
 
@@ -130,7 +141,6 @@ typedef struct DisasContext {
     /* TODO: move to CPUE2KState */
     struct {
         target_ulong dest; /* ibranch dst */
-        TCGv_i64 cond;
     } jmp;
 } DisasContext;
 
