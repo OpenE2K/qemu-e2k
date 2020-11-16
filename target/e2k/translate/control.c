@@ -36,26 +36,20 @@ static inline void gen_lcnt_dec(TCGv_i64 ret, TCGv_i64 lsr)
     tcg_temp_free_i32(zero);
 }
 
-static inline void gen_pcur_inc(TCGv_i32 ret)
+static inline void gen_dec_cur(TCGv_i32 ret, TCGv_i32 cur, int val,
+    TCGv_i32 size)
 {
     TCGv_i32 t0 = tcg_temp_new_i32();
+    TCGv_i32 t1 = tcg_temp_new_i32();
+    TCGv_i32 t2 = tcg_temp_new_i32();
 
-    tcg_gen_subi_i32(t0, e2k_cs.pcur, 1);
-    /* FIXME: terminated by signal SIGFPE (Floating point exception */
-//    tcg_gen_remu_i32(ret, t0, e2k_cs.psize);
-    /* FIXME: temp hack */
-    e2k_gen_wrap_i32(ret, t0, e2k_cs.psize);
+    tcg_gen_addi_i32(t0, size, val);
+    tcg_gen_sub_i32(t1, t0, cur);
+    tcg_gen_remu_i32(t2, t1, size);
+    tcg_gen_sub_i32(ret, size, t2);
 
-    tcg_temp_free_i32(t0);
-}
-
-static inline void gen_rcur_inc(TCGv_i32 ret)
-{
-    TCGv_i32 t0 = tcg_temp_new_i32();
-
-    tcg_gen_subi_i32(t0, e2k_cs.bcur, 2);
-    tcg_gen_remu_i32(ret, t0, e2k_cs.bsize);
-
+    tcg_temp_free_i32(t2);
+    tcg_temp_free_i32(t1);
     tcg_temp_free_i32(t0);
 }
 
@@ -130,13 +124,13 @@ void e2k_win_commit(DisasContext *dc)
     int abn = GET_FIELD(ss, 21, 22);
     int abg = GET_FIELD(ss, 23, 24);
 
-    tcg_gen_trunc_tl_i32(cond, dc->jmp.cond);
+    tcg_gen_trunc_tl_i32(cond, e2k_cs.cond);
 
     if (alc) {
         TCGv_i64 t0 = tcg_temp_new_i64();
 
         gen_lcnt_dec(t0, e2k_cs.lsr);
-        gen_movcond_flag_i64(e2k_cs.lsr, alc, dc->jmp.cond, t0, e2k_cs.lsr);
+        gen_movcond_flag_i64(e2k_cs.lsr, alc, e2k_cs.cond, t0, e2k_cs.lsr);
 
         tcg_temp_free_i64(t0);
     }
@@ -144,7 +138,7 @@ void e2k_win_commit(DisasContext *dc)
     if (abp) {
         TCGv_i32 t0 = tcg_temp_new_i32();
 
-        gen_pcur_inc(t0);
+        gen_dec_cur(t0, e2k_cs.pcur, 1, e2k_cs.psize);
         gen_movcond_flag_i32(e2k_cs.pcur, abp, cond, t0, e2k_cs.pcur);
 
         tcg_temp_free_i32(t0);
@@ -153,7 +147,7 @@ void e2k_win_commit(DisasContext *dc)
     if (abn) {
         TCGv_i32 t0 = tcg_temp_new_i32();
 
-        gen_rcur_inc(t0);
+        gen_dec_cur(t0, e2k_cs.bcur, 2, e2k_cs.bsize);
         gen_movcond_flag_i32(e2k_cs.bcur, abn, cond, t0, e2k_cs.bcur);
 
         tcg_temp_free_i32(t0);
@@ -277,7 +271,7 @@ static void gen_cs0(DisasContext *dc)
                 /* Calculate a signed displacement in bytes. */
                 int sdisp = ((int) (disp << 4)) >> 1;
                 dc->jmp.dest = dc->pc + sdisp;
-                dc->base.is_jmp = DISAS_STATIC_JUMP;
+                dc->base.is_jmp = DISAS_JUMP_STATIC;
             }
         }
     } else {
@@ -405,8 +399,6 @@ static void gen_cs1(DisasContext *dc)
                 int wsz = GET_FIELD(lts0, 5, 11);
                 TCGv_i32 t0 = tcg_const_i32(lts0);
 
-                gen_helper_setwd(cpu_env, t0);
-
                 tcg_gen_movi_i32(e2k_cs.wsize, wsz * 2);
 
                 tcg_temp_free_i32(t0);
@@ -417,18 +409,10 @@ static void gen_cs1(DisasContext *dc)
             int rbs = GET_FIELD(cs1, BR_RBS_OFF, BR_RBS_END);
             int rsz = GET_FIELD(cs1, BR_RSZ_OFF, BR_RSZ_END);
             int rcur = GET_FIELD(cs1, BR_RCUR_OFF, BR_RCUR_END);
-            TCGv_ptr t0 = tcg_const_ptr(rbs * 2);
-            TCGv_i32 t1 = tcg_const_i32(cs1);
-
-            /* update state*/
-            gen_helper_setbn(cpu_env, t1);
 
             tcg_gen_movi_i32(e2k_cs.boff, rbs * 2);
             tcg_gen_movi_i32(e2k_cs.bsize, (rsz + 1) * 2);
             tcg_gen_movi_i32(e2k_cs.bcur, rcur * 2);
-
-            tcg_temp_free_i32(t1);
-            tcg_temp_free_ptr(t0);
         }
 
         if (setbp) {
@@ -485,7 +469,6 @@ static void gen_cs1(DisasContext *dc)
         unsigned int wbs = cs1 & 0x7f;
 
         if (ctop) {
-            dc->is_call = true;
             tcg_gen_movi_i32(e2k_cs.call_wbs, wbs);
 //            my_printf ("call %%ctpr%d, wbs = 0x%x", ctop, wbs);
 //            print_ctcond (info, instr->ss & 0x1ff);
@@ -547,18 +530,35 @@ static void gen_jmp(DisasContext *dc)
     unsigned int cond_type = GET_FIELD(dc->bundle.ss, 5, 8);
     unsigned int ctpr = GET_FIELD(dc->bundle.ss, 10, 11);
 
+    /* TODO: check CPU behavior if present ibranch and ctpr is not zero */
+
+    /* TODO: different kinds of ct */
+    if (ctpr != 0) {
+        dc->jump_ctpr = ctpr;
+        dc->base.is_jmp = DISAS_JUMP;
+    }
+
     if (cond_type == 1) {
-        /* TODO: optimize ibranch with no cond */
-        tcg_gen_movi_tl(dc->jmp.cond, 1);
-    } else if (cond_type > 1){
+        tcg_gen_movi_tl(e2k_cs.cond, 1);
+    } else if (cond_type > 1) {
+        switch (dc->base.is_jmp) {
+        case DISAS_JUMP:
+            dc->base.is_jmp = DISAS_BRANCH;
+            break;
+        case DISAS_JUMP_STATIC:
+            dc->base.is_jmp = DISAS_BRANCH_STATIC;
+            break;
+        default:
+            /* FIXME: what action to do? */
+            g_assert_not_reached();
+            break;
+        }
+
         /* TODO: single assign */
-        TCGv cond = tcg_const_tl(0);
         TCGv preg = tcg_temp_new();
         TCGv loop_end = tcg_temp_new();
         TCGv not_loop_end = tcg_temp_new();
         TCGv_i64 t0 = tcg_temp_new_i64();
-
-        dc->base.is_jmp = DISAS_DYNAMIC_JUMP;
 
         e2k_gen_preg(t0, psrc);
         tcg_gen_trunc_i64_tl(preg, t0);
@@ -569,12 +569,12 @@ static void gen_jmp(DisasContext *dc)
         case 0x2:
         case 0x6:
         case 0xf:
-            tcg_gen_mov_tl(cond, preg);
+            tcg_gen_mov_tl(e2k_cs.cond, preg);
             break;
         case 0x3:
         case 0x7:
         case 0xe:
-            tcg_gen_setcondi_tl(TCG_COND_NE, cond, preg, 1);
+            tcg_gen_setcondi_tl(TCG_COND_NE, e2k_cs.cond, preg, 1);
             break;
         default:
             break;
@@ -582,18 +582,18 @@ static void gen_jmp(DisasContext *dc)
 
         switch (cond_type) {
         case 0x4:
-            tcg_gen_mov_tl(cond, loop_end);
+            tcg_gen_mov_tl(e2k_cs.cond, loop_end);
             break;
         case 0x5:
-            tcg_gen_mov_tl(cond, not_loop_end);
+            tcg_gen_mov_tl(e2k_cs.cond, not_loop_end);
             break;
         case 0x6:
         case 0xe:
-            tcg_gen_or_tl(cond, cond, loop_end);
+            tcg_gen_or_tl(e2k_cs.cond, e2k_cs.cond, loop_end);
             break;
         case 0x7:
         case 0xf:
-            tcg_gen_and_tl(cond, cond, not_loop_end);
+            tcg_gen_and_tl(e2k_cs.cond, e2k_cs.cond, not_loop_end);
             break;
         default:
             break;
@@ -648,26 +648,11 @@ static void gen_jmp(DisasContext *dc)
             abort();
         }
 
-        tcg_gen_mov_tl(dc->jmp.cond, cond);
 
         tcg_temp_free_i64(t0);
         tcg_temp_free(not_loop_end);
         tcg_temp_free(loop_end);
         tcg_temp_free(preg);
-        tcg_temp_free(cond);
-    }
-
-    /* TODO: check CPU behavior if present ibranch and ctpr is not zero */
-
-    /* TODO: different kinds of ct */
-    if (ctpr != 0) {
-        dc->jump_ctpr = ctpr;
-
-        if (dc->is_call) {
-            dc->base.is_jmp = DISAS_CALL;
-        } else {
-            dc->base.is_jmp = DISAS_DYNAMIC_JUMP;
-        }
     }
 }
 

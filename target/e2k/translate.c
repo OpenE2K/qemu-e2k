@@ -189,8 +189,6 @@ static inline void save_state(DisasContext *dc)
 {
     tcg_gen_movi_tl(e2k_cs.pc, dc->pc);
     tcg_gen_movi_tl(e2k_cs.npc, dc->npc);
-    gen_helper_save_rcur(cpu_env, e2k_cs.bcur);
-    gen_helper_save_pcur(cpu_env, e2k_cs.pcur);
 }
 
 void e2k_gen_exception(DisasContext *dc, int which)
@@ -209,7 +207,8 @@ static void e2k_tr_init_disas_context(DisasContextBase *db, CPUState *cs)
     E2KCPU *cpu = E2K_CPU(cs);
     CPUE2KState *env = &cpu->env;
 
-    dc->pc = dc->base.pc_first;
+    dc->pc = 0;
+    dc->npc = dc->base.pc_first;
     dc->version = env->version;
 }
 
@@ -233,11 +232,12 @@ static void e2k_tr_translate_insn(DisasContextBase *db, CPUState *cs)
     E2KCPU *cpu = E2K_CPU(cs);
     CPUE2KState *env = &cpu->env;
     UnpackedBundle *bundle = &dc->bundle;
+    unsigned int bundle_len;
 
-    dc->pc = dc->base.pc_next;
-    unsigned int bundle_len = unpack_bundle(env, dc->pc, bundle);
+    dc->pc = dc->npc;
+    bundle_len = unpack_bundle(env, dc->pc, bundle);
     /* TODO: exception, check bundle_len */
-    dc->base.pc_next = dc->npc = dc->pc + bundle_len;
+    dc->npc = dc->base.pc_next = dc->pc + bundle_len;
 
     e2k_alc_gen(dc);
     e2k_control_gen(dc);
@@ -261,31 +261,8 @@ static void e2k_tr_translate_insn(DisasContextBase *db, CPUState *cs)
 
 static void e2k_tr_tb_start(DisasContextBase *db, CPUState *cs)
 {
-    DisasContext *dc = container_of(db, DisasContext, base);
-    E2KCPU *cpu = E2K_CPU(cs);
-    CPUE2KState *env = &cpu->env;
-    uint32_t br;
-    int wbs, wsz, rbs, rsz, rcur, psz, pcur;
-
-    wbs = e2k_state_wbs_get(env);
-    wsz = e2k_state_wsz_get(env);
-    br = GET_FIELD(env->cr1_hi, CR1_HI_BR_OFF, CR1_HI_BR_END);
-    rbs = GET_FIELD(br, BR_RBS_OFF, BR_RBS_END);
-    rsz = GET_FIELD(br, BR_RSZ_OFF, BR_RSZ_END);
-    rcur = GET_FIELD(br, BR_RCUR_OFF, BR_RCUR_END);
-    psz = GET_FIELD(br, BR_PSZ_OFF, BR_PSZ_END);
-    pcur = GET_FIELD(br, BR_PCUR_OFF, BR_PCUR_END);
-
-    e2k_cs.woff = tcg_const_i32(wbs * 2);
-    e2k_cs.wsize = tcg_const_i32(wsz * 2);
-    e2k_cs.boff = tcg_const_i32(rbs * 2);
-    e2k_cs.bsize = tcg_const_i32((rsz + 1) * 2);
-    e2k_cs.bcur = tcg_const_i32(rcur * 2);
-    e2k_cs.psize = tcg_const_i32(psz);
-    e2k_cs.pcur = tcg_const_i32(pcur);
-
-    dc->is_call = false;
-    dc->jmp.cond = tcg_const_i64(0);
+    tcg_gen_movi_tl(e2k_cs.cond, 0);
+    tcg_gen_movi_i32(e2k_cs.call_wbs, 0);
 }
 
 static void e2k_tr_tb_stop(DisasContextBase *db, CPUState *cs)
@@ -298,42 +275,58 @@ static void e2k_tr_tb_stop(DisasContextBase *db, CPUState *cs)
     case DISAS_TOO_MANY:
         break;
     case DISAS_NORETURN: {
-        save_state(dc);
         /* exception */
         tcg_gen_exit_tb(NULL, 0);
         break;
     }
-    case DISAS_STATIC_JUMP:
-        save_state(dc);
+    case DISAS_JUMP_STATIC:
         tcg_gen_movi_tl(e2k_cs.pc, dc->jmp.dest);
         tcg_gen_exit_tb(NULL, 0);
         break;
-    case DISAS_DYNAMIC_JUMP: {
-        save_state(dc);
-        gen_helper_jump(cpu_env, dc->jmp.cond, e2k_cs.ctprs[dc->jump_ctpr]);
+    case DISAS_BRANCH_STATIC: {
+        TCGv z = tcg_const_tl(0);
+        TCGv t = tcg_const_tl(dc->jmp.dest);
+        TCGv f = tcg_const_tl(dc->npc);
+
+        tcg_gen_movcond_tl(TCG_COND_NE, e2k_cs.pc, e2k_cs.cond, z, t, f);
         tcg_gen_exit_tb(NULL, 0);
+
+        tcg_temp_free(f);
+        tcg_temp_free(t);
+        tcg_temp_free(z);
         break;
     }
-    case DISAS_CALL: {
+    case DISAS_JUMP: {
+        TCGv_i32 ctpr = tcg_const_i32(dc->jump_ctpr);
+
         save_state(dc);
-        gen_helper_call(cpu_env, dc->jmp.cond, e2k_cs.ctprs[dc->jump_ctpr]);
+        gen_helper_jump(e2k_cs.pc, cpu_env, ctpr);
         tcg_gen_exit_tb(NULL, 0);
+
+        tcg_temp_free_i32(ctpr);
+        break;
+    }
+    case DISAS_BRANCH: {
+        TCGv_i32 ctpr = tcg_const_i32(dc->jump_ctpr);
+        TCGv z = tcg_const_tl(0);
+        TCGv t = tcg_temp_new();
+        TCGv f = tcg_const_tl(dc->npc);
+
+        save_state(dc);
+        gen_helper_branch(t, cpu_env, ctpr, e2k_cs.cond);
+        tcg_gen_movcond_tl(TCG_COND_NE, e2k_cs.pc, e2k_cs.cond, z, t, f);
+        tcg_gen_exit_tb(NULL, 0);
+
+        tcg_temp_free(f);
+        tcg_temp_free(t);
+        tcg_temp_free(z);
+        tcg_temp_free_i32(ctpr);
         break;
     }
     default:
         g_assert_not_reached();
         break;
     }
-
-    tcg_temp_free_i32(e2k_cs.woff);
-    tcg_temp_free_i32(e2k_cs.wsize);
-    tcg_temp_free_i32(e2k_cs.boff);
-    tcg_temp_free_i32(e2k_cs.bsize);
-    tcg_temp_free_i32(e2k_cs.bcur);
-    tcg_temp_free_i32(e2k_cs.psize);
-    tcg_temp_free_i32(e2k_cs.pcur);
-
-    tcg_temp_free(dc->jmp.cond);
 }
 
 static void e2k_tr_disas_log(const DisasContextBase *db, CPUState *cpu)
@@ -373,6 +366,13 @@ void e2k_tcg_initialize(void) {
 
     static const struct { TCGv_i32 *ptr; int off; const char *name; } r32[] = {
         { &e2k_cs.call_wbs, offsetof(CPUE2KState, call_wbs), "call_wbs" },
+        { &e2k_cs.woff, offsetof(CPUE2KState, woff), "woff" },
+        { &e2k_cs.wsize, offsetof(CPUE2KState, wsize), "wsize" },
+        { &e2k_cs.boff, offsetof(CPUE2KState, boff), "boff" },
+        { &e2k_cs.bsize, offsetof(CPUE2KState, bsize), "bsize" },
+        { &e2k_cs.bcur, offsetof(CPUE2KState, bcur), "bcur" },
+        { &e2k_cs.psize, offsetof(CPUE2KState, psize), "psize" },
+        { &e2k_cs.pcur, offsetof(CPUE2KState, pcur), "pcur" },
     };
 
     static const struct { TCGv_i64 *ptr; int off; const char *name; } r64[] = {
@@ -383,6 +383,7 @@ void e2k_tcg_initialize(void) {
     static const struct { TCGv *ptr; int off; const char *name; } rtl[] = {
         { &e2k_cs.pc, offsetof(CPUE2KState, ip), "pc" },
         { &e2k_cs.npc, offsetof(CPUE2KState, nip), "npc" },
+        { &e2k_cs.cond, offsetof(CPUE2KState, cond), "cond" },
     };
 
     unsigned int i;
