@@ -7,18 +7,26 @@ static void gen_preg_offset(TCGv_i64 ret, int reg)
 {
     assert(reg < 32);
 
+    TCGv_i32 zero = tcg_const_i32(0);
+    TCGv_i32 pf_size = tcg_const_i32(PF_SIZE);
     TCGv_i32 t0 = tcg_temp_new_i32();
     TCGv_i32 t1 = tcg_temp_new_i32();
     TCGv_i32 t2 = tcg_temp_new_i32();
+    TCGv_i32 t3 = tcg_temp_new_i32();
 
     tcg_gen_addi_i32(t0, e2k_cs.pcur, reg);
-    e2k_gen_wrap_i32(t1, t0, e2k_cs.psize);
-    tcg_gen_muli_i32(t2, t1, 2);
-    tcg_gen_extu_i32_i64(ret, t2);
+    tcg_gen_movcond_i32(TCG_COND_NE, t1, e2k_cs.psize, zero,
+        e2k_cs.psize, pf_size);
+    tcg_gen_remu_i32(t2, t0, t1);
+    tcg_gen_muli_i32(t3, t2, 2);
+    tcg_gen_extu_i32_i64(ret, t3);
 
+    tcg_temp_free_i32(t3);
     tcg_temp_free_i32(t2);
     tcg_temp_free_i32(t1);
     tcg_temp_free_i32(t0);
+    tcg_temp_free_i32(pf_size);
+    tcg_temp_free_i32(zero);
 }
 
 static void gen_preg_clear(TCGv_i64 ret, TCGv_i64 offset)
