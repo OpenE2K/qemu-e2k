@@ -185,20 +185,54 @@ static target_ulong unpack_bundle(CPUE2KState *env,
     return 8 + GET_FIELD(hs, 4, 6) * 8;
 }
 
-static inline void save_state(DisasContext *dc)
+static inline void save_pc(DisasContext *dc)
 {
     tcg_gen_movi_tl(e2k_cs.pc, dc->pc);
     tcg_gen_movi_tl(e2k_cs.npc, dc->npc);
+}
+
+static inline bool use_goto_tb(DisasContext *s, target_ulong pc,
+                               target_ulong npc)
+{
+    if (unlikely(s->base.singlestep_enabled || singlestep)) {
+        return false;
+    }
+
+#ifndef CONFIG_USER_ONLY
+    return (pc & TARGET_PAGE_MASK) == (s->base.tb->pc & TARGET_PAGE_MASK) &&
+           (npc & TARGET_PAGE_MASK) == (s->base.tb->pc & TARGET_PAGE_MASK);
+#else
+    return true;
+#endif
+}
+
+static inline void gen_goto_tb(DisasContext *dc, int tb_num,
+    target_ulong pc, target_ulong npc)
+{
+    if (use_goto_tb(dc, pc, npc))  {
+        /* jump to same page: we can use a direct jump */
+        tcg_gen_goto_tb(tb_num);
+        tcg_gen_movi_tl(e2k_cs.pc, pc);
+        tcg_gen_movi_tl(e2k_cs.npc, npc);
+        tcg_gen_exit_tb(dc->base.tb, tb_num);
+    } else {
+        /* jump to another page: currently not optimized */
+        tcg_gen_movi_tl(e2k_cs.pc, pc);
+        tcg_gen_movi_tl(e2k_cs.npc, npc);
+        tcg_gen_exit_tb(NULL, 0);
+    }
 }
 
 void e2k_gen_exception(DisasContext *dc, int which)
 {
     TCGv_i32 t = tcg_const_i32(which);
 
-    save_state(dc);
+    save_pc(dc);
     gen_helper_raise_exception(cpu_env, t);
-    tcg_temp_free_i32(t);
+    tcg_gen_exit_tb(NULL, 0);
     dc->base.is_jmp = DISAS_NORETURN;
+
+    tcg_temp_free_i32(t);
 }
 
 static void e2k_tr_init_disas_context(DisasContextBase *db, CPUState *cs)
@@ -221,9 +255,16 @@ static void e2k_tr_insn_start(DisasContextBase *db, CPUState *cs)
 static bool e2k_tr_breakpoint_check(DisasContextBase *db, CPUState *cs,
                                     const CPUBreakpoint *bp)
 {
-    // TODO
-    qemu_log_mask(LOG_UNIMP, "e2k_tr_breakpoint_check: not implemented\n");
-    return false;
+    DisasContext *dc = container_of(db, DisasContext, base);
+
+    if (dc->pc != dc->base.pc_first) {
+        save_pc(dc);
+    }
+    gen_helper_debug(cpu_env);
+    tcg_gen_exit_tb(NULL, 0);
+    dc->base.is_jmp = DISAS_NORETURN;
+    dc->base.pc_next = dc->npc;
+    return true;
 }
 
 static void e2k_tr_translate_insn(DisasContextBase *db, CPUState *cs)
@@ -273,14 +314,13 @@ static void e2k_tr_tb_stop(DisasContextBase *db, CPUState *cs)
     switch(dc->base.is_jmp) {
     case DISAS_NEXT:
     case DISAS_TOO_MANY:
-        break;
-    case DISAS_NORETURN: {
-        /* exception */
+        gen_goto_tb(dc, 0, dc->pc, dc->npc);
         tcg_gen_exit_tb(NULL, 0);
         break;
-    }
+    case DISAS_NORETURN:
+        break;
     case DISAS_JUMP_STATIC:
-        tcg_gen_movi_tl(e2k_cs.pc, dc->jmp.dest);
+        gen_goto_tb(dc, 0, dc->pc, dc->jmp.dest);
         tcg_gen_exit_tb(NULL, 0);
         break;
     case DISAS_BRANCH_STATIC: {
@@ -299,7 +339,7 @@ static void e2k_tr_tb_stop(DisasContextBase *db, CPUState *cs)
     case DISAS_JUMP: {
         TCGv_i32 ctpr = tcg_const_i32(dc->jump_ctpr);
 
-        save_state(dc);
+        save_pc(dc);
         gen_helper_jump(e2k_cs.pc, cpu_env, ctpr);
         tcg_gen_exit_tb(NULL, 0);
 
@@ -312,7 +352,7 @@ static void e2k_tr_tb_stop(DisasContextBase *db, CPUState *cs)
         TCGv t = tcg_temp_new();
         TCGv f = tcg_const_tl(dc->npc);
 
-        save_state(dc);
+        save_pc(dc);
         gen_helper_branch(t, cpu_env, ctpr, e2k_cs.cond);
         tcg_gen_movcond_tl(TCG_COND_NE, e2k_cs.pc, e2k_cs.cond, z, t, f);
         tcg_gen_exit_tb(NULL, 0);
