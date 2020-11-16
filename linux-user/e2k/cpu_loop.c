@@ -66,6 +66,27 @@ void cpu_loop(CPUE2KState *env)
             env->ip = env->nip;
             break;
         }
+        /* QEMU common interrupts */
+        case EXCP_INTERRUPT:
+            /* just indicate that signals should be handled asap */
+            break;
+        case EXCP_DEBUG:
+        {
+            target_siginfo_t info;
+            info.si_signo = TARGET_SIGTRAP;
+            info.si_errno = 0;
+            info.si_code = TARGET_TRAP_BRKPT;
+            queue_signal(env, info.si_signo, QEMU_SI_FAULT, &info);
+            break;
+        }
+        case EXCP_ATOMIC:
+            cpu_exec_step_atomic(cs);
+            break;
+        case EXCP_HLT:
+        case EXCP_HALTED:
+        case EXCP_YIELD:
+            fprintf(stderr, "Unhandled QEMU trap: 0x%x\n", trapnr);
+            break;
         default:
             fprintf(stderr, "Unhandled trap: 0x%x\n", trapnr);
             cpu_dump_state(cs, stderr, 0);
