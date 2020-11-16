@@ -224,6 +224,10 @@ static void e2k_cpu_class_init(ObjectClass *oc, void *data)
     cc->class_by_name = e2k_cpu_class_by_name;
     cc->disas_set_info = cpu_e2k_disas_set_info;
     cc->tcg_initialize = e2k_tcg_initialize;
+
+    cc->gdb_read_register  = e2k_cpu_gdb_read_register;
+    cc->gdb_write_register = e2k_cpu_gdb_write_register;
+    cc->gdb_num_core_regs  = 300; /* TODO: bogus value, depends on e2k-linux-gdb */
 }
 
 static const TypeInfo e2k_cpu_type_info = {
