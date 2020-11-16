@@ -24,21 +24,49 @@
 #include "disas/dis-asm.h"
 #include "e2k.h"
 
-int mcpu;
+/* I need MCPU referred to in "e2k-opc.h" here to prevent "e2k-opc.c" from
+   being linked into OBJDUMP. At the same time I want to prevent "e2k-dis.c"
+   from being mistakenly linked into GAS because of this variable, which is why
+   it's made static and renamed here.  */
+#define mcpu e2k_dis_mcpu
+static unsigned long mcpu;
 
-#define MAX_E2K_NUM_OPCODES 16384
-struct e2k_opcode_templ *e2k_opcode_templs[MAX_E2K_NUM_OPCODES];
-size_t e2k_num_opcodes;
+typedef struct e2k_opcode_hash
+{
+  struct e2k_opcode_hash *next;
+  const e2k_alf_opcode_templ *templ;
+} e2k_opcode_hash;
+
+/* Use opcode as a hash key for now.  */
+static e2k_opcode_hash *opcode_hash_table[128];
+
+/* At STAGE = 0 the hash table's buffer of an appropriate size is allocated,
+   at STAGE = 1 it is filled in.  */
+static int build_hash_table_stage = 0;
+static int num_opcodes;
+static e2k_opcode_hash *hash_buf = NULL;
 
 static void
-add_to_insn_table (e2k_opcode_templ *new)
+add_to_insn_table (e2k_opcode_templ *t)
 {
-  if (e2k_num_opcodes == MAX_E2K_NUM_OPCODES)
-    abort ();
+  const e2k_alf_opcode_templ *alf;
+  e2k_opcode_hash *h;
 
-  e2k_opcode_templs[e2k_num_opcodes++] = new;
+  if (build_hash_table_stage == 0)
+    {
+      num_opcodes++;
+      return;
+    }
+
+  h = &hash_buf[num_opcodes++];
+  alf = (const e2k_alf_opcode_templ *) t;
+
+  assert (alf->opc < 128);
+
+  h->next = opcode_hash_table[alf->opc];
+  h->templ = alf;
+  opcode_hash_table[alf->opc] = h;
 }
-
 
 static const char *
 merge_alopf1_with_alopf11 (e2k_alf1_opcode_templ *l,
@@ -292,23 +320,6 @@ init_opcode_templs (void)
   E2K_OPCODE_VEC_ENTRY (set_mark, parse_set_mark_args);
   E2K_OPCODE_VEC_ENTRY (vfdi, parse_vfdi_args);
 }
-
-
-/* I need MCPU referred to in "e2k-opc.h" here to prevent "e2k-opc.c" from
-   being linked into OBJDUMP. At the same time I want to prevent "e2k-dis.c"
-   from being mistakenly linked into GAS because of this variable, which is why
-   it's made static and renamed here.  */
-#define mcpu e2k_dis_mcpu
-static unsigned long mcpu;
-
-typedef struct e2k_opcode_hash
-{
-  struct e2k_opcode_hash *next;
-  const e2k_alf_opcode_templ *templ;
-} e2k_opcode_hash;
-
-/* Use opcode as a hash key for now.  */
-static e2k_opcode_hash *opcode_hash_table[128];
 
 static struct unpacked_instr {
   unsigned int hs;
@@ -2580,40 +2591,6 @@ print_apb_instr (disassemble_info *info)
       end_syllable ();
     }
 }
-
-
-
-
-
-
-/* At STAGE = 0 the hash table's buffer of an appropriate size is allocated,
-   at STAGE = 1 it is filled in.  */
-static int build_hash_table_stage = 0;
-static int num_opcodes;
-static e2k_opcode_hash *hash_buf = NULL;
-
-/*static void
-add_to_insn_table (e2k_opcode_templ *t)
-{
-  const e2k_alf_opcode_templ *alf;
-  e2k_opcode_hash *h;
-
-  if (build_hash_table_stage == 0)
-    {
-      num_opcodes++;
-      return;
-    }
-
-  h = &hash_buf[num_opcodes++];
-  alf = (const e2k_alf_opcode_templ *) t;
-
-  assert (alf->opc < 128);
-
-  h->next = opcode_hash_table[alf->opc];
-  h->templ = alf;
-  opcode_hash_table[alf->opc] = h;
-}*/
-
 
 static void
 build_hash_table (void)
