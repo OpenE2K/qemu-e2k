@@ -327,3 +327,14 @@ uint64_t helper_getsp(CPUE2KState *env, uint64_t src2) {
 
     return base;
 }
+
+uint32_t helper_cur_dec(CPUE2KState *env, uint32_t cur, uint32_t n,
+    uint32_t size)
+{
+    if (size == 0) {
+        /* FIXME: SIGSEGV */
+        helper_raise_exception(env, E2K_EXCP_UNIMPL);
+    }
+
+    return size - (size + n - cur) % size;
+}

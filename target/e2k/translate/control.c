@@ -36,24 +36,6 @@ static inline void gen_lcnt_dec(TCGv_i64 ret, TCGv_i64 lsr)
     tcg_temp_free_i32(zero);
 }
 
-static inline void gen_dec_cur(TCGv_i32 ret, TCGv_i32 cur, int val,
-    TCGv_i32 size)
-{
-    TCGv_i32 t0 = tcg_temp_new_i32();
-    TCGv_i32 t1 = tcg_temp_new_i32();
-    TCGv_i32 t2 = tcg_temp_new_i32();
-
-    tcg_gen_addi_i32(t0, size, val);
-    tcg_gen_sub_i32(t1, t0, cur);
-    tcg_gen_remu_i32(t2, t1, size);
-    tcg_gen_sub_i32(ret, size, t2);
-
-    tcg_temp_free_i32(t2);
-    tcg_temp_free_i32(t1);
-    tcg_temp_free_i32(t0);
-}
-
-__attribute__((noinline))
 static void gen_movcond_flag_i32(TCGv_i32 ret, int flag, TCGv_i32 cond,
     TCGv_i32 v1, TCGv_i32 v2)
 {
@@ -112,6 +94,22 @@ static inline void gen_movcond_flag_i64(TCGv_i64 ret, int flag, TCGv_i64 cond,
     tcg_temp_free_i64(one);
 }
 
+static inline void gen_cur_dec(TCGv_i32 ret, int cond, TCGv_i32 cur, int n,
+    TCGv_i32 size)
+{
+    TCGv_i32 c = tcg_temp_new_i32();
+    TCGv_i32 t0 = tcg_const_i32(n);
+    TCGv_i32 t1 = tcg_temp_new_i32();
+
+    tcg_gen_trunc_tl_i32(c, e2k_cs.cond);
+    gen_helper_cur_dec(t1, cpu_env, cur, t0, size);
+    gen_movcond_flag_i32(ret, cond, c, t1, cur);
+
+    tcg_temp_free_i32(t1);
+    tcg_temp_free_i32(t0);
+    tcg_temp_free_i32(c);
+}
+
 void e2k_win_commit(DisasContext *dc)
 {
     TCGv_i32 cond = tcg_temp_new_i32();
@@ -136,21 +134,11 @@ void e2k_win_commit(DisasContext *dc)
     }
 
     if (abp) {
-        TCGv_i32 t0 = tcg_temp_new_i32();
-
-        gen_dec_cur(t0, e2k_cs.pcur, 1, e2k_cs.psize);
-        gen_movcond_flag_i32(e2k_cs.pcur, abp, cond, t0, e2k_cs.pcur);
-
-        tcg_temp_free_i32(t0);
+        gen_cur_dec(e2k_cs.pcur, abp, e2k_cs.pcur, 1, e2k_cs.psize);
     }
 
     if (abn) {
-        TCGv_i32 t0 = tcg_temp_new_i32();
-
-        gen_dec_cur(t0, e2k_cs.bcur, 2, e2k_cs.bsize);
-        gen_movcond_flag_i32(e2k_cs.bcur, abn, cond, t0, e2k_cs.bcur);
-
-        tcg_temp_free_i32(t0);
+        gen_cur_dec(e2k_cs.bcur, abn, e2k_cs.bcur, 2, e2k_cs.bsize);
     }
 
     switch(abg) {
