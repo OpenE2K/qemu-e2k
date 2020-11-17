@@ -45,6 +45,8 @@ static void e2k_cpu_reset(DeviceState *dev)
     memset(env, 0, offsetof(CPUE2KState, end_reset_fields));
 
     env->wptr = &env->wregs[0];
+    env->woff = 0;
+    env->wsize = 16;
 }
 
 #ifdef CONFIG_SOFTMMU
@@ -152,12 +154,16 @@ static void e2k_cpu_set_pc(CPUState *cs, vaddr value)
 {
     E2KCPU *cpu = E2K_CPU(cs);
 
+    qemu_log_mask(LOG_UNIMP, "e2k_cpu_synchronize_from_tb: not implemented\n");
+
     cpu->env.ip = value;
 }
 
 static void e2k_cpu_synchronize_from_tb(CPUState *cs, const TranslationBlock *tb)
 {
     E2KCPU *cpu = E2K_CPU(cs);
+
+    qemu_log_mask(LOG_UNIMP, "e2k_cpu_synchronize_from_tb: not implemented\n");
 
     cpu->env.ip = tb->pc;
 }

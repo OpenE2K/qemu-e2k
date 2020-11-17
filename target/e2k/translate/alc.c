@@ -50,12 +50,14 @@ static TCGv_i64 get_src2(DisasContext *dc, uint32_t als)
         } else if (IS_LIT32(src2)) {
             // nop
         } else if (IS_LIT64(src2) && i < 3) {
-            // TODO: exception
-            assert(dc->bundle.lts_present[i + 1]);
+            if (!dc->bundle.lts_present[i + 1]) {
+                // TODO: check what exception must be raised
+                e2k_gen_exception(dc, E2K_EXCP_MAPERR);
+            }
             lit |= ((uint64_t) dc->bundle.lts[i + 1]) << 32;
         } else {
-            // TODO: exception
-            abort();
+            // TODO: check what exception must be raised
+            e2k_gen_exception(dc, E2K_EXCP_MAPERR);
         }
         tcg_gen_movi_i64(t, lit);
         return t;
@@ -79,8 +81,10 @@ static TCGv_i64 get_dst(DisasContext *dc, unsigned int als)
         return e2k_get_greg(dc, i);
     } else {
         // TODO: %empty, %ctpr, etc
-        abort();
+        gen_helper_unimpl(cpu_env);
     }
+    // TODO: remove
+    return e2k_get_temp_i64(dc);
 }
 
 /* FIXME: now only %r, %b, %g */
@@ -100,8 +104,8 @@ static void store_reg_alc_result(DisasContext *dc, int chan, TCGv_i64 val)
         res->tag = RESULT_GLOBAL_REG;
         res->u.reg.i = GET_GLOBAL(dst);
     } else {
-        /* TODO: exception */
-        abort();
+        // TODO: %empty, %ctpr, etc
+        gen_helper_unimpl(cpu_env);
     }
 }
 
@@ -441,11 +445,10 @@ static void gen_alopf1_mrgc_i64(DisasContext *dc, int chan)
     tcg_temp_free_i64(cond);
 }
 
-static void gen_alopf_simple(DisasContext *dc, int chan)
+static void execute_alopf_simple(DisasContext *dc, int chan)
 {
     uint32_t als = dc->bundle.als[chan];
     int opc = GET_FIELD(als, 24, 30);
-    int sm  = GET_BIT(als, 31);
 
     switch(opc) {
     case 0x00: /* ands */ gen_alopf1_i32(dc, chan, tcg_gen_and_i32); break;
@@ -477,8 +480,8 @@ static void gen_alopf_simple(DisasContext *dc, int chan)
     case 0x1b: /* shrd */ gen_alopf1_i64(dc, chan, tcg_gen_shr_i64); break;
     case 0x1c: /* sars */ gen_alopf1_i32(dc, chan, tcg_gen_sar_i32); break;
     case 0x1d: /* sard */ gen_alopf1_i64(dc, chan, tcg_gen_sar_i64); break;
-    case 0x1e: /* TODO: getfs */ abort(); break;
-    case 0x1f: /* TODO: getfd */ abort(); break;
+    case 0x1e: /* TODO: getfs */ gen_helper_unimpl(cpu_env); break;
+    case 0x1f: /* TODO: getfd */ gen_helper_unimpl(cpu_env); break;
     case 0x21: { // cmp{op}db
         TCGv_i64 cpu_src1 = get_src1(dc, als);
         TCGv_i64 cpu_src2 = get_src2(dc, als);
@@ -489,12 +492,12 @@ static void gen_alopf_simple(DisasContext *dc, int chan)
         unsigned int cmp_op = GET_FIELD(als, 5, 7);
         // TODO: move to separate function
         switch(cmp_op) {
-        case 0: abort(); break;
+        case 0: gen_helper_unimpl(cpu_env); break;
         case 1: cond = TCG_COND_LTU; break;
         case 2: cond = TCG_COND_EQ; break;
         case 3: cond = TCG_COND_LEU; break;
-        case 4: abort(); break;
-        case 5: abort(); break;
+        case 4: gen_helper_unimpl(cpu_env); break;
+        case 5: gen_helper_unimpl(cpu_env); break;
         case 6: cond = TCG_COND_LT; break;
         case 7: cond = TCG_COND_LE; break;
         default: g_assert_not_reached(); break;
@@ -514,8 +517,7 @@ static void gen_alopf_simple(DisasContext *dc, int chan)
         if (chan == 2 || chan == 5) {
             gen_st(dc, chan, MO_UB);
         } else {
-            /* TODO: exception */
-            abort();
+            gen_helper_unimpl(cpu_env);
         }
         break;
     }
@@ -523,8 +525,7 @@ static void gen_alopf_simple(DisasContext *dc, int chan)
         if (chan == 2 || chan == 5) {
             gen_st(dc, chan, MO_TEUW);
         } else {
-            /* TODO: exception */
-            abort();
+            gen_helper_unimpl(cpu_env);
         }
         break;
     }
@@ -532,8 +533,7 @@ static void gen_alopf_simple(DisasContext *dc, int chan)
         if (chan == 2 || chan == 5) {
             gen_st(dc, chan, MO_TEUL);
         } else {
-            /* TODO: exception */
-            abort();
+            gen_helper_unimpl(cpu_env);
         }
         break;
     }
@@ -541,8 +541,7 @@ static void gen_alopf_simple(DisasContext *dc, int chan)
         if (chan == 2 || chan == 5) {
             gen_st(dc, chan, MO_TEQ);
         } else {
-            /* TODO: exception */
-            abort();
+            gen_helper_unimpl(cpu_env);
         }
         break;
     }
@@ -551,16 +550,14 @@ static void gen_alopf_simple(DisasContext *dc, int chan)
         break;
     case 0x61:
         if (chan == 2 || chan == 5) {
-            /* TODO: exception */
-            abort();
+            gen_helper_unimpl(cpu_env);
         } else {
             gen_movtd(dc, chan);
         }
         break;
     case 0x64: { /* ldb */
         if (chan == 2 || chan == 5) {
-            /* TODO: exception */
-            abort();
+            gen_helper_unimpl(cpu_env);
         } else {
             gen_ld(dc, chan, MO_UB);
         }
@@ -568,8 +565,7 @@ static void gen_alopf_simple(DisasContext *dc, int chan)
     }
     case 0x65: { /* ldh */
         if (chan == 2 || chan == 5) {
-            /* TODO: exception */
-            abort();
+            gen_helper_unimpl(cpu_env);
         } else {
             gen_ld(dc, chan, MO_TEUW);
         }
@@ -577,8 +573,7 @@ static void gen_alopf_simple(DisasContext *dc, int chan)
     }
     case 0x66: { /* ldw */
         if (chan == 2 || chan == 5) {
-            /* TODO: exception */
-            abort();
+            gen_helper_unimpl(cpu_env);
         } else {
             gen_ld(dc, chan, MO_TEUL);
         }
@@ -586,20 +581,19 @@ static void gen_alopf_simple(DisasContext *dc, int chan)
     }
     case 0x67: { /* ldd */
         if (chan == 2 || chan == 5) {
-            /* TODO: exception */
-            abort();
+            gen_helper_unimpl(cpu_env);
         } else {
             gen_ld(dc, chan, MO_TEQ);
         }
         break;
     }
     default:
-        qemu_log_mask(LOG_UNIMP, "gen_alc: undefined instruction 0x%x %s\n", opc, sm ? "(speculative)" : "");
+        e2k_gen_exception(dc, E2K_EXCP_ILLOPC);
         break;
     }
 }
 
-static void gen_ext1(DisasContext *dc, int chan)
+static void execute_ext1(DisasContext *dc, int chan)
 {
     uint8_t opc = GET_FIELD(dc->bundle.als[chan], 24, 30);
 
@@ -621,26 +615,25 @@ static void gen_ext1(DisasContext *dc, int chan)
     }
 }
 
-static void gen_channel(DisasContext *dc, int chan)
+void e2k_execute_alc(DisasContext *ctx, int index)
 {
-    const UnpackedBundle *bundle = &dc->bundle;
+    const UnpackedBundle *bundle = &ctx->bundle;
 
-    switch(bundle->ales_present[chan]) {
+    switch(bundle->ales_present[index]) {
     case ALES_NONE:
-        gen_alopf_simple(dc, chan);
+        execute_alopf_simple(ctx, index);
         break;
     case ALES_ALLOCATED: // 2 or 5 channel
-        abort();
+        e2k_gen_exception(ctx, E2K_EXCP_ILLOPC);
         break;
     case ALES_PRESENT: {
-        uint8_t opc = GET_FIELD(bundle->ales[chan], 8, 15);
+        uint8_t opc = GET_FIELD(bundle->ales[index], 8, 15);
         switch (opc) {
         case 0x01:
-            gen_ext1(dc, chan);
+            execute_ext1(ctx, index);
             break;
         default:
-            /* TODO */
-            abort();
+            e2k_gen_exception(ctx, E2K_EXCP_ILLOPC);
             break;
         }
         break;
@@ -648,46 +641,5 @@ static void gen_channel(DisasContext *dc, int chan)
     default:
         g_assert_not_reached();
         break;
-    }
-}
-
-void e2k_alc_gen(DisasContext *dc)
-{
-    unsigned int i;
-
-    for (i = 0; i < 6; i++) {
-        if (!dc->bundle.als_present[i]) {
-            continue;
-        }
-        dc->alc[i].tag = RESULT_NONE;
-        gen_channel(dc, i);
-    }
-}
-
-void e2k_alc_commit(DisasContext *dc)
-{
-    unsigned int i;
-
-    for (i = 0; i < 6; i++) {
-        Result *res = &dc->alc[i];
-        if (!dc->bundle.als_present[i]) {
-            continue;
-        }
-        switch(res->tag) {
-        case RESULT_BASED_REG:
-            e2k_gen_store_breg(res->u.reg.i, res->u.reg.v);
-            break;
-        case RESULT_REGULAR_REG:
-            e2k_gen_store_wreg(res->u.reg.i, res->u.reg.v);
-            break;
-        case RESULT_GLOBAL_REG:
-            e2k_gen_store_greg(res->u.reg.i, res->u.reg.v);
-            break;
-        case RESULT_PREG:
-            e2k_gen_store_preg(res->u.reg.i, res->u.reg.v);
-            break;
-        default:
-            break;
-        }
     }
 }
