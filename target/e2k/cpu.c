@@ -50,9 +50,20 @@ static void e2k_cpu_reset(DeviceState *dev)
 #ifdef CONFIG_SOFTMMU
 static bool e2k_cpu_exec_interrupt(CPUState *cs, int interrupt_request)
 {
+    qemu_log_mask(LOG_UNIMP, "e2k_cpu_exec_interrupt: not implemented\n");
+    if (interrupt_request & CPU_INTERRUPT_HARD) {
+        e2k_cpu_do_interrupt(cs);
+        return true;
+    }
     return false;
 }
 #endif
+
+void e2k_cpu_do_interrupt(CPUState *cs)
+{
+    qemu_log_mask(LOG_UNIMP, "e2k_cpu_do_interrupt: not implemented\n");
+    cs->exception_index = -1;
+}
 
 static void cpu_e2k_disas_set_info(CPUState *cpu, disassemble_info *info)
 {
@@ -154,6 +165,7 @@ static void e2k_cpu_synchronize_from_tb(CPUState *cs, const TranslationBlock *tb
 static bool e2k_cpu_has_work(CPUState *cs)
 {
     // TODO
+    qemu_log_mask(LOG_UNIMP, "e2k_cpu_has_work: not implemented\n");
     return true;
 }
 
@@ -238,7 +250,7 @@ static void e2k_cpu_class_init(ObjectClass *oc, void *data)
 
     cc->gdb_read_register  = e2k_cpu_gdb_read_register;
     cc->gdb_write_register = e2k_cpu_gdb_write_register;
-    cc->gdb_num_core_regs  = 300; /* TODO: bogus value, depends on e2k-linux-gdb */
+    cc->gdb_num_core_regs  = 574;
 
     cc->tcg_ops = &e2k_tcg_ops;
 }

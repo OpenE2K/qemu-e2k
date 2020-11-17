@@ -274,6 +274,7 @@ static inline int cpu_mmu_index(CPUE2KState *env, bool ifetch)
 #endif
 }
 
+void e2k_cpu_do_interrupt(CPUState *cs);
 int e2k_cpu_signal_handler(int host_signum, void *pinfo, void *puc);
 int e2k_cpu_gdb_read_register(CPUState *cs, GByteArray *mem_buf, int n);
 int e2k_cpu_gdb_write_register(CPUState *cs, uint8_t *mem_buf, int n);
