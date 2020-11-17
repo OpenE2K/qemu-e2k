@@ -58,9 +58,7 @@ typedef struct CPUE2KStateTCG {
     TCGv pc;
     TCGv npc;
     TCGv ctprs[4];
-    TCGv cond;
     TCGv_i64 lsr;
-    TCGv_i32 call_wbs;
     TCGv_i64 wregs[WREGS_SIZE];
     TCGv_i64 gregs[GREGS_SIZE];
     TCGv_ptr wptr; /* pointer to wregs */
@@ -117,6 +115,24 @@ typedef struct {
     } u;
 } Result;
 
+typedef enum {
+    CT_NONE,
+    CT_IBRANCH,
+    CT_JUMP,
+    CT_CALL,
+} ControlTransferType;
+
+typedef struct {
+    bool has_cond;
+    TCGv cond;
+    ControlTransferType type;
+    union {
+        target_ulong target;
+        TCGv_i64 ctpr;
+    } u;
+    int wbs;
+} ControlTransfer;
+
 typedef struct DisasContext {
     DisasContextBase base;
     UnpackedBundle bundle;
@@ -136,12 +152,8 @@ typedef struct DisasContext {
     int t64_len;
     int ttl_len;
 
-    /* TODO: move to CPUE2KState */
     Result alc[6];
-    /* TODO: move to CPUE2KState */
-    struct {
-        target_ulong dest; /* ibranch dst */
-    } jmp;
+    ControlTransfer ct;
 } DisasContext;
 
 static inline TCGv_i32 e2k_get_temp_i32(DisasContext *dc)
@@ -258,9 +270,9 @@ void e2k_gen_exception(DisasContext *dc, int which);
 
 void e2k_control_gen(DisasContext *dc);
 
-void e2k_alc_gen(DisasContext *dc);
+void e2k_execute_alc(DisasContext *ctx, int index);
 void e2k_alc_commit(DisasContext *dc);
 
-void e2k_win_commit(DisasContext *dc);
+void e2k_commit_stubs(DisasContext *dc);
 
 #endif

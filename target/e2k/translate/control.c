@@ -94,14 +94,15 @@ static inline void gen_movcond_flag_i64(TCGv_i64 ret, int flag, TCGv_i64 cond,
     tcg_temp_free_i64(one);
 }
 
-static inline void gen_cur_dec(TCGv_i32 ret, int cond, TCGv_i32 cur, int n,
+static inline void gen_cur_dec(DisasContext *ctx, TCGv_i32 ret, int cond,
+    TCGv_i32 cur, int n,
     TCGv_i32 size)
 {
     TCGv_i32 c = tcg_temp_new_i32();
     TCGv_i32 t0 = tcg_const_i32(n);
     TCGv_i32 t1 = tcg_temp_new_i32();
 
-    tcg_gen_trunc_tl_i32(c, e2k_cs.cond);
+    tcg_gen_trunc_tl_i32(c, ctx->ct.cond);
     gen_helper_cur_dec(t1, cpu_env, cur, t0, size);
     gen_movcond_flag_i32(ret, cond, c, t1, cur);
 
@@ -110,54 +111,48 @@ static inline void gen_cur_dec(TCGv_i32 ret, int cond, TCGv_i32 cur, int n,
     tcg_temp_free_i32(c);
 }
 
-void e2k_win_commit(DisasContext *dc)
+void e2k_commit_stubs(DisasContext *ctx)
 {
-    TCGv_i32 cond = tcg_temp_new_i32();
-    // Change windowing registers after commit is done.
-    uint32_t ss = dc->bundle.ss;
+    uint32_t ss = ctx->bundle.ss;
 //    unsigned int vfdi = (ss & 0x04000000) >> 26;
 //    unsigned int abg = (ss & 0x01800000) >> 23;
-    int alc = GET_FIELD(ss, 16, 17);
-    int abp = GET_FIELD(ss, 18, 19);
-    int abn = GET_FIELD(ss, 21, 22);
-    int abg = GET_FIELD(ss, 23, 24);
+    int alc = GET_FIELD_LEN(ss, 16, 2);
+    int abp = GET_FIELD_LEN(ss, 18, 2);
+    int abn = GET_FIELD_LEN(ss, 21, 2);
+    int abg = GET_FIELD_LEN(ss, 23, 2);
 
-    tcg_gen_trunc_tl_i32(cond, e2k_cs.cond);
 
     if (alc) {
         TCGv_i64 t0 = tcg_temp_new_i64();
 
         gen_lcnt_dec(t0, e2k_cs.lsr);
-        gen_movcond_flag_i64(e2k_cs.lsr, alc, e2k_cs.cond, t0, e2k_cs.lsr);
-
+        gen_movcond_flag_i64(e2k_cs.lsr, alc, ctx->ct.cond, t0, e2k_cs.lsr);
         tcg_temp_free_i64(t0);
     }
 
     if (abp) {
-        gen_cur_dec(e2k_cs.pcur, abp, e2k_cs.pcur, 1, e2k_cs.psize);
+        gen_cur_dec(ctx, e2k_cs.pcur, abp, e2k_cs.pcur, 1, e2k_cs.psize);
     }
 
     if (abn) {
-        gen_cur_dec(e2k_cs.bcur, abn, e2k_cs.bcur, 2, e2k_cs.bsize);
+        gen_cur_dec(ctx, e2k_cs.bcur, abn, e2k_cs.bcur, 2, e2k_cs.bsize);
     }
 
     switch(abg) {
     case 0x00:
         break;
     case 0x01:
-        /* TODO */
-        abort();
+        // TODO
+        gen_helper_unimpl(cpu_env);
         break;
     case 0x02:
-        /* TODO */
-        abort();
+        // TODO
+        gen_helper_unimpl(cpu_env);
         break;
     default:
-        /* FIXME: exception or nop? */
+        e2k_gen_exception(ctx, E2K_EXCP_ILLOPC);
         break;
     }
-
-    tcg_temp_free_i32(cond);
 }
 
 static inline void gen_is_last_iter(TCGv ret)
@@ -234,15 +229,8 @@ static void gen_cs0(DisasContext *dc)
     }
 
     if (type == IBRANCH || type == DONE || type == HRET || type == GLAUNCH) {
-        /* IBRANCH, DONE, HRET and GLAUNCH are special because they require SS
-           to be properly encoded.  */
-        if (!bundle->ss_present || (bundle->ss & 0x00000c00))
-        {
-            // TODO: exeption invalid bundle
-            abort();
-        /* Don't output either of the aforementioned instructions under "never"
-           condition. Don't disassemble CS0 being a part of HCALL. Unlike ldis
-           HCALL is currently disassembled on behalf of CS1.  */
+        if (!bundle->ss_present || (bundle->ss & 0x00000c00)) {
+            e2k_gen_exception(dc, E2K_EXCP_ILLOPC);
         } else if ((bundle->ss & 0x1ff)
               && !(bundle->cs1_present
               /* CS1.opc == CALL */
@@ -250,24 +238,25 @@ static void gen_cs0(DisasContext *dc)
               /* CS1.param.ctopc == HCALL  */
               && (bundle->cs1 & 0x380) >> 7 == 2))
         {
-            if (type == IBRANCH) {
+            if (type == IBRANCH && dc->ct.type == CT_NONE) {
                 /* C0F2 has `disp' field. In `C0F1' it's called `param'. Is this
                    the only difference between these two formats?  Funnily enough,
                    DONE is also C0F2 and thus has `disp', though it obviously
                    makes no sense for it.  */
-                unsigned int disp = (cs0 & 0x0fffffff);
+                uint32_t disp = (cs0 & 0x0fffffff);
                 /* Calculate a signed displacement in bytes. */
-                int sdisp = ((int) (disp << 4)) >> 1;
-                dc->jmp.dest = dc->pc + sdisp;
-                dc->base.is_jmp = DISAS_JUMP_STATIC;
+                int32_t sdisp = ((int32_t) (disp << 4)) >> 1;
+                dc->ct.type = CT_IBRANCH;
+                dc->ct.u.target = dc->pc + sdisp;
+            } else {
+                e2k_gen_exception(dc, E2K_EXCP_ILLOPC);
             }
         }
     } else {
         /* Note that according to Table B.4.1 it's possible to obtain
     `      gettsd %ctpr{1,2} with an invalid value for CS0.param.type.  */
         if (type == GETTSD && param_type != 1) {
-            // invalid
-            abort();
+            e2k_gen_exception(dc, E2K_EXCP_ILLOPC);
         }
         int ipd = GET_FIELD(bundle->ss, 30, 31);
         if (type == DISP || type == LDISP) {
@@ -283,7 +272,6 @@ static void gen_cs0(DisasContext *dc)
             tcg_gen_movi_tl(e2k_cs.ctprs[ctpr], reg);
         } else if (type == SDISP) {
             unsigned int disp = GET_FIELD(cs0, 0, 27) << 11;
-            /* FIXME: trap address */
             target_ulong base = ((uint64_t) 0xe2 << 40) | disp;
             uint64_t reg = (dc->pc + base) |
                 ((uint64_t) CTPR_TAG_SDISP << CTPR_TAG_OFF) |
@@ -306,15 +294,11 @@ static void gen_cs0(DisasContext *dc)
            wonder if I should check for that and output something like
            "invalid gettsd" if this turns out not to be the case . . .  */
         if (type == GETTSD) {
-            // TODO
+            // TODO: gettsd
+            gen_helper_unimpl(cpu_env);
         }
 
-        if (type == SDISP) {
-//            my_printf (", 0x%x", cs0 & 0x1f);
-        } else if (type == DISP
-                    || type == LDISP
-                    || type == PUTTSD)
-        {
+        if (type == PUTTSD) {
 //            unsigned int disp = (cs0 & 0x0fffffff);
 //            int sgnd_disp = ((int) (disp << 4)) >> 1;
             /* PUTTSD obviously doesn't take %ctpr{j} parameter. TODO: beware of
@@ -327,12 +311,16 @@ static void gen_cs0(DisasContext *dc)
             /* FIXME: this way I ensure that it'll work correctly
                both on 32 and 64-bit hosts.  */
 //                (unsigned long long) (instr_addr + sgnd_disp));
+            // TODO: puttsd
+            gen_helper_unimpl(cpu_env);
         }
 
         if (type == PREF) {
 //            unsigned int pdisp = (bundle->cs0 & 0x0ffffff0) >> 4;
 //            unsigned int ipd = (bundle->cs0 & 0x00000008) >> 3;
 //            unsigned int prefr = bundle->cs0 & 0x00000007;
+            // TODO: pref
+            gen_helper_unimpl(cpu_env);
         }
     }
 }
@@ -359,29 +347,21 @@ static void gen_cs1(DisasContext *dc)
         unsigned int setbp = (cs1 & 0x08000000) >> 27;
         unsigned int setbn = (cs1 & 0x04000000) >> 26;
 
-        /* Try to follow the same order of these instructions as in LDIS.
-        Presumably `vfrpsz' should come first, while `setbp' should be placed
-        between `setwd' and `setbn', but this is to be verified. I don't have
-        a binary with these commands by hand right now.  */
-
         if (opc == SETR1) {
             if (! bundle->lts_present[0]) {
-//                my_printf ("<bogus vfrpsz>");
+                e2k_gen_exception(dc, E2K_EXCP_ILLOPC);
             } else {
                 /* Find out if VFRPSZ is always encoded together with SETWD. This
                 seems to be the case even if no SETWD has been explicitly
                 specified.  */
 //                unsigned int rpsz = (bundle->lts[0] & 0x0001f000) >> 12;
-//                my_printf ("vfrpsz rpsz = 0x%x", rpsz);
+                gen_helper_unimpl(cpu_env);
             }
         }
 
-        // FIXME: Should windowing registers be precomputed or not?
-
         if (opc == SETR0 || opc == SETR1) {
             if (! bundle->lts_present[0]) {
-                // TODO: <bogus setwd>
-                abort();
+                e2k_gen_exception(dc, E2K_EXCP_ILLOPC);
             } else {
                 uint32_t lts0 = bundle->lts[0];
                 int wsz = GET_FIELD(lts0, 5, 11);
@@ -410,17 +390,22 @@ static void gen_cs1(DisasContext *dc)
             tcg_gen_movi_i32(e2k_cs.pcur, 0);
         }
     } else if (opc == SETEI) {
-        /* Verify that CS1.param.sft = CS1.param[27] is equal to zero as required
-        in C.14.3.  */
-        unsigned int sft = (cs1 & 0x08000000) >> 27;
-//        unsigned int eir = (cs1 & 0x000000ff);
+        bool sft = GET_BIT(cs1, 27);
 
         if (sft) {
-//            my_printf ("%s", mcpu >= 2 ? "setsft" : "unimp");
+            if (dc->version >= 2) {
+                // TODO: setsft
+                gen_helper_unimpl(cpu_env);
+            } else {
+                e2k_gen_exception(dc, E2K_EXCP_ILLOPC);
+            }
         } else {
-//            my_printf ("setei 0x%x", eir);
+//            uint8_t eir = GET_FIELD_LEN(cs1, 0, 8);
+            // TODO: setei
+            gen_helper_unimpl(cpu_env);
         }
     } else if (opc == WAIT) {
+        // TODO: wait
 //        unsigned int ma_c = (cs1 & 0x00000020) >> 5;
 //        unsigned int fl_c = (cs1 & 0x00000010) >> 4;
         unsigned int ld_c = (cs1 & 0x00000008) >> 3;
@@ -448,67 +433,55 @@ static void gen_cs1(DisasContext *dc)
 //          my_printf ("trap = %d, ", trap);
         }
 
+        gen_helper_unimpl(cpu_env);
 //      my_printf ("ma_c = %d, fl_c = %d, ld_c = %d, st_c = %d, all_e = %d, "
 //                 "all_c = %d", ma_c, fl_c, ld_c, st_c, all_e, all_c);
     } else if (opc == CALL) {
         unsigned int ctop = (bundle->ss & 0x00000c00) >> 10;
-        /* In C.17.4 it's said that other bits in CS1.param except for the
-           seven lowermost ones are ignored.  */
-        unsigned int wbs = cs1 & 0x7f;
-
         if (ctop) {
-            tcg_gen_movi_i32(e2k_cs.call_wbs, wbs);
-//            my_printf ("call %%ctpr%d, wbs = 0x%x", ctop, wbs);
-//            print_ctcond (info, instr->ss & 0x1ff);
+            dc->ct.type = CT_CALL;
+            dc->ct.wbs = GET_FIELD_LEN(cs1, 0, 7);
         } else {
             unsigned int cs1_ctopc = (cs1 & 0x380) >> 7;
             /* CS1.param.ctpopc == HCALL. CS0 is required to encode HCALL.  */
-            if (cs1_ctopc == 2 && bundle->cs0_present) {
+            if (cs1_ctopc == 2 && bundle->cs0_present &&
+                dc->ct.type == CT_NONE)
+            {
                 unsigned int cs0 = bundle->cs0;
                 unsigned int cs0_opc = (cs0 & 0xf0000000) >> 28;
-                /* CS0.opc == HCALL, which means
-                CS0.opc.ctpr == CS0.opc.ctp_opc == 0 */
                 if (cs0_opc == 0) {
 //                    unsigned int hdisp = (cs0 & 0x1e) >> 1;
-//                    my_printf ("hcall 0x%x, wbs = 0x%x", hdisp, wbs);
-//                    print_ctcond (info, instr->ss & 0x1ff);
+                    // TODO: hcall hdisp, wbs ? cond
+                    gen_helper_unimpl(cpu_env);
                 }
             } else {
-//                my_printf ("<bogus call>");
+                e2k_gen_exception(dc, E2K_EXCP_ILLOPC);
             }
         }
     } else if (opc == MAS_OPC) {
-        /* Note that LDIS doesn't print it out as a standalone instruction.  */
+        // TODO: mas
 //        unsigned int mas = cs1 & 0x0fffffff;
 
-//        my_printf ("mas 0x%x", mas);
+        gen_helper_unimpl(cpu_env);
     } else if (opc == FLUSHR) {
-        /* . . . these stupid engineers off! FLUSHR seems to be responsible for
-           encoding both `flushr' and `flushc'. Moreover, according to their
-           logic it should be possible to encode them simultaneously.  */
-
-        /* Check for `CS1.param.flr'.  */
         if (cs1 & 0x00000001) {
-//            my_printf ("flushr");
+            // TODO: flushr
+            gen_helper_unimpl(cpu_env);
         }
 
-        /* Check for `CS1.param.flc'.  */
         if (cs1 & 0x00000002) {
-//          my_printf ("flushc");
+            // TODO: flushc
+            gen_helper_unimpl(cpu_env);
         }
     } else if (opc == BG) {
-        /* Hopefully, `vfbg' is the only instruction encoded by BG. I'm currently
-           unable to find other ones in `iset-v5.single' at least . . .  */
 //        unsigned int chkm4 = (cs1 & 0x00010000) >> 16;
 //        unsigned int dmask = (cs1 & 0x0000ff00) >> 8;
 //        unsigned int umsk = cs1 & 0x000000ff;
 
-        /* Print its fields in the order proposed in C.14.10.  */
-//        my_printf ("vfbg umask = 0x%x, dmask = 0x%x, chkm4 = 0x%x",
-//                   umsk, dmask, chkm4);
+        // TODO: vfbg
+        gen_helper_unimpl(cpu_env);
     } else {
-//        my_printf ("unimp");
-        abort();
+        e2k_gen_exception(dc, E2K_EXCP_ILLOPC);
     }
 }
 
@@ -518,34 +491,20 @@ static void gen_jmp(DisasContext *dc)
     unsigned int cond_type = GET_FIELD(dc->bundle.ss, 5, 8);
     unsigned int ctpr = GET_FIELD(dc->bundle.ss, 10, 11);
 
-    /* TODO: check CPU behavior if present ibranch and ctpr is not zero */
-
     /* TODO: different kinds of ct */
     if (ctpr != 0) {
-        dc->jump_ctpr = ctpr;
-        dc->base.is_jmp = DISAS_JUMP;
+        dc->ct.type = CT_JUMP;
+        dc->ct.u.ctpr = e2k_cs.ctprs[ctpr];
     }
 
-    if (cond_type == 1) {
-        tcg_gen_movi_tl(e2k_cs.cond, 1);
-    } else if (cond_type > 1) {
-        switch (dc->base.is_jmp) {
-        case DISAS_JUMP:
-            dc->base.is_jmp = DISAS_BRANCH;
-            break;
-        case DISAS_JUMP_STATIC:
-            dc->base.is_jmp = DISAS_BRANCH_STATIC;
-            break;
-        default:
-            /* FIXME: what action to do? */
-            g_assert_not_reached();
-            break;
-        }
+    dc->ct.has_cond = !(cond_type == 1);
 
+    if (cond_type > 1) {
         /* TODO: single assign */
         TCGv preg = tcg_temp_new();
         TCGv loop_end = tcg_temp_new();
         TCGv not_loop_end = tcg_temp_new();
+        TCGv cond = dc->ct.cond;
         TCGv_i64 t0 = tcg_temp_new_i64();
 
         e2k_gen_preg(t0, psrc);
@@ -557,12 +516,12 @@ static void gen_jmp(DisasContext *dc)
         case 0x2:
         case 0x6:
         case 0xf:
-            tcg_gen_mov_tl(e2k_cs.cond, preg);
+            tcg_gen_mov_tl(cond, preg);
             break;
         case 0x3:
         case 0x7:
         case 0xe:
-            tcg_gen_setcondi_tl(TCG_COND_NE, e2k_cs.cond, preg, 1);
+            tcg_gen_setcondi_tl(TCG_COND_NE, cond, preg, 1);
             break;
         default:
             break;
@@ -570,18 +529,18 @@ static void gen_jmp(DisasContext *dc)
 
         switch (cond_type) {
         case 0x4:
-            tcg_gen_mov_tl(e2k_cs.cond, loop_end);
+            tcg_gen_mov_tl(cond, loop_end);
             break;
         case 0x5:
-            tcg_gen_mov_tl(e2k_cs.cond, not_loop_end);
+            tcg_gen_mov_tl(cond, not_loop_end);
             break;
         case 0x6:
         case 0xe:
-            tcg_gen_or_tl(e2k_cs.cond, e2k_cs.cond, loop_end);
+            tcg_gen_or_tl(cond, cond, loop_end);
             break;
         case 0x7:
         case 0xf:
-            tcg_gen_and_tl(e2k_cs.cond, e2k_cs.cond, not_loop_end);
+            tcg_gen_and_tl(cond, cond, not_loop_end);
             break;
         default:
             break;
@@ -646,15 +605,18 @@ static void gen_jmp(DisasContext *dc)
 
 void e2k_control_gen(DisasContext *dc)
 {
+    dc->ct.has_cond = false;
+    dc->ct.type = CT_NONE;
+
+    if (dc->bundle.ss_present) {
+        gen_jmp(dc);
+    }
+
     if (dc->bundle.cs0_present) {
         gen_cs0(dc);
     }
 
     if (dc->bundle.cs1_present) {
         gen_cs1(dc);
-    }
-
-    if (dc->bundle.ss_present) {
-        gen_jmp(dc);
     }
 }

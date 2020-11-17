@@ -58,7 +58,7 @@ int e2k_cpu_gdb_read_register(CPUState *cs, GByteArray *mem_buf, int n)
     case 51: return gdb_get_reg64(mem_buf, env->pshtp); // pshtp
     case 52: return gdb_get_reg64(mem_buf, 0); // unk
     case 53: return gdb_get_reg64(mem_buf, env->ip); // ip
-    case 54: return gdb_get_reg64(mem_buf, 0); // unk (mem)
+    case 54: return gdb_get_reg64(mem_buf, 0); // TODO: something associated with wd
     case 55: return gdb_get_reg64(mem_buf, 0); // unk
     case 56: return gdb_get_reg64(mem_buf, 0); // cwd
     case 57: return gdb_get_reg64(mem_buf, env->pcsp_lo); // pcsp_lo
