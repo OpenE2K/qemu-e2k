@@ -14,6 +14,8 @@ void e2k_tcg_initialize(void);
 #define GET_BIT(v, index) (((v) >> (index)) & 1)
 #define GET_FIELD(v, start, end) \
     (((v) >> (start)) & ((1UL << ((end) - (start) + 1)) - 1))
+#define GET_FIELD_LEN(v, s, l) \
+	(((v) >> (s)) & GEN_MASK_LEN(0, l))
 #define SET_FIELD(v, f, s, l) \
     ( \
         ((v) & ~GEN_MASK_LEN((s), (l))) | \
@@ -40,6 +42,18 @@ void e2k_tcg_initialize(void);
 #define CTPR_OPC_END 58
 #define CTPR_IPD_OFF 59
 #define CTPR_IPD_END 60
+
+#define WD_BASE_OFF 0
+#define WD_BASE_END 10
+#define WD_BASE_LEN (WD_BASE_END - WD_BASE_OFF + 1)
+#define WD_SIZE_OFF 16
+#define WD_SIZE_END 26
+#define WD_SIZE_LEN (WD_SIZE_END - WD_SIZE_OFF + 1)
+#define WD_PSIZE_OFF 32
+#define WD_PSIZE_END 42
+#define WD_PSIZE_LEN (WD_PSIZE_END - WD_PSIZE_OFF + 1)
+#define WD_FX_OFF 48
+#define WD_FX_BIT (1 << WD_FX_OFF)
 
 #define PCSP_HI_IND_OFF 0       /* index for SPILL */
 #define PCSP_HI_IND_END 31
@@ -177,6 +191,9 @@ void e2k_tcg_initialize(void);
 typedef enum {
     E2K_EXCP_UNIMPL = 0x01,
     E2K_EXCP_SYSCALL = 0x02,
+    E2K_EXCP_ILLOPC = 0x03,
+    E2K_EXCP_ILLOPN = 0x04,
+    E2K_EXCP_MAPERR = 0x05,
 } Exception;
 
 struct e2k_def_t {
@@ -207,7 +224,6 @@ typedef struct {
 
     uint64_t lsr; /* loop status register */
 
-    uint32_t call_wbs;
     uint32_t woff; /* holds wbs * 2 */
     uint32_t wsize; /* holds wsz * 2 */
     uint32_t boff; /* holds rbs * 2 */
@@ -226,8 +242,6 @@ typedef struct {
     target_ulong ip; /* instruction address */
     target_ulong nip; /* next instruction address */
     
-    uint32_t cond; /* branch condition */
-
     uint32_t pfpfr; // Packed Floating Point Flag Register (PFPFR)
     uint32_t fpcr; // Floating point control register (FPCR)
     uint32_t fpsr; // Floating point state register (FPSR)

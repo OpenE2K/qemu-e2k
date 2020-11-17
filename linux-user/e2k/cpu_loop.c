@@ -26,7 +26,7 @@ void cpu_loop(CPUE2KState *env)
 {
     CPUState *cs = env_cpu(env);
     int trapnr; //TODO , n, sig;
-    //target_siginfo_t info;
+    target_siginfo_t info;
     //target_ulong addr;
     //abi_long ret;
 
@@ -37,9 +37,16 @@ void cpu_loop(CPUE2KState *env)
         process_queued_cpu_work(cs);
 
         switch (trapnr) {
+        case E2K_EXCP_UNIMPL:
+            info.si_signo = TARGET_SIGABRT;
+            info.si_errno = 0;
+            info.si_code = 0;
+            info._sifields._sigfault._addr = env->ip;
+            queue_signal(env, info.si_signo, QEMU_SI_KILL, &info);
+            break;
         case E2K_EXCP_SYSCALL: {
             int wbs = e2k_state_wbs_get(env);
-            int offset = (wbs + env->call_wbs) * 2;
+            int offset = wbs * 2;
             uint64_t *regs = env->wregs;
             abi_ulong ret = do_syscall(env,
                 regs[(0 + offset) % WREGS_SIZE],
@@ -66,13 +73,33 @@ void cpu_loop(CPUE2KState *env)
             env->ip = env->nip;
             break;
         }
+        case E2K_EXCP_ILLOPC:
+            info.si_signo = TARGET_SIGILL;
+            info.si_errno = 0;
+            info.si_code = TARGET_ILL_ILLOPC;
+            info._sifields._sigfault._addr = env->ip;
+            queue_signal(env, info.si_signo, QEMU_SI_FAULT, &info);
+            break;
+        case E2K_EXCP_ILLOPN:
+            info.si_signo = TARGET_SIGILL;
+            info.si_errno = 0;
+            info.si_code = TARGET_ILL_ILLOPN;
+            info._sifields._sigfault._addr = env->ip;
+            queue_signal(env, info.si_signo, QEMU_SI_FAULT, &info);
+            break;
+        case E2K_EXCP_MAPERR:
+            info.si_signo = TARGET_SIGSEGV;
+            info.si_errno = 0;
+            info.si_code = TARGET_SEGV_MAPERR;
+            info._sifields._sigfault._addr = env->ip;
+            queue_signal(env, info.si_signo, QEMU_SI_FAULT, &info);
+            break;
         /* QEMU common interrupts */
         case EXCP_INTERRUPT:
             /* just indicate that signals should be handled asap */
             break;
         case EXCP_DEBUG:
         {
-            target_siginfo_t info;
             info.si_signo = TARGET_SIGTRAP;
             info.si_errno = 0;
             info.si_code = TARGET_TRAP_BRKPT;
