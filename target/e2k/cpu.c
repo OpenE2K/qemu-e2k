@@ -47,7 +47,18 @@ static void e2k_cpu_reset(DeviceState *dev)
 
 static bool e2k_cpu_exec_interrupt(CPUState *cs, int interrupt_request)
 {
+    qemu_log_mask(LOG_UNIMP, "e2k_cpu_exec_interrupt: not implemented\n");
+    if (interrupt_request & CPU_INTERRUPT_HARD) {
+        e2k_cpu_do_interrupt(cs);
+        return true;
+    }
     return false;
+}
+
+void e2k_cpu_do_interrupt(CPUState *cs)
+{
+    qemu_log_mask(LOG_UNIMP, "e2k_cpu_do_interrupt: not implemented\n");
+    cs->exception_index = -1;
 }
 
 static void cpu_e2k_disas_set_info(CPUState *cpu, disassemble_info *info)
@@ -150,6 +161,7 @@ static void e2k_cpu_synchronize_from_tb(CPUState *cs, TranslationBlock *tb)
 static bool e2k_cpu_has_work(CPUState *cs)
 {
     // TODO
+    qemu_log_mask(LOG_UNIMP, "e2k_cpu_has_work: not implemented\n");
     return true;
 }
 
@@ -219,6 +231,7 @@ static void e2k_cpu_class_init(ObjectClass *oc, void *data)
     cc->has_work = e2k_cpu_has_work;
     cc->dump_state = e2k_cpu_dump_state;
     cc->set_pc = e2k_cpu_set_pc;
+    cc->do_interrupt = e2k_cpu_do_interrupt;
     cc->cpu_exec_interrupt = e2k_cpu_exec_interrupt;
     cc->synchronize_from_tb = e2k_cpu_synchronize_from_tb;
     cc->class_by_name = e2k_cpu_class_by_name;
@@ -227,7 +240,7 @@ static void e2k_cpu_class_init(ObjectClass *oc, void *data)
 
     cc->gdb_read_register  = e2k_cpu_gdb_read_register;
     cc->gdb_write_register = e2k_cpu_gdb_write_register;
-    cc->gdb_num_core_regs  = 300; /* TODO: bogus value, depends on e2k-linux-gdb */
+    cc->gdb_num_core_regs  = 574;
 }
 
 static const TypeInfo e2k_cpu_type_info = {
