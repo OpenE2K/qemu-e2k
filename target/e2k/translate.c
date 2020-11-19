@@ -339,13 +339,13 @@ static inline void do_branch(DisasContext *ctx)
         break;
     case CT_JUMP:
         gen_save_cpu_state(ctx);
-        gen_helper_jump(e2k_cs.pc, cpu_env, e2k_cs.ct_cond, ctx->ct.u.ctpr);
+        gen_helper_jump(e2k_cs.pc, cpu_env, ctx->ct.u.ctpr);
         tcg_gen_lookup_and_goto_ptr();
         break;
     case CT_CALL: {
         TCGv_i32 wbs = tcg_const_i32(ctx->ct.wbs);
         gen_save_cpu_state(ctx);
-        gen_helper_call(e2k_cs.pc, cpu_env, e2k_cs.ct_cond, ctx->ct.u.ctpr, wbs);
+        gen_helper_call(e2k_cs.pc, cpu_env, ctx->ct.u.ctpr, wbs);
         tcg_temp_free_i32(wbs);
         tcg_gen_lookup_and_goto_ptr();
         break;
