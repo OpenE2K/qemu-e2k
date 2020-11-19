@@ -58,6 +58,7 @@ typedef struct CPUE2KStateTCG {
     TCGv pc;
     TCGv npc;
     TCGv ctprs[4];
+    TCGv ct_cond;
     TCGv_i64 lsr;
     TCGv_i64 wregs[WREGS_SIZE];
     TCGv_i64 gregs[GREGS_SIZE];
@@ -124,7 +125,6 @@ typedef enum {
 
 typedef struct {
     bool has_cond;
-    TCGv cond;
     ControlTransferType type;
     union {
         target_ulong target;
