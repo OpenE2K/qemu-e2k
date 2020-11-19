@@ -237,6 +237,7 @@ typedef struct {
 
     /* control registers */
     target_ulong ctprs[4]; // Control Transfer Preparation Register (CTPR)
+    target_ulong ct_cond;
     
     /* special registers */
     target_ulong ip; /* instruction address */

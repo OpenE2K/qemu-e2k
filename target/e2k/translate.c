@@ -323,7 +323,7 @@ static inline void do_branch(DisasContext *ctx)
         if (ctx->ct.has_cond) {
             TCGLabel *l = gen_new_label();
 
-            tcg_gen_brcondi_tl(TCG_COND_NE, ctx->ct.cond, 0, l);
+            tcg_gen_brcondi_tl(TCG_COND_NE, e2k_cs.ct_cond, 0, l);
 
             tcg_gen_movi_tl(e2k_cs.pc, ctx->npc);
             tcg_gen_exit_tb(NULL, 0);
@@ -337,7 +337,7 @@ static inline void do_branch(DisasContext *ctx)
     case CT_JUMP:
         ctx->base.is_jmp = DISAS_NORETURN;
         gen_save_cpu_state(ctx);
-        gen_helper_jump(e2k_cs.pc, cpu_env, ctx->ct.cond, ctx->ct.u.ctpr);
+        gen_helper_jump(e2k_cs.pc, cpu_env, e2k_cs.ct_cond, ctx->ct.u.ctpr);
         tcg_gen_lookup_and_goto_ptr();
         break;
     case CT_CALL:
@@ -345,7 +345,7 @@ static inline void do_branch(DisasContext *ctx)
         TCGv_i32 wbs = tcg_const_i32(ctx->ct.wbs);
         ctx->base.is_jmp = DISAS_NORETURN;
         gen_save_cpu_state(ctx);
-        gen_helper_call(e2k_cs.pc, cpu_env, ctx->ct.cond, ctx->ct.u.ctpr, wbs);
+        gen_helper_call(e2k_cs.pc, cpu_env, e2k_cs.ct_cond, ctx->ct.u.ctpr, wbs);
         tcg_temp_free_i32(wbs);
         tcg_gen_lookup_and_goto_ptr();
         break;
@@ -388,7 +388,7 @@ static void e2k_tr_tb_start(DisasContextBase *db, CPUState *cs)
 {
     DisasContext *ctx = container_of(db, DisasContext, base);
 
-    ctx->ct.cond = tcg_const_tl(1);
+    tcg_gen_movi_tl(e2k_cs.ct_cond, 1);
 }
 
 static void e2k_tr_insn_start(DisasContextBase *db, CPUState *cs)
@@ -436,8 +436,6 @@ static void e2k_tr_tb_stop(DisasContextBase *db, CPUState *cs)
         g_assert_not_reached();
         break;
     }
-
-    tcg_temp_free(ctx->ct.cond);
 }
 
 static void e2k_tr_disas_log(const DisasContextBase *db, CPUState *cpu)
@@ -495,6 +493,7 @@ void e2k_tcg_initialize(void) {
     static const struct { TCGv *ptr; int off; const char *name; } rtl[] = {
         { &e2k_cs.pc, offsetof(CPUE2KState, ip), "pc" },
         { &e2k_cs.npc, offsetof(CPUE2KState, nip), "npc" },
+        { &e2k_cs.ct_cond, offsetof(CPUE2KState, ct_cond), "cond" },
     };
 
     unsigned int i;
