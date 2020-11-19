@@ -182,10 +182,10 @@ static inline void do_call(CPUE2KState *env, int call_wbs)
     reset_ctprs(env);
 }
 
-static uint64_t do_return(CPUE2KState *env)
+target_ulong helper_return(CPUE2KState *env)
 {
     int new_wbs, old_wbs;
-    uint64_t tgt;
+    target_ulong tgt;
 
     old_wbs = e2k_state_wbs_get(env) * 2;
 
@@ -211,26 +211,8 @@ static inline void do_syscall(CPUE2KState *env, int call_wbs)
 {
     do_call(env, call_wbs);
     helper_raise_exception(env, E2K_EXCP_SYSCALL);
-    do_return(env);
+    helper_return(env);
     reset_ctprs(env);
-}
-
-target_ulong helper_jump(CPUE2KState *env, uint64_t ctpr)
-{
-    int ctpr_tag = GET_FIELD(ctpr, CTPR_TAG_OFF, CTPR_TAG_END);
-
-    helper_save_cpu_state(env);
-
-    switch (ctpr_tag) {
-    case CTPR_TAG_RETURN:
-        return do_return(env);
-    case CTPR_TAG_DISP:
-        /* TODO: ldisp */
-        return GET_FIELD(ctpr, CTPR_BASE_OFF, CTPR_BASE_END);
-    default:
-        helper_raise_exception(env, E2K_EXCP_UNIMPL);
-        return env->nip;
-    }
 }
 
 target_ulong helper_call(CPUE2KState *env, uint64_t ctpr,
