@@ -317,33 +317,33 @@ static inline void do_commit(DisasContext *ctx)
 
 static inline void do_branch(DisasContext *ctx)
 {
+    TCGLabel *l0;
+
+    if (ctx->ct.type == CT_NONE) {
+        return;
+    }
+
+    ctx->base.is_jmp = DISAS_NORETURN;
+
+    l0 = gen_new_label();
+    tcg_gen_brcondi_tl(TCG_COND_NE, e2k_cs.ct_cond, 0, l0);
+    tcg_gen_movi_tl(e2k_cs.pc, ctx->npc);
+    tcg_gen_exit_tb(NULL, 0);
+    gen_set_label(l0);
+
     switch(ctx->ct.type) {
     case CT_IBRANCH:
-        ctx->base.is_jmp = DISAS_NORETURN;
-        if (ctx->ct.has_cond) {
-            TCGLabel *l = gen_new_label();
-
-            tcg_gen_brcondi_tl(TCG_COND_NE, e2k_cs.ct_cond, 0, l);
-
-            tcg_gen_movi_tl(e2k_cs.pc, ctx->npc);
-            tcg_gen_exit_tb(NULL, 0);
-
-            gen_set_label(l);
-        }
         // TODO: goto_tb
         tcg_gen_movi_tl(e2k_cs.pc, ctx->ct.u.target);
         tcg_gen_exit_tb(NULL, 0);
         break;
     case CT_JUMP:
-        ctx->base.is_jmp = DISAS_NORETURN;
         gen_save_cpu_state(ctx);
         gen_helper_jump(e2k_cs.pc, cpu_env, e2k_cs.ct_cond, ctx->ct.u.ctpr);
         tcg_gen_lookup_and_goto_ptr();
         break;
-    case CT_CALL:
-    {
+    case CT_CALL: {
         TCGv_i32 wbs = tcg_const_i32(ctx->ct.wbs);
-        ctx->base.is_jmp = DISAS_NORETURN;
         gen_save_cpu_state(ctx);
         gen_helper_call(e2k_cs.pc, cpu_env, e2k_cs.ct_cond, ctx->ct.u.ctpr, wbs);
         tcg_temp_free_i32(wbs);

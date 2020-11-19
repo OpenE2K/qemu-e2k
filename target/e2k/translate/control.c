@@ -497,8 +497,6 @@ static void gen_jmp(DisasContext *dc)
         dc->ct.u.ctpr = e2k_cs.ctprs[ctpr];
     }
 
-    dc->ct.has_cond = !(cond_type == 1);
-
     if (cond_type > 1) {
         /* TODO: single assign */
         TCGv preg = tcg_temp_new();
@@ -605,7 +603,6 @@ static void gen_jmp(DisasContext *dc)
 
 void e2k_control_gen(DisasContext *dc)
 {
-    dc->ct.has_cond = false;
     dc->ct.type = CT_NONE;
 
     if (dc->bundle.ss_present) {
