@@ -246,6 +246,26 @@ void e2k_gen_exception(DisasContext *ctx, int which)
     tcg_temp_free_i32(t);
 }
 
+static inline void gen_ctpr_tag(TCGv_i64 ret, TCGv_i64 ctpr)
+{
+    tcg_gen_extract_i64(ret, ctpr, CTPR_TAG_OFF, CTPR_TAG_LEN);
+}
+
+static inline void gen_goto_ctpr_disp(TCGv_i64 ctpr)
+{
+    TCGv_i64 t0 = tcg_temp_new_i64();
+    TCGv t1 = tcg_temp_new();
+
+    tcg_gen_extract_i64(t0, ctpr, CTPR_BASE_OFF, CTPR_BASE_LEN);
+    tcg_gen_trunc_i64_tl(t1, t0);
+    // FIXME: save state here?
+    tcg_gen_mov_tl(e2k_cs.pc, t1);
+    tcg_gen_lookup_and_goto_ptr();
+
+    tcg_temp_free(t1);
+    tcg_temp_free_i64(t0);
+}
+
 static inline void do_decode(DisasContext *ctx, CPUState *cs)
 {
     E2KCPU *cpu = E2K_CPU(cs);
@@ -334,14 +354,31 @@ static inline void do_branch(DisasContext *ctx)
     switch(ctx->ct.type) {
     case CT_IBRANCH:
         // TODO: goto_tb
-        tcg_gen_movi_tl(e2k_cs.pc, ctx->ct.u.target);
-        tcg_gen_exit_tb(NULL, 0);
+        gen_goto_tb(ctx, 0, ctx->pc, ctx->ct.u.target);
         break;
-    case CT_JUMP:
+    case CT_JUMP: {
+        TCGLabel *l0 = gen_new_label();
+        TCGLabel *l1 = gen_new_label();
+        TCGv_i64 t0 = tcg_temp_new_i64();
+
+        gen_ctpr_tag(t0, ctx->ct.u.ctpr);
+        tcg_gen_brcondi_i64(TCG_COND_EQ, t0, CTPR_TAG_DISP, l0);
+        gen_ctpr_tag(t0, ctx->ct.u.ctpr);
+        tcg_gen_brcondi_i64(TCG_COND_EQ, t0, CTPR_TAG_RETURN, l1);
+        // TODO: ldisp, sdisp
+        e2k_gen_exception(ctx, E2K_EXCP_UNIMPL);
+
+        gen_set_label(l0);
+        gen_goto_ctpr_disp(ctx->ct.u.ctpr);
+
+        gen_set_label(l1);
         gen_save_cpu_state(ctx);
-        gen_helper_jump(e2k_cs.pc, cpu_env, ctx->ct.u.ctpr);
+        gen_helper_return(e2k_cs.pc, cpu_env);
         tcg_gen_lookup_and_goto_ptr();
+
+        tcg_temp_free_i64(t0);
         break;
+    }
     case CT_CALL: {
         TCGv_i32 wbs = tcg_const_i32(ctx->ct.wbs);
         gen_save_cpu_state(ctx);
