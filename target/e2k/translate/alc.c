@@ -546,7 +546,7 @@ static void execute_alopf_simple(DisasContext *dc, int chan)
         break;
     }
     case 0x40: // TODO: udivs used as temporary UD
-        e2k_gen_exception(dc, E2K_EXCP_UNIMPL);
+        e2k_gen_exception(dc, 0);
         break;
     case 0x61:
         if (chan == 2 || chan == 5) {

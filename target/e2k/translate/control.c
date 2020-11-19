@@ -102,7 +102,7 @@ static inline void gen_cur_dec(DisasContext *ctx, TCGv_i32 ret, int cond,
     TCGv_i32 t0 = tcg_const_i32(n);
     TCGv_i32 t1 = tcg_temp_new_i32();
 
-    tcg_gen_trunc_tl_i32(c, ctx->ct.cond);
+    tcg_gen_trunc_tl_i32(c, e2k_cs.ct_cond);
     gen_helper_cur_dec(t1, cpu_env, cur, t0, size);
     gen_movcond_flag_i32(ret, cond, c, t1, cur);
 
@@ -126,7 +126,7 @@ void e2k_commit_stubs(DisasContext *ctx)
         TCGv_i64 t0 = tcg_temp_new_i64();
 
         gen_lcnt_dec(t0, e2k_cs.lsr);
-        gen_movcond_flag_i64(e2k_cs.lsr, alc, ctx->ct.cond, t0, e2k_cs.lsr);
+        gen_movcond_flag_i64(e2k_cs.lsr, alc, e2k_cs.ct_cond, t0, e2k_cs.lsr);
         tcg_temp_free_i64(t0);
     }
 
@@ -504,7 +504,7 @@ static void gen_jmp(DisasContext *dc)
         TCGv preg = tcg_temp_new();
         TCGv loop_end = tcg_temp_new();
         TCGv not_loop_end = tcg_temp_new();
-        TCGv cond = dc->ct.cond;
+        TCGv cond = e2k_cs.ct_cond;
         TCGv_i64 t0 = tcg_temp_new_i64();
 
         e2k_gen_preg(t0, psrc);
