@@ -215,15 +215,11 @@ static inline void do_syscall(CPUE2KState *env, int call_wbs)
     reset_ctprs(env);
 }
 
-target_ulong helper_jump(CPUE2KState *env, target_ulong cond, uint64_t ctpr)
+target_ulong helper_jump(CPUE2KState *env, uint64_t ctpr)
 {
     int ctpr_tag = GET_FIELD(ctpr, CTPR_TAG_OFF, CTPR_TAG_END);
 
     helper_save_cpu_state(env);
-
-    if (!cond) {
-        return env->nip;
-    }
 
     switch (ctpr_tag) {
     case CTPR_TAG_RETURN:
@@ -237,16 +233,12 @@ target_ulong helper_jump(CPUE2KState *env, target_ulong cond, uint64_t ctpr)
     }
 }
 
-target_ulong helper_call(CPUE2KState *env, target_ulong cond, uint64_t ctpr,
+target_ulong helper_call(CPUE2KState *env, uint64_t ctpr,
     int call_wbs)
 {
     int ctpr_tag = GET_FIELD(ctpr, CTPR_TAG_OFF, CTPR_TAG_END);
 
     helper_save_cpu_state(env);
-
-    if (!cond) {
-        return env->nip;
-    }
 
     switch (ctpr_tag) {
     case CTPR_TAG_DISP:
