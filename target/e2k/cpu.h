@@ -36,12 +36,16 @@ void e2k_tcg_initialize(void);
 
 #define CTPR_BASE_OFF 0
 #define CTPR_BASE_END 47
+#define CTPR_BASE_LEN (CTPR_BASE_END - CTPR_BASE_OFF + 1)
 #define CTPR_TAG_OFF 54
 #define CTPR_TAG_END 56
+#define CTPR_TAG_LEN (CTPR_TAG_END - CTPR_TAG_OFF + 1)
 #define CTPR_OPC_OFF 57
 #define CTPR_OPC_END 58
+#define CTPR_OPC_LEN (CTPR_OPC_END - CTPR_OPC_OFF + 1)
 #define CTPR_IPD_OFF 59
 #define CTPR_IPD_END 60
+#define CTPR_IPD_LEN (CTPR_IPD_END - CTPR_IPD_OFF + 1)
 
 #define WD_BASE_OFF 0
 #define WD_BASE_END 10
