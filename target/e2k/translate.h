@@ -124,7 +124,6 @@ typedef enum {
 } ControlTransferType;
 
 typedef struct {
-    bool has_cond;
     ControlTransferType type;
     union {
         target_ulong target;
