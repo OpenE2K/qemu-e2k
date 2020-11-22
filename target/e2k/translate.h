@@ -57,7 +57,7 @@ typedef enum {
 typedef struct CPUE2KStateTCG {
     TCGv pc;
     TCGv npc;
-    TCGv ctprs[4];
+    TCGv ctprs[3];
     TCGv ct_cond;
     TCGv_i64 lsr;
     TCGv_i64 wregs[WREGS_SIZE];
