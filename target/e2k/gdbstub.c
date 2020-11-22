@@ -30,15 +30,15 @@ int e2k_cpu_gdb_read_register(CPUState *cs, GByteArray *mem_buf, int n)
     CPUClass *cc = CPU_GET_CLASS(cs);
     CPUE2KState *env = &cpu->env;
 
+    if (n < 3) {
+        return gdb_get_reg64(mem_buf, 0); // unk
+    }
+
     if (3 <= n && n < 35) {
         return gdb_get_reg64(mem_buf, env->gregs[n - 3]);
     }
     
     switch (n) {
-    case 0:
-    case 1:
-    case 2:
-        return gdb_get_reg64(mem_buf, 0); // unk
     case 35: return gdb_get_reg64(mem_buf, 0); // psr
     case 36: return gdb_get_reg64(mem_buf, 0); // upsr
     case 37: return gdb_get_reg64(mem_buf, 0); // oscud_lo
@@ -59,7 +59,7 @@ int e2k_cpu_gdb_read_register(CPUState *cs, GByteArray *mem_buf, int n)
     case 52: return gdb_get_reg64(mem_buf, 0); // unk
     case 53: return gdb_get_reg64(mem_buf, env->ip); // ip
     case 54: return gdb_get_reg64(mem_buf, 0); // TODO: something associated with wd
-    case 55: return gdb_get_reg64(mem_buf, 0); // unk
+    case 55: return gdb_get_reg64(mem_buf, 0); // br
     case 56: return gdb_get_reg64(mem_buf, 0); // cwd
     case 57: return gdb_get_reg64(mem_buf, env->pcsp_lo); // pcsp_lo
     case 58: return gdb_get_reg64(mem_buf, env->pcsp_hi); // pcsp_hi
@@ -156,7 +156,7 @@ int e2k_cpu_gdb_read_register(CPUState *cs, GByteArray *mem_buf, int n)
     case 335: return gdb_get_reg64(mem_buf, 0); // unk
     case 336: return gdb_get_reg64(mem_buf, 0); // bgr
     case 337: return gdb_get_reg64(mem_buf, 0); // unk
-    case 338: return gdb_get_reg64(mem_buf, 0); // nip
+    case 338: return gdb_get_reg64(mem_buf, env->nip); // nip
     case 339: return gdb_get_reg64(mem_buf, 0); // ctpr1
     case 340: return gdb_get_reg64(mem_buf, 0); // ctpr2
     case 341: return gdb_get_reg64(mem_buf, 0); // ctpr3
@@ -175,12 +175,8 @@ int e2k_cpu_gdb_read_register(CPUState *cs, GByteArray *mem_buf, int n)
         return gdb_get_reg64(mem_buf, 0); // unk
     }
 
-    if (360 <= n && n < 364) {
+    if (360 <= n && n < 368) {
         return gdb_get_reg64(mem_buf, 0); // xgN
-    }
-
-    if (363 <= n && n < 369) {
-        return gdb_get_reg64(mem_buf, 0); // unk
     }
 
     if (n == 368) {
@@ -207,8 +203,12 @@ int e2k_cpu_gdb_read_register(CPUState *cs, GByteArray *mem_buf, int n)
         return gdb_get_reg64(mem_buf, 0); // trap_cell_val_N
     }
 
-    if (n == 428 || n == 429) {
-        return gdb_get_reg64(mem_buf, 0); // unk
+    if (n == 428) {
+        return gdb_get_reg64(mem_buf, 0); // trap_cell_tag_N [0, 7)
+    }
+
+    if (n == 429) {
+        return gdb_get_reg64(mem_buf, 0); // trap_cell_tag_N [8, 9)
     }
 
     if (430 <= n && n < 440) {
@@ -224,7 +224,7 @@ int e2k_cpu_gdb_read_register(CPUState *cs, GByteArray *mem_buf, int n)
     }
 
     if (504 <= n && n < 552) {
-        return gdb_get_reg64(mem_buf, 0); // TLB?
+        return gdb_get_reg64(mem_buf, 0); // mlt_N (3 regs)
     }
 
     if (n == 552) {
