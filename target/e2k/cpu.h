@@ -228,8 +228,9 @@ typedef struct {
 
     uint64_t lsr; /* loop status register */
 
-    uint32_t woff; /* holds wbs * 2 */
-    uint32_t wsize; /* holds wsz * 2 */
+    uint32_t wd_base;
+    uint32_t wd_size;
+    uint32_t wd_psize;
     uint32_t boff; /* holds rbs * 2 */
     uint32_t bsize; /* holds rsz * 2 + 2 */
     uint32_t bcur; /* holds rcur * 2 */
@@ -350,12 +351,12 @@ static inline void e2k_state_wbs_set(CPUE2KState *env, int wbs)
         CR1_LO_WBS_OFF, CR1_LO_WBS_LEN);
 }
 
-static inline int e2k_state_wsz_get(CPUE2KState *env)
+static inline int e2k_state_wpsz_get(CPUE2KState *env)
 {
     return GET_FIELD(env->cr1_lo, CR1_LO_WPSZ_OFF, CR1_LO_WPSZ_END);
 }
 
-static inline void e2k_state_wsz_set(CPUE2KState *env, int wsz)
+static inline void e2k_state_wpsz_set(CPUE2KState *env, int wsz)
 {
     env->cr1_lo = SET_FIELD(env->cr1_lo, wsz,
         CR1_LO_WPSZ_OFF, CR1_LO_WPSZ_LEN);
