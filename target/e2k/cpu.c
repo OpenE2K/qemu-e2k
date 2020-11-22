@@ -43,8 +43,9 @@ static void e2k_cpu_reset(DeviceState *dev)
     memset(env, 0, offsetof(CPUE2KState, end_reset_fields));
 
     env->wptr = &env->wregs[0];
-    env->woff = 0;
-    env->wsize = 16;
+    env->wd_base = 0;
+    env->wd_size = 8;
+    env->wd_psize = 8;
 }
 
 static bool e2k_cpu_exec_interrupt(CPUState *cs, int interrupt_request)
