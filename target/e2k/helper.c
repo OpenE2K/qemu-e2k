@@ -11,7 +11,8 @@ static inline void reset_ctprs(CPUE2KState *env)
     unsigned int i;
 
     for (i = 0; i < 3; i++) {
-        env->ctprs[i] = 0;
+        env->ctprs[i] = SET_FIELD(env->ctprs[i], CTPR_TAG_NONE,
+            CTPR_TAG_OFF, CTPR_TAG_LEN);
     }
 }
 
@@ -28,15 +29,16 @@ void helper_save_cpu_state(CPUE2KState *env)
     env->cr1_hi = SET_FIELD(env->cr1_hi, br, CR1_HI_BR_OFF + BR_BN_OFF,
         BR_BN_LEN);
 
-    env->cr1_lo = SET_FIELD(env->cr1_lo, env->wsize / 2,
+    env->cr1_lo = SET_FIELD(env->cr1_lo, env->wd_psize / 2,
         CR1_LO_WPSZ_OFF, CR1_LO_WPSZ_LEN);
 }
 
-static inline void restore_state(CPUE2KState *env)
+static inline void restore_br_state(CPUE2KState *env)
 {
     uint32_t br;
-    int rbs, rsz, rcur, psz, pcur, wsz, wbs;
+    int rbs, rsz, rcur, psz, pcur;
 
+    // FIXME: cr1_hi.br does not modified after return, find a way to restore it
     br = GET_FIELD(env->cr1_hi, CR1_HI_BR_OFF, CR1_HI_BR_LEN);
     rbs = GET_FIELD(br, BR_RBS_OFF, BR_RBS_END);
     rsz = GET_FIELD(br, BR_RSZ_OFF, BR_RSZ_END);
@@ -44,17 +46,11 @@ static inline void restore_state(CPUE2KState *env)
     psz = GET_FIELD(br, BR_PSZ_OFF, BR_PSZ_END);
     pcur = GET_FIELD(br, BR_PCUR_OFF, BR_PCUR_END);
 
-    wbs = GET_FIELD(env->cr1_lo, CR1_LO_WBS_OFF, CR1_LO_WBS_END);
-    wsz = GET_FIELD(env->cr1_lo, CR1_LO_WPSZ_OFF, CR1_LO_WPSZ_END);
-
     env->boff = rbs * 2;
     env->bsize = rsz * 2 + 2;
     env->bcur = rcur * 2;
     env->psize = psz;
     env->pcur = pcur;
-
-    env->woff = wbs * 2;
-    env->wsize = wsz * 2;
 }
 
 void helper_unimpl(CPUE2KState *env)
@@ -157,51 +153,41 @@ static void ps_pop(CPUE2KState *env, unsigned int wbs, size_t len)
 
 static inline void do_call(CPUE2KState *env, int call_wbs)
 {
-    int wbs, wsz, new_wbs, new_wsz;
+    int call_wpsz = env->wd_size / 2 - call_wbs;
 
-    wbs = e2k_state_wbs_get(env);
-    wsz = e2k_state_wsz_get(env);
-    new_wbs = (wbs + call_wbs) % (WREGS_SIZE / 2);
-    new_wsz = wsz - call_wbs;
-
-    if (new_wsz < 0) {
-        /* TODO: SIGSEGV */
-        abort();
-    }
-
-    /* save procedure chain info */
+    helper_save_cpu_state(env);
     pcs_push(env);
-    /* save regs */
-    ps_push(env, wbs * 2, call_wbs * 2);
+    ps_push(env, env->wd_base, call_wbs * 2);
 
-    e2k_state_wbs_set(env, new_wbs);
-    e2k_state_wsz_set(env, new_wsz);
+    e2k_state_wbs_set(env, call_wbs);
+    env->wd_base = (env->wd_base + call_wbs * 2) % WREGS_SIZE;
+    env->wd_size = env->wd_psize = call_wpsz * 2;
 
-    /* restore woff, wsize, etc */
-    restore_state(env);
     reset_ctprs(env);
 }
 
 target_ulong helper_return(CPUE2KState *env)
 {
-    int new_wbs, old_wbs;
+    int new_wd_size, new_wd_base, wbs;
     target_ulong tgt;
 
-    old_wbs = e2k_state_wbs_get(env) * 2;
+    wbs = GET_FIELD(env->cr1_lo, CR1_LO_WBS_OFF, CR1_LO_WBS_END);
+    new_wd_size = env->wd_psize + wbs * 2;
+    new_wd_base = (env->wd_base - wbs * 2) % WREGS_SIZE;
 
-    /* restore procedure chain info */
-    tgt = pcs_pop(env);
-
-    new_wbs = e2k_state_wbs_get(env) * 2;
-
-    if (old_wbs < new_wbs) {
-        old_wbs += WREGS_SIZE;
+    if (env->wd_base < new_wd_base) {
+        env->wd_base += WREGS_SIZE;
     }
 
-    ps_pop(env, new_wbs, old_wbs - new_wbs);
+    tgt = pcs_pop(env);
 
-    /* restore woff, wsize, etc */
-    restore_state(env);
+    ps_pop(env, new_wd_base, env->wd_base - new_wd_base);
+
+    env->wd_base = new_wd_base;
+    env->wd_size = new_wd_size;
+    env->wd_psize = GET_FIELD(env->cr1_lo, CR1_LO_WPSZ_OFF, CR1_LO_WPSZ_END) * 2;
+
+    restore_br_state(env);
     reset_ctprs(env);
 
     return tgt;
