@@ -10,7 +10,7 @@ static inline void reset_ctprs(CPUE2KState *env)
 {
     unsigned int i;
 
-    for (i = 0; i < 4; i++) {
+    for (i = 0; i < 3; i++) {
         env->ctprs[i] = 0;
     }
 }
