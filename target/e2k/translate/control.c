@@ -269,14 +269,14 @@ static void gen_cs0(DisasContext *dc)
             if (type == LDISP) {
                 reg |= (uint64_t) CTPR_OPC_LDISP << CTPR_OPC_OFF;
             }
-            tcg_gen_movi_tl(e2k_cs.ctprs[ctpr], reg);
+            tcg_gen_movi_tl(e2k_cs.ctprs[ctpr - 1], reg);
         } else if (type == SDISP) {
             unsigned int disp = GET_FIELD(cs0, 0, 27) << 11;
             target_ulong base = ((uint64_t) 0xe2 << 40) | disp;
             uint64_t reg = (dc->pc + base) |
                 ((uint64_t) CTPR_TAG_SDISP << CTPR_TAG_OFF) |
                 ((uint64_t) ipd << CTPR_IPD_OFF);
-            tcg_gen_movi_tl(e2k_cs.ctprs[ctpr], reg);
+            tcg_gen_movi_tl(e2k_cs.ctprs[ctpr - 1], reg);
         }
 
         /* Note that RETURN is said to be COPF1. I can't understand what its
@@ -286,7 +286,7 @@ static void gen_cs0(DisasContext *dc)
         if (type == RETURN) {
             uint64_t reg = ((uint64_t) CTPR_TAG_RETURN << CTPR_TAG_OFF) |
                 ((uint64_t) ipd << CTPR_IPD_OFF);
-            tcg_gen_movi_tl(e2k_cs.ctprs[ctpr], reg);
+            tcg_gen_movi_tl(e2k_cs.ctprs[ctpr - 1], reg);
         }
 
         /* GETTSD has as meaningless `CS0.param' as RETURN. The only
@@ -494,7 +494,7 @@ static void gen_jmp(DisasContext *dc)
     /* TODO: different kinds of ct */
     if (ctpr != 0) {
         dc->ct.type = CT_JUMP;
-        dc->ct.u.ctpr = e2k_cs.ctprs[ctpr];
+        dc->ct.u.ctpr = e2k_cs.ctprs[ctpr - 1];
     }
 
     if (cond_type > 1) {
