@@ -38,6 +38,7 @@
 #define GET_GLOBAL(i) ((i) & 0x1f)
 
 typedef enum {
+    CTPR_TAG_NONE = 0x0,
     CTPR_TAG_RETURN = 0x2,
     CTPR_TAG_DISP = 0x3,
     CTPR_TAG_LDISP = 0x3,
