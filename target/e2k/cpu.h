@@ -240,7 +240,7 @@ typedef struct {
     uint64_t usd_hi;
 
     /* control registers */
-    target_ulong ctprs[4]; // Control Transfer Preparation Register (CTPR)
+    target_ulong ctprs[3]; // Control Transfer Preparation Register (CTPR)
     target_ulong ct_cond;
     
     /* special registers */

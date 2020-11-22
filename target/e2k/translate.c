@@ -562,7 +562,7 @@ void e2k_tcg_initialize(void) {
             offsetof(CPUE2KState, gregs[i]), buf);
     }
 
-    for (i = 0; i < 4; i++) {
+    for (i = 0; i < 3; i++) {
         snprintf(buf, ARRAY_SIZE(buf), "%%ctpr%d", i + 1);
         e2k_cs.ctprs[i] = tcg_global_mem_new(cpu_env,
             offsetof(CPUE2KState, ctprs[i]), buf);
