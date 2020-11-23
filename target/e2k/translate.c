@@ -146,17 +146,17 @@ static size_t unpack_bundle(CPUE2KState *env,
 
     /* Set POS to point to the last syllable in the current wide instruction and
        extract CDSj and PLSj syllables if any.  */
-    pos = ((GET_FIELD(hs, 4, 6) + 1) << 3) - 4;
+    pos = ((GET_FIELD(hs, 4, 3) + 1) << 3) - 4;
 
     /* Check for CDSj syllables.  */
-    for (i = 0; i < GET_FIELD(hs, 16, 17); i++) {
+    for (i = 0; i < GET_FIELD(hs, 16, 2); i++) {
         bundle->cds_present[i] = true;
         bundle->cds[i] = translator_ldl(env, pc + pos);
         pos -= 4;
     }
 
     /* Check for PLSj syllables.  */
-    for (i = 0; i < GET_FIELD(hs, 18, 19); i++) {
+    for (i = 0; i < GET_FIELD(hs, 18, 2); i++) {
         bundle->pls_present[i] = true;
         bundle->pls[i] = translator_ldl(env, pc + pos);
         pos -= 4;
@@ -182,7 +182,7 @@ static size_t unpack_bundle(CPUE2KState *env,
         pos -= 4;
     }
 
-    return 8 + GET_FIELD(hs, 4, 6) * 8;
+    return 8 + GET_FIELD(hs, 4, 3) * 8;
 }
 
 static inline void gen_save_pc(target_ulong pc)

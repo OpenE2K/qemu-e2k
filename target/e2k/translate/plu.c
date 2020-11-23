@@ -5,7 +5,7 @@
 
 static void gen_get_lp(TCGv_i32 ret, uint16_t clp, int offset, TCGv_i32 lp[7])
 {
-    int p = GET_FIELD_LEN(clp, offset, 3);
+    int p = GET_FIELD(clp, offset, 3);
     int neg = GET_BIT(clp, offset + 3);
 
     tcg_gen_xori_i32(ret, lp[p], neg);
@@ -14,14 +14,14 @@ static void gen_get_lp(TCGv_i32 ret, uint16_t clp, int offset, TCGv_i32 lp[7])
 static void gen_elp(DisasContext *ctx, TCGv_i32 ret, uint8_t elp)
 {
     if (!GET_BIT(elp, 6)) {
-        if (GET_FIELD_LEN(elp, 0, 6) == 0) {
+        if (GET_FIELD(elp, 0, 6) == 0) {
             e2k_gen_lcntex(ret);
         } else {
             // TODO: spred
             gen_helper_unimpl(cpu_env);
         }
-    } else if (GET_FIELD_LEN(elp, 5, 2) == 0x40) {
-        int val = GET_FIELD_LEN(elp, 0, 5);
+    } else if (GET_FIELD(elp, 5, 2) == 0x40) {
+        int val = GET_FIELD(elp, 0, 5);
         if (val == 0) {
             // TODO: bgrpred
             gen_helper_unimpl(cpu_env);
@@ -32,7 +32,7 @@ static void gen_elp(DisasContext *ctx, TCGv_i32 ret, uint8_t elp)
             e2k_gen_exception(ctx, E2K_EXCP_ILLOPN);
         }
     } else {
-        int reg = GET_FIELD_LEN(elp, 0, 5);
+        int reg = GET_FIELD(elp, 0, 5);
         TCGv_i64 t0 = tcg_temp_new_i64();
 
         e2k_gen_preg(t0, reg);
@@ -63,8 +63,8 @@ static inline void scan_needed(const UnpackedBundle *bundle, int need[7])
                 continue;
             }
 
-            p0 = GET_FIELD_LEN(bundle->pls[i], 10, 4);
-            p1 = GET_FIELD_LEN(bundle->pls[i], 6, 4);
+            p0 = GET_FIELD(bundle->pls[i], 10, 4);
+            p1 = GET_FIELD(bundle->pls[i], 6, 4);
 
             if (p0 < 7 && need[p0] == 0) {
                 need[p0] = 1;
@@ -110,23 +110,23 @@ void e2k_plu_execute(DisasContext *ctx)
 
         if (i < 2) {
             if (need[i * 2]) {
-                int elp = GET_FIELD_LEN(bundle->pls[i], 24, 7);
+                int elp = GET_FIELD(bundle->pls[i], 24, 7);
                 gen_elp(ctx, lp[i * 2], elp);
             }
 
             if (need[i * 2 + 1]) {
-                int elp = GET_FIELD_LEN(bundle->pls[i], 16, 7);
+                int elp = GET_FIELD(bundle->pls[i], 16, 7);
                 gen_elp(ctx, lp[i * 2 + 1], elp);
             }
         }
 
         if (need[4 + i]) {
-            uint16_t clp = GET_FIELD_LEN(bundle->pls[i], 0, 16);
-            int opc = GET_FIELD_LEN(clp, 14, 2);
+            uint16_t clp = GET_FIELD(bundle->pls[i], 0, 16);
+            int opc = GET_FIELD(clp, 14, 2);
             TCGv_i32 p0 = tcg_temp_new_i32();
             TCGv_i32 p1 = tcg_temp_new_i32();
             int vdst = GET_BIT(clp, 5);
-            int pdst = GET_FIELD_LEN(clp, 0, 5);
+            int pdst = GET_FIELD(clp, 0, 5);
 
             // TODO: check clp arg
             // {C/M}LP0 0, 1             => 4
