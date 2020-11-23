@@ -5,7 +5,7 @@
 
 static TCGv_i64 get_src1(DisasContext *dc, uint32_t als)
 {
-    unsigned int src1 = GET_FIELD(als, 16, 27);
+    unsigned int src1 = GET_FIELD(als, 16, 8);
     if (IS_BASED(src1)) {
         unsigned int i = GET_BASED(src1);
         return e2k_get_breg(dc, i);
@@ -25,7 +25,7 @@ static TCGv_i64 get_src1(DisasContext *dc, uint32_t als)
 
 static TCGv_i64 get_src2(DisasContext *dc, uint32_t als)
 {
-    unsigned int src2 = GET_FIELD(als, 8, 15);
+    unsigned int src2 = GET_FIELD(als, 8, 8);
     if (IS_BASED(src2)) {
         unsigned int i = GET_BASED(src2);
         return e2k_get_breg(dc, i);
@@ -192,7 +192,7 @@ static inline bool is_mrgc(uint16_t rlp, int chan)
 {
     int is_mrgc = GET_BIT(rlp, 15);
     int cluster = GET_BIT(rlp, 14);
-    int alc_mask = GET_FIELD(rlp, 10, 12);
+    int alc_mask = GET_FIELD(rlp, 10, 3);
     int alc = GET_BIT(alc_mask, chan % 3);
 
     return is_mrgc && (cluster == (chan > 2)) && (alc != 0);
@@ -273,7 +273,7 @@ static inline void gen_rr_i64(TCGv_i64 ret, uint8_t state_reg)
 static inline void gen_rrd(DisasContext *dc, int chan)
 {
     uint32_t als = dc->bundle.als[chan];
-    uint8_t state_reg = GET_FIELD(als, 16, 23);
+    uint8_t state_reg = GET_FIELD(als, 16, 8);
     TCGv_i64 ret = e2k_get_temp_i64(dc);
 
     gen_rr_i64(ret, state_reg);
@@ -283,7 +283,7 @@ static inline void gen_rrd(DisasContext *dc, int chan)
 static inline void gen_rrs(DisasContext *dc, int chan)
 {
     uint32_t als = dc->bundle.als[chan];
-    uint8_t state_reg = GET_FIELD(als, 16, 23);
+    uint8_t state_reg = GET_FIELD(als, 16, 8);
     TCGv_i64 t0 = tcg_temp_new_i64();
     TCGv_i64 t1 = e2k_get_temp_i64(dc);
 
@@ -465,7 +465,7 @@ static TCGCond e2k_gen_cmp_op(unsigned int cmp_op)
 static void execute_alopf_simple(DisasContext *dc, int chan)
 {
     uint32_t als = dc->bundle.als[chan];
-    int opc = GET_FIELD(als, 24, 30);
+    int opc = GET_FIELD(als, 24, 7);
 
     switch(opc) {
     case 0x00: /* ands */ gen_alopf1_i32(dc, chan, tcg_gen_and_i32); break;
@@ -506,7 +506,7 @@ static void execute_alopf_simple(DisasContext *dc, int chan)
         TCGv_i32 dst32 = tcg_temp_new_i32();
         TCGv_i32 lo1 = tcg_temp_new_i32();
         TCGv_i32 lo2 = tcg_temp_new_i32();
-        TCGCond cond = e2k_gen_cmp_op(GET_FIELD(als, 5, 7));
+        TCGCond cond = e2k_gen_cmp_op(GET_FIELD(als, 5, 3));
         Result res = { 0 };
 
         tcg_gen_extrl_i64_i32(lo1, s1);
@@ -530,7 +530,7 @@ static void execute_alopf_simple(DisasContext *dc, int chan)
         TCGv_i64 cpu_src1 = get_src1(dc, als);
         TCGv_i64 cpu_src2 = get_src2(dc, als);
         TCGv_i64 tmp_dst = e2k_get_temp_i64(dc);
-        TCGCond cond = e2k_gen_cmp_op(GET_FIELD(als, 5, 7));
+        TCGCond cond = e2k_gen_cmp_op(GET_FIELD(als, 5, 3));
         Result res = { 0 };
 
         tcg_gen_setcond_i64(cond, tmp_dst, cpu_src1, cpu_src2);
@@ -625,7 +625,7 @@ static void execute_alopf_simple(DisasContext *dc, int chan)
 
 static void execute_ext1(DisasContext *dc, int chan)
 {
-    uint8_t opc = GET_FIELD(dc->bundle.als[chan], 24, 30);
+    uint8_t opc = GET_FIELD(dc->bundle.als[chan], 24, 7);
 
     switch (opc) {
     case 0x58: {
@@ -657,7 +657,7 @@ void e2k_execute_alc(DisasContext *ctx, int index)
         e2k_gen_exception(ctx, E2K_EXCP_ILLOPC);
         break;
     case ALES_PRESENT: {
-        uint8_t opc = GET_FIELD(bundle->ales[index], 8, 15);
+        uint8_t opc = GET_FIELD(bundle->ales[index], 8, 8);
         switch (opc) {
         case 0x01:
             execute_ext1(ctx, index);

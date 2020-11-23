@@ -116,10 +116,10 @@ void e2k_commit_stubs(DisasContext *ctx)
     uint32_t ss = ctx->bundle.ss;
 //    unsigned int vfdi = (ss & 0x04000000) >> 26;
 //    unsigned int abg = (ss & 0x01800000) >> 23;
-    int alc = GET_FIELD_LEN(ss, 16, 2);
-    int abp = GET_FIELD_LEN(ss, 18, 2);
-    int abn = GET_FIELD_LEN(ss, 21, 2);
-    int abg = GET_FIELD_LEN(ss, 23, 2);
+    int alc = GET_FIELD(ss, 16, 2);
+    int abp = GET_FIELD(ss, 18, 2);
+    int abn = GET_FIELD(ss, 21, 2);
+    int abg = GET_FIELD(ss, 23, 2);
 
 
     if (alc) {
@@ -258,9 +258,9 @@ static void gen_cs0(DisasContext *dc)
         if (type == GETTSD && param_type != 1) {
             e2k_gen_exception(dc, E2K_EXCP_ILLOPC);
         }
-        int ipd = GET_FIELD(bundle->ss, 30, 31);
+        int ipd = GET_FIELD(bundle->ss, 30, 2);
         if (type == DISP || type == LDISP) {
-            unsigned int disp = GET_FIELD(cs0, 0, 27);
+            unsigned int disp = GET_FIELD(cs0, 0, 28);
             /* Calculate a signed displacement in bytes. */
             int sdisp = ((int) (disp << 4)) >> 1;
             uint64_t reg = (dc->pc + sdisp) |
@@ -271,7 +271,7 @@ static void gen_cs0(DisasContext *dc)
             }
             tcg_gen_movi_tl(e2k_cs.ctprs[ctpr - 1], reg);
         } else if (type == SDISP) {
-            unsigned int disp = GET_FIELD(cs0, 0, 27) << 11;
+            unsigned int disp = GET_FIELD(cs0, 0, 28) << 11;
             target_ulong base = ((uint64_t) 0xe2 << 40) | disp;
             uint64_t reg = (dc->pc + base) |
                 ((uint64_t) CTPR_TAG_SDISP << CTPR_TAG_OFF) |
@@ -364,7 +364,7 @@ static void gen_cs1(DisasContext *dc)
                 e2k_gen_exception(dc, E2K_EXCP_ILLOPC);
             } else {
                 uint32_t lts0 = bundle->lts[0];
-                int wsz = GET_FIELD(lts0, 5, 11);
+                int wsz = GET_FIELD(lts0, 5, 7);
                 TCGv_i32 t0 = tcg_const_i32(lts0);
 
                 tcg_gen_movi_i32(e2k_cs.wd_size, wsz * 2);
@@ -374,9 +374,9 @@ static void gen_cs1(DisasContext *dc)
         }
 
         if (setbn) {
-            int rbs = GET_FIELD(cs1, BR_RBS_OFF, BR_RBS_END);
-            int rsz = GET_FIELD(cs1, BR_RSZ_OFF, BR_RSZ_END);
-            int rcur = GET_FIELD(cs1, BR_RCUR_OFF, BR_RCUR_END);
+            int rbs = GET_FIELD(cs1, BR_RBS_OFF, BR_RBS_LEN);
+            int rsz = GET_FIELD(cs1, BR_RSZ_OFF, BR_RSZ_LEN);
+            int rcur = GET_FIELD(cs1, BR_RCUR_OFF, BR_RCUR_LEN);
 
             tcg_gen_movi_i32(e2k_cs.boff, rbs * 2);
             tcg_gen_movi_i32(e2k_cs.bsize, (rsz + 1) * 2);
@@ -384,7 +384,7 @@ static void gen_cs1(DisasContext *dc)
         }
 
         if (setbp) {
-            int psz = GET_FIELD(cs1, BR_PSZ_OFF, BR_PSZ_END);
+            int psz = GET_FIELD(cs1, BR_PSZ_OFF, BR_PSZ_LEN);
 
             tcg_gen_movi_i32(e2k_cs.psize, psz);
             tcg_gen_movi_i32(e2k_cs.pcur, 0);
@@ -440,7 +440,7 @@ static void gen_cs1(DisasContext *dc)
         unsigned int ctop = (bundle->ss & 0x00000c00) >> 10;
         if (ctop) {
             dc->ct.type = CT_CALL;
-            dc->ct.wbs = GET_FIELD_LEN(cs1, 0, 7);
+            dc->ct.wbs = GET_FIELD(cs1, 0, 7);
         } else {
             unsigned int cs1_ctopc = (cs1 & 0x380) >> 7;
             /* CS1.param.ctpopc == HCALL. CS0 is required to encode HCALL.  */
@@ -487,9 +487,9 @@ static void gen_cs1(DisasContext *dc)
 
 static void gen_jmp(DisasContext *dc)
 {
-    unsigned int psrc = GET_FIELD(dc->bundle.ss, 0, 4);
-    unsigned int cond_type = GET_FIELD(dc->bundle.ss, 5, 8);
-    unsigned int ctpr = GET_FIELD(dc->bundle.ss, 10, 11);
+    unsigned int psrc = GET_FIELD(dc->bundle.ss, 0, 5);
+    unsigned int cond_type = GET_FIELD(dc->bundle.ss, 5, 4);
+    unsigned int ctpr = GET_FIELD(dc->bundle.ss, 10, 2);
 
     /* TODO: different kinds of ct */
     if (ctpr != 0) {
