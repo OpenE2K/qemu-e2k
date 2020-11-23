@@ -523,6 +523,8 @@ static void execute_alopf_simple(DisasContext *dc, int chan)
         tcg_temp_free_i32(lo2);
         tcg_temp_free_i32(lo1);
         tcg_temp_free_i32(dst32);
+
+        break;
     }
     case 0x21: { // cmp{op}db
         TCGv_i64 cpu_src1 = get_src1(dc, als);
@@ -584,7 +586,7 @@ static void execute_alopf_simple(DisasContext *dc, int chan)
         }
         break;
     case 0x64: { /* ldb */
-        if (chan == 2 || chan == 5) {
+        if (chan == 1 || chan == 4) {
             gen_helper_unimpl(cpu_env);
         } else {
             gen_ld(dc, chan, MO_UB);
@@ -592,7 +594,7 @@ static void execute_alopf_simple(DisasContext *dc, int chan)
         break;
     }
     case 0x65: { /* ldh */
-        if (chan == 2 || chan == 5) {
+        if (chan == 1 || chan == 4) {
             gen_helper_unimpl(cpu_env);
         } else {
             gen_ld(dc, chan, MO_TEUW);
@@ -600,7 +602,7 @@ static void execute_alopf_simple(DisasContext *dc, int chan)
         break;
     }
     case 0x66: { /* ldw */
-        if (chan == 2 || chan == 5) {
+        if (chan == 1 || chan == 4) {
             gen_helper_unimpl(cpu_env);
         } else {
             gen_ld(dc, chan, MO_TEUL);
@@ -608,7 +610,7 @@ static void execute_alopf_simple(DisasContext *dc, int chan)
         break;
     }
     case 0x67: { /* ldd */
-        if (chan == 2 || chan == 5) {
+        if (chan == 1 || chan == 4) {
             gen_helper_unimpl(cpu_env);
         } else {
             gen_ld(dc, chan, MO_TEQ);
