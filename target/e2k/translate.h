@@ -118,6 +118,11 @@ typedef struct {
     } u;
 } Result;
 
+typedef struct {
+    int reg; // -1 means do not write
+    TCGv_i32 value;
+} PluResult;
+
 typedef enum {
     CT_NONE,
     CT_IBRANCH,
@@ -154,25 +159,26 @@ typedef struct DisasContext {
     int ttl_len;
 
     Result alc[6];
+    PluResult plu[3];
     ControlTransfer ct;
 } DisasContext;
 
 static inline TCGv_i32 e2k_get_temp_i32(DisasContext *dc)
 {
     assert(dc->t32_len < ARRAY_SIZE(dc->t32));
-    return dc->t32[dc->t32_len++] = tcg_temp_new_i32();
+    return dc->t32[dc->t32_len++] = tcg_temp_local_new_i32();
 }
 
 static inline TCGv_i64 e2k_get_temp_i64(DisasContext *dc)
 {
     assert(dc->t64_len < ARRAY_SIZE(dc->t64));
-    return dc->t64[dc->t64_len++] = tcg_temp_new_i64();
+    return dc->t64[dc->t64_len++] = tcg_temp_local_new_i64();
 }
 
 static inline TCGv e2k_get_temp(DisasContext *dc)
 {
     assert(dc->ttl_len < ARRAY_SIZE(dc->ttl));
-    return dc->ttl[dc->ttl_len++] = tcg_temp_new();
+    return dc->ttl[dc->ttl_len++] = tcg_temp_local_new();
 }
 
 // FIXME: x must not be greater than y * 2
@@ -257,6 +263,16 @@ static inline void e2k_gen_pcnt(TCGv_i32 ret)
     tcg_temp_free_i64(t0);
 }
 
+static inline void e2k_gen_lcntex(TCGv_i32 ret)
+{
+    TCGv_i32 t0 = tcg_temp_new_i32();
+
+    tcg_gen_extrl_i64_i32(t0, e2k_cs.lsr);
+    tcg_gen_setcondi_i32(TCG_COND_EQ, ret, t0, 0);
+
+    tcg_temp_free_i32(t0);
+}
+
 void e2k_gen_preg(TCGv_i64 ret, int reg);
 TCGv_i64 e2k_get_preg(DisasContext *dc, int reg);
 void e2k_gen_store_preg(int reg, TCGv_i64 val);
@@ -273,6 +289,9 @@ void e2k_control_gen(DisasContext *dc);
 
 void e2k_execute_alc(DisasContext *ctx, int index);
 void e2k_alc_commit(DisasContext *dc);
+
+void e2k_plu_execute(DisasContext *ctx);
+void e2k_plu_commit(DisasContext *ctx);
 
 void e2k_commit_stubs(DisasContext *dc);
 
