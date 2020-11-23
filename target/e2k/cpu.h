@@ -211,6 +211,27 @@ void e2k_tcg_initialize(void);
 #define UPSR_IUC_OFF 10 /* ignore access right for uncached pages */
 #define UPSR_IUC_BIT (1 << UPSR_IUC_OFF)
 
+#define IDR_MDL_OFF 0 /* CPU model number */
+#define IDR_MDL_END 7
+#define IDR_MDL_LEN (IDR_MDL_END - IDR_MDL_OFF + 1)
+#define IDR_REV_OFF 8 /* revision number */
+#define IDR_REV_END 11
+#define IDR_REV_LEN (IDR_REV_END - IDR_REV_OFF + 1)
+#define IDR_WBL_OFF 12 /* write-back length of L2 */
+#define IDR_WBL_END 14
+#define IDR_WBL_LEN (IDR_WBL_END - IDR_WBL_OFF + 1)
+#define IDR_MS_OFF 15 /* model specific info */
+#define IDR_MS_END 63
+#define IDR_MS_LEN (IDR_MS_END - IDR_MS_OFF + 1)
+
+/* Cache write-back length */
+#define IDR_WBL_0   0x0 /* none CPU internal cache */
+#define IDR_WBL_32  0x1
+#define IDR_WBL_64  0x2
+#define IDR_WBL_128 0x3
+#define IDR_WBL_256 0x4
+#define IDR_WBL_TO_BYTES(wbl) ((wbl) ? (1 << ((wbs) + 4)) : 1)
+
 typedef enum {
     E2K_EXCP_UNIMPL = 0x01,
     E2K_EXCP_SYSCALL = 0x02,
@@ -278,6 +299,7 @@ typedef struct {
     target_ulong nip; /* next instruction address */
     
     uint32_t upsr;
+    uint64_t idr;
 
     uint32_t pfpfr; // Packed Floating Point Flag Register (PFPFR)
     uint32_t fpcr; // Floating point control register (FPCR)
