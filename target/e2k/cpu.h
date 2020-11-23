@@ -57,7 +57,7 @@ void e2k_tcg_initialize(void);
 #define WD_PSIZE_END 42
 #define WD_PSIZE_LEN (WD_PSIZE_END - WD_PSIZE_OFF + 1)
 #define WD_FX_OFF 48
-#define WD_FX_BIT (1 << WD_FX_OFF)
+#define WD_FX_BIT (1UL << WD_FX_OFF)
 
 #define PCSP_HI_IND_OFF 0       /* index for SPILL */
 #define PCSP_HI_IND_END 31
@@ -210,16 +210,12 @@ typedef struct {
     uint64_t gregs[GREGS_SIZE]; /* global registers */
     uint64_t wregs[WREGS_SIZE]; /* window registers */
     uint64_t *wptr;
-    uint64_t pf; /* predicate file */
 
     /* Procedure chain info = cr0_lo, cr0_hi, cr1_lo, cr1_hi */
     uint64_t pcsp_lo;
     uint64_t pcsp_hi;
-
-    /* cr0_lo == pf */
-    /* cr0_hi == ip */
-    uint64_t cr1_lo;
-    uint64_t cr1_hi;
+    uint64_t pcshtp;
+    uint32_t br;
 
     /* Procedure stack pointer (for regs)  */
     uint64_t psp_lo;
@@ -244,8 +240,22 @@ typedef struct {
     target_ulong ctprs[3]; // Control Transfer Preparation Register (CTPR)
     target_ulong ct_cond;
     
-    /* special registers */
-    target_ulong ip; /* instruction address */
+    union {
+        struct {
+            union {
+                uint64_t pf; /* predicate file */
+                uint64_t cr0_lo;
+            };
+            union {
+                target_ulong ip; /* instruction address */
+                uint64_t cr0_hi;
+            };
+            uint64_t cr1_lo;
+            uint64_t cr1_hi;
+        };
+        uint64_t proc_chain[4];
+    };
+
     target_ulong nip; /* next instruction address */
     
     uint32_t pfpfr; // Packed Floating Point Flag Register (PFPFR)
@@ -253,6 +263,7 @@ typedef struct {
     uint32_t fpsr; // Floating point state register (FPSR)
 
     int interrupt_index;
+    uint32_t is_bp; /* breakpoint flag */
 
     /* Fields up to this point are cleared by a CPU reset */
     struct {} end_reset_fields;
@@ -340,26 +351,35 @@ static inline void e2k_state_ps_ind_set(CPUE2KState *env, size_t ind)
     env->psp_hi = SET_FIELD(env->psp_hi, ind, PSP_HI_IND_OFF, PSP_HI_IND_LEN);
 }
 
-static inline int e2k_state_wbs_get(CPUE2KState *env)
+static inline int e2k_state_cr1_wbs_get(CPUE2KState *env)
 {
     return GET_FIELD(env->cr1_lo, CR1_LO_WBS_OFF, CR1_LO_WBS_END);
 }
 
-static inline void e2k_state_wbs_set(CPUE2KState *env, int wbs)
+static inline void e2k_state_cr1_wbs_set(CPUE2KState *env, int wbs)
 {
-    env->cr1_lo = SET_FIELD(env->cr1_lo, wbs,
-        CR1_LO_WBS_OFF, CR1_LO_WBS_LEN);
+    env->cr1_lo = SET_FIELD(env->cr1_lo, wbs, CR1_LO_WBS_OFF, CR1_LO_WBS_LEN);
 }
 
-static inline int e2k_state_wpsz_get(CPUE2KState *env)
+static inline int e2k_state_cr1_wpsz_get(CPUE2KState *env)
 {
     return GET_FIELD(env->cr1_lo, CR1_LO_WPSZ_OFF, CR1_LO_WPSZ_END);
 }
 
-static inline void e2k_state_wpsz_set(CPUE2KState *env, int wsz)
+static inline void e2k_state_cr1_wpsz_set(CPUE2KState *env, int wpsz)
 {
-    env->cr1_lo = SET_FIELD(env->cr1_lo, wsz,
-        CR1_LO_WPSZ_OFF, CR1_LO_WPSZ_LEN);
+    env->cr1_lo = SET_FIELD(env->cr1_lo, wpsz, CR1_LO_WPSZ_OFF,
+        CR1_LO_WPSZ_LEN);
+}
+
+static inline uint32_t e2k_state_cr1_br_get(CPUE2KState *env)
+{
+    return GET_FIELD(env->cr1_hi, CR1_HI_BR_OFF, CR1_HI_BR_END);
+}
+
+static inline void e2k_state_cr1_br_set(CPUE2KState *env, uint32_t br)
+{
+    env->cr1_hi = SET_FIELD(env->cr1_hi, br, CR1_HI_BR_OFF, CR1_HI_BR_LEN);
 }
 
 typedef CPUE2KState CPUArchState;

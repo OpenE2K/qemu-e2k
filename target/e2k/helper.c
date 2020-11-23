@@ -16,41 +16,37 @@ static inline void reset_ctprs(CPUE2KState *env)
     }
 }
 
-void helper_save_cpu_state(CPUE2KState *env)
+static inline void save_br_state(CPUE2KState *env)
 {
-    uint32_t br = 0;
+    int rbs, rsz, rcur;
 
-    br = SET_FIELD(br, env->boff / 2, BR_RBS_OFF, BR_RBS_LEN);
-    br = SET_FIELD(br, (env->bsize - 2) / 2, BR_RSZ_OFF, BR_RSZ_LEN);
-    br = SET_FIELD(br, env->bcur / 2, BR_RCUR_OFF, BR_RCUR_LEN);
-    br = SET_FIELD(br, env->psize, BR_PSZ_OFF, BR_PSZ_LEN);
-    br = SET_FIELD(br, env->pcur, BR_PCUR_OFF, BR_PCUR_LEN);
+    rbs = env->boff / 2;
+    rsz = (env->bsize - 2) / 2;
+    rcur = env->bcur / 2;
 
-    env->cr1_hi = SET_FIELD(env->cr1_hi, br, CR1_HI_BR_OFF + BR_BN_OFF,
-        BR_BN_LEN);
+    env->br = SET_FIELD(env->br, rbs, BR_RBS_OFF, BR_RBS_LEN);
+    env->br = SET_FIELD(env->br, rsz, BR_RSZ_OFF, BR_RSZ_LEN);
+    env->br = SET_FIELD(env->br, rcur, BR_RCUR_OFF, BR_RCUR_LEN);
+    env->br = SET_FIELD(env->br, env->psize, BR_PSZ_OFF, BR_PSZ_LEN);
+    env->br = SET_FIELD(env->br, env->pcur, BR_PCUR_OFF, BR_PCUR_LEN);
 
-    env->cr1_lo = SET_FIELD(env->cr1_lo, env->wd_psize / 2,
-        CR1_LO_WPSZ_OFF, CR1_LO_WPSZ_LEN);
+    e2k_state_cr1_br_set(env, env->br);
 }
 
 static inline void restore_br_state(CPUE2KState *env)
 {
-    uint32_t br;
-    int rbs, rsz, rcur, psz, pcur;
+    int rbs, rsz, rcur;
 
-    // FIXME: cr1_hi.br does not modified after return, find a way to restore it
-    br = GET_FIELD(env->cr1_hi, CR1_HI_BR_OFF, CR1_HI_BR_LEN);
-    rbs = GET_FIELD(br, BR_RBS_OFF, BR_RBS_END);
-    rsz = GET_FIELD(br, BR_RSZ_OFF, BR_RSZ_END);
-    rcur = GET_FIELD(br, BR_RCUR_OFF, BR_RCUR_END);
-    psz = GET_FIELD(br, BR_PSZ_OFF, BR_PSZ_END);
-    pcur = GET_FIELD(br, BR_PCUR_OFF, BR_PCUR_END);
+    env->br = e2k_state_cr1_br_get(env);
+    rbs = GET_FIELD(env->br, BR_RBS_OFF, BR_RBS_END);
+    rsz = GET_FIELD(env->br, BR_RSZ_OFF, BR_RSZ_END);
+    rcur = GET_FIELD(env->br, BR_RCUR_OFF, BR_RCUR_END);
 
     env->boff = rbs * 2;
     env->bsize = rsz * 2 + 2;
     env->bcur = rcur * 2;
-    env->psize = psz;
-    env->pcur = pcur;
+    env->psize = GET_FIELD(env->br, BR_PSZ_OFF, BR_PSZ_END);
+    env->pcur = GET_FIELD(env->br, BR_PCUR_OFF, BR_PCUR_END);
 }
 
 void helper_unimpl(CPUE2KState *env)
@@ -61,63 +57,45 @@ void helper_unimpl(CPUE2KState *env)
     cpu_loop_exit(cs);
 }
 
-void helper_raise_exception(CPUE2KState *env, int tt)
-{
-    CPUState *cs = env_cpu(env);
-    helper_save_cpu_state(env);
-    cs->exception_index = tt;
-    cpu_loop_exit(cs);
-}
-
-void helper_debug(CPUE2KState *env)
-{
-    CPUState *cs = env_cpu(env);
-    helper_save_cpu_state(env);
-    cs->exception_index = EXCP_DEBUG;
-    cpu_loop_exit(cs);
-}
-
-static void pcs_push(CPUE2KState *env)
+static void pcs_push(CPUE2KState *env, int wbs)
 {
     size_t size = e2k_state_pcs_size_get(env);
     size_t offset = e2k_state_pcs_index_get(env);
-    uint64_t *pcsp = (uint64_t *) (e2k_state_pcs_base_get(env) + offset);
+    void *pcsp = (void*) e2k_state_pcs_base_get(env) + offset;
 
     if (offset + 32 > size) {
         /* TODO: allocate more memory */
         abort();
     }
 
-    memcpy(pcsp, &env->pf, 8);
-    memcpy(pcsp + 1, &env->nip, 8);
-    memcpy(pcsp + 2, &env->cr1_lo, 8);
-    memcpy(pcsp + 3, &env->cr1_hi, 8);
+    save_br_state(env);
+    e2k_state_cr1_wpsz_set(env, env->wd_psize / 2);
+    memcpy(pcsp, env->proc_chain, 32);
+    e2k_state_cr1_wbs_set(env, wbs);
 
     e2k_state_pcs_index_set(env, offset + 32);
 }
 
-static uint64_t pcs_pop(CPUE2KState *env)
+static void pcs_pop(CPUE2KState *env)
 {
     size_t offset = e2k_state_pcs_index_get(env);
-    uint64_t *pcsp = (uint64_t *) (e2k_state_pcs_base_get(env) + offset - 32);
-    uint64_t tgt;
+    void *pcsp = (void*) e2k_state_pcs_base_get(env) + offset - 32;
 
     if (offset < 32) {
         /* TODO: SIGKILL */
         abort();
     }
 
-    memcpy(&env->pf, pcsp, 8);
-    memcpy(&tgt, pcsp + 1, 8);
-    memcpy(&env->cr1_lo, pcsp + 2, 8);
-    memcpy(&env->cr1_hi, pcsp + 3, 8);
+    memcpy(&env->proc_chain, pcsp, 32);
+
+    // TODO: restore wbs (after pshtp implemented)
+    env->wd_psize = e2k_state_cr1_wpsz_get(env) * 2;
+    restore_br_state(env);
 
     e2k_state_pcs_index_set(env, offset - 32);
-
-    return tgt;
 }
 
-static void ps_push(CPUE2KState *env, unsigned int wbs, size_t len)
+static void ps_push(CPUE2KState *env, unsigned int wd_base, size_t len)
 {
     unsigned int i;
     size_t index = e2k_state_ps_ind_get(env);
@@ -127,14 +105,14 @@ static void ps_push(CPUE2KState *env, unsigned int wbs, size_t len)
     /* TODO: stack overflow */
 
     for (i = 0; i < len; i++) {
-        uint64_t reg = env->wregs[(wbs + i) % WREGS_SIZE];
+        uint64_t reg = env->wregs[(wd_base + i) % WREGS_SIZE];
         memcpy(p + i, &reg, sizeof(uint64_t));
     }
 
     e2k_state_ps_ind_set(env, index + len * sizeof(uint64_t));
 }
 
-static void ps_pop(CPUE2KState *env, unsigned int wbs, size_t len)
+static void ps_pop(CPUE2KState *env, unsigned int wd_base, size_t len)
 {
     unsigned int i;
     size_t index = e2k_state_ps_ind_get(env) - len * sizeof(uint64_t);
@@ -144,7 +122,7 @@ static void ps_pop(CPUE2KState *env, unsigned int wbs, size_t len)
     /* TODO: stack overflow */
 
     for (i = 0; i < len; i++) {
-        uint64_t *reg = &env->wregs[(wbs + i) % WREGS_SIZE];
+        uint64_t *reg = &env->wregs[(wd_base + i) % WREGS_SIZE];
         memcpy(reg, p + i, sizeof(uint64_t));
     }
 
@@ -155,23 +133,21 @@ static inline void do_call(CPUE2KState *env, int call_wbs)
 {
     int call_wpsz = env->wd_size / 2 - call_wbs;
 
-    helper_save_cpu_state(env);
-    pcs_push(env);
+    env->ip = env->nip;
+    pcs_push(env, call_wbs);
     ps_push(env, env->wd_base, call_wbs * 2);
 
-    e2k_state_wbs_set(env, call_wbs);
     env->wd_base = (env->wd_base + call_wbs * 2) % WREGS_SIZE;
     env->wd_size = env->wd_psize = call_wpsz * 2;
 
     reset_ctprs(env);
 }
 
-target_ulong helper_return(CPUE2KState *env)
+void helper_return(CPUE2KState *env)
 {
-    int new_wd_size, new_wd_base, wbs;
-    target_ulong tgt;
+    uint32_t new_wd_size, new_wd_base, wbs;
 
-    wbs = GET_FIELD(env->cr1_lo, CR1_LO_WBS_OFF, CR1_LO_WBS_END);
+    wbs = e2k_state_cr1_wbs_get(env);
     new_wd_size = env->wd_psize + wbs * 2;
     new_wd_base = (env->wd_base - wbs * 2) % WREGS_SIZE;
 
@@ -179,18 +155,13 @@ target_ulong helper_return(CPUE2KState *env)
         env->wd_base += WREGS_SIZE;
     }
 
-    tgt = pcs_pop(env);
-
     ps_pop(env, new_wd_base, env->wd_base - new_wd_base);
+    pcs_pop(env);
 
     env->wd_base = new_wd_base;
     env->wd_size = new_wd_size;
-    env->wd_psize = GET_FIELD(env->cr1_lo, CR1_LO_WPSZ_OFF, CR1_LO_WPSZ_END) * 2;
 
-    restore_br_state(env);
     reset_ctprs(env);
-
-    return tgt;
 }
 
 static inline void do_syscall(CPUE2KState *env, int call_wbs)
@@ -206,19 +177,81 @@ target_ulong helper_call(CPUE2KState *env, uint64_t ctpr,
 {
     int ctpr_tag = GET_FIELD(ctpr, CTPR_TAG_OFF, CTPR_TAG_END);
 
-    helper_save_cpu_state(env);
-
     switch (ctpr_tag) {
     case CTPR_TAG_DISP:
         do_call(env, call_wbs);
         return GET_FIELD(ctpr, CTPR_BASE_OFF, CTPR_BASE_END);
     case CTPR_TAG_SDISP:
         do_syscall(env, call_wbs);
-        return env->nip;
+        return env->ip;
     default:
         helper_raise_exception(env, E2K_EXCP_UNIMPL);
-        return env->nip;
+        return env->ip;
     }
+}
+
+void helper_raise_exception(CPUE2KState *env, int tt)
+{
+    CPUState *cs = env_cpu(env);
+    save_br_state(env);
+    cs->exception_index = tt;
+    cpu_loop_exit(cs);
+}
+
+static void break_save_ps(CPUE2KState *env)
+{
+    unsigned int i;
+    unsigned int wd_base = env->wd_base;
+    unsigned int len = env->wd_size;
+    size_t index = e2k_state_ps_ind_get(env);
+    uint64_t *p = (uint64_t*) (e2k_state_ps_base_get(env) + index);
+
+    /* TODO: stack overflow */
+
+    for (i = 0; i < len; i += 2) {
+        uint64_t t[2] = { 0 };
+        uint64_t *reg = &env->wregs[(wd_base + i) % WREGS_SIZE];
+        memcpy(p + i * 2, reg, 2 * sizeof(uint64_t));
+        memcpy(p + i * 2 + 2, t, 2 * sizeof(uint64_t)); // TODO: fx part
+    }
+
+    e2k_state_ps_ind_set(env, index + len * 2 * sizeof(uint64_t));
+}
+
+static void break_save_state(CPUE2KState *env)
+{
+    break_save_ps(env);
+    pcs_push(env, env->wd_size / 2);
+
+    env->wd_base = (env->wd_base + env->wd_size) % WREGS_SIZE;
+    env->wd_size = 0;
+    env->wd_psize = 0;
+
+    env->is_bp = true;
+}
+
+void helper_break_restore_state(CPUE2KState *env)
+{
+    size_t index;
+    int wbs;
+
+    wbs = e2k_state_cr1_wbs_get(env);
+    pcs_pop(env);
+    env->wd_size = wbs * 2;
+    env->wd_base = (env->wd_base - env->wd_size) % WREGS_SIZE;
+
+    index = e2k_state_ps_ind_get(env);
+    e2k_state_ps_ind_set(env, index - env->wd_size * 2 * sizeof(uint64_t));
+
+    env->is_bp = false;
+}
+
+void helper_debug(CPUE2KState *env)
+{
+    CPUState *cs = env_cpu(env);
+    break_save_state(env);
+    cs->exception_index = EXCP_DEBUG;
+    cpu_loop_exit(cs);
 }
 
 uint64_t helper_sxt(uint64_t x, uint64_t y)
@@ -288,8 +321,7 @@ void helper_state_reg_set(CPUE2KState *env, int reg, uint64_t val)
         env->lsr = val;
         break;
     default:
-        /* TODO: exception */
-        abort();
+        helper_raise_exception(env, E2K_EXCP_ILLOPC);
         break;
     }
 }
