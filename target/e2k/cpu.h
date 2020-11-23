@@ -186,6 +186,31 @@ void e2k_tcg_initialize(void);
 #define LSR_STRMD_LEN (LSR_STRMD_END - LSR_STRMD_OFF + 1)
 #define LSR_SEMC_OFF        /* side effects manual control */
 
+#define UPSR_FE_OFF 0 /* floating point enable */
+#define UPSR_FE_BIT 1
+#define UPSR_SE_OFF 1 /* supervisor mode enable (only for Intel) */
+#define UPSR_SE_BIT (1 << UPSR_SE_OFF)
+#define UPSR_AC_OFF 2 /* not-aligned access control */
+#define UPSR_AC_BIT (1 << UPSR_AC_OFF)
+#define UPSR_DI_OFF 3 /* delayed interrupt (only for Intel) */
+#define UPSR_DI_BIT (1 << UPSR_DI_OFF)
+#define UPSR_WP_OFF 4 /* write protection (only for Intel) */
+#define UPSR_WP_BIT (1 << UPSR_WP_OFF)
+#define UPSR_IE_OFF 5 /* interrupt enable */
+#define UPSR_IE_BIT (1 << UPSR_IE_OFF)
+#define UPSR_A20_OFF 6 /* emulation of 1 Mb memory (only for Intel) */
+#define UPSR_A20_BIT (1 << UPSR_A20_OFF)
+#define UPSR_NMIE_OFF 7 /* not masked interrupt enable */
+#define UPSR_NMIE_BIT (1 << UPSR_NMIE_OFF)
+/* next field of register exist only on E3S/ES2/E2S/E8C/E1C+ CPUs */
+#define UPSR_FSM_OFF 8 /* floating comparison mode flag */
+                       /* 1 - compatible with x86/x87 */
+#define UPSR_FSM_BIT (1 << UPSR_FSM_OFF)
+#define UPSR_IMPT_OFF 9 /* ignore Memory Protection Table flag */
+#define UPSR_IMPT_BIT (1 << UPSR_IMPT_OFF)
+#define UPSR_IUC_OFF 10 /* ignore access right for uncached pages */
+#define UPSR_IUC_BIT (1 << UPSR_IUC_OFF)
+
 typedef enum {
     E2K_EXCP_UNIMPL = 0x01,
     E2K_EXCP_SYSCALL = 0x02,
@@ -252,6 +277,8 @@ typedef struct {
 
     target_ulong nip; /* next instruction address */
     
+    uint32_t upsr;
+
     uint32_t pfpfr; // Packed Floating Point Flag Register (PFPFR)
     uint32_t fpcr; // Floating point control register (FPCR)
     uint32_t fpsr; // Floating point state register (FPSR)
