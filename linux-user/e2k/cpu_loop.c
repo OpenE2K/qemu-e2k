@@ -45,7 +45,7 @@ void cpu_loop(CPUE2KState *env)
             queue_signal(env, info.si_signo, QEMU_SI_KILL, &info);
             break;
         case E2K_EXCP_SYSCALL: {
-            int wbs = e2k_state_wbs_get(env);
+            int wbs = e2k_state_cr1_wbs_get(env);
             int offset = wbs * 2;
             uint64_t *regs = env->wregs;
             abi_ulong ret = do_syscall(env,
