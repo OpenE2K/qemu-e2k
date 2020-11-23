@@ -43,7 +43,7 @@ int e2k_cpu_gdb_read_register(CPUState *cs, GByteArray *mem_buf, int n)
     
     switch (n) {
     case 35: return gdb_get_reg64(mem_buf, 0); // psr
-    case 36: return gdb_get_reg64(mem_buf, 0); // upsr
+    case 36: return gdb_get_reg64(mem_buf, env->upsr); // upsr
     case 37: return gdb_get_reg64(mem_buf, 0); // oscud_lo
     case 38: return gdb_get_reg64(mem_buf, 0); // oscud_hi
     case 39: return gdb_get_reg64(mem_buf, 0); // osgd_lo
