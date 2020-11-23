@@ -367,7 +367,7 @@ static void gen_cs1(DisasContext *dc)
                 int wsz = GET_FIELD(lts0, 5, 11);
                 TCGv_i32 t0 = tcg_const_i32(lts0);
 
-                tcg_gen_movi_i32(e2k_cs.wsize, wsz * 2);
+                tcg_gen_movi_i32(e2k_cs.wd_size, wsz * 2);
 
                 tcg_temp_free_i32(t0);
             }

@@ -65,8 +65,8 @@ typedef struct CPUE2KStateTCG {
     TCGv_i64 wregs[WREGS_SIZE];
     TCGv_i64 gregs[GREGS_SIZE];
     TCGv_ptr wptr; /* pointer to wregs */
-    TCGv_i32 woff; /* holds wbs * 2 */
-    TCGv_i32 wsize; /* holds wsz * 2 */
+    TCGv_i32 wd_base; /* holds wbs * 2 */
+    TCGv_i32 wd_size; /* holds wsz * 2 */
     TCGv_i32 boff; /* holds rbs * 2 */
     TCGv_i32 bsize; /* holds rsz * 2 + 2 */
     TCGv_i32 bcur; /* holds rcur * 2 */

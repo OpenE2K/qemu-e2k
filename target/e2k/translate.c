@@ -324,6 +324,7 @@ static inline void do_branch(DisasContext *ctx)
     TCGLabel *l0;
 
     if (ctx->ct.type == CT_NONE) {
+        tcg_gen_movi_tl(e2k_cs.pc, ctx->npc);
         return;
     }
 
@@ -334,12 +335,16 @@ static inline void do_branch(DisasContext *ctx)
     tcg_gen_movi_tl(e2k_cs.pc, ctx->npc);
     tcg_gen_exit_tb(NULL, 0);
     gen_set_label(l0);
+    gen_save_npc(ctx->npc);
 
     switch(ctx->ct.type) {
     case CT_NONE:
         break;
     case CT_IBRANCH:
-        gen_goto_tb(ctx, 0, ctx->pc, ctx->ct.u.target);
+        // FIXME: does not work with gdb
+//        gen_goto_tb(ctx, 0, ctx->pc, ctx->ct.u.target);
+        tcg_gen_movi_tl(e2k_cs.pc, ctx->ct.u.target);
+        tcg_gen_exit_tb(NULL, 0);
         break;
     case CT_JUMP: {
         TCGLabel *l0 = gen_new_label();
@@ -358,13 +363,13 @@ static inline void do_branch(DisasContext *ctx)
         gen_goto_ctpr_disp(ctx->ct.u.ctpr);
 
         gen_set_label(l1);
+        // FIXME: gdb does not see IP change
         gen_helper_return(cpu_env);
         tcg_gen_lookup_and_goto_ptr();
         break;
     }
     case CT_CALL: {
         TCGv_i32 wbs = tcg_const_i32(ctx->ct.wbs);
-        gen_save_npc(ctx->npc);
         gen_helper_call(e2k_cs.pc, cpu_env, ctx->ct.u.ctpr, wbs);
         tcg_temp_free_i32(wbs);
         tcg_gen_lookup_and_goto_ptr();
@@ -430,7 +435,10 @@ static void e2k_tr_tb_stop(DisasContextBase *db, CPUState *cs)
     switch(ctx->base.is_jmp) {
     case DISAS_NEXT:
     case DISAS_TOO_MANY:
-        gen_goto_tb(ctx, 0, ctx->pc, ctx->npc);
+        // FIXME: ibranch has some troubles with goto_tb in gdb
+//        gen_goto_tb(ctx, 0, ctx->pc, ctx->npc);
+        tcg_gen_movi_tl(e2k_cs.pc, ctx->npc);
+        tcg_gen_exit_tb(NULL, 0);
         break;
     case DISAS_NORETURN:
         break;
@@ -478,8 +486,8 @@ void e2k_tcg_initialize(void) {
     char buf[16] = { 0 };
 
     static const struct { TCGv_i32 *ptr; int off; const char *name; } r32[] = {
-        { &e2k_cs.woff, offsetof(CPUE2KState, wd_base), "woff" },
-        { &e2k_cs.wsize, offsetof(CPUE2KState, wd_size), "wsize" },
+        { &e2k_cs.wd_base, offsetof(CPUE2KState, wd_base), "woff" },
+        { &e2k_cs.wd_size, offsetof(CPUE2KState, wd_size), "wsize" },
         { &e2k_cs.boff, offsetof(CPUE2KState, boff), "boff" },
         { &e2k_cs.bsize, offsetof(CPUE2KState, bsize), "bsize" },
         { &e2k_cs.bcur, offsetof(CPUE2KState, bcur), "bcur" },
