@@ -445,6 +445,23 @@ static void gen_alopf1_mrgc_i64(DisasContext *dc, int chan)
     tcg_temp_free_i64(cond);
 }
 
+static TCGCond e2k_gen_cmp_op(unsigned int cmp_op)
+{
+    switch(cmp_op) {
+    case 0: gen_helper_unimpl(cpu_env); break;
+    case 1: return TCG_COND_LTU; break;
+    case 2: return TCG_COND_EQ; break;
+    case 3: return TCG_COND_LEU; break;
+    case 4: gen_helper_unimpl(cpu_env); break;
+    case 5: gen_helper_unimpl(cpu_env); break;
+    case 6: return TCG_COND_LT; break;
+    case 7: return TCG_COND_LE; break;
+    default: g_assert_not_reached(); break;
+    }
+
+    return TCG_COND_NEVER; /* unreachable */
+}
+
 static void execute_alopf_simple(DisasContext *dc, int chan)
 {
     uint32_t als = dc->bundle.als[chan];
@@ -482,26 +499,37 @@ static void execute_alopf_simple(DisasContext *dc, int chan)
     case 0x1d: /* sard */ gen_alopf1_i64(dc, chan, tcg_gen_sar_i64); break;
     case 0x1e: /* TODO: getfs */ gen_helper_unimpl(cpu_env); break;
     case 0x1f: /* TODO: getfd */ gen_helper_unimpl(cpu_env); break;
+    case 0x20: { // cmp{op}sb
+        TCGv_i64 s1 = get_src1(dc, als);
+        TCGv_i64 s2 = get_src2(dc, als);
+        TCGv_i64 dst64 = e2k_get_temp_i64(dc);
+        TCGv_i32 dst32 = tcg_temp_new_i32();
+        TCGv_i32 lo1 = tcg_temp_new_i32();
+        TCGv_i32 lo2 = tcg_temp_new_i32();
+        TCGCond cond = e2k_gen_cmp_op(GET_FIELD(als, 5, 7));
+        Result res = { 0 };
+
+        tcg_gen_extrl_i64_i32(lo1, s1);
+        tcg_gen_extrl_i64_i32(lo2, s2);
+        tcg_gen_setcond_i32(cond, dst32, lo1, lo2);
+        tcg_gen_extu_i32_i64(dst64, dst32); 
+        
+        res.tag = RESULT_PREG;
+        res.u.reg.i = als & 0x1f;
+        res.u.reg.v = dst64;
+
+        dc->alc[chan] = res;
+    
+        tcg_temp_free_i32(lo2);
+        tcg_temp_free_i32(lo1);
+        tcg_temp_free_i32(dst32);
+    }
     case 0x21: { // cmp{op}db
         TCGv_i64 cpu_src1 = get_src1(dc, als);
         TCGv_i64 cpu_src2 = get_src2(dc, als);
         TCGv_i64 tmp_dst = e2k_get_temp_i64(dc);
-        TCGCond cond = TCG_COND_NEVER;
+        TCGCond cond = e2k_gen_cmp_op(GET_FIELD(als, 5, 7));
         Result res = { 0 };
-
-        unsigned int cmp_op = GET_FIELD(als, 5, 7);
-        // TODO: move to separate function
-        switch(cmp_op) {
-        case 0: gen_helper_unimpl(cpu_env); break;
-        case 1: cond = TCG_COND_LTU; break;
-        case 2: cond = TCG_COND_EQ; break;
-        case 3: cond = TCG_COND_LEU; break;
-        case 4: gen_helper_unimpl(cpu_env); break;
-        case 5: gen_helper_unimpl(cpu_env); break;
-        case 6: cond = TCG_COND_LT; break;
-        case 7: cond = TCG_COND_LE; break;
-        default: g_assert_not_reached(); break;
-        }
 
         tcg_gen_setcond_i64(cond, tmp_dst, cpu_src1, cpu_src2);
 
