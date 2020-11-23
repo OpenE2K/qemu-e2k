@@ -43,9 +43,17 @@ static void e2k_cpu_reset(DeviceState *dev)
     memset(env, 0, offsetof(CPUE2KState, end_reset_fields));
 
     env->wptr = &env->wregs[0];
+
+    // FIXME: testing
+    env->cr1_lo = 0x4dUL << 56; // FIXME: some flags for testing
+    env->cr1_lo = SET_FIELD(env->cr1_lo, 4, CR1_LO_WPSZ_OFF, CR1_LO_WPSZ_LEN);
+    env->cr1_lo = SET_FIELD(env->cr1_lo, 4, CR1_LO_WBS_OFF, CR1_LO_WBS_LEN);
     env->wd_base = 0;
     env->wd_size = 8;
     env->wd_psize = 8;
+    env->boff = 8;
+    env->bsize = 8;
+    env->bcur = 0;
 }
 
 static bool e2k_cpu_exec_interrupt(CPUState *cs, int interrupt_request)

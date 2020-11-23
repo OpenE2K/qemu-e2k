@@ -199,7 +199,6 @@ static inline void gen_save_cpu_state(DisasContext *ctx)
 {
     gen_save_pc(ctx->pc);
     gen_save_npc(ctx->npc);
-    gen_helper_save_cpu_state(cpu_env);
 }
 
 static inline bool use_goto_tb(DisasContext *s, target_ulong pc,
@@ -353,18 +352,18 @@ static inline void do_branch(DisasContext *ctx)
 
     switch(ctx->ct.type) {
     case CT_IBRANCH:
-        // TODO: goto_tb
         gen_goto_tb(ctx, 0, ctx->pc, ctx->ct.u.target);
         break;
     case CT_JUMP: {
         TCGLabel *l0 = gen_new_label();
         TCGLabel *l1 = gen_new_label();
-        TCGv_i64 t0 = tcg_temp_new_i64();
+        TCGv_i64 t0 = tcg_temp_local_new_i64();
 
         gen_ctpr_tag(t0, ctx->ct.u.ctpr);
         tcg_gen_brcondi_i64(TCG_COND_EQ, t0, CTPR_TAG_DISP, l0);
-        gen_ctpr_tag(t0, ctx->ct.u.ctpr);
         tcg_gen_brcondi_i64(TCG_COND_EQ, t0, CTPR_TAG_RETURN, l1);
+        tcg_temp_free_i64(t0);
+
         // TODO: ldisp, sdisp
         e2k_gen_exception(ctx, E2K_EXCP_UNIMPL);
 
@@ -372,16 +371,13 @@ static inline void do_branch(DisasContext *ctx)
         gen_goto_ctpr_disp(ctx->ct.u.ctpr);
 
         gen_set_label(l1);
-        gen_save_cpu_state(ctx);
-        gen_helper_return(e2k_cs.pc, cpu_env);
+        gen_helper_return(cpu_env);
         tcg_gen_lookup_and_goto_ptr();
-
-        tcg_temp_free_i64(t0);
         break;
     }
     case CT_CALL: {
         TCGv_i32 wbs = tcg_const_i32(ctx->ct.wbs);
-        gen_save_cpu_state(ctx);
+        gen_save_npc(ctx->npc);
         gen_helper_call(e2k_cs.pc, cpu_env, ctx->ct.u.ctpr, wbs);
         tcg_temp_free_i32(wbs);
         tcg_gen_lookup_and_goto_ptr();
@@ -423,7 +419,7 @@ static bool e2k_tr_breakpoint_check(DisasContextBase *db, CPUState *cs,
 
 static void e2k_tr_tb_start(DisasContextBase *db, CPUState *cs)
 {
-    DisasContext *ctx = container_of(db, DisasContext, base);
+//    DisasContext *ctx = container_of(db, DisasContext, base);
 
     tcg_gen_movi_tl(e2k_cs.ct_cond, 1);
 }
@@ -437,6 +433,11 @@ static void e2k_tr_insn_start(DisasContextBase *db, CPUState *cs)
 static void e2k_tr_translate_insn(DisasContextBase *db, CPUState *cs)
 {
     DisasContext *ctx = container_of(db, DisasContext, base);
+    TCGLabel *l0 = gen_new_label();
+
+    tcg_gen_brcondi_i32(TCG_COND_EQ, e2k_cs.is_bp, 0, l0);
+    gen_helper_break_restore_state(cpu_env);
+    gen_set_label(l0);
 
     do_decode(ctx, cs);
     do_execute(ctx);
@@ -464,7 +465,6 @@ static void e2k_tr_tb_stop(DisasContextBase *db, CPUState *cs)
     switch(ctx->base.is_jmp) {
     case DISAS_NEXT:
     case DISAS_TOO_MANY:
-        gen_helper_save_cpu_state(cpu_env);
         gen_goto_tb(ctx, 0, ctx->pc, ctx->npc);
         break;
     case DISAS_NORETURN:
@@ -520,6 +520,7 @@ void e2k_tcg_initialize(void) {
         { &e2k_cs.bcur, offsetof(CPUE2KState, bcur), "bcur" },
         { &e2k_cs.psize, offsetof(CPUE2KState, psize), "psize" },
         { &e2k_cs.pcur, offsetof(CPUE2KState, pcur), "pcur" },
+        { &e2k_cs.is_bp, offsetof(CPUE2KState, is_bp), "is_bp" },
     };
 
     static const struct { TCGv_i64 *ptr; int off; const char *name; } r64[] = {
