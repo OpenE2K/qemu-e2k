@@ -293,6 +293,8 @@ uint64_t helper_state_reg_get(CPUE2KState *env, int reg)
         return env->usd_hi;
     case 0x2d: /* %usd.lo */
         return env->usd_lo;
+    case 0x80: /* %upsr */
+        return env->upsr;
     case 0x81: /* %ip */
         return env->ip;
     case 0x83: /* %lsr */
@@ -315,6 +317,9 @@ void helper_state_reg_set(CPUE2KState *env, int reg, uint64_t val)
     case 0x2d: /* %usd.lo */
         /* FIXME: user cannot write */
         env->usd_lo = val;
+        break;
+    case 0x80: /* %upsr */
+        env->upsr = val;
         break;
     case 0x83: /* %lsr */
         env->lsr = val;
