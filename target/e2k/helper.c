@@ -291,17 +291,17 @@ uint64_t helper_state_reg_get(CPUE2KState *env, int reg)
     switch (reg) {
     case 0x2c: /* %usd.hi */
         return env->usd_hi;
-        break;
     case 0x2d: /* %usd.lo */
         return env->usd_lo;
-        break;
+    case 0x81: /* %ip */
+        return env->ip;
     case 0x83: /* %lsr */
         return env->lsr;
-        break;
     default:
         /* TODO: exception */
+        qemu_log_mask(LOG_UNIMP, "unknown register 0x%x\n", reg);
         abort();
-        break;
+        return 0; /* unreachable */
     }
 }
 
@@ -320,6 +320,7 @@ void helper_state_reg_set(CPUE2KState *env, int reg, uint64_t val)
         env->lsr = val;
         break;
     default:
+        qemu_log_mask(LOG_UNIMP, "unknown register 0x%x\n", reg);
         helper_raise_exception(env, E2K_EXCP_ILLOPC);
         break;
     }
