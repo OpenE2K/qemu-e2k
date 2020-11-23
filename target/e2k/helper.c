@@ -299,6 +299,8 @@ uint64_t helper_state_reg_get(CPUE2KState *env, int reg)
         return env->ip;
     case 0x83: /* %lsr */
         return env->lsr;
+    case 0x8a: /* %idr */
+        return env->idr;
     default:
         /* TODO: exception */
         qemu_log_mask(LOG_UNIMP, "unknown register 0x%x\n", reg);
