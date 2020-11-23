@@ -70,7 +70,7 @@ static void pcs_push(CPUE2KState *env, int wbs)
 
     save_br_state(env);
     e2k_state_cr1_wpsz_set(env, env->wd_psize / 2);
-    memcpy(pcsp, env->proc_chain, 32);
+    memcpy(pcsp, &env->proc_chain[0], 32);
     e2k_state_cr1_wbs_set(env, wbs);
 
     e2k_state_pcs_index_set(env, offset + 32);
@@ -86,7 +86,7 @@ static void pcs_pop(CPUE2KState *env)
         abort();
     }
 
-    memcpy(&env->proc_chain, pcsp, 32);
+    memcpy(&env->proc_chain[0], pcsp, 32);
 
     // TODO: restore wbs (after pshtp implemented)
     env->wd_psize = e2k_state_cr1_wpsz_get(env) * 2;
@@ -166,10 +166,9 @@ void helper_return(CPUE2KState *env)
 
 static inline void do_syscall(CPUE2KState *env, int call_wbs)
 {
-    do_call(env, call_wbs);
-    helper_raise_exception(env, E2K_EXCP_SYSCALL);
-    helper_return(env);
+    env->syscall_wbs = call_wbs;
     reset_ctprs(env);
+    helper_raise_exception(env, E2K_EXCP_SYSCALL);
 }
 
 target_ulong helper_call(CPUE2KState *env, uint64_t ctpr,

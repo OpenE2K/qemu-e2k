@@ -264,6 +264,7 @@ typedef struct {
 
     int interrupt_index;
     uint32_t is_bp; /* breakpoint flag */
+    int syscall_wbs; // FIXME: temp for syscall
 
     /* Fields up to this point are cleared by a CPU reset */
     struct {} end_reset_fields;

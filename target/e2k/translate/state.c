@@ -94,7 +94,7 @@ static inline void gen_wreg_index(TCGv_i32 ret, int reg)
     TCGv_i32 t1 = tcg_const_i32(WREGS_SIZE);
 
     /* TODO: exception if overflow window size */
-    tcg_gen_addi_i32(t0, e2k_cs.woff, reg);
+    tcg_gen_addi_i32(t0, e2k_cs.wd_base, reg);
     tcg_gen_remu_i32(ret, t0, t1);
 
     tcg_temp_free_i32(t1);
@@ -151,7 +151,7 @@ static inline void gen_breg_index(TCGv_i32 ret, int reg)
     tcg_gen_addi_i32(t0, e2k_cs.bcur, reg);
     tcg_gen_remu_i32(t1, t0, e2k_cs.bsize);
     tcg_gen_add_i32(t2, t1, e2k_cs.boff);
-    tcg_gen_add_i32(t3, t2, e2k_cs.woff);
+    tcg_gen_add_i32(t3, t2, e2k_cs.wd_base);
     tcg_gen_remu_i32(ret, t3, t4);
 
     tcg_temp_free_i32(t4);
