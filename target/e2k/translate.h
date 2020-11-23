@@ -181,68 +181,6 @@ static inline TCGv e2k_get_temp(DisasContext *dc)
     return dc->ttl[dc->ttl_len++] = tcg_temp_local_new();
 }
 
-// FIXME: x must not be greater than y * 2
-static inline void e2k_gen_wrap_i32(TCGv_i32 ret, TCGv_i32 x, TCGv_i32 y)
-{
-    TCGv_i32 t0 = tcg_temp_new_i32();
-
-    tcg_gen_sub_i32(t0, x, y);
-    tcg_gen_movcond_i32(TCG_COND_LTU, ret, x, y, x, t0);
-
-    tcg_temp_free_i32(t0);
-}
-
-// FIXME: x must not be greater than y * 2
-static inline void e2k_gen_wrapi_i32(TCGv_i32 ret, TCGv_i32 x, uint32_t y)
-{
-    TCGv_i32 t0 = tcg_temp_new_i32();
-    TCGv_i32 t1 = tcg_const_i32(y);
-
-    tcg_gen_sub_i32(t0, x, t1);
-    tcg_gen_movcond_i32(TCG_COND_LTU, ret, x, t1, x, t0);
-
-    tcg_temp_free_i32(t1);
-    tcg_temp_free_i32(t0);
-}
-
-// FIXME: x must not be greater than y * 2
-static inline void e2k_gen_wrap_i64(TCGv_i64 ret, TCGv_i64 x, TCGv_i64 y)
-{
-    TCGv_i64 t0 = tcg_temp_new_i64();
-
-    tcg_gen_sub_i64(t0, x, y);
-    tcg_gen_movcond_i64(TCG_COND_LTU, ret, x, y, x, t0);
-
-    tcg_temp_free_i64(t0);
-}
-
-static inline void e2k_gen_get_field_i64(TCGv_i64 ret, TCGv_i64 val,
-    unsigned int start, unsigned int end)
-{
-    TCGv_i64 t0 = tcg_temp_new_i64();
-
-    tcg_gen_andi_i64(t0, val, GEN_MASK(start, end));
-    tcg_gen_shli_i64(ret, t0, start);
-
-    tcg_temp_free_i64(t0);
-}
-
-static inline void e2k_gen_set_field_i64(TCGv_i64 ret, TCGv_i64 val,
-    uint64_t field, unsigned int start, unsigned int end)
-{
-    uint64_t mask = GEN_MASK(start, end);
-    TCGv_i64 t0 = tcg_const_i64(~mask);
-    TCGv_i64 t1 = tcg_const_i64((field << start) & mask);
-    TCGv_i64 t2 = tcg_temp_new_i64();
-
-    tcg_gen_and_i64(t2, val, t0);
-    tcg_gen_or_i64(ret, t2, t1);
-
-    tcg_temp_free_i64(t2);
-    tcg_temp_free_i64(t1);
-    tcg_temp_free_i64(t0);
-}
-
 static inline void e2k_gen_lcnt(TCGv_i64 ret)
 {
     tcg_gen_andi_i64(ret, e2k_cs.lsr, (1UL << 32) - 1);

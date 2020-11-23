@@ -38,15 +38,15 @@ static inline void restore_br_state(CPUE2KState *env)
     int rbs, rsz, rcur;
 
     env->br = e2k_state_cr1_br_get(env);
-    rbs = GET_FIELD(env->br, BR_RBS_OFF, BR_RBS_END);
-    rsz = GET_FIELD(env->br, BR_RSZ_OFF, BR_RSZ_END);
-    rcur = GET_FIELD(env->br, BR_RCUR_OFF, BR_RCUR_END);
+    rbs = GET_FIELD(env->br, BR_RBS_OFF, BR_RBS_LEN);
+    rsz = GET_FIELD(env->br, BR_RSZ_OFF, BR_RSZ_LEN);
+    rcur = GET_FIELD(env->br, BR_RCUR_OFF, BR_RCUR_LEN);
 
     env->boff = rbs * 2;
     env->bsize = rsz * 2 + 2;
     env->bcur = rcur * 2;
-    env->psize = GET_FIELD(env->br, BR_PSZ_OFF, BR_PSZ_END);
-    env->pcur = GET_FIELD(env->br, BR_PCUR_OFF, BR_PCUR_END);
+    env->psize = GET_FIELD(env->br, BR_PSZ_OFF, BR_PSZ_LEN);
+    env->pcur = GET_FIELD(env->br, BR_PCUR_OFF, BR_PCUR_LEN);
 }
 
 void helper_unimpl(CPUE2KState *env)
@@ -174,12 +174,12 @@ static inline void do_syscall(CPUE2KState *env, int call_wbs)
 target_ulong helper_call(CPUE2KState *env, uint64_t ctpr,
     int call_wbs)
 {
-    int ctpr_tag = GET_FIELD(ctpr, CTPR_TAG_OFF, CTPR_TAG_END);
+    int ctpr_tag = GET_FIELD(ctpr, CTPR_TAG_OFF, CTPR_TAG_LEN);
 
     switch (ctpr_tag) {
     case CTPR_TAG_DISP:
         do_call(env, call_wbs);
-        return GET_FIELD(ctpr, CTPR_BASE_OFF, CTPR_BASE_END);
+        return GET_FIELD(ctpr, CTPR_BASE_OFF, CTPR_BASE_LEN);
     case CTPR_TAG_SDISP:
         do_syscall(env, call_wbs);
         return env->ip;
@@ -327,7 +327,7 @@ void helper_state_reg_set(CPUE2KState *env, int reg, uint64_t val)
 }
 
 uint64_t helper_getsp(CPUE2KState *env, uint64_t src2) {
-    uint64_t base = GET_FIELD(env->usd_lo, USD_LO_BASE_OFF, USD_LO_BASE_END);
+    uint64_t base = GET_FIELD(env->usd_lo, USD_LO_BASE_OFF, USD_LO_BASE_LEN);
 
     base += src2;
 

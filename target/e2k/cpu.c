@@ -93,20 +93,20 @@ static const struct e2k_def_t e2k_defs[] = {
 
 static inline void cpu_dump_state_wd(CPUE2KState *env, FILE *f, int flags)
 {
-    int wbs = GET_FIELD(env->cr1_lo, CR1_LO_WBS_OFF, CR1_LO_WBS_END);
-    int wsz = GET_FIELD(env->cr1_lo, CR1_LO_WPSZ_OFF, CR1_LO_WPSZ_END);
+    int wbs = GET_FIELD(env->cr1_lo, CR1_LO_WBS_OFF, CR1_LO_WBS_LEN);
+    int wsz = GET_FIELD(env->cr1_lo, CR1_LO_WPSZ_OFF, CR1_LO_WPSZ_LEN);
 
     qemu_fprintf(f, "wbs = %#x, wsz = %#x\n", wbs, wsz);
 }
 
 static inline void cpu_dump_state_br(CPUE2KState *env, FILE *f, int flags)
 {
-    uint32_t br = GET_FIELD(env->cr1_hi, CR1_HI_BR_OFF, CR1_HI_BR_END);
-    int rbs = GET_FIELD(br, BR_RBS_OFF, BR_RBS_END);
-    int rsz = GET_FIELD(br, BR_RSZ_OFF, BR_RSZ_END);
-    int rcur = GET_FIELD(br, BR_RCUR_OFF, BR_RCUR_END);
-    int psz = GET_FIELD(br, BR_PSZ_OFF, BR_PSZ_END);
-    int pcur = GET_FIELD(br, BR_PCUR_OFF, BR_PCUR_END);
+    uint32_t br = GET_FIELD(env->cr1_hi, CR1_HI_BR_OFF, CR1_HI_BR_LEN);
+    int rbs = GET_FIELD(br, BR_RBS_OFF, BR_RBS_LEN);
+    int rsz = GET_FIELD(br, BR_RSZ_OFF, BR_RSZ_LEN);
+    int rcur = GET_FIELD(br, BR_RCUR_OFF, BR_RCUR_LEN);
+    int psz = GET_FIELD(br, BR_PSZ_OFF, BR_PSZ_LEN);
+    int pcur = GET_FIELD(br, BR_PCUR_OFF, BR_PCUR_LEN);
 
     qemu_fprintf(f, "br         %#x\n", br);
     qemu_fprintf(f, "    rbs    %#x\n", rbs);
