@@ -56,6 +56,7 @@ static void e2k_cpu_reset(DeviceState *dev)
     env->boff = 8;
     env->bsize = 8;
     env->bcur = 0;
+    env->idr = 0x3a207; // mimic 8c
 }
 
 #ifdef CONFIG_SOFTMMU
