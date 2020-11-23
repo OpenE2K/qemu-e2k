@@ -293,6 +293,7 @@ static inline void do_execute(DisasContext *ctx)
         }
     }
 
+    e2k_plu_execute(ctx);
     e2k_control_gen(ctx);
 }
 
@@ -331,6 +332,7 @@ static inline void do_commit(DisasContext *ctx)
         }
     }
 
+    e2k_plu_commit(ctx);
     e2k_commit_stubs(ctx);
 }
 
