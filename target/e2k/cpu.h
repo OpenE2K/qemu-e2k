@@ -7,19 +7,13 @@
 
 void e2k_tcg_initialize(void);
 
-#define GEN_MASK(start, end) \
-    GEN_MASK_LEN((start), (end) - (start) + 1)
-#define GEN_MASK_LEN(start, len) \
-    (((1UL << (len)) - 1) << (start))
+#define GEN_MASK(start, len) (((1UL << (len)) - 1) << (start))
 #define GET_BIT(v, index) (((v) >> (index)) & 1)
-#define GET_FIELD(v, start, end) \
-    (((v) >> (start)) & ((1UL << ((end) - (start) + 1)) - 1))
-#define GET_FIELD_LEN(v, s, l) \
-	(((v) >> (s)) & GEN_MASK_LEN(0, l))
+#define GET_FIELD(v, s, l) (((v) >> (s)) & GEN_MASK(0, l))
 #define SET_FIELD(v, f, s, l) \
     ( \
-        ((v) & ~GEN_MASK_LEN((s), (l))) | \
-        ((((typeof((v))) (f)) << (s)) & GEN_MASK_LEN((s), (l))) \
+        ((v) & ~GEN_MASK((s), (l))) | \
+        ((((typeof((v))) (f)) << (s)) & GEN_MASK((s), (l))) \
     )
 
 #define MMU_USER_IDX 1
@@ -306,7 +300,7 @@ int e2k_cpu_gdb_write_register(CPUState *cs, uint8_t *mem_buf, int n);
 
 static inline target_ulong e2k_state_pcs_base_get(CPUE2KState *env)
 {
-    return GET_FIELD(env->pcsp_lo, PCSP_LO_BASE_OFF, PCSP_LO_BASE_END);
+    return GET_FIELD(env->pcsp_lo, PCSP_LO_BASE_OFF, PCSP_LO_BASE_LEN);
 }
 
 static inline void e2k_state_pcs_base_set(CPUE2KState *env, target_ulong pcsp)
@@ -317,7 +311,7 @@ static inline void e2k_state_pcs_base_set(CPUE2KState *env, target_ulong pcsp)
 
 static inline size_t e2k_state_pcs_index_get(CPUE2KState *env)
 {
-    return GET_FIELD(env->pcsp_hi, PCSP_HI_IND_OFF, PCSP_HI_IND_END);
+    return GET_FIELD(env->pcsp_hi, PCSP_HI_IND_OFF, PCSP_HI_IND_LEN);
 }
 
 static inline void e2k_state_pcs_index_set(CPUE2KState *env, size_t ind)
@@ -328,7 +322,7 @@ static inline void e2k_state_pcs_index_set(CPUE2KState *env, size_t ind)
 
 static inline size_t e2k_state_pcs_size_get(CPUE2KState *env)
 {
-    return GET_FIELD(env->pcsp_hi, PCSP_HI_SIZE_OFF, PCSP_HI_SIZE_END);
+    return GET_FIELD(env->pcsp_hi, PCSP_HI_SIZE_OFF, PCSP_HI_SIZE_LEN);
 }
 
 static inline void e2k_state_pcs_size_set(CPUE2KState *env, size_t size)
@@ -339,7 +333,7 @@ static inline void e2k_state_pcs_size_set(CPUE2KState *env, size_t size)
 
 static inline target_ulong e2k_state_ps_base_get(CPUE2KState *env)
 {
-    return GET_FIELD(env->psp_lo, PSP_LO_BASE_OFF, PSP_LO_BASE_END);
+    return GET_FIELD(env->psp_lo, PSP_LO_BASE_OFF, PSP_LO_BASE_LEN);
 }
 
 static inline size_t e2k_state_ps_ind_get(CPUE2KState *env)
@@ -354,7 +348,7 @@ static inline void e2k_state_ps_ind_set(CPUE2KState *env, size_t ind)
 
 static inline int e2k_state_cr1_wbs_get(CPUE2KState *env)
 {
-    return GET_FIELD(env->cr1_lo, CR1_LO_WBS_OFF, CR1_LO_WBS_END);
+    return GET_FIELD(env->cr1_lo, CR1_LO_WBS_OFF, CR1_LO_WBS_LEN);
 }
 
 static inline void e2k_state_cr1_wbs_set(CPUE2KState *env, int wbs)
@@ -364,7 +358,7 @@ static inline void e2k_state_cr1_wbs_set(CPUE2KState *env, int wbs)
 
 static inline int e2k_state_cr1_wpsz_get(CPUE2KState *env)
 {
-    return GET_FIELD(env->cr1_lo, CR1_LO_WPSZ_OFF, CR1_LO_WPSZ_END);
+    return GET_FIELD(env->cr1_lo, CR1_LO_WPSZ_OFF, CR1_LO_WPSZ_LEN);
 }
 
 static inline void e2k_state_cr1_wpsz_set(CPUE2KState *env, int wpsz)
@@ -375,7 +369,7 @@ static inline void e2k_state_cr1_wpsz_set(CPUE2KState *env, int wpsz)
 
 static inline uint32_t e2k_state_cr1_br_get(CPUE2KState *env)
 {
-    return GET_FIELD(env->cr1_hi, CR1_HI_BR_OFF, CR1_HI_BR_END);
+    return GET_FIELD(env->cr1_hi, CR1_HI_BR_OFF, CR1_HI_BR_LEN);
 }
 
 static inline void e2k_state_cr1_br_set(CPUE2KState *env, uint32_t br)
