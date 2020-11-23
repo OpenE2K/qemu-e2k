@@ -157,6 +157,150 @@ static inline void gen_xorn_i64(TCGv_i64 ret, TCGv_i64 x, TCGv_i64 y)
     tcg_temp_free_i64(t0);
 }
 
+static TCGCond e2k_gen_cmp_op(unsigned int cmp_op)
+{
+    switch(cmp_op) {
+    case 0: gen_helper_unimpl(cpu_env); break;
+    case 1: return TCG_COND_LTU; break;
+    case 2: return TCG_COND_EQ; break;
+    case 3: return TCG_COND_LEU; break;
+    case 4: gen_helper_unimpl(cpu_env); break;
+    case 5: gen_helper_unimpl(cpu_env); break;
+    case 6: return TCG_COND_LT; break;
+    case 7: return TCG_COND_LE; break;
+    default: g_assert_not_reached(); break;
+    }
+
+    return TCG_COND_NEVER; /* unreachable */
+}
+
+static inline void gen_cmpsb(DisasContext *dc, int chan)
+{
+    uint32_t als = dc->bundle.als[chan];
+    TCGv_i64 s1 = get_src1(dc, als);
+    TCGv_i64 s2 = get_src2(dc, als);
+    TCGv_i64 dst64 = e2k_get_temp_i64(dc);
+    TCGv_i32 dst32 = tcg_temp_new_i32();
+    TCGv_i32 lo1 = tcg_temp_new_i32();
+    TCGv_i32 lo2 = tcg_temp_new_i32();
+    TCGCond cond = e2k_gen_cmp_op(GET_FIELD(als, 5, 3));
+    Result res = { 0 };
+
+    tcg_gen_extrl_i64_i32(lo1, s1);
+    tcg_gen_extrl_i64_i32(lo2, s2);
+    tcg_gen_setcond_i32(cond, dst32, lo1, lo2);
+    tcg_gen_extu_i32_i64(dst64, dst32);
+
+    res.tag = RESULT_PREG;
+    res.u.reg.i = als & 0x1f;
+    res.u.reg.v = dst64;
+
+    dc->alc[chan] = res;
+
+    tcg_temp_free_i32(lo2);
+    tcg_temp_free_i32(lo1);
+    tcg_temp_free_i32(dst32);
+}
+
+static inline void gen_cmpdb(DisasContext* dc, int chan)
+{
+    uint32_t als = dc->bundle.als[chan];
+    TCGv_i64 src1 = get_src1(dc, als);
+    TCGv_i64 src2 = get_src2(dc, als);
+    TCGv_i64 dst = e2k_get_temp_i64(dc);
+    TCGCond cond = e2k_gen_cmp_op(GET_FIELD(als, 5, 3));
+    Result res = { 0 };
+
+    tcg_gen_setcond_i64(cond, dst, src1, src2);
+
+    res.tag = RESULT_PREG;
+    res.u.reg.i = als & 0x1f;
+    res.u.reg.v = dst;
+
+    dc->alc[chan] = res;
+}
+
+static inline void gen_cmpand_i64(DisasContext *ctx, TCGv_i64 ret, int opc,
+    TCGv_i64 src1, TCGv_i64 src2)
+{
+    TCGv_i64 t0 = tcg_temp_new_i64();
+    tcg_gen_and_i64(t0, src1, src2);
+
+    switch (opc) {
+    case 2: /* is zero */
+        tcg_gen_setcondi_i64(TCG_COND_EQ, ret, t0, 0);
+        break;
+    case 4: /* is negative */
+        tcg_gen_setcondi_i64(TCG_COND_LT, ret, t0, 0);
+        break;
+    case 5: { /* is odd and greater than 3 */
+        TCGv_i64 t1 = tcg_temp_new_i64();
+        TCGv_i64 t2 = tcg_temp_new_i64();
+        TCGv_i64 t3 = tcg_temp_new_i64();
+
+        tcg_gen_andi_i64(t1, t0, 1);
+        tcg_gen_setcondi_i64(TCG_COND_NE, t2, t1, 0);
+        tcg_gen_setcondi_i64(TCG_COND_GTU, t3, t0, 2);
+        tcg_gen_setcond_i64(TCG_COND_EQ, ret, t2, t3);
+
+        tcg_temp_free_i64(t3);
+        tcg_temp_free_i64(t2);
+        tcg_temp_free_i64(t1);
+        break;
+    }
+    case 7: /* signed less or equal 0 */
+        tcg_gen_setcondi_i64(TCG_COND_LE, ret, t0, 0);
+        break;
+    default:
+        e2k_gen_exception(ctx, E2K_EXCP_ILLOPC);
+        break;
+    }
+
+    tcg_temp_free_i64(t0);
+}
+
+static inline void gen_cmpandsb(DisasContext *ctx, int chan)
+{
+    uint32_t als = ctx->bundle.als[chan];
+    int opc = GET_FIELD(als, 5, 3);
+    TCGv_i64 src1 = get_src1(ctx, als);
+    TCGv_i64 src2 = get_src2(ctx, als);
+    TCGv_i64 dst = e2k_get_temp_i64(ctx);
+    Result res = { 0 };
+    TCGv_i32 t0 = tcg_temp_new_i32();
+    TCGv_i32 t1 = tcg_temp_new_i32();
+
+    tcg_gen_extrl_i64_i32(t0, src1);
+    tcg_gen_extrl_i64_i32(t1, src2);
+    tcg_gen_ext_i32_i64(src1, t0);
+    tcg_gen_ext_i32_i64(src2, t1);
+    gen_cmpand_i64(ctx, dst, opc, src1, src2);
+
+    res.tag = RESULT_PREG;
+    res.u.reg.i = als & 0x1f;
+    res.u.reg.v = dst;
+
+    ctx->alc[chan] = res;
+}
+
+static inline void gen_cmpanddb(DisasContext *ctx, int chan)
+{
+    uint32_t als = ctx->bundle.als[chan];
+    int opc = GET_FIELD(als, 5, 3);
+    TCGv_i64 src1 = get_src1(ctx, als);
+    TCGv_i64 src2 = get_src2(ctx, als);
+    TCGv_i64 dst = e2k_get_temp_i64(ctx);
+    Result res = { 0 };
+
+    gen_cmpand_i64(ctx, dst, opc, src1, src2);
+
+    res.tag = RESULT_PREG;
+    res.u.reg.i = als & 0x1f;
+    res.u.reg.v = dst;
+
+    ctx->alc[chan] = res;
+}
+
 /*
  * ret[31:0] = x[31:0]
  * ret[63:32] = y[63:32]
@@ -445,23 +589,6 @@ static void gen_alopf1_mrgc_i64(DisasContext *dc, int chan)
     tcg_temp_free_i64(cond);
 }
 
-static TCGCond e2k_gen_cmp_op(unsigned int cmp_op)
-{
-    switch(cmp_op) {
-    case 0: gen_helper_unimpl(cpu_env); break;
-    case 1: return TCG_COND_LTU; break;
-    case 2: return TCG_COND_EQ; break;
-    case 3: return TCG_COND_LEU; break;
-    case 4: gen_helper_unimpl(cpu_env); break;
-    case 5: gen_helper_unimpl(cpu_env); break;
-    case 6: return TCG_COND_LT; break;
-    case 7: return TCG_COND_LE; break;
-    default: g_assert_not_reached(); break;
-    }
-
-    return TCG_COND_NEVER; /* unreachable */
-}
-
 static void execute_alopf_simple(DisasContext *dc, int chan)
 {
     uint32_t als = dc->bundle.als[chan];
@@ -499,50 +626,34 @@ static void execute_alopf_simple(DisasContext *dc, int chan)
     case 0x1d: /* sard */ gen_alopf1_i64(dc, chan, tcg_gen_sar_i64); break;
     case 0x1e: /* TODO: getfs */ gen_helper_unimpl(cpu_env); break;
     case 0x1f: /* TODO: getfd */ gen_helper_unimpl(cpu_env); break;
-    case 0x20: { // cmp{op}sb
-        TCGv_i64 s1 = get_src1(dc, als);
-        TCGv_i64 s2 = get_src2(dc, als);
-        TCGv_i64 dst64 = e2k_get_temp_i64(dc);
-        TCGv_i32 dst32 = tcg_temp_new_i32();
-        TCGv_i32 lo1 = tcg_temp_new_i32();
-        TCGv_i32 lo2 = tcg_temp_new_i32();
-        TCGCond cond = e2k_gen_cmp_op(GET_FIELD(als, 5, 3));
-        Result res = { 0 };
-
-        tcg_gen_extrl_i64_i32(lo1, s1);
-        tcg_gen_extrl_i64_i32(lo2, s2);
-        tcg_gen_setcond_i32(cond, dst32, lo1, lo2);
-        tcg_gen_extu_i32_i64(dst64, dst32); 
-        
-        res.tag = RESULT_PREG;
-        res.u.reg.i = als & 0x1f;
-        res.u.reg.v = dst64;
-
-        dc->alc[chan] = res;
-    
-        tcg_temp_free_i32(lo2);
-        tcg_temp_free_i32(lo1);
-        tcg_temp_free_i32(dst32);
-
+    case 0x20:
+        if (chan == 2 || chan == 5) {
+            gen_helper_unimpl(cpu_env);
+        } else {
+            gen_cmpsb(dc, chan); /* cmp{op}sb */
+        }
         break;
-    }
-    case 0x21: { // cmp{op}db
-        TCGv_i64 cpu_src1 = get_src1(dc, als);
-        TCGv_i64 cpu_src2 = get_src2(dc, als);
-        TCGv_i64 tmp_dst = e2k_get_temp_i64(dc);
-        TCGCond cond = e2k_gen_cmp_op(GET_FIELD(als, 5, 3));
-        Result res = { 0 };
-
-        tcg_gen_setcond_i64(cond, tmp_dst, cpu_src1, cpu_src2);
-
-        res.tag = RESULT_PREG;
-        res.u.reg.i = als & 0x1f;
-        res.u.reg.v = tmp_dst;
-
-        dc->alc[chan] = res;
-
+    case 0x21:
+        if (chan == 2 || chan == 5) {
+            gen_helper_unimpl(cpu_env);
+        } else {
+            gen_cmpdb(dc, chan); /* cmp{op}db */
+        }
         break;
-    }
+    case 0x22:
+        if (chan == 2 || chan == 5) {
+            gen_helper_unimpl(cpu_env);
+        } else {
+            gen_cmpandsb(dc, chan); /* cmpand{op}sb */
+        }
+        break;
+    case 0x23:
+        if (chan == 2 || chan == 5) {
+            gen_helper_unimpl(cpu_env);
+        } else {
+            gen_cmpanddb(dc, chan); /* cmpand{op}db */
+        }
+        break;
     case 0x24: { /* stb */
         if (chan == 2 || chan == 5) {
             gen_st(dc, chan, MO_UB);
