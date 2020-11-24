@@ -603,6 +603,31 @@ static void gen_movtd(DisasContext *dc, int chan)
     store_reg_alc_result(dc, chan, t0);
 }
 
+static MemOp gen_mas(DisasContext *ctx, int chan, MemOp memop, TCGv_i64 addr)
+{
+    uint8_t mas = ctx->mas[chan];
+
+    if ((mas & 0x7) == 7) {
+        // TODO: special mas
+        e2k_gen_exception(ctx, E2K_EXCP_ILLOPC);
+    } else if (mas) {
+        int mod = extract8(mas, 0, 3);
+//        int dc = extract8(mas, 5, 2);
+
+        if (mod != 0) {
+            // TODO: mas modes
+            e2k_gen_exception(ctx, E2K_EXCP_ILLOPC);
+        }
+
+        memop |= GET_BIT(mas, 3) ? MO_BE : MO_LE;
+        memop |= GET_BIT(mas, 4) ? MO_UNALN : MO_ALIGN;
+    } else {
+        memop |= MO_LE | MO_ALIGN;
+    }
+
+    return memop;
+}
+
 static void gen_ld(DisasContext *dc, int chan, MemOp memop)
 {
     uint32_t als = dc->bundle.als[chan];
@@ -612,6 +637,7 @@ static void gen_ld(DisasContext *dc, int chan, MemOp memop)
     TCGv_i64 t1 = e2k_get_temp_i64(dc);
 
     tcg_gen_add_i64(t0, src1, src2);
+    memop = gen_mas(dc, chan, memop, t0);
     tcg_gen_qemu_ld_i64(t1, t0, dc->mmuidx, memop);
     store_reg_alc_result(dc, chan, t1);
 
@@ -627,6 +653,7 @@ static void gen_st(DisasContext *dc, int chan, MemOp memop)
     TCGv_i64 t0 = tcg_temp_new_i64();
 
     tcg_gen_add_i64(t0, src1, src2);
+    memop = gen_mas(dc, chan, memop, t0);
     tcg_gen_qemu_st_i64(src4, t0, dc->mmuidx, memop);
 
     tcg_temp_free_i64(t0);
@@ -776,7 +803,7 @@ static void execute_alopf_simple(DisasContext *dc, int chan)
     }
     case 0x25: { /* sth */
         if (chan == 2 || chan == 5) {
-            gen_st(dc, chan, MO_TEUW);
+            gen_st(dc, chan, MO_UW);
         } else {
             gen_helper_unimpl(cpu_env);
         }
@@ -784,7 +811,7 @@ static void execute_alopf_simple(DisasContext *dc, int chan)
     }
     case 0x26: { /* stw */
         if (chan == 2 || chan == 5) {
-            gen_st(dc, chan, MO_TEUL);
+            gen_st(dc, chan, MO_UL);
         } else {
             gen_helper_unimpl(cpu_env);
         }
@@ -792,7 +819,7 @@ static void execute_alopf_simple(DisasContext *dc, int chan)
     }
     case 0x27: { /* std */
         if (chan == 2 || chan == 5) {
-            gen_st(dc, chan, MO_TEQ);
+            gen_st(dc, chan, MO_Q);
         } else {
             gen_helper_unimpl(cpu_env);
         }
@@ -820,7 +847,7 @@ static void execute_alopf_simple(DisasContext *dc, int chan)
         if (chan == 1 || chan == 4) {
             gen_helper_unimpl(cpu_env);
         } else {
-            gen_ld(dc, chan, MO_TEUW);
+            gen_ld(dc, chan, MO_UW);
         }
         break;
     }
@@ -828,7 +855,7 @@ static void execute_alopf_simple(DisasContext *dc, int chan)
         if (chan == 1 || chan == 4) {
             gen_helper_unimpl(cpu_env);
         } else {
-            gen_ld(dc, chan, MO_TEUL);
+            gen_ld(dc, chan, MO_UL);
         }
         break;
     }
@@ -836,7 +863,7 @@ static void execute_alopf_simple(DisasContext *dc, int chan)
         if (chan == 1 || chan == 4) {
             gen_helper_unimpl(cpu_env);
         } else {
-            gen_ld(dc, chan, MO_TEQ);
+            gen_ld(dc, chan, MO_Q);
         }
         break;
     }

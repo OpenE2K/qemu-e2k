@@ -265,6 +265,11 @@ static inline void gen_goto_ctpr_disp(TCGv_i64 ctpr)
     tcg_temp_free_i64(t0);
 }
 
+static inline void do_reset(DisasContext *ctx)
+{
+    memset(ctx->mas, 0, sizeof(ctx->mas));
+}
+
 static inline void do_decode(DisasContext *ctx, CPUState *cs)
 {
     E2KCPU *cpu = E2K_CPU(cs);
@@ -286,15 +291,15 @@ static inline void do_execute(DisasContext *ctx)
 {
     unsigned int i;
 
+    e2k_plu_execute(ctx);
+    e2k_control_gen(ctx);
+
     for (i = 0; i < 6; i++) {
         if (ctx->bundle.als_present[i]) {
             ctx->alc[i].tag = RESULT_NONE;
             e2k_execute_alc(ctx, i);
         }
     }
-
-    e2k_plu_execute(ctx);
-    e2k_control_gen(ctx);
 }
 
 /*
@@ -454,6 +459,7 @@ static void e2k_tr_translate_insn(DisasContextBase *db, CPUState *cs)
     gen_helper_break_restore_state(cpu_env);
     gen_set_label(l0);
 
+    do_reset(ctx);
     do_decode(ctx, cs);
     do_execute(ctx);
     do_commit(ctx);
