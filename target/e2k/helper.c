@@ -301,6 +301,8 @@ uint64_t helper_state_reg_get(CPUE2KState *env, int reg)
         return env->lsr;
     case 0x8a: /* %idr */
         return env->idr;
+    case 0x90: /* %clkr */
+        return cpu_get_host_ticks();
     default:
         /* TODO: exception */
         qemu_log_mask(LOG_UNIMP, "unknown register 0x%x\n", reg);
