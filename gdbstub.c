@@ -2177,6 +2177,12 @@ static void handle_query_supported(GdbCmdContext *gdb_ctx, void *user_ctx)
         gdbserver_state.multiprocess = true;
     }
 
+#ifdef TARGET_E2K
+    // TODO: qXfer:tags:write+
+    // TODO: qXfer:packed_tags:read+
+    g_string_append(gdbserver_state.str_buf, ";qXfer:tags:read+");
+#endif
+
     g_string_append(gdbserver_state.str_buf, ";vContSupported+;multiprocess+");
     put_strbuf();
 }
@@ -2271,6 +2277,20 @@ static void handle_set_qemu_phy_mem_mode(GdbCmdContext *gdb_ctx, void *user_ctx)
 }
 #endif
 
+#ifdef TARGET_E2K
+static void handle_query_e2k_tags_read(GdbCmdContext *gdb_ctx, void *user_ctx)
+{
+    // TODO: handle_query_e2k_tags_read
+
+    g_string_assign(gdbserver_state.str_buf, "l");
+    g_string_append_c(gdbserver_state.str_buf, 0);
+    g_string_append_c(gdbserver_state.str_buf, 0);
+
+    put_packet_binary(gdbserver_state.str_buf->str,
+        gdbserver_state.str_buf->len, true);
+}
+#endif
+
 static GdbCmdParseEntry gdb_gen_query_set_common_table[] = {
     /* Order is important if has same prefix */
     {
@@ -2355,6 +2375,14 @@ static GdbCmdParseEntry gdb_gen_query_table[] = {
     {
         .handler = handle_query_qemu_phy_mem_mode,
         .cmd = "qemu.PhyMemMode",
+    },
+#endif
+#ifdef TARGET_E2K
+    {
+        .handler = handle_query_e2k_tags_read,
+        .cmd = "Xfer:tags:read::",
+        .cmd_startswith = 1,
+        .schema = "L,l0",
     },
 #endif
 };
