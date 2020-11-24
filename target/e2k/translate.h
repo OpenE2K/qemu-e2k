@@ -148,6 +148,7 @@ typedef struct DisasContext {
     target_ulong npc;
     int jump_ctpr;
     int mmuidx;
+    uint8_t mas[4];
 
     int version;
 
