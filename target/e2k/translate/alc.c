@@ -157,6 +157,98 @@ static inline void gen_xorn_i64(TCGv_i64 ret, TCGv_i64 x, TCGv_i64 y)
     tcg_temp_free_i64(t0);
 }
 
+static inline void gen_getfield_i32(TCGv_i32 ret, TCGv_i32 src1,
+    TCGv_i32 shift, TCGv_i32 size, TCGv_i32 sign)
+{
+    TCGv_i32 n32 = tcg_const_i32(32);
+    TCGv_i32 n15 = tcg_const_i32(15);
+    TCGv_i32 t0 = tcg_temp_new_i32();
+    TCGv_i32 t1 = tcg_temp_new_i32();
+    TCGv_i32 t2 = tcg_temp_new_i32();
+    TCGv_i32 t3 = tcg_temp_new_i32();
+    TCGv_i32 t4 = tcg_temp_new_i32();
+    TCGv_i32 t5 = tcg_temp_new_i32();
+
+    tcg_gen_add_i32(t0, shift, size);
+    tcg_gen_sub_i32(t1, n32, t0);
+    tcg_gen_add_i32(t2, shift, t1);
+    tcg_gen_shl_i32(t3, src1, t1);
+    tcg_gen_shr_i32(t4, t3, t2);
+    tcg_gen_sar_i32(t5, t3, t2);
+    tcg_gen_movcond_i32(TCG_COND_NE, ret, sign, n15, t4, t5);
+
+    tcg_temp_free_i32(t5);
+    tcg_temp_free_i32(t4);
+    tcg_temp_free_i32(t3);
+    tcg_temp_free_i32(t2);
+    tcg_temp_free_i32(t1);
+    tcg_temp_free_i32(t0);
+    tcg_temp_free_i32(n15);
+    tcg_temp_free_i32(n32);
+}
+
+static inline void gen_getfield_i64(TCGv_i64 ret, TCGv_i64 src1,
+    TCGv_i64 shift, TCGv_i64 size, TCGv_i64 sign)
+{
+    TCGv_i64 n64 = tcg_const_i64(64);
+    TCGv_i64 n15 = tcg_const_i64(15);
+    TCGv_i64 t0 = tcg_temp_new_i64();
+    TCGv_i64 t1 = tcg_temp_new_i64();
+    TCGv_i64 t2 = tcg_temp_new_i64();
+    TCGv_i64 t3 = tcg_temp_new_i64();
+    TCGv_i64 t4 = tcg_temp_new_i64();
+    TCGv_i64 t5 = tcg_temp_new_i64();
+
+    tcg_gen_add_i64(t0, shift, size);
+    tcg_gen_sub_i64(t1, n64, t0);
+    tcg_gen_add_i64(t2, shift, t1);
+    tcg_gen_shl_i64(t3, src1, t1);
+    tcg_gen_shr_i64(t4, t3, t2);
+    tcg_gen_sar_i64(t5, t3, t2);
+    tcg_gen_movcond_i64(TCG_COND_NE, ret, sign, n15, t4, t5);
+
+    tcg_temp_free_i64(t5);
+    tcg_temp_free_i64(t4);
+    tcg_temp_free_i64(t3);
+    tcg_temp_free_i64(t2);
+    tcg_temp_free_i64(t1);
+    tcg_temp_free_i64(t0);
+    tcg_temp_free_i64(n15);
+    tcg_temp_free_i64(n64);
+}
+
+static inline void gen_getfs(TCGv_i32 ret, TCGv_i32 src1, TCGv_i32 src2)
+{
+    TCGv_i32 shift = tcg_temp_new_i32();
+    TCGv_i32 size = tcg_temp_new_i32();
+    TCGv_i32 sign = tcg_temp_new_i32();
+
+    tcg_gen_extract_i32(shift, src2, 0, 5);
+    tcg_gen_extract_i32(size, src2, 6, 5);
+    tcg_gen_extract_i32(sign, src2, 12, 4);
+    gen_getfield_i32(ret, src1, shift, size, sign);
+
+    tcg_temp_free_i32(sign);
+    tcg_temp_free_i32(size);
+    tcg_temp_free_i32(shift);
+}
+
+static inline void gen_getfd(TCGv_i64 ret, TCGv_i64 src1, TCGv_i64 src2)
+{
+    TCGv_i64 shift = tcg_temp_new_i64();
+    TCGv_i64 size = tcg_temp_new_i64();
+    TCGv_i64 sign = tcg_temp_new_i64();
+
+    tcg_gen_extract_i64(shift, src2, 0, 6);
+    tcg_gen_extract_i64(size, src2, 6, 6);
+    tcg_gen_extract_i64(sign, src2, 12, 4);
+    gen_getfield_i64(ret, src1, shift, size, sign);
+
+    tcg_temp_free_i64(sign);
+    tcg_temp_free_i64(size);
+    tcg_temp_free_i64(shift);
+}
+
 static TCGCond e2k_gen_cmp_op(unsigned int cmp_op)
 {
     switch(cmp_op) {
@@ -624,8 +716,8 @@ static void execute_alopf_simple(DisasContext *dc, int chan)
     case 0x1b: /* shrd */ gen_alopf1_i64(dc, chan, tcg_gen_shr_i64); break;
     case 0x1c: /* sars */ gen_alopf1_i32(dc, chan, tcg_gen_sar_i32); break;
     case 0x1d: /* sard */ gen_alopf1_i64(dc, chan, tcg_gen_sar_i64); break;
-    case 0x1e: /* TODO: getfs */ gen_helper_unimpl(cpu_env); break;
-    case 0x1f: /* TODO: getfd */ gen_helper_unimpl(cpu_env); break;
+    case 0x1e: /* getfs */ gen_alopf1_i32(dc, chan, gen_getfs); break;
+    case 0x1f: /* getfd */ gen_alopf1_i64(dc, chan, gen_getfd); break;
     case 0x20:
         if (chan == 2 || chan == 5) {
             gen_helper_unimpl(cpu_env);
