@@ -1,4 +1,3 @@
-DEF_HELPER_1(unimpl, noreturn, env)
 DEF_HELPER_2(raise_exception, noreturn, env, int)
 DEF_HELPER_1(return, void, env)
 DEF_HELPER_3(call, tl, env, i64, int)

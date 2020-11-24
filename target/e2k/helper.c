@@ -49,14 +49,6 @@ static inline void restore_br_state(CPUE2KState *env)
     env->pcur = GET_FIELD(env->br, BR_PCUR_OFF, BR_PCUR_LEN);
 }
 
-void helper_unimpl(CPUE2KState *env)
-{
-    CPUState *cs = env_cpu(env);
-
-    cs->exception_index = E2K_EXCP_UNIMPL;
-    cpu_loop_exit(cs);
-}
-
 static void pcs_push(CPUE2KState *env, int wbs)
 {
     size_t size = e2k_state_pcs_size_get(env);
@@ -184,9 +176,11 @@ target_ulong helper_call(CPUE2KState *env, uint64_t ctpr,
         do_syscall(env, call_wbs);
         return env->ip;
     default:
-        helper_raise_exception(env, E2K_EXCP_UNIMPL);
-        return env->ip;
+        abort();
+        break;
     }
+
+    return 0;
 }
 
 void helper_raise_exception(CPUE2KState *env, int tt)

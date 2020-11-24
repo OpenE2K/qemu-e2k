@@ -233,7 +233,6 @@ void e2k_tcg_initialize(void);
 #define IDR_WBL_TO_BYTES(wbl) ((wbl) ? (1 << ((wbs) + 4)) : 1)
 
 typedef enum {
-    E2K_EXCP_UNIMPL = 0x01,
     E2K_EXCP_SYSCALL = 0x02,
     E2K_EXCP_ILLOPC = 0x03,
     E2K_EXCP_ILLOPN = 0x04,
