@@ -143,11 +143,11 @@ void e2k_commit_stubs(DisasContext *ctx)
         break;
     case 0x01:
         // TODO
-        gen_helper_unimpl(cpu_env);
+        abort();
         break;
     case 0x02:
         // TODO
-        gen_helper_unimpl(cpu_env);
+        abort();
         break;
     default:
         e2k_gen_exception(ctx, E2K_EXCP_ILLOPC);
@@ -295,7 +295,7 @@ static void gen_cs0(DisasContext *dc)
            "invalid gettsd" if this turns out not to be the case . . .  */
         if (type == GETTSD) {
             // TODO: gettsd
-            gen_helper_unimpl(cpu_env);
+            abort();
         }
 
         if (type == PUTTSD) {
@@ -312,7 +312,7 @@ static void gen_cs0(DisasContext *dc)
                both on 32 and 64-bit hosts.  */
 //                (unsigned long long) (instr_addr + sgnd_disp));
             // TODO: puttsd
-            gen_helper_unimpl(cpu_env);
+            abort();
         }
 
         if (type == PREF) {
@@ -320,7 +320,7 @@ static void gen_cs0(DisasContext *dc)
 //            unsigned int ipd = (bundle->cs0 & 0x00000008) >> 3;
 //            unsigned int prefr = bundle->cs0 & 0x00000007;
             // TODO: pref
-            gen_helper_unimpl(cpu_env);
+            abort();
         }
     }
 }
@@ -355,7 +355,7 @@ static void gen_cs1(DisasContext *dc)
                 seems to be the case even if no SETWD has been explicitly
                 specified.  */
 //                unsigned int rpsz = (bundle->lts[0] & 0x0001f000) >> 12;
-                gen_helper_unimpl(cpu_env);
+                abort();
             }
         }
 
@@ -395,14 +395,14 @@ static void gen_cs1(DisasContext *dc)
         if (sft) {
             if (dc->version >= 2) {
                 // TODO: setsft
-                gen_helper_unimpl(cpu_env);
+                abort();
             } else {
                 e2k_gen_exception(dc, E2K_EXCP_ILLOPC);
             }
         } else {
 //            uint8_t eir = GET_FIELD_LEN(cs1, 0, 8);
             // TODO: setei
-            gen_helper_unimpl(cpu_env);
+            abort();
         }
     } else if (opc == WAIT) {
         // TODO: wait
@@ -433,7 +433,7 @@ static void gen_cs1(DisasContext *dc)
 //          my_printf ("trap = %d, ", trap);
         }
 
-        gen_helper_unimpl(cpu_env);
+        abort();
 //      my_printf ("ma_c = %d, fl_c = %d, ld_c = %d, st_c = %d, all_e = %d, "
 //                 "all_c = %d", ma_c, fl_c, ld_c, st_c, all_e, all_c);
     } else if (opc == CALL) {
@@ -452,7 +452,7 @@ static void gen_cs1(DisasContext *dc)
                 if (cs0_opc == 0) {
 //                    unsigned int hdisp = (cs0 & 0x1e) >> 1;
                     // TODO: hcall hdisp, wbs ? cond
-                    gen_helper_unimpl(cpu_env);
+                    abort();
                 }
             } else {
                 e2k_gen_exception(dc, E2K_EXCP_ILLOPC);
@@ -466,12 +466,12 @@ static void gen_cs1(DisasContext *dc)
     } else if (opc == FLUSHR) {
         if (cs1 & 0x00000001) {
             // TODO: flushr
-            gen_helper_unimpl(cpu_env);
+            abort();
         }
 
         if (cs1 & 0x00000002) {
             // TODO: flushc
-            gen_helper_unimpl(cpu_env);
+            abort();
         }
     } else if (opc == BG) {
 //        unsigned int chkm4 = (cs1 & 0x00010000) >> 16;
@@ -479,7 +479,7 @@ static void gen_cs1(DisasContext *dc)
 //        unsigned int umsk = cs1 & 0x000000ff;
 
         // TODO: vfbg
-        gen_helper_unimpl(cpu_env);
+        abort();
     } else {
         e2k_gen_exception(dc, E2K_EXCP_ILLOPC);
     }
