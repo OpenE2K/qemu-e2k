@@ -459,10 +459,10 @@ static void gen_cs1(DisasContext *dc)
             }
         }
     } else if (opc == MAS_OPC) {
-        // TODO: mas
-//        unsigned int mas = cs1 & 0x0fffffff;
-
-        gen_helper_unimpl(cpu_env);
+        dc->mas[0] = extract32(cs1, 21, 7);
+        dc->mas[2] = extract32(cs1, 14, 7);
+        dc->mas[3] = extract32(cs1, 7, 7);
+        dc->mas[5] = extract32(cs1, 0, 7);
     } else if (opc == FLUSHR) {
         if (cs1 & 0x00000001) {
             // TODO: flushr
