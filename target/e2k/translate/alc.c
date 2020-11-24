@@ -454,14 +454,34 @@ static uint16_t find_mrgc(DisasContext *dc, int chan)
     return 0;
 }
 
-static inline void gen_cond_psrc(TCGv_i64 ret, uint8_t psrc)
+static inline bool is_cond(uint16_t rlp, int chan)
 {
-    if ((psrc & 0xe0) == 0x60) {
-        e2k_gen_preg(ret, psrc & 0x1f);
-    } else {
-        /* TODO: lcntex, spred, pcnt */
-        abort();
+    int is_mrgc = GET_BIT(rlp, 15);
+    int cluster = GET_BIT(rlp, 14);
+    int alc_mask = GET_FIELD(rlp, 10, 3);
+    int alc = GET_BIT(alc_mask, chan % 3);
+
+    return !is_mrgc && (cluster == (chan > 2)) && (alc != 0);
+}
+
+static uint16_t find_cond(DisasContext *ctx, int chan)
+{
+    unsigned int i;
+
+    for (i = 0; ctx->bundle.cds_present[i]; i++) {
+        uint32_t cds = ctx->bundle.cds[i];
+        uint16_t rlp0 = cds >> 16;
+        uint16_t rlp1 = cds & 0xffff;
+
+        if (is_cond(rlp0, chan)) {
+            return rlp0;
+        }
+        if (is_cond(rlp1, chan)) {
+            return rlp1;
+        }
     }
+
+    return 0;
 }
 
 static inline void gen_mrgc_i64(DisasContext *dc, int chan, TCGv_i64 ret)
@@ -480,7 +500,7 @@ static inline void gen_mrgc_i64(DisasContext *dc, int chan, TCGv_i64 ret)
     t1 = tcg_temp_new_i64();
     inv = tcg_const_i64(GET_BIT(rlp, 7 + chan % 3));
 
-    gen_cond_psrc(t0, rlp & 0x7f);
+    e2k_gen_cond_i64(dc, t0, rlp & 0x7f);
     tcg_gen_not_i64(t1, t0);
     tcg_gen_movcond_i64(TCG_COND_EQ, ret, t0, inv, t0, t1);
 
@@ -848,22 +868,38 @@ static void execute_ext1(DisasContext *dc, int chan)
     }
 }
 
-void e2k_execute_alc(DisasContext *ctx, int index)
+void e2k_execute_alc(DisasContext *ctx, int chan)
 {
     const UnpackedBundle *bundle = &ctx->bundle;
+    uint16_t rlp = find_cond(ctx, chan);
+    TCGLabel *l0 = gen_new_label();
+    TCGv_i64 cond = NULL;
 
-    switch(bundle->ales_present[index]) {
+    if (rlp != 0) {
+        TCGv_i64 t0 = tcg_temp_new_i64();
+        uint8_t psrc = GET_FIELD(rlp, 0, 7);
+        bool neg = GET_BIT(rlp, 7 + chan % 3);
+
+        e2k_gen_cond_i64(ctx, t0, psrc);
+        cond = e2k_get_temp_i64(ctx);
+        tcg_gen_xori_i64(cond, t0, neg);
+        tcg_gen_brcondi_i64(TCG_COND_EQ, cond, 0, l0);
+
+        tcg_temp_free_i64(t0);
+    }
+
+    switch(bundle->ales_present[chan]) {
     case ALES_NONE:
-        execute_alopf_simple(ctx, index);
+        execute_alopf_simple(ctx, chan);
         break;
     case ALES_ALLOCATED: // 2 or 5 channel
         e2k_gen_exception(ctx, E2K_EXCP_ILLOPC);
         break;
     case ALES_PRESENT: {
-        uint8_t opc = GET_FIELD(bundle->ales[index], 8, 8);
+        uint8_t opc = GET_FIELD(bundle->ales[chan], 8, 8);
         switch (opc) {
         case 0x01:
-            execute_ext1(ctx, index);
+            execute_ext1(ctx, chan);
             break;
         default:
             e2k_gen_exception(ctx, E2K_EXCP_ILLOPC);
@@ -875,4 +911,9 @@ void e2k_execute_alc(DisasContext *ctx, int index)
         g_assert_not_reached();
         break;
     }
+
+    gen_set_label(l0);
+
+    ctx->alc[chan].has_cond = rlp != 0;
+    ctx->alc[chan].cond = cond;
 }

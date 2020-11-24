@@ -110,6 +110,8 @@ enum ResultType {
 
 typedef struct {
     enum ResultType tag;
+    bool has_cond;
+    TCGv_i64 cond;
     union {
         struct {
             unsigned int i;
@@ -158,6 +160,7 @@ typedef struct DisasContext {
     int t64_len;
     int ttl_len;
 
+    TCGv_i64 cond[6];
     Result alc[6];
     PluResult plu[3];
     ControlTransfer ct;
@@ -220,6 +223,18 @@ TCGv_i64 e2k_get_breg(DisasContext *dc, int reg);
 void e2k_gen_store_breg(int reg, TCGv_i64 val);
 TCGv_i64 e2k_get_greg(DisasContext *dc, int reg);
 void e2k_gen_store_greg(int reg, TCGv_i64 val);
+void e2k_gen_cond_i32(DisasContext *ctx, TCGv_i32 ret, uint8_t psrc);
+
+static inline void e2k_gen_cond_i64(DisasContext *ctx, TCGv_i64 ret,
+    uint8_t psrc)
+{
+    TCGv_i32 t0 = tcg_temp_new_i32();
+
+    e2k_gen_cond_i32(ctx, t0, psrc);
+    tcg_gen_extu_i32_i64(ret, t0);
+
+    tcg_temp_free_i32(t0);
+}
 
 void e2k_gen_exception(DisasContext *dc, int which);
 
