@@ -63,8 +63,8 @@ static inline void scan_needed(const UnpackedBundle *bundle, int need[7])
                 continue;
             }
 
-            p0 = GET_FIELD(bundle->pls[i], 10, 4);
-            p1 = GET_FIELD(bundle->pls[i], 6, 4);
+            p0 = GET_FIELD(bundle->pls[i], 10, 3);
+            p1 = GET_FIELD(bundle->pls[i], 6, 3);
 
             if (p0 < 7 && need[p0] == 0) {
                 need[p0] = 1;
