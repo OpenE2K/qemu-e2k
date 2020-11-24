@@ -40,7 +40,7 @@ static TCGv_i64 get_src2(DisasContext *dc, uint32_t als)
     } else if (IS_LIT(src2)) {
         TCGv t = e2k_get_temp_i64(dc);
         unsigned int i = GET_LIT(src2);
-        uint64_t lit = dc->bundle.lts[i];
+        uint64_t lit = ((int64_t) dc->bundle.lts[i]) << 32 >> 32;
         // TODO: exception
         assert(dc->bundle.lts_present[i]);
         if (IS_LIT16_LO(src2) && i < 2) {
