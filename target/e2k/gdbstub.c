@@ -19,6 +19,7 @@
  * License along with this library; if not, see <http://www.gnu.org/licenses/>.
  */
 #include "qemu/osdep.h"
+#include "qemu/timer.h"
 #include "cpu.h"
 #include "exec/gdbstub.h"
 
@@ -128,7 +129,7 @@ int e2k_cpu_gdb_read_register(CPUState *cs, GByteArray *mem_buf, int n)
     }
 
     switch (n) {
-    case 312: return gdb_get_reg64(mem_buf, 0); // clkr
+    case 312: return gdb_get_reg64(mem_buf, cpu_get_host_ticks()); // clkr
     case 313: return gdb_get_reg64(mem_buf, 0); // dibcr
     case 314: return gdb_get_reg64(mem_buf, 0); // ddbcr
     default:
@@ -183,8 +184,12 @@ int e2k_cpu_gdb_read_register(CPUState *cs, GByteArray *mem_buf, int n)
         break;
     }
 
-    if (349 <= n && n < 360) {
+    if (349 <= n && n < 356) {
         return gdb_get_reg64(mem_buf, 0); // unk
+    }
+
+    if (356 <= n && n < 360) {
+        return gdb_get_reg64(mem_buf, 0); // gN tags (tag len is 1 byte)
     }
 
     if (360 <= n && n < 368) {
