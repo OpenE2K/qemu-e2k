@@ -310,10 +310,17 @@ static inline void do_commit(DisasContext *ctx)
     unsigned int i;
 
     for (i = 0; i < 6; i++) {
+        TCGLabel *l0 = gen_new_label();
         Result *res = &ctx->alc[i];
+
         if (!ctx->bundle.als_present[i]) {
             continue;
         }
+
+        if (res->has_cond) {
+            tcg_gen_brcondi_i64(TCG_COND_EQ, res->cond, 0, l0);
+        }
+
         switch(res->tag) {
         case RESULT_BASED_REG:
             e2k_gen_store_breg(res->u.reg.i, res->u.reg.v);
@@ -330,6 +337,8 @@ static inline void do_commit(DisasContext *ctx)
         default:
             break;
         }
+
+        gen_set_label(l0);
     }
 
     e2k_plu_commit(ctx);
