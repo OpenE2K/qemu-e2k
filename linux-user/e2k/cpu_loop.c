@@ -37,13 +37,6 @@ void cpu_loop(CPUE2KState *env)
         process_queued_cpu_work(cs);
 
         switch (trapnr) {
-        case E2K_EXCP_UNIMPL:
-            info.si_signo = TARGET_SIGILL;
-            info.si_errno = 0;
-            info.si_code = TARGET_ILL_ILLOPC;
-            info._sifields._sigfault._addr = env->ip;
-            queue_signal(env, info.si_signo, QEMU_SI_KILL, &info);
-            break;
         case E2K_EXCP_SYSCALL: {
             int offset = env->wd_base + env->syscall_wbs * 2;
             uint64_t *regs = env->wregs;

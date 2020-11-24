@@ -386,7 +386,7 @@ static inline void do_branch(DisasContext *ctx)
         tcg_temp_free_i64(t0);
 
         // TODO: ldisp, sdisp
-        e2k_gen_exception(ctx, E2K_EXCP_UNIMPL);
+        e2k_gen_exception(ctx, 0);
 
         gen_set_label(l0);
         gen_goto_ctpr_disp(ctx->ct.u.ctpr);

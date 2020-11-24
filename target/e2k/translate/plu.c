@@ -18,16 +18,16 @@ void e2k_gen_cond_i32(DisasContext *ctx, TCGv_i32 ret, uint8_t psrc)
             e2k_gen_lcntex(ret);
         } else {
             // TODO: spred
-            gen_helper_unimpl(cpu_env);
+            abort();
         }
     } else if (GET_FIELD(psrc, 5, 2) == 0x40) {
         int val = GET_FIELD(psrc, 0, 5);
         if (val == 0) {
             // TODO: bgrpred
-            gen_helper_unimpl(cpu_env);
+            abort();
         } else if (val <= 15) {
             // TODO: rndpred
-            gen_helper_unimpl(cpu_env);
+            abort();
         } else {
             e2k_gen_exception(ctx, E2K_EXCP_ILLOPN);
         }
@@ -172,7 +172,7 @@ void e2k_plu_execute(DisasContext *ctx)
                 break;
             }
             default:
-                gen_helper_unimpl(cpu_env);
+                abort();
                 break;
             }
         }

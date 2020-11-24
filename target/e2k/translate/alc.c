@@ -81,7 +81,7 @@ static TCGv_i64 get_dst(DisasContext *dc, unsigned int als)
         return e2k_get_greg(dc, i);
     } else {
         // TODO: %empty, %ctpr, etc
-        gen_helper_unimpl(cpu_env);
+        abort();
     }
     // TODO: remove
     return e2k_get_temp_i64(dc);
@@ -105,7 +105,7 @@ static void store_reg_alc_result(DisasContext *dc, int chan, TCGv_i64 val)
         res->u.reg.i = GET_GLOBAL(dst);
     } else {
         // TODO: %empty, %ctpr, etc
-        gen_helper_unimpl(cpu_env);
+        abort();
     }
 }
 
@@ -252,12 +252,12 @@ static inline void gen_getfd(TCGv_i64 ret, TCGv_i64 src1, TCGv_i64 src2)
 static TCGCond e2k_gen_cmp_op(unsigned int cmp_op)
 {
     switch(cmp_op) {
-    case 0: gen_helper_unimpl(cpu_env); break;
+    case 0: abort(); break;
     case 1: return TCG_COND_LTU; break;
     case 2: return TCG_COND_EQ; break;
     case 3: return TCG_COND_LEU; break;
-    case 4: gen_helper_unimpl(cpu_env); break;
-    case 5: gen_helper_unimpl(cpu_env); break;
+    case 4: abort(); break;
+    case 5: abort(); break;
     case 6: return TCG_COND_LT; break;
     case 7: return TCG_COND_LE; break;
     default: g_assert_not_reached(); break;
@@ -767,28 +767,28 @@ static void execute_alopf_simple(DisasContext *dc, int chan)
     case 0x1f: /* getfd */ gen_alopf1_i64(dc, chan, gen_getfd); break;
     case 0x20:
         if (chan == 2 || chan == 5) {
-            gen_helper_unimpl(cpu_env);
+            abort();
         } else {
             gen_cmpsb(dc, chan); /* cmp{op}sb */
         }
         break;
     case 0x21:
         if (chan == 2 || chan == 5) {
-            gen_helper_unimpl(cpu_env);
+            abort();
         } else {
             gen_cmpdb(dc, chan); /* cmp{op}db */
         }
         break;
     case 0x22:
         if (chan == 2 || chan == 5) {
-            gen_helper_unimpl(cpu_env);
+            abort();
         } else {
             gen_cmpandsb(dc, chan); /* cmpand{op}sb */
         }
         break;
     case 0x23:
         if (chan == 2 || chan == 5) {
-            gen_helper_unimpl(cpu_env);
+            abort();
         } else {
             gen_cmpanddb(dc, chan); /* cmpand{op}db */
         }
@@ -797,7 +797,7 @@ static void execute_alopf_simple(DisasContext *dc, int chan)
         if (chan == 2 || chan == 5) {
             gen_st(dc, chan, MO_UB);
         } else {
-            gen_helper_unimpl(cpu_env);
+            abort();
         }
         break;
     }
@@ -805,7 +805,7 @@ static void execute_alopf_simple(DisasContext *dc, int chan)
         if (chan == 2 || chan == 5) {
             gen_st(dc, chan, MO_UW);
         } else {
-            gen_helper_unimpl(cpu_env);
+            abort();
         }
         break;
     }
@@ -813,7 +813,7 @@ static void execute_alopf_simple(DisasContext *dc, int chan)
         if (chan == 2 || chan == 5) {
             gen_st(dc, chan, MO_UL);
         } else {
-            gen_helper_unimpl(cpu_env);
+            abort();
         }
         break;
     }
@@ -821,7 +821,7 @@ static void execute_alopf_simple(DisasContext *dc, int chan)
         if (chan == 2 || chan == 5) {
             gen_st(dc, chan, MO_Q);
         } else {
-            gen_helper_unimpl(cpu_env);
+            abort();
         }
         break;
     }
@@ -830,14 +830,14 @@ static void execute_alopf_simple(DisasContext *dc, int chan)
         break;
     case 0x61:
         if (chan == 2 || chan == 5) {
-            gen_helper_unimpl(cpu_env);
+            abort();
         } else {
             gen_movtd(dc, chan);
         }
         break;
     case 0x64: { /* ldb */
         if (chan == 1 || chan == 4) {
-            gen_helper_unimpl(cpu_env);
+            abort();
         } else {
             gen_ld(dc, chan, MO_UB);
         }
@@ -845,7 +845,7 @@ static void execute_alopf_simple(DisasContext *dc, int chan)
     }
     case 0x65: { /* ldh */
         if (chan == 1 || chan == 4) {
-            gen_helper_unimpl(cpu_env);
+            abort();
         } else {
             gen_ld(dc, chan, MO_UW);
         }
@@ -853,7 +853,7 @@ static void execute_alopf_simple(DisasContext *dc, int chan)
     }
     case 0x66: { /* ldw */
         if (chan == 1 || chan == 4) {
-            gen_helper_unimpl(cpu_env);
+            abort();
         } else {
             gen_ld(dc, chan, MO_UL);
         }
@@ -861,7 +861,7 @@ static void execute_alopf_simple(DisasContext *dc, int chan)
     }
     case 0x67: { /* ldd */
         if (chan == 1 || chan == 4) {
-            gen_helper_unimpl(cpu_env);
+            abort();
         } else {
             gen_ld(dc, chan, MO_Q);
         }
