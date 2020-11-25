@@ -2334,11 +2334,16 @@ static void handle_set_qemu_phy_mem_mode(GdbCmdContext *gdb_ctx, void *user_ctx)
 #ifdef TARGET_E2K
 static void handle_query_e2k_tags_read(GdbCmdContext *gdb_ctx, void *user_ctx)
 {
+//    unsigned long long addr = gdb_ctx->params[0].val_ull;
+    unsigned long len = gdb_ctx->params[1].val_ul;
+    unsigned int i;
+
     // TODO: handle_query_e2k_tags_read
 
     g_string_assign(gdbserver_state.str_buf, "l");
-    g_string_append_c(gdbserver_state.str_buf, 0);
-    g_string_append_c(gdbserver_state.str_buf, 0);
+    for (i = 0; i < len; i++) {
+        g_string_append_c(gdbserver_state.str_buf, 0);
+    }
 
     put_packet_binary(gdbserver_state.str_buf->str,
         gdbserver_state.str_buf->len, true);
