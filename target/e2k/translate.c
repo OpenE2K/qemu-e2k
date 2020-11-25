@@ -441,7 +441,7 @@ static void e2k_tr_tb_start(DisasContextBase *db, CPUState *cs)
 {
 //    DisasContext *ctx = container_of(db, DisasContext, base);
 
-    tcg_gen_movi_tl(e2k_cs.ct_cond, 1);
+    tcg_gen_movi_tl(e2k_cs.ct_cond, 0);
 }
 
 static void e2k_tr_insn_start(DisasContextBase *db, CPUState *cs)
