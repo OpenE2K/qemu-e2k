@@ -40,21 +40,21 @@ static TCGv_i64 get_src2(DisasContext *dc, uint32_t als)
     } else if (IS_LIT(src2)) {
         TCGv t = e2k_get_temp_i64(dc);
         unsigned int i = GET_LIT(src2);
-        uint64_t lit = ((int64_t) dc->bundle.lts[i]) << 32 >> 32;
+        uint64_t lit = dc->bundle.lts[i];
         // TODO: exception
         assert(dc->bundle.lts_present[i]);
         if (IS_LIT16_LO(src2) && i < 2) {
-            lit = ((int64_t) lit & 0xffff) << 48 >> 48;
+            lit = ((int64_t) lit << 48) >> 48;
         } else if (IS_LIT16_HI(src2) && i < 2) {
-            lit = ((int64_t) lit >> 16) << 48 >> 48;
+            lit = ((int64_t) lit << 32) >> 48;
         } else if (IS_LIT32(src2)) {
-            // nop
+            lit = ((int64_t) lit << 32) >> 32;
         } else if (IS_LIT64(src2) && i < 3) {
             if (!dc->bundle.lts_present[i + 1]) {
                 // TODO: check what exception must be raised
                 e2k_gen_exception(dc, E2K_EXCP_MAPERR);
             }
-            lit |= ((uint64_t) dc->bundle.lts[i + 1]) << 32;
+            lit |= (uint64_t) dc->bundle.lts[i + 1] << 32;
         } else {
             // TODO: check what exception must be raised
             e2k_gen_exception(dc, E2K_EXCP_MAPERR);
@@ -163,7 +163,7 @@ static inline void gen_getfield_i32(TCGv_i32 ret, TCGv_i32 src1,
     TCGv_i32 shift, TCGv_i32 size, TCGv_i32 sign)
 {
     TCGv_i32 n32 = tcg_const_i32(32);
-    TCGv_i32 n15 = tcg_const_i32(15);
+    TCGv_i32 n1 = tcg_const_i32(1);
     TCGv_i32 t0 = tcg_temp_new_i32();
     TCGv_i32 t1 = tcg_temp_new_i32();
     TCGv_i32 t2 = tcg_temp_new_i32();
@@ -177,7 +177,7 @@ static inline void gen_getfield_i32(TCGv_i32 ret, TCGv_i32 src1,
     tcg_gen_shl_i32(t3, src1, t1);
     tcg_gen_shr_i32(t4, t3, t2);
     tcg_gen_sar_i32(t5, t3, t2);
-    tcg_gen_movcond_i32(TCG_COND_NE, ret, sign, n15, t4, t5);
+    tcg_gen_movcond_i32(TCG_COND_NE, ret, sign, n1, t4, t5);
 
     tcg_temp_free_i32(t5);
     tcg_temp_free_i32(t4);
@@ -185,7 +185,7 @@ static inline void gen_getfield_i32(TCGv_i32 ret, TCGv_i32 src1,
     tcg_temp_free_i32(t2);
     tcg_temp_free_i32(t1);
     tcg_temp_free_i32(t0);
-    tcg_temp_free_i32(n15);
+    tcg_temp_free_i32(n1);
     tcg_temp_free_i32(n32);
 }
 
@@ -193,7 +193,7 @@ static inline void gen_getfield_i64(TCGv_i64 ret, TCGv_i64 src1,
     TCGv_i64 shift, TCGv_i64 size, TCGv_i64 sign)
 {
     TCGv_i64 n64 = tcg_const_i64(64);
-    TCGv_i64 n15 = tcg_const_i64(15);
+    TCGv_i64 n1 = tcg_const_i64(1);
     TCGv_i64 t0 = tcg_temp_new_i64();
     TCGv_i64 t1 = tcg_temp_new_i64();
     TCGv_i64 t2 = tcg_temp_new_i64();
@@ -207,7 +207,7 @@ static inline void gen_getfield_i64(TCGv_i64 ret, TCGv_i64 src1,
     tcg_gen_shl_i64(t3, src1, t1);
     tcg_gen_shr_i64(t4, t3, t2);
     tcg_gen_sar_i64(t5, t3, t2);
-    tcg_gen_movcond_i64(TCG_COND_NE, ret, sign, n15, t4, t5);
+    tcg_gen_movcond_i64(TCG_COND_NE, ret, sign, n1, t4, t5);
 
     tcg_temp_free_i64(t5);
     tcg_temp_free_i64(t4);
@@ -215,7 +215,7 @@ static inline void gen_getfield_i64(TCGv_i64 ret, TCGv_i64 src1,
     tcg_temp_free_i64(t2);
     tcg_temp_free_i64(t1);
     tcg_temp_free_i64(t0);
-    tcg_temp_free_i64(n15);
+    tcg_temp_free_i64(n1);
     tcg_temp_free_i64(n64);
 }
 
@@ -227,7 +227,7 @@ static inline void gen_getfs(TCGv_i32 ret, TCGv_i32 src1, TCGv_i32 src2)
 
     tcg_gen_extract_i32(shift, src2, 0, 5);
     tcg_gen_extract_i32(size, src2, 6, 5);
-    tcg_gen_extract_i32(sign, src2, 12, 4);
+    tcg_gen_extract_i32(sign, src2, 12, 1);
     gen_getfield_i32(ret, src1, shift, size, sign);
 
     tcg_temp_free_i32(sign);
@@ -243,7 +243,7 @@ static inline void gen_getfd(TCGv_i64 ret, TCGv_i64 src1, TCGv_i64 src2)
 
     tcg_gen_extract_i64(shift, src2, 0, 6);
     tcg_gen_extract_i64(size, src2, 6, 6);
-    tcg_gen_extract_i64(sign, src2, 12, 4);
+    tcg_gen_extract_i64(sign, src2, 12, 1);
     gen_getfield_i64(ret, src1, shift, size, sign);
 
     tcg_temp_free_i64(sign);
