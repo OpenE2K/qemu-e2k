@@ -87,7 +87,6 @@ static TCGv_i64 get_dst(DisasContext *dc, unsigned int als)
     return e2k_get_temp_i64(dc);
 }
 
-/* FIXME: now only %r, %b, %g */
 static void store_reg_alc_result(DisasContext *dc, int chan, TCGv_i64 val)
 {
     uint8_t dst = dc->bundle.als[chan];
@@ -103,8 +102,11 @@ static void store_reg_alc_result(DisasContext *dc, int chan, TCGv_i64 val)
     } else if (IS_GLOBAL(dst)) {
         res->tag = RESULT_GLOBAL_REG;
         res->u.reg.i = GET_GLOBAL(dst);
+    } else if (dst == 0xdf) { /* %empty */
+        res->tag = RESULT_NONE;
+        res->u.reg.i = -1;
     } else {
-        // TODO: %empty, %ctpr, etc
+        // TODO: %ctpr, etc
         abort();
     }
 }
@@ -825,8 +827,33 @@ static void execute_alopf_simple(DisasContext *dc, int chan)
         }
         break;
     }
-    case 0x40: // TODO: udivs used as temporary UD
-        e2k_gen_exception(dc, 0);
+    case 0x40:
+        if (chan == 5) {
+            gen_alopf1_i32(dc, chan, tcg_gen_divu_i32);
+        } else {
+            abort();
+        }
+        break;
+    case 0x41:
+        if (chan == 5) {
+            gen_alopf1_i64(dc, chan, tcg_gen_divu_i64);
+        } else {
+            abort();
+        }
+        break;
+    case 0x42:
+        if (chan == 5) {
+            gen_alopf1_i32(dc, chan, tcg_gen_div_i32);
+        } else {
+            abort();
+        }
+        break;
+    case 0x43:
+        if (chan == 5) {
+            gen_alopf1_i64(dc, chan, tcg_gen_div_i64);
+        } else {
+            abort();
+        }
         break;
     case 0x61:
         if (chan == 2 || chan == 5) {
