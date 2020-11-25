@@ -121,7 +121,6 @@ void e2k_commit_stubs(DisasContext *ctx)
     int abn = GET_FIELD(ss, 21, 2);
     int abg = GET_FIELD(ss, 23, 2);
 
-
     if (alc) {
         TCGv_i64 t0 = tcg_temp_new_i64();
 
@@ -497,7 +496,9 @@ static void gen_jmp(DisasContext *dc)
         dc->ct.u.ctpr = e2k_cs.ctprs[ctpr - 1];
     }
 
-    if (cond_type > 1) {
+    if (cond_type == 1) {
+        tcg_gen_movi_tl(e2k_cs.ct_cond, 1);
+    } else if (cond_type > 1) {
         /* TODO: single assign */
         TCGv preg = tcg_temp_new();
         TCGv loop_end = tcg_temp_new();
