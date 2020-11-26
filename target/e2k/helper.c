@@ -16,39 +16,6 @@ static inline void reset_ctprs(CPUE2KState *env)
     }
 }
 
-static inline void save_br_state(CPUE2KState *env)
-{
-    int rbs, rsz, rcur;
-
-    rbs = env->boff / 2;
-    rsz = (env->bsize - 2) / 2;
-    rcur = env->bcur / 2;
-
-    env->br = SET_FIELD(env->br, rbs, BR_RBS_OFF, BR_RBS_LEN);
-    env->br = SET_FIELD(env->br, rsz, BR_RSZ_OFF, BR_RSZ_LEN);
-    env->br = SET_FIELD(env->br, rcur, BR_RCUR_OFF, BR_RCUR_LEN);
-    env->br = SET_FIELD(env->br, env->psize, BR_PSZ_OFF, BR_PSZ_LEN);
-    env->br = SET_FIELD(env->br, env->pcur, BR_PCUR_OFF, BR_PCUR_LEN);
-
-    e2k_state_cr1_br_set(env, env->br);
-}
-
-static inline void restore_br_state(CPUE2KState *env)
-{
-    int rbs, rsz, rcur;
-
-    env->br = e2k_state_cr1_br_get(env);
-    rbs = GET_FIELD(env->br, BR_RBS_OFF, BR_RBS_LEN);
-    rsz = GET_FIELD(env->br, BR_RSZ_OFF, BR_RSZ_LEN);
-    rcur = GET_FIELD(env->br, BR_RCUR_OFF, BR_RCUR_LEN);
-
-    env->boff = rbs * 2;
-    env->bsize = rsz * 2 + 2;
-    env->bcur = rcur * 2;
-    env->psize = GET_FIELD(env->br, BR_PSZ_OFF, BR_PSZ_LEN);
-    env->pcur = GET_FIELD(env->br, BR_PCUR_OFF, BR_PCUR_LEN);
-}
-
 static void pcs_push(CPUE2KState *env, int wbs)
 {
     size_t size = sizeof(env->proc_chain);
@@ -58,7 +25,7 @@ static void pcs_push(CPUE2KState *env, int wbs)
         return;
     }
 
-    save_br_state(env);
+    e2k_state_cr1_br_set(env, e2k_state_br(env));
     e2k_state_cr1_wpsz_set(env, env->wd_psize / 2);
     memcpy(env->pcsp.base + env->pcsp.index, env->proc_chain, size);
     e2k_state_cr1_wbs_set(env, wbs);
@@ -78,7 +45,7 @@ static void pcs_pop(CPUE2KState *env)
     env->pcsp.index -= size;
     memcpy(env->proc_chain, env->pcsp.base + env->pcsp.index, size);
     env->wd_psize = e2k_state_cr1_wpsz_get(env) * 2;
-    restore_br_state(env);
+    e2k_state_br_set(env, e2k_state_cr1_br_get(env));
 }
 
 static void ps_push_nfx(CPUE2KState *env, unsigned int base, size_t len)
@@ -229,7 +196,6 @@ target_ulong helper_call(CPUE2KState *env, uint64_t ctpr,
 void helper_raise_exception(CPUE2KState *env, int tt)
 {
     CPUState *cs = env_cpu(env);
-    save_br_state(env);
     cs->exception_index = tt;
     cpu_loop_exit(cs);
 }
