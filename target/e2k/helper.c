@@ -157,29 +157,55 @@ static void ps_pop_fx(CPUE2KState *env, unsigned int base, size_t len)
     }
 }
 
+static inline void ps_push(CPUE2KState *env)
+{
+    int occupied = env->wd.size + env->pshtp.index;
+    if (WREGS_SIZE < occupied) {
+        int len = occupied - WREGS_SIZE;
+        int base = (int) env->wd.base - env->pshtp.index;
+        if (base < 0) {
+            base += WREGS_SIZE;
+        }
+        // TODO: ps_push_fx
+        ps_push_nfx(env, base, len);
+        env->pshtp.index -= len;
+    }
+}
+
+static inline void ps_pop(CPUE2KState *env, int base, int required)
+{
+    if (env->pshtp.index < required) {
+        int len = required - env->pshtp.index;
+        // TODO: ps_pop_fx
+        ps_pop_nfx(env, base, len);
+        env->pshtp.index = 0;
+    } else {
+        env->pshtp.index -= required;
+    }
+}
+
 static inline void do_call(CPUE2KState *env, int wbs)
 {
     env->ip = env->nip;
-    ps_push_nfx(env, env->wd.base, wbs * 2);
+    env->pshtp.index += wbs * 2; // add old window to allocated registers
     pcs_push(env, wbs);
     reset_ctprs(env);
 }
 
 void helper_return(CPUE2KState *env)
 {
-    uint32_t new_wd_size, new_wd_base, wbs;
+    uint32_t new_wd_size, new_wd_base, offset;
 
-    wbs = env->cr1.wbs;
-    new_wd_size = env->wd.psize + wbs * 2;
-    new_wd_base = (env->wd.base - wbs * 2) % WREGS_SIZE;
-
-    if (env->wd.base < new_wd_base) {
-        env->wd.base += WREGS_SIZE;
+    offset = env->cr1.wbs * 2;
+    new_wd_size = env->wd.psize + offset;
+    new_wd_base = env->wd.base;
+    if (new_wd_base < offset) {
+        new_wd_base += WREGS_SIZE;
     }
+    new_wd_base = (new_wd_base - offset) % WREGS_SIZE;
 
-    ps_pop_nfx(env, new_wd_base, env->wd.base - new_wd_base);
+    ps_pop(env, new_wd_base, offset);
     pcs_pop(env);
-
     env->wd.base = new_wd_base;
     env->wd.size = new_wd_size;
 
@@ -351,11 +377,8 @@ uint64_t helper_getsp(CPUE2KState *env, uint64_t src2) {
 
 void helper_setwd(CPUE2KState *env, uint32_t lts)
 {
-    int wsz = extract32(lts, 5, 7);
-    bool nfx = extract32(lts, 4, 1);
-
-    env->wd.size = wsz * 2;
-    env->wd.fx = nfx == 0;
+    env->wd.size = extract32(lts, 5, 7) * 2;
+    env->wd.fx = extract32(lts, 4, 1) == 0;
 
     if (env->version >= 3) {
         bool dbl = extract32(lts, 3, 1);
@@ -364,4 +387,6 @@ void helper_setwd(CPUE2KState *env, uint32_t lts)
             abort();
         }
     }
+
+    ps_push(env);
 }
