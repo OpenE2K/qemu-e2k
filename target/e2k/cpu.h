@@ -53,35 +53,20 @@ void e2k_tcg_initialize(void);
 #define WD_FX_OFF 48
 #define WD_FX_BIT (1UL << WD_FX_OFF)
 
-#define PCSP_HI_IND_OFF 0       /* index for SPILL */
-#define PCSP_HI_IND_END 31
-#define PCSP_HI_IND_LEN (PCSP_HI_IND_END - PCSP_HI_IND_OFF + 1)
-#define PCSP_HI_SIZE_OFF 32
-#define PCSP_HI_SIZE_END 63     /* procedure stack chain size */
-#define PCSP_HI_SIZE_LEN (PCSP_HI_SIZE_END - PCSP_HI_SIZE_OFF + 1)
+#define DESC_HI_IND_OFF 0       /* index for SPILL */
+#define DESC_HI_IND_END 31
+#define DESC_HI_IND_LEN (DESC_HI_IND_END - DESC_HI_IND_OFF + 1)
+#define DESC_HI_SIZE_OFF 32     /* stack size */
+#define DESC_HI_SIZE_END 63
+#define DESC_HI_SIZE_LEN (DESC_HI_SIZE_END - DESC_HI_SIZE_OFF + 1)
 
-#define PCSP_LO_BASE_OFF 0      /* procedure stack chain address */
-#define PCSP_LO_BASE_END 47
-#define PCSP_LO_BASE_LEN (PCSP_LO_BASE_END - PCSP_LO_BASE_OFF + 1)
-#define PCSP_LO_READ_OFF 59
-#define PCSP_LO_READ_BIT (1UL << PCSP_LO_READ_OFF)
-#define PCSP_LO_WRITE_OFF 60
-#define PCSP_LO_WRITE_BIT (1UL << PCSP_LO_WRITE_OFF)
-
-#define PSP_HI_IND_OFF 0       /* index for SPILL */
-#define PSP_HI_IND_END 31
-#define PSP_HI_IND_LEN (PSP_HI_IND_END - PSP_HI_IND_OFF + 1)
-#define PSP_HI_SIZE_OFF 32
-#define PSP_HI_SIZE_END 63     /* procedure stack size */
-#define PSP_HI_SIZE_LEN (PSP_HI_SIZE_END - PSP_HI_SIZE_OFF + 1)
-
-#define PSP_LO_BASE_OFF 0      /* procedure stack address */
-#define PSP_LO_BASE_END 47
-#define PSP_LO_BASE_LEN (PSP_LO_BASE_END - PSP_LO_BASE_OFF + 1)
-#define PSP_LO_READ_OFF 59
-#define PSP_LO_READ_BIT (1UL << PSP_LO_READ_OFF)
-#define PSP_LO_WRITE_OFF 60
-#define PSP_LO_WRITE_BIT (1UL << PSP_LO_WRITE_OFF)
+#define DESC_LO_BASE_OFF 0      /* stack address */
+#define DESC_LO_BASE_END 47
+#define DESC_LO_BASE_LEN (DESC_LO_BASE_END - DESC_LO_BASE_OFF + 1)
+#define DESC_LO_READ_OFF 59
+#define DESC_LO_READ_BIT (1UL << DESC_LO_READ_OFF)
+#define DESC_LO_WRITE_OFF 60
+#define DESC_LO_WRITE_BIT (1UL << DESC_LO_WRITE_OFF)
 
 #define PSHTP_IND_OFF 0
 #define PSHTP_IND_END 11
@@ -250,7 +235,7 @@ typedef struct {
     uint32_t size;
     bool is_readable;
     bool is_writable;
-} E2KPsState;
+} E2KDescState, E2KPsState, E2KPcsState;
 
 typedef struct {
     /* register file */
@@ -259,8 +244,7 @@ typedef struct {
     uint64_t *wptr;
 
     /* Procedure chain info = cr0_lo, cr0_hi, cr1_lo, cr1_hi */
-    uint64_t pcsp_lo;
-    uint64_t pcsp_hi;
+    E2KPcsState pcsp;
     uint64_t pcshtp;
     uint32_t br;
 
@@ -353,60 +337,33 @@ int e2k_cpu_gdb_write_register(CPUState *cs, uint8_t *mem_buf, int n);
 
 #define cpu_signal_handler e2k_cpu_signal_handler
 
-static inline target_ulong e2k_state_pcs_base_get(CPUE2KState *env)
-{
-    return GET_FIELD(env->pcsp_lo, PCSP_LO_BASE_OFF, PCSP_LO_BASE_LEN);
-}
-
-static inline void e2k_state_pcs_base_set(CPUE2KState *env, target_ulong pcsp)
-{
-    env->pcsp_lo = SET_FIELD(env->pcsp_lo, pcsp, PCSP_LO_BASE_OFF,
-        PCSP_LO_BASE_LEN);
-}
-
-static inline size_t e2k_state_pcs_index_get(CPUE2KState *env)
-{
-    return GET_FIELD(env->pcsp_hi, PCSP_HI_IND_OFF, PCSP_HI_IND_LEN);
-}
-
-static inline void e2k_state_pcs_index_set(CPUE2KState *env, size_t ind)
-{
-    env->pcsp_hi = SET_FIELD(env->pcsp_hi, ind, PCSP_HI_IND_OFF,
-        PCSP_HI_IND_LEN);
-}
-
-static inline size_t e2k_state_pcs_size_get(CPUE2KState *env)
-{
-    return GET_FIELD(env->pcsp_hi, PCSP_HI_SIZE_OFF, PCSP_HI_SIZE_LEN);
-}
-
-static inline void e2k_state_pcs_size_set(CPUE2KState *env, size_t size)
-{
-    env->pcsp_hi = SET_FIELD(env->pcsp_hi, size, PCSP_HI_SIZE_OFF,
-        PCSP_HI_SIZE_LEN);
-}
-
-static inline uint64_t e2k_state_psp_lo(CPUE2KState *env)
+static inline uint64_t e2k_state_desc_lo(E2KDescState *desc)
 {
     uint64_t lo = 0;
 
-    lo = deposit64(lo, PSP_LO_BASE_OFF, PSP_LO_BASE_LEN,
-        (uint64_t) env->psp.base);
-    lo = deposit64(lo, PSP_LO_READ_OFF, 1, env->psp.is_readable);
-    lo = deposit64(lo, PSP_LO_WRITE_OFF, 1, env->psp.is_writable);
+    lo = deposit64(lo, DESC_LO_BASE_OFF, DESC_LO_BASE_LEN,
+        (uint64_t) desc->base);
+    lo = deposit64(lo, DESC_LO_READ_OFF, 1, desc->is_readable);
+    lo = deposit64(lo, DESC_LO_WRITE_OFF, 1, desc->is_writable);
 
     return lo;
 }
 
-static inline uint64_t e2k_state_psp_hi(CPUE2KState *env)
+static inline uint64_t e2k_state_desc_hi(E2KDescState *env)
 {
     uint64_t hi = 0;
 
-    hi = deposit64(hi, PSP_HI_IND_OFF, PSP_HI_IND_LEN, env->psp.index);
-    hi = deposit64(hi, PSP_HI_SIZE_OFF, PSP_HI_SIZE_OFF, env->psp.size);
+    hi = deposit64(hi, DESC_HI_IND_OFF, DESC_HI_IND_LEN, env->index);
+    hi = deposit64(hi, DESC_HI_SIZE_OFF, DESC_HI_SIZE_OFF, env->size);
 
     return hi;
 }
+
+
+#define e2k_state_pcsp_lo(env) e2k_state_desc_lo(&(env)->pcsp)
+#define e2k_state_pcsp_hi(env) e2k_state_desc_hi(&(env)->pcsp)
+#define e2k_state_psp_lo(env) e2k_state_desc_lo(&(env)->psp)
+#define e2k_state_psp_hi(env) e2k_state_desc_hi(&(env)->psp)
 
 static inline int e2k_state_cr1_wbs_get(CPUE2KState *env)
 {
