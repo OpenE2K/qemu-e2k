@@ -97,7 +97,7 @@ static inline void cpu_dump_state_wd(CPUE2KState *env, FILE *f, int flags)
     int wbs = GET_FIELD(env->cr1_lo, CR1_LO_WBS_OFF, CR1_LO_WBS_LEN);
     int wsz = GET_FIELD(env->cr1_lo, CR1_LO_WPSZ_OFF, CR1_LO_WPSZ_LEN);
 
-    qemu_fprintf(f, "wbs = %#x, wsz = %#x\n", wbs, wsz);
+    qemu_fprintf(f, "wbs = %d, wsz = %d\n", wbs, wsz);
 }
 
 static inline void cpu_dump_state_br(CPUE2KState *env, FILE *f, int flags)
@@ -109,12 +109,12 @@ static inline void cpu_dump_state_br(CPUE2KState *env, FILE *f, int flags)
     int psz = GET_FIELD(br, BR_PSZ_OFF, BR_PSZ_LEN);
     int pcur = GET_FIELD(br, BR_PCUR_OFF, BR_PCUR_LEN);
 
-    qemu_fprintf(f, "br         %#x\n", br);
-    qemu_fprintf(f, "    rbs    %#x\n", rbs);
-    qemu_fprintf(f, "    rsz    %#x\n", rsz);
-    qemu_fprintf(f, "    rcur   %#x\n", rcur);
-    qemu_fprintf(f, "    psz    %#x\n", psz);
-    qemu_fprintf(f, "    pcur   %#x\n", pcur);
+    qemu_fprintf(f, "br         0x%x\n", br);
+    qemu_fprintf(f, "    rbs    %d\n", rbs);
+    qemu_fprintf(f, "    rsz    %d\n", rsz);
+    qemu_fprintf(f, "    rcur   %d\n", rcur);
+    qemu_fprintf(f, "    psz    %d\n", psz);
+    qemu_fprintf(f, "    pcur   %d\n", pcur);
 }
 
 void e2k_cpu_dump_state(CPUState *cs, FILE *f, int flags)
@@ -123,36 +123,32 @@ void e2k_cpu_dump_state(CPUState *cs, FILE *f, int flags)
     CPUE2KState *env = &cpu->env;
     unsigned int i;
 
-    qemu_fprintf(f, "ip: " TARGET_FMT_lx "\n", env->ip);
-    qemu_fprintf(f, "pcsp_lo: %016lx\n", e2k_state_pcsp_lo(env));
-    qemu_fprintf(f, "pcsp_hi: %016lx\n", e2k_state_pcsp_hi(env));
-    qemu_fprintf(f, "psp_lo: %016lx\n", e2k_state_psp_lo(env));
-    qemu_fprintf(f, "psp_hi: %016lx\n", e2k_state_psp_hi(env));
-    qemu_fprintf(f, "PF: %016lx\n", env->pf);
-    qemu_fprintf(f, "cr1_hi: %016lx, cr1_lo: %016lx\n",
-        env->cr1_hi, env->cr1_lo);
-    qemu_fprintf(f, "usd_hi: %016lx, usd_lo: %016lx\n",
-        env->usd_hi, env->usd_lo);
+    qemu_fprintf(f, "cr0_lo/pf = 0x%016lx\n", env->cr0_lo);
+    qemu_fprintf(f, "cr0_hi/ip = 0x%016lx\n", env->cr0_hi);
+    qemu_fprintf(f, "   cr1_lo = 0x%016lx\n", env->cr1_lo);
+    qemu_fprintf(f, "   cr1_hi = 0x%016lx\n", env->cr1_hi);
+    qemu_fprintf(f, "  pcsp_lo = 0x%016lx\n", e2k_state_pcsp_lo(env));
+    qemu_fprintf(f, "  pcsp_hi = 0x%016lx\n", e2k_state_pcsp_hi(env));
+    qemu_fprintf(f, "   psp_lo = 0x%016lx\n", e2k_state_psp_lo(env));
+    qemu_fprintf(f, "   psp_hi = 0x%016lx\n", e2k_state_psp_hi(env));
+    qemu_fprintf(f, "   usd_lo = 0x%016lx\n", env->usd_lo);
+    qemu_fprintf(f, "   usd_hi = 0x%016lx\n", env->usd_hi);
+    qemu_fprintf(f, "      lsr = 0x%016lx\n", env->lsr);
     cpu_dump_state_wd(env, f, flags);
     cpu_dump_state_br(env, f, flags);
-    qemu_fprintf(f, "lsr: %016lx\n", env->lsr);
 
-    for (i = 0; i < 192; i += 4) {
-        const char *s1 = i < 10 ? "  " : (i < 100 ? " " : "");
-        const char *s2 = i + 2 < 10 ? "  " : (i + 2 < 100 ? " " : "");
-        qemu_fprintf(f, "%s%%r%d = %16lx  ", s1, i    , env->wregs[i]);
-        qemu_fprintf(f, "%s%%r%d = %16lx  ", s1, i + 1, env->wregs[i + 1]);
-        qemu_fprintf(f, "%s%%r%d = %16lx  ", s2, i + 2, env->wregs[i + 2]);
-        qemu_fprintf(f, "%s%%r%d = %16lx\n", s2, i + 3, env->wregs[i + 3]);
+    for (i = 0; i < WREGS_SIZE; i++) {
+        qemu_fprintf(f, "%%r%d\t0x%lx\n", i, env->wregs[i]);
     }
 
-    for (i = 0; i < 32; i += 4) {
-        const char *s1 = i < 10 ? "  " : (i < 100 ? " " : "");
-        const char *s2 = i + 2 < 10 ? "  " : (i + 2 < 100 ? " " : "");
-        qemu_fprintf(f, "%s%%g%d = %16lx  ", s1, i    , env->gregs[i]);
-        qemu_fprintf(f, "%s%%g%d = %16lx  ", s1, i + 1, env->gregs[i + 1]);
-        qemu_fprintf(f, "%s%%g%d = %16lx  ", s2, i + 2, env->gregs[i + 2]);
-        qemu_fprintf(f, "%s%%g%d = %16lx\n", s2, i + 3, env->gregs[i + 3]);
+    for (i = 0; i < 32; i++) {
+        qemu_fprintf(f, "%%g%d\t0x%lx\n", i, env->gregs[i]);
+    }
+
+    for (i = 0; i < 32; i++) {
+        int preg = (env->pf >> (i * 2)) & 3;
+        qemu_fprintf(f, "pred%d\t<%d> %s\n", i, preg >> 1,
+            preg & 1 ? "true" : "false");
     }
 }
 

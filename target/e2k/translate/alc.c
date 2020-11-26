@@ -829,6 +829,13 @@ static void execute_alopf_simple(DisasContext *dc, int chan)
     }
     case 0x40:
         if (chan == 5) {
+            // FIXME: temp hack
+            TCGLabel *l0 = gen_new_label();
+            TCGv_i64 src2 = get_src2(dc, als);
+            tcg_gen_brcondi_i64(TCG_COND_NE, src2, 0, l0);
+            e2k_gen_exception(dc, 0);
+            gen_set_label(l0);
+
             gen_alopf1_i32(dc, chan, tcg_gen_divu_i32);
         } else {
             abort();
