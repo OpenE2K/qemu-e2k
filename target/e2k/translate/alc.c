@@ -704,13 +704,16 @@ static void gen_alopf1_i64(DisasContext *dc, int chan,
 static void gen_alopf1_mrgc_i32(DisasContext *dc, int chan)
 {
     uint32_t als = dc->bundle.als[chan];
+    TCGv_i64 src1 = get_src1(dc, als);
+    TCGv_i64 src2 = get_src2(dc, als);
+    TCGv_i64 dst = get_dst(dc, als);
     TCGv_i64 t0 = tcg_temp_new_i64();
     TCGv_i64 t1 = e2k_get_temp_i64(dc);
     TCGv_i64 cond = tcg_temp_new_i64();
 
     gen_mrgc_i64(dc, chan, cond);
-    gen_merge_i64(t0, get_src1(dc, als), get_src2(dc, als), cond);
-    gen_movehl_i64(t1, t0, get_dst(dc, als));
+    gen_merge_i64(t0, src1, src2, cond);
+    gen_movehl_i64(t1, t0, dst);
     store_reg_alc_result(dc, chan, t1);
 
     tcg_temp_free_i64(cond);
@@ -720,11 +723,13 @@ static void gen_alopf1_mrgc_i32(DisasContext *dc, int chan)
 static void gen_alopf1_mrgc_i64(DisasContext *dc, int chan)
 {
     uint32_t als = dc->bundle.als[chan];
+    TCGv_i64 src1 = get_src1(dc, als);
+    TCGv_i64 src2 = get_src2(dc, als);
     TCGv_i64 t0 = e2k_get_temp_i64(dc);
     TCGv_i64 cond = tcg_temp_new_i64();
 
     gen_mrgc_i64(dc, chan, cond);
-    gen_merge_i64(t0, get_src1(dc, als), get_src2(dc, als), cond);
+    gen_merge_i64(t0, src1, src2, cond);
     store_reg_alc_result(dc, chan, t0);
 
     tcg_temp_free_i64(cond);
