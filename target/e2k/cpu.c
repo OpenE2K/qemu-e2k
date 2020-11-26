@@ -48,9 +48,9 @@ static void e2k_cpu_reset(DeviceState *dev)
     env->cr1_lo = 0x4dUL << 56; // FIXME: some flags for testing
     env->cr1_lo = SET_FIELD(env->cr1_lo, 4, CR1_LO_WPSZ_OFF, CR1_LO_WPSZ_LEN);
     env->cr1_lo = SET_FIELD(env->cr1_lo, 4, CR1_LO_WBS_OFF, CR1_LO_WBS_LEN);
-    env->wd_base = 0;
-    env->wd_size = 8;
-    env->wd_psize = 8;
+    env->wd.base = 0;
+    env->wd.size = 8;
+    env->wd.psize = 8;
     env->bn.base = 8;
     env->bn.size = 8;
     env->bn.cur = 0;
