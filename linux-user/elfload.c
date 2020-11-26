@@ -1552,8 +1552,6 @@ static inline void init_thread(struct target_pt_regs *regs, struct image_info *i
 {
     abi_ulong pcsp;
     abi_ulong pcs_size = TARGET_PAGE_SIZE;
-    abi_ulong psp;
-    abi_ulong ps_size = TARGET_PAGE_SIZE * 8;
     abi_ulong stack_size = infop->start_stack - infop->stack_limit;
 
     regs->ip = infop->entry;
@@ -1565,9 +1563,11 @@ static inline void init_thread(struct target_pt_regs *regs, struct image_info *i
     regs->pcsp_lo = (3UL << 59) | pcsp;
     regs->pcsp_hi = pcs_size << 32;
 
-    psp = e2k_mmap(ps_size);
-    regs->psp_lo = (3UL << 59) | psp;
-    regs->psp_hi = ps_size << 32;
+    regs->psp.is_readable = true;
+    regs->psp.is_writable = true;
+    regs->psp.index = 0;
+    regs->psp.size = TARGET_PAGE_SIZE * 8;
+    regs->psp.base = (void *) e2k_mmap(regs->psp.size);
 }
 
 static void elf_core_copy_regs(target_elf_gregset_t *regs, const CPUE2KState *env)

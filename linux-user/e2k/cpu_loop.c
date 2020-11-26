@@ -120,8 +120,7 @@ void target_cpu_copy_regs(CPUE2KState *env, struct target_pt_regs *regs)
     env->ip = regs->ip;
     env->pcsp_lo = regs->pcsp_lo;
     env->pcsp_hi = regs->pcsp_hi;
-    env->psp_lo = regs->psp_lo;
-    env->psp_hi = regs->psp_hi;
+    env->psp = regs->psp;
     env->usd_lo = regs->usd_lo;
     env->usd_hi = regs->usd_hi;
 }
