@@ -16,36 +16,57 @@ static inline void reset_ctprs(CPUE2KState *env)
     }
 }
 
+static inline void save_proc_chain_info(CPUE2KState *env, uint64_t buf[4])
+{
+    env->cr1.br = e2k_state_br(env);
+    env->cr1.wpsz = env->wd.psize / 2;
+
+    buf[0] = env->cr0_lo;
+    buf[1] = env->cr0_hi;
+    buf[2] = e2k_state_cr1_lo(env);
+    buf[3] = e2k_state_cr1_hi(env);
+}
+
+static inline void restore_proc_chain_info(CPUE2KState *env, uint64_t buf[4])
+{
+    e2k_state_cr1_hi_set(env, buf[3]);
+    e2k_state_cr1_lo_set(env, buf[2]);
+    env->cr0_hi = buf[1];
+    env->cr0_lo = buf[0];
+
+    env->wd.psize = env->cr1.wpsz * 2;
+    e2k_state_br_set(env, env->cr1.br);
+}
+
 static void pcs_push(CPUE2KState *env, int wbs)
 {
-    size_t size = sizeof(env->proc_chain);
+    uint64_t buf[4];
 
-    if (env->pcsp.size < (env->pcsp.index + size)) {
+    if (env->pcsp.size < (env->pcsp.index + 32)) {
         helper_raise_exception(env, E2K_EXCP_MAPERR);
         return;
     }
 
-    e2k_state_cr1_br_set(env, e2k_state_br(env));
-    e2k_state_cr1_wpsz_set(env, env->wd.psize / 2);
-    memcpy(env->pcsp.base + env->pcsp.index, env->proc_chain, size);
-    e2k_state_cr1_wbs_set(env, wbs);
+    // save proc chain
+    save_proc_chain_info(env, buf);
+    memcpy(env->pcsp.base + env->pcsp.index, buf, 32);
 
-    env->pcsp.index += size;
+    env->cr1.wbs = wbs;
+    env->pcsp.index += 32;
 }
 
 static void pcs_pop(CPUE2KState *env)
 {
-    size_t size = sizeof(env->proc_chain);
+    uint64_t buf[4];
 
-    if (env->pcsp.index < size) {
+    if (env->pcsp.index < 32) {
         helper_raise_exception(env, E2K_EXCP_MAPERR);
         return;
     }
 
-    env->pcsp.index -= size;
-    memcpy(env->proc_chain, env->pcsp.base + env->pcsp.index, size);
-    env->wd.psize = e2k_state_cr1_wpsz_get(env) * 2;
-    e2k_state_br_set(env, e2k_state_cr1_br_get(env));
+    env->pcsp.index -= 32;
+    memcpy(buf, env->pcsp.base + env->pcsp.index, 32);
+    restore_proc_chain_info(env, buf);
 }
 
 static void ps_push_nfx(CPUE2KState *env, unsigned int base, size_t len)
@@ -149,7 +170,7 @@ void helper_return(CPUE2KState *env)
 {
     uint32_t new_wd_size, new_wd_base, wbs;
 
-    wbs = e2k_state_cr1_wbs_get(env);
+    wbs = env->cr1.wbs;
     new_wd_size = env->wd.psize + wbs * 2;
     new_wd_base = (env->wd.base - wbs * 2) % WREGS_SIZE;
 
@@ -217,9 +238,8 @@ static void break_save_state(CPUE2KState *env)
 
 void helper_break_restore_state(CPUE2KState *env)
 {
-    int wbs;
+    int wbs = env->cr1.wbs;
 
-    wbs = e2k_state_cr1_wbs_get(env);
     pcs_pop(env);
     env->wd.size = wbs * 2;
     env->wd.base = (env->wd.base - env->wd.size) % WREGS_SIZE;
