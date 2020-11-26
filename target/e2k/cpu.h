@@ -230,12 +230,44 @@ struct e2k_def_t {
 };
 
 typedef struct {
+    uint32_t base;
+    uint32_t size;
+    uint32_t cur;
+} E2KBnState;
+
+typedef struct {
+    uint32_t size;
+    uint32_t cur;
+} E2KBpState;
+
+typedef struct {
+    uint32_t br;
+    uint32_t cuir;
+    uint32_t ussz;
+    uint16_t tr;
+    uint8_t ein;
+    bool ss;
+    bool wfx;
+    uint8_t wpsz;
+    uint8_t wbs;
+    uint8_t psr;
+    bool wdbl;
+} E2KControlReg1State;
+
+typedef struct {
     void *base;
     uint32_t index;
     uint32_t size;
     bool is_readable;
     bool is_writable;
 } E2KDescState, E2KPsState, E2KPcsState;
+
+typedef struct {
+    int16_t index;
+    uint16_t fx_index;
+    uint16_t t_index;
+    bool fx;
+} E2KPshtpState;
 
 typedef struct {
     /* register file */
@@ -246,22 +278,19 @@ typedef struct {
     /* Procedure chain info = cr0_lo, cr0_hi, cr1_lo, cr1_hi */
     E2KPcsState pcsp;
     uint64_t pcshtp;
-    uint32_t br;
 
     /* Procedure stack pointer (for regs)  */
     E2KPsState psp;
-    uint64_t pshtp;
+    E2KPshtpState pshtp;
+
+    E2KBnState bn;
+    E2KBpState bp;
 
     uint64_t lsr; /* loop status register */
 
     uint32_t wd_base;
     uint32_t wd_size;
     uint32_t wd_psize;
-    uint32_t boff; /* holds rbs * 2 */
-    uint32_t bsize; /* holds rsz * 2 + 2 */
-    uint32_t bcur; /* holds rcur * 2 */
-    uint32_t psize; /* holds psz */
-    uint32_t pcur; /* holds pcur */
 
     uint64_t usd_lo;
     uint64_t usd_hi;
@@ -359,11 +388,52 @@ static inline uint64_t e2k_state_desc_hi(E2KDescState *env)
     return hi;
 }
 
-
 #define e2k_state_pcsp_lo(env) e2k_state_desc_lo(&(env)->pcsp)
 #define e2k_state_pcsp_hi(env) e2k_state_desc_hi(&(env)->pcsp)
 #define e2k_state_psp_lo(env) e2k_state_desc_lo(&(env)->psp)
 #define e2k_state_psp_hi(env) e2k_state_desc_hi(&(env)->psp)
+
+static inline uint64_t e2k_state_pshtp(CPUE2KState *env)
+{
+    E2KPshtpState *s = &env->pshtp;
+    uint64_t ret = 0;
+
+    ret = deposit64(ret, PSHTP_IND_OFF, PSHTP_IND_LEN, s->index);
+    ret = deposit64(ret, PSHTP_FXIND_OFF, PSHTP_FXIND_LEN, s->fx_index);
+    ret = deposit64(ret, PSHTP_TIND_OFF, PSHTP_TIND_LEN, s->t_index);
+    ret = deposit64(ret, PSHTP_FX_OFF, 1, s->fx);
+
+    return ret;
+}
+
+static inline uint32_t e2k_state_br(CPUE2KState *env)
+{
+    E2KBnState *bn = &env->bn;
+    E2KBpState *bp = &env->bp;
+    uint32_t ret = 0;
+
+    ret = deposit32(ret, BR_RBS_OFF, BR_RBS_LEN, bn->base / 2);
+    ret = deposit32(ret, BR_RSZ_OFF, BR_RSZ_LEN, bn->size / 2 - 1);
+    ret = deposit32(ret, BR_RCUR_OFF, BR_RCUR_LEN, bn->cur / 2);
+
+    ret = deposit32(ret, BR_PSZ_OFF, BR_PSZ_LEN, bp->size);
+    ret = deposit32(ret, BR_PCUR_OFF, BR_PCUR_LEN, bp->cur);
+
+    return ret;
+}
+
+static inline void e2k_state_br_set(CPUE2KState *env, uint32_t br)
+{
+    E2KBnState *bn = &env->bn;
+    E2KBpState *bp = &env->bp;
+
+    bn->base = extract32(br, BR_RBS_OFF, BR_RBS_LEN) * 2;
+    bn->size = extract32(br, BR_RSZ_OFF, BR_RSZ_LEN) * 2 + 2;
+    bn->cur = extract32(br, BR_RCUR_OFF, BR_RCUR_LEN) * 2;
+
+    bp->size = extract32(br, BR_PSZ_OFF, BR_PSZ_LEN);
+    bp->cur = extract32(br, BR_PCUR_OFF, BR_PCUR_LEN);
+}
 
 static inline int e2k_state_cr1_wbs_get(CPUE2KState *env)
 {

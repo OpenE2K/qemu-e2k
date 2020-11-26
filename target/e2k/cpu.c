@@ -51,9 +51,9 @@ static void e2k_cpu_reset(DeviceState *dev)
     env->wd_base = 0;
     env->wd_size = 8;
     env->wd_psize = 8;
-    env->boff = 8;
-    env->bsize = 8;
-    env->bcur = 0;
+    env->bn.base = 8;
+    env->bn.size = 8;
+    env->bn.cur = 0;
     env->idr = 0x3a207; // mimic 8c
 }
 
@@ -102,19 +102,16 @@ static inline void cpu_dump_state_wd(CPUE2KState *env, FILE *f, int flags)
 
 static inline void cpu_dump_state_br(CPUE2KState *env, FILE *f, int flags)
 {
-    uint32_t br = GET_FIELD(env->cr1_hi, CR1_HI_BR_OFF, CR1_HI_BR_LEN);
-    int rbs = GET_FIELD(br, BR_RBS_OFF, BR_RBS_LEN);
-    int rsz = GET_FIELD(br, BR_RSZ_OFF, BR_RSZ_LEN);
-    int rcur = GET_FIELD(br, BR_RCUR_OFF, BR_RCUR_LEN);
-    int psz = GET_FIELD(br, BR_PSZ_OFF, BR_PSZ_LEN);
-    int pcur = GET_FIELD(br, BR_PCUR_OFF, BR_PCUR_LEN);
+    uint32_t br = e2k_state_br(env);
+    E2KBnState *bn = &env->bn;
+    E2KBpState *bp = &env->bp;
 
     qemu_fprintf(f, "br         0x%x\n", br);
-    qemu_fprintf(f, "    rbs    %d\n", rbs);
-    qemu_fprintf(f, "    rsz    %d\n", rsz);
-    qemu_fprintf(f, "    rcur   %d\n", rcur);
-    qemu_fprintf(f, "    psz    %d\n", psz);
-    qemu_fprintf(f, "    pcur   %d\n", pcur);
+    qemu_fprintf(f, "    rbs    %d\n", bn->base / 2);
+    qemu_fprintf(f, "    rsz    %d\n", bn->size / 2 - 1);
+    qemu_fprintf(f, "    rcur   %d\n", bn->cur / 2);
+    qemu_fprintf(f, "    psz    %d\n", bp->size);
+    qemu_fprintf(f, "    pcur   %d\n", bp->cur);
 }
 
 void e2k_cpu_dump_state(CPUState *cs, FILE *f, int flags)
