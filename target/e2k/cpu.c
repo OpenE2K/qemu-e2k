@@ -43,17 +43,16 @@ static void e2k_cpu_reset(DeviceState *dev)
     memset(env, 0, offsetof(CPUE2KState, end_reset_fields));
 
     env->wptr = &env->wregs[0];
-
-    // FIXME: testing
-    env->cr1_lo = 0x4dUL << 56; // FIXME: some flags for testing
-    env->cr1_lo = SET_FIELD(env->cr1_lo, 4, CR1_LO_WPSZ_OFF, CR1_LO_WPSZ_LEN);
-    env->cr1_lo = SET_FIELD(env->cr1_lo, 4, CR1_LO_WBS_OFF, CR1_LO_WBS_LEN);
+    env->cr1.wpsz = 4;
+    env->cr1.wbs = 4;
     env->wd.base = 0;
     env->wd.size = 8;
     env->wd.psize = 8;
     env->bn.base = 8;
     env->bn.size = 8;
     env->bn.cur = 0;
+
+    // FIXME: testing
     env->idr = 0x3a207; // mimic 8c
 }
 
@@ -92,14 +91,6 @@ static const struct e2k_def_t e2k_defs[] = {
     }
 };
 
-static inline void cpu_dump_state_wd(CPUE2KState *env, FILE *f, int flags)
-{
-    int wbs = GET_FIELD(env->cr1_lo, CR1_LO_WBS_OFF, CR1_LO_WBS_LEN);
-    int wsz = GET_FIELD(env->cr1_lo, CR1_LO_WPSZ_OFF, CR1_LO_WPSZ_LEN);
-
-    qemu_fprintf(f, "wbs = %d, wsz = %d\n", wbs, wsz);
-}
-
 static inline void cpu_dump_state_br(CPUE2KState *env, FILE *f, int flags)
 {
     uint32_t br = e2k_state_br(env);
@@ -122,8 +113,8 @@ void e2k_cpu_dump_state(CPUState *cs, FILE *f, int flags)
 
     qemu_fprintf(f, "cr0_lo/pf = 0x%016lx\n", env->cr0_lo);
     qemu_fprintf(f, "cr0_hi/ip = 0x%016lx\n", env->cr0_hi);
-    qemu_fprintf(f, "   cr1_lo = 0x%016lx\n", env->cr1_lo);
-    qemu_fprintf(f, "   cr1_hi = 0x%016lx\n", env->cr1_hi);
+    qemu_fprintf(f, "   cr1_lo = 0x%016lx\n", e2k_state_cr1_lo(env));
+    qemu_fprintf(f, "   cr1_hi = 0x%016lx\n", e2k_state_cr1_hi(env));
     qemu_fprintf(f, "  pcsp_lo = 0x%016lx\n", e2k_state_pcsp_lo(env));
     qemu_fprintf(f, "  pcsp_hi = 0x%016lx\n", e2k_state_pcsp_hi(env));
     qemu_fprintf(f, "   psp_lo = 0x%016lx\n", e2k_state_psp_lo(env));
@@ -131,7 +122,6 @@ void e2k_cpu_dump_state(CPUState *cs, FILE *f, int flags)
     qemu_fprintf(f, "   usd_lo = 0x%016lx\n", env->usd_lo);
     qemu_fprintf(f, "   usd_hi = 0x%016lx\n", env->usd_hi);
     qemu_fprintf(f, "      lsr = 0x%016lx\n", env->lsr);
-    cpu_dump_state_wd(env, f, flags);
     cpu_dump_state_br(env, f, flags);
 
     for (i = 0; i < WREGS_SIZE; i++) {

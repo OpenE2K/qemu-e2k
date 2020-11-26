@@ -252,7 +252,7 @@ typedef struct {
     uint8_t wbs;
     uint8_t psr;
     bool wdbl;
-} E2KControlReg1State;
+} E2KCr1State;
 
 typedef struct {
     void *base;
@@ -282,6 +282,8 @@ typedef struct {
     uint64_t wregs[WREGS_SIZE]; /* window registers */
     uint64_t *wptr;
 
+    E2KCr1State cr1;
+
     /* Procedure chain info = cr0_lo, cr0_hi, cr1_lo, cr1_hi */
     E2KPcsState pcsp;
     uint64_t pcshtp;
@@ -304,19 +306,12 @@ typedef struct {
     target_ulong ct_cond;
     
     union {
-        struct {
-            union {
-                uint64_t pf; /* predicate file */
-                uint64_t cr0_lo;
-            };
-            union {
-                target_ulong ip; /* instruction address */
-                uint64_t cr0_hi;
-            };
-            uint64_t cr1_lo;
-            uint64_t cr1_hi;
-        };
-        uint64_t proc_chain[4];
+        uint64_t pf; /* predicate file */
+        uint64_t cr0_lo;
+    };
+    union {
+        target_ulong ip; /* instruction address */
+        uint64_t cr0_hi;
     };
 
     target_ulong nip; /* next instruction address */
@@ -452,35 +447,56 @@ static inline void e2k_state_br_set(CPUE2KState *env, uint32_t br)
     bp->cur = extract32(br, BR_PCUR_OFF, BR_PCUR_LEN);
 }
 
-static inline int e2k_state_cr1_wbs_get(CPUE2KState *env)
+static inline uint64_t e2k_state_cr1_lo(CPUE2KState *env)
 {
-    return GET_FIELD(env->cr1_lo, CR1_LO_WBS_OFF, CR1_LO_WBS_LEN);
+    E2KCr1State *cr1 = &env->cr1;
+    uint64_t ret = 0;
+
+    ret = deposit64(ret, CR1_LO_TR_OFF, CR1_LO_TR_LEN, cr1->tr);
+    ret = deposit64(ret, CR1_LO_EIN_OFF, CR1_LO_EIN_LEN, cr1->ein);
+    ret = deposit64(ret, CR1_LO_SS_OFF, 1, cr1->ss);
+    ret = deposit64(ret, CR1_LO_WFX_OFF, 1, cr1->wfx);
+    ret = deposit64(ret, CR1_LO_WPSZ_OFF, CR1_LO_WPSZ_LEN, cr1->wpsz);
+    ret = deposit64(ret, CR1_LO_WBS_OFF, CR1_LO_WBS_LEN, cr1->wbs);
+    ret = deposit64(ret, CR1_LO_CUIR_OFF, CR1_LO_CUIR_LEN, cr1->cuir);
+    ret = deposit64(ret, CR1_LO_PSR_OFF, CR1_LO_PSR_LEN, cr1->psr);
+
+    return ret;
 }
 
-static inline void e2k_state_cr1_wbs_set(CPUE2KState *env, int wbs)
+static inline void e2k_state_cr1_lo_set(CPUE2KState *env, uint64_t lo)
 {
-    env->cr1_lo = SET_FIELD(env->cr1_lo, wbs, CR1_LO_WBS_OFF, CR1_LO_WBS_LEN);
+    E2KCr1State *cr1 = &env->cr1;
+
+    cr1->tr = extract64(lo, CR1_LO_TR_OFF, CR1_LO_TR_LEN);
+    cr1->ein = extract64(lo, CR1_LO_EIN_OFF, CR1_LO_EIN_LEN);
+    cr1->ss = extract64(lo, CR1_LO_SS_OFF, 1);
+    cr1->wfx = extract64(lo, CR1_LO_WFX_OFF, 1);
+    cr1->wpsz = extract64(lo, CR1_LO_WPSZ_OFF, CR1_LO_WPSZ_LEN);
+    cr1->wbs = extract64(lo, CR1_LO_WBS_OFF, CR1_LO_WBS_LEN);
+    cr1->cuir = extract64(lo, CR1_LO_CUIR_OFF, CR1_LO_CUIR_LEN);
+    cr1->psr = extract64(lo, CR1_LO_PSR_OFF, CR1_LO_PSR_LEN);
 }
 
-static inline int e2k_state_cr1_wpsz_get(CPUE2KState *env)
+static inline uint64_t e2k_state_cr1_hi(CPUE2KState *env)
 {
-    return GET_FIELD(env->cr1_lo, CR1_LO_WPSZ_OFF, CR1_LO_WPSZ_LEN);
+    E2KCr1State *cr1 = &env->cr1;
+    uint64_t ret = 0;
+
+    ret = deposit64(ret, CR1_HI_BR_OFF, CR1_HI_BR_LEN, cr1->br);
+    ret = deposit64(ret, CR1_HI_WDBL_OFF, 1, cr1->wdbl);
+    ret = deposit64(ret, CR1_HI_USSZ_OFF, CR1_HI_USSZ_LEN, cr1->ussz);
+
+    return ret;
 }
 
-static inline void e2k_state_cr1_wpsz_set(CPUE2KState *env, int wpsz)
+static inline void e2k_state_cr1_hi_set(CPUE2KState *env, uint64_t hi)
 {
-    env->cr1_lo = SET_FIELD(env->cr1_lo, wpsz, CR1_LO_WPSZ_OFF,
-        CR1_LO_WPSZ_LEN);
-}
+    E2KCr1State *cr1 = &env->cr1;
 
-static inline uint32_t e2k_state_cr1_br_get(CPUE2KState *env)
-{
-    return GET_FIELD(env->cr1_hi, CR1_HI_BR_OFF, CR1_HI_BR_LEN);
-}
-
-static inline void e2k_state_cr1_br_set(CPUE2KState *env, uint32_t br)
-{
-    env->cr1_hi = SET_FIELD(env->cr1_hi, br, CR1_HI_BR_OFF, CR1_HI_BR_LEN);
+    cr1->br = extract64(hi, CR1_HI_BR_OFF, CR1_HI_BR_LEN);
+    cr1->wdbl = extract64(hi, CR1_HI_WDBL_OFF, 1);
+    cr1->ussz = extract64(hi, CR1_HI_USSZ_OFF, CR1_HI_USSZ_LEN);
 }
 
 typedef CPUE2KState CPUArchState;
