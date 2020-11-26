@@ -245,6 +245,14 @@ struct e2k_def_t {
 };
 
 typedef struct {
+    void *base;
+    uint32_t index;
+    uint32_t size;
+    bool is_readable;
+    bool is_writable;
+} E2KPsState;
+
+typedef struct {
     /* register file */
     uint64_t gregs[GREGS_SIZE]; /* global registers */
     uint64_t wregs[WREGS_SIZE]; /* window registers */
@@ -257,8 +265,7 @@ typedef struct {
     uint32_t br;
 
     /* Procedure stack pointer (for regs)  */
-    uint64_t psp_lo;
-    uint64_t psp_hi;
+    E2KPsState psp;
     uint64_t pshtp;
 
     uint64_t lsr; /* loop status register */
@@ -379,19 +386,26 @@ static inline void e2k_state_pcs_size_set(CPUE2KState *env, size_t size)
         PCSP_HI_SIZE_LEN);
 }
 
-static inline target_ulong e2k_state_ps_base_get(CPUE2KState *env)
+static inline uint64_t e2k_state_psp_lo(CPUE2KState *env)
 {
-    return GET_FIELD(env->psp_lo, PSP_LO_BASE_OFF, PSP_LO_BASE_LEN);
+    uint64_t lo = 0;
+
+    lo = deposit64(lo, PSP_LO_BASE_OFF, PSP_LO_BASE_LEN,
+        (uint64_t) env->psp.base);
+    lo = deposit64(lo, PSP_LO_READ_OFF, 1, env->psp.is_readable);
+    lo = deposit64(lo, PSP_LO_WRITE_OFF, 1, env->psp.is_writable);
+
+    return lo;
 }
 
-static inline size_t e2k_state_ps_ind_get(CPUE2KState *env)
+static inline uint64_t e2k_state_psp_hi(CPUE2KState *env)
 {
-    return GET_FIELD(env->psp_hi, PSP_HI_IND_OFF, PSP_HI_IND_LEN);
-}
+    uint64_t hi = 0;
 
-static inline void e2k_state_ps_ind_set(CPUE2KState *env, size_t ind)
-{
-    env->psp_hi = SET_FIELD(env->psp_hi, ind, PSP_HI_IND_OFF, PSP_HI_IND_LEN);
+    hi = deposit64(hi, PSP_HI_IND_OFF, PSP_HI_IND_LEN, env->psp.index);
+    hi = deposit64(hi, PSP_HI_SIZE_OFF, PSP_HI_SIZE_OFF, env->psp.size);
+
+    return hi;
 }
 
 static inline int e2k_state_cr1_wbs_get(CPUE2KState *env)
