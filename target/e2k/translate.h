@@ -218,10 +218,10 @@ static inline void e2k_gen_lcntex(TCGv_i32 ret)
 void e2k_gen_preg(TCGv_i64 ret, int reg);
 TCGv_i64 e2k_get_preg(DisasContext *dc, int reg);
 void e2k_gen_store_preg(int reg, TCGv_i64 val);
-TCGv_i64 e2k_get_wreg(DisasContext *dc, int reg);
-void e2k_gen_store_wreg(int reg, TCGv_i64 val);
-TCGv_i64 e2k_get_breg(DisasContext *dc, int reg);
-void e2k_gen_store_breg(int reg, TCGv_i64 val);
+TCGv_i64 e2k_get_wreg(DisasContext *ctx, int reg);
+void e2k_gen_store_wreg(DisasContext *ctx, int reg, TCGv_i64 val);
+TCGv_i64 e2k_get_breg(DisasContext *ctx, int reg);
+void e2k_gen_store_breg(DisasContext *ctx, int reg, TCGv_i64 val);
 TCGv_i64 e2k_get_greg(DisasContext *dc, int reg);
 void e2k_gen_store_greg(int reg, TCGv_i64 val);
 void e2k_gen_cond_i32(DisasContext *ctx, TCGv_i32 ret, uint8_t psrc);
@@ -238,6 +238,15 @@ static inline void e2k_gen_cond_i64(DisasContext *ctx, TCGv_i64 ret,
 }
 
 void e2k_gen_exception(DisasContext *dc, int which);
+
+static inline void e2k_gen_exception2(int excp)
+{
+    TCGv_i32 t0 = tcg_const_i32(excp);
+
+    gen_helper_raise_exception(cpu_env, t0);
+
+    tcg_temp_free_i32(t0);
+}
 
 void e2k_control_gen(DisasContext *dc);
 
