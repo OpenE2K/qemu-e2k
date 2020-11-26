@@ -65,8 +65,8 @@ int e2k_cpu_gdb_read_register(CPUState *cs, GByteArray *mem_buf, int n)
     case 54: return gdb_get_reg64(mem_buf, env->cr1_lo); // cr1_lo
     case 55: return gdb_get_reg64(mem_buf, env->cr1_hi); // cr1_hi
     case 56: return gdb_get_reg64(mem_buf, 0); // cwd
-    case 57: return gdb_get_reg64(mem_buf, env->pcsp_lo); // pcsp_lo
-    case 58: return gdb_get_reg64(mem_buf, env->pcsp_hi); // pcsp_hi
+    case 57: return gdb_get_reg64(mem_buf, e2k_state_pcsp_lo(env)); // pcsp_lo
+    case 58: return gdb_get_reg64(mem_buf, e2k_state_pcsp_hi(env)); // pcsp_hi
     case 59: return gdb_get_reg64(mem_buf, env->pcshtp); // pcshtp
     case 60: return gdb_get_reg64(mem_buf, 0); // cud_lo
     case 61: return gdb_get_reg64(mem_buf, 0); // cud_hi
