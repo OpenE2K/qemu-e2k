@@ -94,21 +94,34 @@ static inline void gen_movcond_flag_i64(TCGv_i64 ret, int flag, TCGv_i64 cond,
     tcg_temp_free_i64(one);
 }
 
-static inline void gen_cur_dec(DisasContext *ctx, TCGv_i32 ret, int cond,
-    TCGv_i32 cur, int n,
+static inline void gen_dec_wrap(TCGv_i32 ret, TCGv_i32 cur, int n,
     TCGv_i32 size)
 {
-    TCGv_i32 c = tcg_temp_new_i32();
-    TCGv_i32 t0 = tcg_const_i32(n);
+    TCGv_i32 t0 = tcg_temp_new_i32();
+
+    tcg_gen_addi_i32(t0, size, n);
+    tcg_gen_sub_i32(t0, t0, cur);
+    tcg_gen_remu_i32(t0, t0, size);
+    tcg_gen_sub_i32(ret, size, t0);
+
+    tcg_temp_free_i32(t0);
+}
+
+static inline void gen_cur_dec(DisasContext *ctx, TCGv_i32 ret, int cond,
+    TCGv_i32 cur, int n, TCGv_i32 size)
+{
+    TCGLabel *l0 = gen_new_label();
+    TCGv_i32 t0 = tcg_temp_new_i32();
     TCGv_i32 t1 = tcg_temp_new_i32();
 
-    tcg_gen_trunc_tl_i32(c, e2k_cs.ct_cond);
-    gen_helper_cur_dec(t1, cpu_env, cur, t0, size);
-    gen_movcond_flag_i32(ret, cond, c, t1, cur);
+    tcg_gen_brcondi_i32(TCG_COND_EQ, size, 0, l0);
+    tcg_gen_trunc_tl_i32(t0, e2k_cs.ct_cond);
+    gen_dec_wrap(t1, cur, n, size);
+    gen_movcond_flag_i32(ret, cond, t0, t1, cur);
+    gen_set_label(l0);
 
     tcg_temp_free_i32(t1);
     tcg_temp_free_i32(t0);
-    tcg_temp_free_i32(c);
 }
 
 void e2k_commit_stubs(DisasContext *ctx)
