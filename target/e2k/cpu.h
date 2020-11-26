@@ -270,6 +270,13 @@ typedef struct {
 } E2KPshtpState;
 
 typedef struct {
+    uint32_t base;
+    uint32_t size;
+    uint32_t psize;
+    bool fx;
+} E2KWdState;
+
+typedef struct {
     /* register file */
     uint64_t gregs[GREGS_SIZE]; /* global registers */
     uint64_t wregs[WREGS_SIZE]; /* window registers */
@@ -283,14 +290,11 @@ typedef struct {
     E2KPsState psp;
     E2KPshtpState pshtp;
 
+    E2KWdState wd;
     E2KBnState bn;
     E2KBpState bp;
 
     uint64_t lsr; /* loop status register */
-
-    uint32_t wd_base;
-    uint32_t wd_size;
-    uint32_t wd_psize;
 
     uint64_t usd_lo;
     uint64_t usd_hi;
@@ -402,6 +406,19 @@ static inline uint64_t e2k_state_pshtp(CPUE2KState *env)
     ret = deposit64(ret, PSHTP_FXIND_OFF, PSHTP_FXIND_LEN, s->fx_index);
     ret = deposit64(ret, PSHTP_TIND_OFF, PSHTP_TIND_LEN, s->t_index);
     ret = deposit64(ret, PSHTP_FX_OFF, 1, s->fx);
+
+    return ret;
+}
+
+static inline uint64_t e2k_state_wd(CPUE2KState *env)
+{
+    E2KWdState *wd = &env->wd;
+    uint64_t ret = 0;
+
+    ret = deposit64(ret, WD_BASE_OFF, WD_BASE_LEN, wd->base * 8);
+    ret = deposit64(ret, WD_SIZE_OFF, WD_SIZE_LEN, wd->size * 8);
+    ret = deposit64(ret, WD_PSIZE_OFF, WD_PSIZE_LEN, wd->psize * 8);
+    ret = deposit64(ret, WD_FX_OFF, 1, wd->fx);
 
     return ret;
 }

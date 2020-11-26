@@ -26,7 +26,7 @@ static void pcs_push(CPUE2KState *env, int wbs)
     }
 
     e2k_state_cr1_br_set(env, e2k_state_br(env));
-    e2k_state_cr1_wpsz_set(env, env->wd_psize / 2);
+    e2k_state_cr1_wpsz_set(env, env->wd.psize / 2);
     memcpy(env->pcsp.base + env->pcsp.index, env->proc_chain, size);
     e2k_state_cr1_wbs_set(env, wbs);
 
@@ -44,7 +44,7 @@ static void pcs_pop(CPUE2KState *env)
 
     env->pcsp.index -= size;
     memcpy(env->proc_chain, env->pcsp.base + env->pcsp.index, size);
-    env->wd_psize = e2k_state_cr1_wpsz_get(env) * 2;
+    env->wd.psize = e2k_state_cr1_wpsz_get(env) * 2;
     e2k_state_br_set(env, e2k_state_cr1_br_get(env));
 }
 
@@ -133,14 +133,14 @@ static void ps_pop_fx(CPUE2KState *env, unsigned int base, size_t len)
 
 static inline void do_call(CPUE2KState *env, int call_wbs)
 {
-    int call_wpsz = env->wd_size / 2 - call_wbs;
+    int call_wpsz = env->wd.size / 2 - call_wbs;
 
     env->ip = env->nip;
     pcs_push(env, call_wbs);
-    ps_push_nfx(env, env->wd_base, call_wbs * 2);
+    ps_push_nfx(env, env->wd.base, call_wbs * 2);
 
-    env->wd_base = (env->wd_base + call_wbs * 2) % WREGS_SIZE;
-    env->wd_size = env->wd_psize = call_wpsz * 2;
+    env->wd.base = (env->wd.base + call_wbs * 2) % WREGS_SIZE;
+    env->wd.size = env->wd.psize = call_wpsz * 2;
 
     reset_ctprs(env);
 }
@@ -150,18 +150,18 @@ void helper_return(CPUE2KState *env)
     uint32_t new_wd_size, new_wd_base, wbs;
 
     wbs = e2k_state_cr1_wbs_get(env);
-    new_wd_size = env->wd_psize + wbs * 2;
-    new_wd_base = (env->wd_base - wbs * 2) % WREGS_SIZE;
+    new_wd_size = env->wd.psize + wbs * 2;
+    new_wd_base = (env->wd.base - wbs * 2) % WREGS_SIZE;
 
-    if (env->wd_base < new_wd_base) {
-        env->wd_base += WREGS_SIZE;
+    if (env->wd.base < new_wd_base) {
+        env->wd.base += WREGS_SIZE;
     }
 
-    ps_pop_nfx(env, new_wd_base, env->wd_base - new_wd_base);
+    ps_pop_nfx(env, new_wd_base, env->wd.base - new_wd_base);
     pcs_pop(env);
 
-    env->wd_base = new_wd_base;
-    env->wd_size = new_wd_size;
+    env->wd.base = new_wd_base;
+    env->wd.size = new_wd_size;
 
     reset_ctprs(env);
 }
@@ -204,13 +204,13 @@ static void break_save_state(CPUE2KState *env)
 {
     int wbs;
 
-    wbs = env->wd_size / 2;
-    ps_push_fx(env, env->wd_base, env->wd_size);
+    wbs = env->wd.size / 2;
+    ps_push_fx(env, env->wd.base, env->wd.size);
     pcs_push(env, wbs);
 
-    env->wd_base = (env->wd_base + env->wd_size) % WREGS_SIZE;
-    env->wd_size = 0;
-    env->wd_psize = 0;
+    env->wd.base = (env->wd.base + env->wd.size) % WREGS_SIZE;
+    env->wd.size = 0;
+    env->wd.psize = 0;
 
     env->is_bp = true;
 }
@@ -221,9 +221,9 @@ void helper_break_restore_state(CPUE2KState *env)
 
     wbs = e2k_state_cr1_wbs_get(env);
     pcs_pop(env);
-    env->wd_size = wbs * 2;
-    env->wd_base = (env->wd_base - env->wd_size) % WREGS_SIZE;
-    ps_pop_fx(env, env->wd_base, env->wd_size);
+    env->wd.size = wbs * 2;
+    env->wd.base = (env->wd.base - env->wd.size) % WREGS_SIZE;
+    ps_pop_fx(env, env->wd.base, env->wd.size);
 
     env->is_bp = false;
 }

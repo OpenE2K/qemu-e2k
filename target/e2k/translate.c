@@ -535,8 +535,8 @@ void e2k_tcg_initialize(void) {
     char buf[16] = { 0 };
 
     static const struct { TCGv_i32 *ptr; int off; const char *name; } r32[] = {
-        { &e2k_cs.wd_base, offsetof(CPUE2KState, wd_base), "woff" },
-        { &e2k_cs.wd_size, offsetof(CPUE2KState, wd_size), "wsize" },
+        { &e2k_cs.wd_base, offsetof(CPUE2KState, wd.base), "woff" },
+        { &e2k_cs.wd_size, offsetof(CPUE2KState, wd.size), "wsize" },
         { &e2k_cs.boff, offsetof(CPUE2KState, bn.base), "boff" },
         { &e2k_cs.bsize, offsetof(CPUE2KState, bn.size), "bsize" },
         { &e2k_cs.bcur, offsetof(CPUE2KState, bn.cur), "bcur" },
