@@ -16,7 +16,8 @@ static inline void reset_ctprs(CPUE2KState *env)
     }
 }
 
-static inline void save_proc_chain_info(CPUE2KState *env, uint64_t buf[4])
+static inline void save_proc_chain_info(CPUE2KState *env, uint64_t buf[4],
+    int wbs)
 {
     env->cr1.br = e2k_state_br(env);
     env->cr1.wpsz = env->wd.psize / 2;
@@ -25,10 +26,17 @@ static inline void save_proc_chain_info(CPUE2KState *env, uint64_t buf[4])
     buf[1] = env->cr0_hi;
     buf[2] = e2k_state_cr1_lo(env);
     buf[3] = e2k_state_cr1_hi(env);
+
+    env->cr1.wfx = env->wd.fx;
+    env->cr1.wbs = wbs;
+    env->wd.base = (env->wd.base + wbs * 2) % WREGS_SIZE;
+    env->wd.psize = env->wd.size -= wbs * 2;
 }
 
 static inline void restore_proc_chain_info(CPUE2KState *env, uint64_t buf[4])
 {
+    env->wd.fx = env->cr1.wfx;
+
     e2k_state_cr1_hi_set(env, buf[3]);
     e2k_state_cr1_lo_set(env, buf[2]);
     env->cr0_hi = buf[1];
@@ -47,11 +55,8 @@ static void pcs_push(CPUE2KState *env, int wbs)
         return;
     }
 
-    // save proc chain
-    save_proc_chain_info(env, buf);
+    save_proc_chain_info(env, buf, wbs);
     memcpy(env->pcsp.base + env->pcsp.index, buf, 32);
-
-    env->cr1.wbs = wbs;
     env->pcsp.index += 32;
 }
 
@@ -152,17 +157,11 @@ static void ps_pop_fx(CPUE2KState *env, unsigned int base, size_t len)
     }
 }
 
-static inline void do_call(CPUE2KState *env, int call_wbs)
+static inline void do_call(CPUE2KState *env, int wbs)
 {
-    int call_wpsz = env->wd.size / 2 - call_wbs;
-
     env->ip = env->nip;
-    pcs_push(env, call_wbs);
-    ps_push_nfx(env, env->wd.base, call_wbs * 2);
-
-    env->wd.base = (env->wd.base + call_wbs * 2) % WREGS_SIZE;
-    env->wd.size = env->wd.psize = call_wpsz * 2;
-
+    ps_push_nfx(env, env->wd.base, wbs * 2);
+    pcs_push(env, wbs);
     reset_ctprs(env);
 }
 
@@ -348,4 +347,21 @@ uint64_t helper_getsp(CPUE2KState *env, uint64_t src2) {
         USD_LO_BASE_LEN);
 
     return base;
+}
+
+void helper_setwd(CPUE2KState *env, uint32_t lts)
+{
+    int wsz = extract32(lts, 5, 7);
+    bool nfx = extract32(lts, 4, 1);
+
+    env->wd.size = wsz * 2;
+    env->wd.fx = nfx == 0;
+
+    if (env->version >= 3) {
+        bool dbl = extract32(lts, 3, 1);
+        // TODO: set dbl
+        if (dbl != false) {
+            abort();
+        }
+    }
 }
