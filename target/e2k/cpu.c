@@ -124,10 +124,10 @@ void e2k_cpu_dump_state(CPUState *cs, FILE *f, int flags)
     unsigned int i;
 
     qemu_fprintf(f, "ip: " TARGET_FMT_lx "\n", env->ip);
-    qemu_fprintf(f, "pcsp_hi: %016lx, pcsp_lo: %016lx\n",
-        env->pcsp_hi, env->pcsp_lo);
-    qemu_fprintf(f, "psp_hi: %016lx, psp_lo: %016lx\n",
-        e2k_state_psp_hi(env), e2k_state_psp_lo(env));
+    qemu_fprintf(f, "pcsp_lo: %016lx\n", e2k_state_pcsp_lo(env));
+    qemu_fprintf(f, "pcsp_hi: %016lx\n", e2k_state_pcsp_hi(env));
+    qemu_fprintf(f, "psp_lo: %016lx\n", e2k_state_psp_lo(env));
+    qemu_fprintf(f, "psp_hi: %016lx\n", e2k_state_psp_hi(env));
     qemu_fprintf(f, "PF: %016lx\n", env->pf);
     qemu_fprintf(f, "cr1_hi: %016lx, cr1_lo: %016lx\n",
         env->cr1_hi, env->cr1_lo);

@@ -1550,18 +1550,17 @@ static inline abi_ulong e2k_mmap(abi_ulong size)
 
 static inline void init_thread(struct target_pt_regs *regs, struct image_info *infop)
 {
-    abi_ulong pcsp;
-    abi_ulong pcs_size = TARGET_PAGE_SIZE;
     abi_ulong stack_size = infop->start_stack - infop->stack_limit;
 
     regs->ip = infop->entry;
     regs->usd_hi = stack_size << 32;
     regs->usd_lo = (0x1800UL << 48) | infop->start_stack;
 
-    /* FIXME: mmap to 0xc2e000003000 */
-    pcsp = e2k_mmap(pcs_size);
-    regs->pcsp_lo = (3UL << 59) | pcsp;
-    regs->pcsp_hi = pcs_size << 32;
+    regs->pcsp.is_readable = true;
+    regs->pcsp.is_writable = true;
+    regs->pcsp.index = 0;
+    regs->pcsp.size = TARGET_PAGE_SIZE;
+    regs->pcsp.base = (void *) e2k_mmap(regs->pcsp.size);
 
     regs->psp.is_readable = true;
     regs->psp.is_writable = true;
