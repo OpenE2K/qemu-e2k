@@ -375,13 +375,11 @@ static void gen_cs1(DisasContext *dc)
             if (! bundle->lts_present[0]) {
                 e2k_gen_exception(dc, E2K_EXCP_ILLOPC);
             } else {
-                uint32_t lts0 = bundle->lts[0];
-                int wsz = GET_FIELD(lts0, 5, 7);
-                TCGv_i32 t0 = tcg_const_i32(lts0);
+                TCGv_i32 lts = tcg_const_i32(bundle->lts[0]);
 
-                tcg_gen_movi_i32(e2k_cs.wd_size, wsz * 2);
+                gen_helper_setwd(cpu_env, lts);
 
-                tcg_temp_free_i32(t0);
+                tcg_temp_free_i32(lts);
             }
         }
 

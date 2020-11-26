@@ -9,3 +9,4 @@ DEF_HELPER_2(state_reg_get, i64, env, int)
 DEF_HELPER_3(state_reg_set, void, env, int, i64)
 DEF_HELPER_2(getsp, i64, env, i64) /* FIXME: return tl? */
 DEF_HELPER_1(break_restore_state, void, env)
+DEF_HELPER_2(setwd, void, env, i32)
