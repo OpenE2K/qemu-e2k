@@ -38,7 +38,7 @@ void cpu_loop(CPUE2KState *env)
 
         switch (trapnr) {
         case E2K_EXCP_SYSCALL: {
-            int offset = env->wd_base + env->syscall_wbs * 2;
+            int offset = env->wd.base + env->syscall_wbs * 2;
             uint64_t *regs = env->wregs;
             abi_ulong ret = do_syscall(env,
                 regs[(0 + offset) % WREGS_SIZE],

@@ -156,16 +156,7 @@ int e2k_cpu_gdb_read_register(CPUState *cs, GByteArray *mem_buf, int n)
     case 331: return gdb_get_reg64(mem_buf, 0); // dtcr
     case 332: return gdb_get_reg64(mem_buf, 0); // dtarf
     case 333: return gdb_get_reg64(mem_buf, 0); // dtart
-    case 334: {
-        uint64_t wd = 0;
-
-        wd = SET_FIELD(wd, env->wd_base * 8, WD_BASE_OFF, WD_BASE_LEN);
-        wd = SET_FIELD(wd, env->wd_size * 8, WD_SIZE_OFF, WD_SIZE_LEN);
-        wd = SET_FIELD(wd, env->wd_psize * 8, WD_PSIZE_OFF, WD_PSIZE_LEN);
-        wd &= ~WD_FX_BIT; // TODO: wd.fx
-
-        return gdb_get_reg64(mem_buf, wd); // wd
-    }
+    case 334: return gdb_get_reg64(mem_buf, e2k_state_wd(env)); // wd
     case 335: return gdb_get_reg64(mem_buf, 0); // unk
     case 336: return gdb_get_reg64(mem_buf, 0); // bgr
     case 337: return gdb_get_reg64(mem_buf, 0); // unk
