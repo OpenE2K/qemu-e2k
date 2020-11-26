@@ -87,38 +87,87 @@ static void pcs_pop(CPUE2KState *env)
     e2k_state_pcs_index_set(env, offset - 32);
 }
 
-static void ps_push(CPUE2KState *env, unsigned int wd_base, size_t len)
+static void ps_push_nfx(CPUE2KState *env, unsigned int base, size_t len)
 {
     unsigned int i;
-    size_t index = e2k_state_ps_ind_get(env);
-    uint64_t *p = (uint64_t*) (e2k_state_ps_base_get(env) + index);
+    size_t size = len * sizeof(uint64_t);
+    uint64_t *p;
 
-    /* TODO: push FX registers */
-    /* TODO: stack overflow */
-
-    for (i = 0; i < len; i++) {
-        uint64_t reg = env->wregs[(wd_base + i) % WREGS_SIZE];
-        memcpy(p + i, &reg, sizeof(uint64_t));
+    if (env->psp.size < (env->psp.index + size)) {
+        helper_raise_exception(env, E2K_EXCP_MAPERR);
+        return;
     }
 
-    e2k_state_ps_ind_set(env, index + len * sizeof(uint64_t));
+    p = (uint64_t *) (env->psp.base + env->psp.index);
+    for (i = 0; i < len; i++) {
+        int idx = (base + i) % WREGS_SIZE;
+        memcpy(p + i, &env->wregs[idx], sizeof(uint64_t));
+    }
+
+    env->psp.index += size;
 }
 
-static void ps_pop(CPUE2KState *env, unsigned int wd_base, size_t len)
+static void ps_pop_nfx(CPUE2KState *env, unsigned int base, size_t len)
 {
     unsigned int i;
-    size_t index = e2k_state_ps_ind_get(env) - len * sizeof(uint64_t);
-    uint64_t *p = (uint64_t*) (e2k_state_ps_base_get(env) + index);
+    size_t size = len * sizeof(uint64_t);
+    uint64_t *p;
 
-    /* TODO: pop FX registers */
-    /* TODO: stack overflow */
-
-    for (i = 0; i < len; i++) {
-        uint64_t *reg = &env->wregs[(wd_base + i) % WREGS_SIZE];
-        memcpy(reg, p + i, sizeof(uint64_t));
+    if (env->psp.index < size) {
+        // TODO: check where to raise exception
+        helper_raise_exception(env, E2K_EXCP_MAPERR);
+        return;
     }
 
-    e2k_state_ps_ind_set(env, index);
+    env->psp.index -= size;
+    p = (uint64_t *) (env->psp.base + env->psp.index);
+    for (i = 0; i < len; i++) {
+        int idx = (base + i) % WREGS_SIZE;
+        memcpy(&env->wregs[idx], p + i, sizeof(uint64_t));
+    }
+}
+
+static void ps_push_fx(CPUE2KState *env, unsigned int base, size_t len)
+{
+    unsigned int i;
+    size_t size = len * 2 * sizeof(uint64_t);
+    uint64_t *p, zeros[2] = { 0 };
+
+    if (env->psp.size < (env->psp.index + size)) {
+        helper_raise_exception(env, E2K_EXCP_MAPERR);
+        return;
+    }
+
+    p = (uint64_t *) (env->psp.base + env->psp.index);
+    for (i = 0; i < len; i += 2) {
+        int idx = (base + i) % WREGS_SIZE;
+        memcpy(p + i * 2, &env->wregs[idx], 2 * sizeof(uint64_t));
+        // TODO: save fx part
+        memcpy(p + i * 2 + 2, zeros, 2 * sizeof(uint64_t));
+    }
+
+    env->psp.index += size;
+}
+
+static void ps_pop_fx(CPUE2KState *env, unsigned int base, size_t len)
+{
+    unsigned int i;
+    size_t size = len * 2 * sizeof(uint64_t);
+    uint64_t *p;
+
+    if (env->psp.index < size) {
+        // TODO: check where to raise exception
+        helper_raise_exception(env, E2K_EXCP_MAPERR);
+        return;
+    }
+
+    env->psp.index -= size;
+    p = (uint64_t *) (env->psp.base + env->psp.index);
+    for (i = 0; i < len; i += 2) {
+        int idx = (base + i) % WREGS_SIZE;
+        memcpy(&env->wregs[idx], p + i * 2, sizeof(uint64_t));
+        // TODO: restore fx part
+    }
 }
 
 static inline void do_call(CPUE2KState *env, int call_wbs)
@@ -127,7 +176,7 @@ static inline void do_call(CPUE2KState *env, int call_wbs)
 
     env->ip = env->nip;
     pcs_push(env, call_wbs);
-    ps_push(env, env->wd_base, call_wbs * 2);
+    ps_push_nfx(env, env->wd_base, call_wbs * 2);
 
     env->wd_base = (env->wd_base + call_wbs * 2) % WREGS_SIZE;
     env->wd_size = env->wd_psize = call_wpsz * 2;
@@ -147,7 +196,7 @@ void helper_return(CPUE2KState *env)
         env->wd_base += WREGS_SIZE;
     }
 
-    ps_pop(env, new_wd_base, env->wd_base - new_wd_base);
+    ps_pop_nfx(env, new_wd_base, env->wd_base - new_wd_base);
     pcs_pop(env);
 
     env->wd_base = new_wd_base;
@@ -191,30 +240,13 @@ void helper_raise_exception(CPUE2KState *env, int tt)
     cpu_loop_exit(cs);
 }
 
-static void break_save_ps(CPUE2KState *env)
-{
-    unsigned int i;
-    unsigned int wd_base = env->wd_base;
-    unsigned int len = env->wd_size;
-    size_t index = e2k_state_ps_ind_get(env);
-    uint64_t *p = (uint64_t*) (e2k_state_ps_base_get(env) + index);
-
-    /* TODO: stack overflow */
-
-    for (i = 0; i < len; i += 2) {
-        uint64_t t[2] = { 0 };
-        uint64_t *reg = &env->wregs[(wd_base + i) % WREGS_SIZE];
-        memcpy(p + i * 2, reg, 2 * sizeof(uint64_t));
-        memcpy(p + i * 2 + 2, t, 2 * sizeof(uint64_t)); // TODO: fx part
-    }
-
-    e2k_state_ps_ind_set(env, index + len * 2 * sizeof(uint64_t));
-}
-
 static void break_save_state(CPUE2KState *env)
 {
-    break_save_ps(env);
-    pcs_push(env, env->wd_size / 2);
+    int wbs;
+
+    wbs = env->wd_size / 2;
+    ps_push_fx(env, env->wd_base, env->wd_size);
+    pcs_push(env, wbs);
 
     env->wd_base = (env->wd_base + env->wd_size) % WREGS_SIZE;
     env->wd_size = 0;
@@ -225,16 +257,13 @@ static void break_save_state(CPUE2KState *env)
 
 void helper_break_restore_state(CPUE2KState *env)
 {
-    size_t index;
     int wbs;
 
     wbs = e2k_state_cr1_wbs_get(env);
     pcs_pop(env);
     env->wd_size = wbs * 2;
     env->wd_base = (env->wd_base - env->wd_size) % WREGS_SIZE;
-
-    index = e2k_state_ps_ind_get(env);
-    e2k_state_ps_ind_set(env, index - env->wd_size * 2 * sizeof(uint64_t));
+    ps_pop_fx(env, env->wd_base, env->wd_size);
 
     env->is_bp = false;
 }
