@@ -239,8 +239,6 @@ void e2k_gen_exception(DisasContext *ctx, int which)
 
     gen_save_cpu_state(ctx);
     gen_helper_raise_exception(cpu_env, t);
-    tcg_gen_exit_tb(NULL, 0);
-    ctx->base.is_jmp = DISAS_NORETURN;
 
     tcg_temp_free_i32(t);
 }
@@ -328,10 +326,10 @@ static inline void do_commit(DisasContext *ctx)
 
         switch(res->tag) {
         case RESULT_BASED_REG:
-            e2k_gen_store_breg(res->u.reg.i, res->u.reg.v);
+            e2k_gen_store_breg(ctx, res->u.reg.i, res->u.reg.v);
             break;
         case RESULT_REGULAR_REG:
-            e2k_gen_store_wreg(res->u.reg.i, res->u.reg.v);
+            e2k_gen_store_wreg(ctx, res->u.reg.i, res->u.reg.v);
             break;
         case RESULT_GLOBAL_REG:
             e2k_gen_store_greg(res->u.reg.i, res->u.reg.v);
