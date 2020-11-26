@@ -51,40 +51,34 @@ static inline void restore_br_state(CPUE2KState *env)
 
 static void pcs_push(CPUE2KState *env, int wbs)
 {
-    size_t size = e2k_state_pcs_size_get(env);
-    size_t offset = e2k_state_pcs_index_get(env);
-    void *pcsp = (void*) e2k_state_pcs_base_get(env) + offset;
+    size_t size = sizeof(env->proc_chain);
 
-    if (offset + 32 > size) {
-        /* TODO: allocate more memory */
-        abort();
+    if (env->pcsp.size < (env->pcsp.index + size)) {
+        helper_raise_exception(env, E2K_EXCP_MAPERR);
+        return;
     }
 
     save_br_state(env);
     e2k_state_cr1_wpsz_set(env, env->wd_psize / 2);
-    memcpy(pcsp, &env->proc_chain[0], 32);
+    memcpy(env->pcsp.base + env->pcsp.index, env->proc_chain, size);
     e2k_state_cr1_wbs_set(env, wbs);
 
-    e2k_state_pcs_index_set(env, offset + 32);
+    env->pcsp.index += size;
 }
 
 static void pcs_pop(CPUE2KState *env)
 {
-    size_t offset = e2k_state_pcs_index_get(env);
-    void *pcsp = (void*) e2k_state_pcs_base_get(env) + offset - 32;
+    size_t size = sizeof(env->proc_chain);
 
-    if (offset < 32) {
-        /* TODO: SIGKILL */
-        abort();
+    if (env->pcsp.index < size) {
+        helper_raise_exception(env, E2K_EXCP_MAPERR);
+        return;
     }
 
-    memcpy(&env->proc_chain[0], pcsp, 32);
-
-    // TODO: restore wbs (after pshtp implemented)
+    env->pcsp.index -= size;
+    memcpy(env->proc_chain, env->pcsp.base + env->pcsp.index, size);
     env->wd_psize = e2k_state_cr1_wpsz_get(env) * 2;
     restore_br_state(env);
-
-    e2k_state_pcs_index_set(env, offset - 32);
 }
 
 static void ps_push_nfx(CPUE2KState *env, unsigned int base, size_t len)
