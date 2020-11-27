@@ -246,7 +246,7 @@ void helper_raise_exception(CPUE2KState *env, int tt)
     cpu_loop_exit(cs);
 }
 
-static void break_save_state(CPUE2KState *env)
+void e2k_break_save_state(CPUE2KState *env)
 {
     int wbs;
 
