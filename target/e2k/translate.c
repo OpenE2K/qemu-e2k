@@ -444,8 +444,9 @@ static void e2k_tr_tb_start(DisasContextBase *db, CPUState *cs)
 
 static void e2k_tr_insn_start(DisasContextBase *db, CPUState *cs)
 {
-    DisasContext *dc = container_of(db, DisasContext, base);
-    tcg_gen_insn_start(dc->pc);
+    DisasContext *ctx = container_of(db, DisasContext, base);
+
+    tcg_gen_insn_start(ctx->base.pc_next);
 }
 
 static void e2k_tr_translate_insn(DisasContextBase *db, CPUState *cs)
