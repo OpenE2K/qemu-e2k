@@ -246,7 +246,7 @@ void helper_raise_exception(CPUE2KState *env, int tt)
     cpu_loop_exit(cs);
 }
 
-static void break_save_state(CPUE2KState *env)
+void e2k_break_save_state(CPUE2KState *env)
 {
     int wbs;
 
@@ -276,7 +276,7 @@ void helper_break_restore_state(CPUE2KState *env)
 void helper_debug(CPUE2KState *env)
 {
     CPUState *cs = env_cpu(env);
-    break_save_state(env);
+    e2k_break_save_state(env);
     cs->exception_index = EXCP_DEBUG;
     cpu_loop_exit(cs);
 }
