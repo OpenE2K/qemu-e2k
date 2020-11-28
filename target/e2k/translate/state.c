@@ -3,6 +3,104 @@
 #include "exec/log.h"
 #include "translate.h"
 
+#define TAG_MASK GEN_MASK(0, TAG_BITS)
+
+static inline void gen_tag_group_index(TCGv_i64 ret, TCGv_i64 idx)
+{
+    TCGv_i64 t0 = tcg_temp_new_i64();
+    tcg_gen_shri_i64(t0, idx, 4);
+    tcg_gen_shli_i64(ret, t0, 3);
+    tcg_temp_free_i64(t0);
+}
+
+static inline void gen_tag_offset_in_group(TCGv_i64 ret, TCGv_i64 idx)
+{
+    TCGv_i64 t0 = tcg_temp_new_i64();
+
+    tcg_gen_andi_i64(t0, idx, TAG_MASK);
+    tcg_gen_muli_i64(ret, t0, TAG_BITS);
+
+    tcg_temp_free_i64(t0);
+}
+
+static inline void gen_tag_group_get(TCGv_i64 ret, TCGv_ptr tags, TCGv_i64 idx)
+{
+    TCGv_ptr t0 = tcg_temp_new_ptr();
+    TCGv_ptr t1 = tcg_temp_new_ptr();
+
+    tcg_gen_trunc_i64_ptr(t0, idx);
+    tcg_gen_add_ptr(t1, tags, t0);
+    tcg_gen_ld_i64(ret, t1, 0);
+
+    tcg_temp_free_ptr(t1);
+    tcg_temp_free_ptr(t0);
+}
+
+static inline void get_tag_group_set(TCGv_ptr tags, TCGv_i64 idx,
+    TCGv_i64 group)
+{
+    TCGv_ptr t0 = tcg_temp_new_ptr();
+    TCGv_ptr t1 = tcg_temp_new_ptr();
+
+    tcg_gen_trunc_i64_ptr(t0, idx);
+    tcg_gen_add_ptr(t1, tags, t0);
+    tcg_gen_st_i64(group, t1, 0);
+
+    tcg_temp_free_ptr(t1);
+    tcg_temp_free_ptr(t0);
+}
+
+static inline void gen_tag_group_extract(TCGv_i64 ret, TCGv_i64 group,
+    TCGv_i64 offset)
+{
+    TCGv_i64 t0 = tcg_const_i64(TAG_BITS);
+    e2k_gen_extract_i64(ret, group, offset, t0);
+    tcg_temp_free_i64(t0);
+}
+
+static inline void gen_tag_group_deposit(TCGv_i64 ret, TCGv_i64 group,
+    TCGv_i64 tag, TCGv_i64 offset)
+{
+    TCGv_i64 t0 = tcg_const_i64(TAG_BITS);
+    e2k_gen_deposit_i64(ret, group, tag, offset, t0);
+    tcg_temp_free_i64(t0);
+}
+
+static inline void gen_tag_get(TCGv_i64 ret, TCGv_ptr tags, TCGv_i64 idx)
+{
+    TCGv_i64 t0 = tcg_temp_new_i64();
+    TCGv_i64 t1 = tcg_temp_new_i64();
+    TCGv_i64 t2 = tcg_temp_new_i64();
+
+    gen_tag_group_index(t0, idx);
+    gen_tag_group_get(t1, tags, t0);
+    gen_tag_offset_in_group(t2, idx);
+    gen_tag_group_extract(ret, t1, t2);
+
+    tcg_temp_free_i64(t2);
+    tcg_temp_free_i64(t1);
+    tcg_temp_free_i64(t0);
+}
+
+static inline void gen_tag_set(TCGv_ptr tags, TCGv_i64 idx, TCGv_i64 tag)
+{
+    TCGv_i64 t0 = tcg_temp_new_i64();
+    TCGv_i64 t1 = tcg_temp_new_i64();
+    TCGv_i64 t2 = tcg_temp_new_i64();
+    TCGv_i64 t3 = tcg_temp_new_i64();
+
+    gen_tag_group_index(t0, idx);
+    gen_tag_group_get(t1, tags, t0);
+    gen_tag_offset_in_group(t2, idx);
+    gen_tag_group_deposit(t3, t1, tag, t2);
+    get_tag_group_set(tags, t0, t3);
+
+    tcg_temp_free_i64(t3);
+    tcg_temp_free_i64(t2);
+    tcg_temp_free_i64(t1);
+    tcg_temp_free_i64(t0);
+}
+
 static void gen_preg_offset(TCGv_i64 ret, int reg)
 {
     assert(reg < 32);
@@ -161,6 +259,48 @@ void e2k_gen_store_wreg(DisasContext *ctx, int reg, TCGv_i64 val)
     tcg_temp_free_ptr(t0);
 }
 
+void e2k_gen_wtag_get(TCGv_i64 ret, TCGv_i32 idx)
+{
+    TCGv_i32 t0 = tcg_temp_new_i32();
+    TCGv_i64 t1 = tcg_temp_new_i64();
+
+    gen_wreg_index(t0, idx);
+    tcg_gen_extu_i32_i64(t1, t0);
+    gen_tag_get(ret, e2k_cs.wptr, t1);
+
+    tcg_temp_free_i64(t1);
+    tcg_temp_free_i32(t0);
+}
+
+void e2k_gen_wtagi_get(TCGv_i64 ret, int reg)
+{
+    TCGv_i32 t0 = tcg_const_i32(reg);
+    e2k_gen_wtag_get(ret, t0);
+    tcg_temp_free_i32(t0);
+}
+
+/* register index must be valid */
+void e2k_gen_wtag_set(TCGv_i32 idx, TCGv_i64 tag)
+{
+    TCGv_i32 t0 = tcg_temp_new_i32();
+    TCGv_i64 t1 = tcg_temp_new_i64();
+
+    gen_wreg_index(t0, idx);
+    tcg_gen_extu_i32_i64(t1, t0);
+    gen_tag_set(e2k_cs.tptr, t1, tag);
+
+    tcg_temp_free_i64(t1);
+    tcg_temp_free_i32(t0);
+}
+
+/* register index must be valid */
+void e2k_gen_wtagi_set(int reg, TCGv_i64 tag)
+{
+    TCGv_i32 t0 = tcg_const_i32(reg);
+    e2k_gen_wtag_set(t0, tag);
+    tcg_temp_free_i32(t0);
+}
+
 static inline void gen_breg_index(TCGv_i32 ret, int idx)
 {
     TCGv_i32 t0 = tcg_temp_new_i32();
@@ -214,6 +354,28 @@ void e2k_gen_store_breg(DisasContext *ctx, int reg, TCGv_i64 val)
     tcg_temp_free_ptr(ptr);
 }
 
+/* register index must be valid */
+void e2k_gen_btag_get(TCGv_i64 ret, int reg)
+{
+    TCGv_i32 t0 = tcg_temp_new_i32();
+
+    gen_breg_index(t0, reg);
+    e2k_gen_wtag_get(ret, t0);
+
+    tcg_temp_free_i32(t0);
+}
+
+/* register index must be valid */
+void e2k_gen_btag_set(int reg, TCGv_i64 tag)
+{
+    TCGv_i32 t0 = tcg_temp_new_i32();
+
+    gen_breg_index(t0, reg);
+    e2k_gen_wtag_set(t0, tag);
+
+    tcg_temp_free_i32(t0);
+}
+
 TCGv_i64 e2k_get_greg(DisasContext *dc, int reg)
 {
     assert(reg < GREGS_MAX + BGREGS_MAX);
@@ -224,4 +386,20 @@ void e2k_gen_store_greg(int reg, TCGv_i64 val)
 {
     assert(reg < GREGS_MAX + BGREGS_MAX);
     tcg_gen_mov_i64(e2k_cs.gregs[reg], val);
+}
+
+void e2k_gen_gtag_get(TCGv_i64 ret, int reg)
+{
+    TCGv_i64 group = e2k_cs.gtags[reg / TAGS_PER_REG];
+    TCGv_i64 t0 = tcg_const_i64((reg & TAG_MASK) * TAG_BITS);
+    gen_tag_group_extract(ret, group, t0);
+    tcg_temp_free_i64(t0);
+}
+
+void e2k_gen_gtag_set(int reg, TCGv_i64 tag)
+{
+    TCGv_i64 group = e2k_cs.gtags[reg / TAGS_PER_REG];
+    TCGv_i64 t0 = tcg_const_i64((reg & TAG_MASK) * TAG_BITS);
+    gen_tag_group_deposit(group, group, tag, t0);
+    tcg_temp_free_i64(t0);
 }
