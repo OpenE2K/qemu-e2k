@@ -248,7 +248,6 @@ static inline void gen_goto_ctpr_disp(TCGv_i64 ctpr)
 
     tcg_gen_extract_i64(t0, ctpr, CTPR_BASE_OFF, CTPR_BASE_LEN);
     tcg_gen_trunc_i64_tl(t1, t0);
-    // FIXME: save state here?
     tcg_gen_mov_tl(e2k_cs.pc, t1);
     tcg_gen_lookup_and_goto_ptr();
 
@@ -378,12 +377,11 @@ static inline void do_branch(DisasContext *ctx, target_ulong pc_next)
         // TODO: ldisp, sdisp
         e2k_gen_exception(0);
 
-        gen_set_label(l0);
-        gen_goto_ctpr_disp(ctx->ct.u.ctpr);
-
         gen_set_label(l1);
         gen_helper_return(cpu_env);
-        tcg_gen_lookup_and_goto_ptr();
+
+        gen_set_label(l0);
+        gen_goto_ctpr_disp(ctx->ct.u.ctpr);
         break;
     }
     case CT_CALL: {
