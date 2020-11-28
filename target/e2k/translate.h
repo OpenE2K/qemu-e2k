@@ -145,7 +145,6 @@ typedef struct DisasContext {
     DisasContextBase base;
     UnpackedBundle bundle;
     target_ulong pc;
-    target_ulong npc;
     int jump_ctpr;
     int mmuidx;
     uint8_t mas[6];
@@ -237,12 +236,15 @@ static inline void e2k_gen_cond_i64(DisasContext *ctx, TCGv_i64 ret,
     tcg_temp_free_i32(t0);
 }
 
-void e2k_gen_exception(DisasContext *dc, int which);
+/* exception generated in translation time */
+void e2k_tr_gen_exception(DisasContext *dc, int which);
 
-static inline void e2k_gen_exception2(int excp)
+/* exception generated in runtime */
+static inline void e2k_gen_exception(int excp)
 {
     TCGv_i32 t0 = tcg_const_i32(excp);
 
+    // TODO: check if need to save state
     gen_helper_raise_exception(cpu_env, t0);
 
     tcg_temp_free_i32(t0);

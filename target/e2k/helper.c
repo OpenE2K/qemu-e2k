@@ -184,9 +184,9 @@ static inline void ps_pop(CPUE2KState *env, int base, int required)
     }
 }
 
-static inline void do_call(CPUE2KState *env, int wbs)
+static inline void do_call(CPUE2KState *env, int wbs, target_ulong pc_next)
 {
-    env->ip = env->nip;
+    env->ip = pc_next;
     env->pshtp.index += wbs * 2; // add old window to allocated registers
     pcs_push(env, wbs);
     reset_ctprs(env);
@@ -212,31 +212,32 @@ void helper_return(CPUE2KState *env)
     reset_ctprs(env);
 }
 
-static inline void do_syscall(CPUE2KState *env, int call_wbs)
+static inline void do_syscall(CPUE2KState *env, int call_wbs,
+    target_ulong pc_next)
 {
+    env->ip = pc_next;
     env->syscall_wbs = call_wbs;
     reset_ctprs(env);
     helper_raise_exception(env, E2K_EXCP_SYSCALL);
 }
 
-target_ulong helper_call(CPUE2KState *env, uint64_t ctpr,
-    int call_wbs)
+void helper_call(CPUE2KState *env, uint64_t ctpr, int call_wbs,
+    target_ulong pc_next)
 {
-    int ctpr_tag = GET_FIELD(ctpr, CTPR_TAG_OFF, CTPR_TAG_LEN);
+    int ctpr_tag = extract64(ctpr, CTPR_TAG_OFF, CTPR_TAG_LEN);
 
     switch (ctpr_tag) {
     case CTPR_TAG_DISP:
-        do_call(env, call_wbs);
-        return GET_FIELD(ctpr, CTPR_BASE_OFF, CTPR_BASE_LEN);
+        do_call(env, call_wbs, pc_next);
+        env->ip = extract64(ctpr, CTPR_BASE_OFF, CTPR_BASE_LEN);
+        break;
     case CTPR_TAG_SDISP:
-        do_syscall(env, call_wbs);
-        return env->ip;
+        do_syscall(env, call_wbs, pc_next);
+        break;
     default:
         abort();
         break;
     }
-
-    return 0;
 }
 
 void helper_raise_exception(CPUE2KState *env, int tt)

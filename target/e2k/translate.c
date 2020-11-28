@@ -190,15 +190,9 @@ static inline void gen_save_pc(target_ulong pc)
     tcg_gen_movi_tl(e2k_cs.pc, pc);
 }
 
-static inline void gen_save_npc(target_ulong npc)
-{
-    tcg_gen_movi_tl(e2k_cs.npc, npc);
-}
-
 static inline void gen_save_cpu_state(DisasContext *ctx)
 {
     gen_save_pc(ctx->pc);
-    gen_save_npc(ctx->npc);
 }
 
 static inline bool use_goto_tb(DisasContext *s, target_ulong pc,
@@ -222,23 +216,22 @@ static inline void gen_goto_tb(DisasContext *ctx, int tb_num,
     if (use_goto_tb(ctx, pc, npc))  {
         /* jump to same page: we can use a direct jump */
         tcg_gen_goto_tb(tb_num);
-        tcg_gen_movi_tl(e2k_cs.pc, pc);
-        tcg_gen_movi_tl(e2k_cs.npc, npc);
+        tcg_gen_movi_tl(e2k_cs.pc, npc);
         tcg_gen_exit_tb(ctx->base.tb, tb_num);
     } else {
         /* jump to another page: currently not optimized */
-        tcg_gen_movi_tl(e2k_cs.pc, pc);
-        tcg_gen_movi_tl(e2k_cs.npc, npc);
+        tcg_gen_movi_tl(e2k_cs.pc, npc);
         tcg_gen_exit_tb(NULL, 0);
     }
 }
 
-void e2k_gen_exception(DisasContext *ctx, int which)
+void e2k_tr_gen_exception(DisasContext *ctx, int which)
 {
     TCGv_i32 t = tcg_const_i32(which);
 
     gen_save_cpu_state(ctx);
     gen_helper_raise_exception(cpu_env, t);
+    ctx->base.is_jmp = DISAS_NORETURN;
 
     tcg_temp_free_i32(t);
 }
@@ -268,17 +261,20 @@ static inline void do_reset(DisasContext *ctx)
     memset(ctx->mas, 0, sizeof(ctx->mas));
 }
 
-static inline void do_decode(DisasContext *ctx, CPUState *cs)
+static inline target_ulong do_decode(DisasContext *ctx, CPUState *cs)
 {
     E2KCPU *cpu = E2K_CPU(cs);
     CPUE2KState *env = &cpu->env;
-    UnpackedBundle *bundle = &ctx->bundle;
-    unsigned int bundle_len;
+    unsigned int len;
 
     ctx->pc = ctx->base.pc_next;
-    bundle_len = unpack_bundle(env, ctx->pc, bundle);
-    /* TODO: exception, check bundle_len */
-    ctx->npc = ctx->base.pc_next = ctx->pc + bundle_len;
+    len = unpack_bundle(env, ctx->pc, &ctx->bundle);
+
+    if (len == 0) {
+        e2k_tr_gen_exception(ctx, E2K_EXCP_ILLOPC);
+    }
+
+    return ctx->pc + len;
 }
 
 /*
@@ -348,12 +344,13 @@ static inline void do_commit(DisasContext *ctx)
     e2k_commit_stubs(ctx);
 }
 
-static inline void do_branch(DisasContext *ctx)
+static inline void do_branch(DisasContext *ctx, target_ulong pc_next)
 {
     TCGLabel *l0;
 
     if (ctx->ct.type == CT_NONE) {
-        tcg_gen_movi_tl(e2k_cs.pc, ctx->npc);
+        // FIXME: do not write to e2k_cs.pc if not necessary
+        tcg_gen_movi_tl(e2k_cs.pc, pc_next);
         return;
     }
 
@@ -361,17 +358,12 @@ static inline void do_branch(DisasContext *ctx)
 
     l0 = gen_new_label();
     tcg_gen_brcondi_tl(TCG_COND_NE, e2k_cs.ct_cond, 0, l0);
-    tcg_gen_movi_tl(e2k_cs.pc, ctx->npc);
-    tcg_gen_exit_tb(NULL, 0);
+    gen_goto_tb(ctx, TB_EXIT_IDX0, ctx->pc, pc_next);
     gen_set_label(l0);
-    gen_save_npc(ctx->npc);
 
     switch(ctx->ct.type) {
     case CT_IBRANCH:
-        // FIXME: does not work with gdb
-//        gen_goto_tb(ctx, 0, ctx->pc, ctx->ct.u.target);
-        tcg_gen_movi_tl(e2k_cs.pc, ctx->ct.u.target);
-        tcg_gen_exit_tb(NULL, 0);
+        gen_goto_tb(ctx, TB_EXIT_IDX1, ctx->pc, ctx->ct.u.target);
         break;
     case CT_JUMP: {
         TCGLabel *l0 = gen_new_label();
@@ -384,7 +376,7 @@ static inline void do_branch(DisasContext *ctx)
         tcg_temp_free_i64(t0);
 
         // TODO: ldisp, sdisp
-        e2k_gen_exception(ctx, 0);
+        e2k_gen_exception(0);
 
         gen_set_label(l0);
         gen_goto_ctpr_disp(ctx->ct.u.ctpr);
@@ -397,9 +389,13 @@ static inline void do_branch(DisasContext *ctx)
     }
     case CT_CALL: {
         TCGv_i32 wbs = tcg_const_i32(ctx->ct.wbs);
-        gen_helper_call(e2k_cs.pc, cpu_env, ctx->ct.u.ctpr, wbs);
-        tcg_temp_free_i32(wbs);
+        TCGv npc = tcg_const_tl(pc_next);
+
+        gen_helper_call(cpu_env, ctx->ct.u.ctpr, wbs, npc);
         tcg_gen_lookup_and_goto_ptr();
+
+        tcg_temp_free(npc);
+        tcg_temp_free_i32(wbs);
         break;
     }
     default:
@@ -419,19 +415,19 @@ static void e2k_tr_init_disas_context(DisasContextBase *db, CPUState *cs)
 static bool e2k_tr_breakpoint_check(DisasContextBase *db, CPUState *cs,
                                     const CPUBreakpoint *bp)
 {
-    DisasContext *dc = container_of(db, DisasContext, base);
+    DisasContext *ctx = container_of(db, DisasContext, base);
 
     // TODO: suppress on branch to self
     gen_helper_debug(cpu_env);
-    tcg_gen_exit_tb(NULL, 0);
-    dc->base.is_jmp = DISAS_NORETURN;
+    tcg_gen_exit_tb(NULL, TB_EXIT_IDX0);
+    ctx->base.is_jmp = DISAS_NORETURN;
     /*
      * The address covered by the breakpoint must be included in
      * [tb->pc, tb->pc + tb->size) in order to for it to be
      * properly cleared -- thus we increment the PC here so that
      * the logic setting tb->size below does the right thing.
      */
-    dc->base.pc_next += 1;
+    ctx->base.pc_next += 1;
     return true;
 }
 
@@ -453,16 +449,19 @@ static void e2k_tr_translate_insn(DisasContextBase *db, CPUState *cs)
 {
     DisasContext *ctx = container_of(db, DisasContext, base);
     TCGLabel *l0 = gen_new_label();
+    target_ulong pc_next;
 
     tcg_gen_brcondi_i32(TCG_COND_EQ, e2k_cs.is_bp, 0, l0);
     gen_helper_break_restore_state(cpu_env);
     gen_set_label(l0);
 
     do_reset(ctx);
-    do_decode(ctx, cs);
+    pc_next = do_decode(ctx, cs);
     do_execute(ctx);
     do_commit(ctx);
-    do_branch(ctx);
+    do_branch(ctx, pc_next);
+
+    ctx->base.pc_next = pc_next;
 
     /* Free temporary values */
     while(ctx->t32_len) {
@@ -485,10 +484,9 @@ static void e2k_tr_tb_stop(DisasContextBase *db, CPUState *cs)
     switch(ctx->base.is_jmp) {
     case DISAS_NEXT:
     case DISAS_TOO_MANY:
-        // FIXME: ibranch has some troubles with goto_tb in gdb
-//        gen_goto_tb(ctx, 0, ctx->pc, ctx->npc);
-        tcg_gen_movi_tl(e2k_cs.pc, ctx->npc);
-        tcg_gen_exit_tb(NULL, 0);
+        if (ctx->ct.type != CT_NONE) {
+            gen_goto_tb(ctx, TB_EXIT_IDX0, ctx->pc, ctx->base.pc_next);
+        }
         break;
     case DISAS_NORETURN:
         break;
