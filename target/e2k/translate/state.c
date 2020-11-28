@@ -132,7 +132,7 @@ static inline void gen_wreg_check(DisasContext *ctx, int reg)
     assert(reg < 64);
 
     tcg_gen_brcondi_i32(TCG_COND_GTU, e2k_cs.wd_size, reg, l0);
-    e2k_gen_exception(ctx, E2K_EXCP_MAPERR);
+    e2k_gen_exception(E2K_EXCP_MAPERR);
     gen_set_label(l0);
 }
 
@@ -187,7 +187,7 @@ static inline void gen_bregi_ptr(DisasContext *ctx, TCGv_ptr ret, int idx)
     tcg_gen_brcond_i32(TCG_COND_LTU, e2k_cs.wd_size, t0, l0);
     tcg_gen_br(l1);
     gen_set_label(l0);
-    e2k_gen_exception(ctx, E2K_EXCP_MAPERR);
+    e2k_gen_exception(E2K_EXCP_MAPERR);
     gen_set_label(l1);
 
     gen_breg_index(t0, idx);
