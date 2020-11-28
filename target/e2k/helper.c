@@ -311,6 +311,11 @@ void helper_debug_i64(uint64_t x)
     qemu_log_mask(LOG_UNIMP, "log %#lx\n", x);
 }
 
+void helper_debug_ptr(void *x)
+{
+    qemu_log_mask(LOG_UNIMP, "log %#lx\n", (uint64_t) x);
+}
+
 void helper_setwd(CPUE2KState *env, uint32_t lts)
 {
     env->wd.size = extract32(lts, 5, 7) * 2;

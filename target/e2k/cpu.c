@@ -43,6 +43,7 @@ static void e2k_cpu_reset(DeviceState *dev)
     memset(env, 0, offsetof(CPUE2KState, end_reset_fields));
 
     env->wptr = &env->wregs[0];
+    env->tptr = &env->wtags[0];
     env->cr1.wpsz = 4;
     env->cr1.wbs = 4;
     env->wd.base = 0;
@@ -105,6 +106,13 @@ static inline void cpu_dump_state_br(CPUE2KState *env, FILE *f, int flags)
     qemu_fprintf(f, "    pcur   %d\n", bp->cur);
 }
 
+static inline int extract_tag(uint64_t *tags, int idx)
+{
+    uint64_t tmp = tags[idx / TAGS_PER_REG];
+    int offset = (idx & GEN_MASK(0, TAG_BITS)) * TAG_BITS;
+    return extract64(tmp, offset, TAG_BITS);
+}
+
 void e2k_cpu_dump_state(CPUState *cs, FILE *f, int flags)
 {
     E2KCPU *cpu = E2K_CPU(cs);
@@ -125,11 +133,17 @@ void e2k_cpu_dump_state(CPUState *cs, FILE *f, int flags)
     cpu_dump_state_br(env, f, flags);
 
     for (i = 0; i < WREGS_SIZE; i++) {
-        qemu_fprintf(f, "%%r%d\t0x%lx\n", i, env->wregs[i]);
+        int tag = extract_tag(env->wtags, i);
+        int tl = tag & 3;
+        int th = tag >> 2;
+        qemu_fprintf(f, "%%r%d\t<%d%d> 0x%lx\n", i, th, tl, env->wregs[i]);
     }
 
     for (i = 0; i < 32; i++) {
-        qemu_fprintf(f, "%%g%d\t0x%lx\n", i, env->gregs[i]);
+        int tag = extract_tag(env->gtags, i);
+        int tl = tag & 3;
+        int th = tag >> 2;
+        qemu_fprintf(f, "%%g%d\t<%d%d> 0x%lx\n", i, th, tl, env->gregs[i]);
     }
 
     for (i = 0; i < 32; i++) {
