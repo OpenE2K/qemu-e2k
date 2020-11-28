@@ -154,11 +154,11 @@ void e2k_commit_stubs(DisasContext *ctx)
     case 0x00:
         break;
     case 0x01:
-        // TODO
+        // TODO: abgd
         abort();
         break;
     case 0x02:
-        // TODO
+        // TODO: abgi
         abort();
         break;
     default:
@@ -501,7 +501,6 @@ static void gen_jmp(DisasContext *dc)
     unsigned int cond_type = GET_FIELD(dc->bundle.ss, 5, 4);
     unsigned int ctpr = GET_FIELD(dc->bundle.ss, 10, 2);
 
-    /* TODO: different kinds of ct */
     if (ctpr != 0) {
         dc->ct.type = CT_JUMP;
         dc->ct.u.ctpr = e2k_cs.ctprs[ctpr - 1];
@@ -510,7 +509,6 @@ static void gen_jmp(DisasContext *dc)
     if (cond_type == 1) {
         tcg_gen_movi_tl(e2k_cs.ct_cond, 1);
     } else if (cond_type > 1) {
-        /* TODO: single assign */
         TCGv preg = tcg_temp_new();
         TCGv loop_end = tcg_temp_new();
         TCGv not_loop_end = tcg_temp_new();
