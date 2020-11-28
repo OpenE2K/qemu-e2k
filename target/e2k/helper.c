@@ -192,6 +192,25 @@ static inline void do_call(CPUE2KState *env, int wbs, target_ulong pc_next)
     reset_ctprs(env);
 }
 
+uint64_t helper_prep_return(CPUE2KState *env, int ipd)
+{
+    uint64_t pc, ret = 0;
+    void *p;
+
+    if (env->pcsp.index < 32) {
+        helper_raise_exception(env, E2K_EXCP_MAPERR);
+        return 0;
+    }
+
+    p = (void *) env->pcsp.base + env->pcsp.index - 24;
+    memcpy(&pc, p, 8);
+    ret |= deposit64(ret, CTPR_BASE_OFF, CTPR_BASE_LEN, pc);
+    ret |= deposit64(ret, CTPR_TAG_OFF, CTPR_TAG_LEN, CTPR_TAG_RETURN);
+    ret |= deposit64(ret, CTPR_IPD_OFF, CTPR_IPD_LEN, ipd);
+
+    return ret;
+}
+
 void helper_return(CPUE2KState *env)
 {
     uint32_t new_wd_size, new_wd_base, offset;

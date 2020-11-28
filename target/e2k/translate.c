@@ -382,7 +382,6 @@ static inline void do_branch(DisasContext *ctx, target_ulong pc_next)
         gen_goto_ctpr_disp(ctx->ct.u.ctpr);
 
         gen_set_label(l1);
-        // FIXME: gdb does not see IP change
         gen_helper_return(cpu_env);
         tcg_gen_lookup_and_goto_ptr();
         break;

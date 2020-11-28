@@ -296,9 +296,14 @@ static void gen_cs0(DisasContext *dc)
            lowermost ones are undefined, while the latter also known as "type"
            field should be filled in with zeroes.  */
         if (type == RETURN) {
-            uint64_t reg = ((uint64_t) CTPR_TAG_RETURN << CTPR_TAG_OFF) |
-                ((uint64_t) ipd << CTPR_IPD_OFF);
-            tcg_gen_movi_tl(e2k_cs.ctprs[ctpr - 1], reg);
+            TCGv_i32 t0 = tcg_const_i32(ipd);
+
+            if (ctpr != 3) {
+                e2k_tr_gen_exception(dc, E2K_EXCP_ILLOPN);
+            }
+
+            gen_helper_prep_return(e2k_cs.ctprs[2], cpu_env, t0);
+            tcg_temp_free_i32(t0);
         }
 
         /* GETTSD has as meaningless `CS0.param' as RETURN. The only
