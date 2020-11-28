@@ -52,12 +52,12 @@ static TCGv_i64 get_src2(DisasContext *dc, uint32_t als)
         } else if (IS_LIT64(src2) && i < 3) {
             if (!dc->bundle.lts_present[i + 1]) {
                 // TODO: check what exception must be raised
-                e2k_gen_exception(dc, E2K_EXCP_MAPERR);
+                e2k_tr_gen_exception(dc, E2K_EXCP_MAPERR);
             }
             lit |= (uint64_t) dc->bundle.lts[i + 1] << 32;
         } else {
             // TODO: check what exception must be raised
-            e2k_gen_exception(dc, E2K_EXCP_MAPERR);
+            e2k_tr_gen_exception(dc, E2K_EXCP_MAPERR);
         }
         tcg_gen_movi_i64(t, lit);
         return t;
@@ -346,7 +346,7 @@ static inline void gen_cmpand_i64(DisasContext *ctx, TCGv_i64 ret, int opc,
         tcg_gen_setcondi_i64(TCG_COND_LE, ret, t0, 0);
         break;
     default:
-        e2k_gen_exception(ctx, E2K_EXCP_ILLOPC);
+        e2k_tr_gen_exception(ctx, E2K_EXCP_ILLOPC);
         break;
     }
 
@@ -611,14 +611,14 @@ static MemOp gen_mas(DisasContext *ctx, int chan, MemOp memop, TCGv_i64 addr)
 
     if ((mas & 0x7) == 7) {
         // TODO: special mas
-        e2k_gen_exception(ctx, E2K_EXCP_ILLOPC);
+        e2k_tr_gen_exception(ctx, E2K_EXCP_ILLOPC);
     } else if (mas) {
         int mod = extract8(mas, 0, 3);
 //        int dc = extract8(mas, 5, 2);
 
         if (mod != 0) {
             // TODO: mas modes
-            e2k_gen_exception(ctx, E2K_EXCP_ILLOPC);
+            e2k_tr_gen_exception(ctx, E2K_EXCP_ILLOPC);
         }
 
         memop |= GET_BIT(mas, 3) ? MO_BE : MO_LE;
@@ -838,7 +838,7 @@ static void execute_alopf_simple(DisasContext *dc, int chan)
             TCGLabel *l0 = gen_new_label();
             TCGv_i64 src2 = get_src2(dc, als);
             tcg_gen_brcondi_i64(TCG_COND_NE, src2, 0, l0);
-            e2k_gen_exception(dc, 0);
+            e2k_tr_gen_exception(dc, 0);
             gen_set_label(l0);
 
             gen_alopf1_i32(dc, chan, tcg_gen_divu_i32);
@@ -907,7 +907,7 @@ static void execute_alopf_simple(DisasContext *dc, int chan)
         break;
     }
     default:
-        e2k_gen_exception(dc, E2K_EXCP_ILLOPC);
+        e2k_tr_gen_exception(dc, E2K_EXCP_ILLOPC);
         break;
     }
 }
@@ -959,7 +959,7 @@ void e2k_execute_alc(DisasContext *ctx, int chan)
         execute_alopf_simple(ctx, chan);
         break;
     case ALES_ALLOCATED: // 2 or 5 channel
-        e2k_gen_exception(ctx, E2K_EXCP_ILLOPC);
+        e2k_tr_gen_exception(ctx, E2K_EXCP_ILLOPC);
         break;
     case ALES_PRESENT: {
         uint8_t opc = GET_FIELD(bundle->ales[chan], 8, 8);
@@ -968,7 +968,7 @@ void e2k_execute_alc(DisasContext *ctx, int chan)
             execute_ext1(ctx, chan);
             break;
         default:
-            e2k_gen_exception(ctx, E2K_EXCP_ILLOPC);
+            e2k_tr_gen_exception(ctx, E2K_EXCP_ILLOPC);
             break;
         }
         break;

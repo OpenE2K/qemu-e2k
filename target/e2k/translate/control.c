@@ -162,7 +162,7 @@ void e2k_commit_stubs(DisasContext *ctx)
         abort();
         break;
     default:
-        e2k_gen_exception(ctx, E2K_EXCP_ILLOPC);
+        e2k_tr_gen_exception(ctx, E2K_EXCP_ILLOPC);
         break;
     }
 }
@@ -242,7 +242,7 @@ static void gen_cs0(DisasContext *dc)
 
     if (type == IBRANCH || type == DONE || type == HRET || type == GLAUNCH) {
         if (!bundle->ss_present || (bundle->ss & 0x00000c00)) {
-            e2k_gen_exception(dc, E2K_EXCP_ILLOPC);
+            e2k_tr_gen_exception(dc, E2K_EXCP_ILLOPC);
         } else if ((bundle->ss & 0x1ff)
               && !(bundle->cs1_present
               /* CS1.opc == CALL */
@@ -261,14 +261,14 @@ static void gen_cs0(DisasContext *dc)
                 dc->ct.type = CT_IBRANCH;
                 dc->ct.u.target = dc->pc + sdisp;
             } else {
-                e2k_gen_exception(dc, E2K_EXCP_ILLOPC);
+                e2k_tr_gen_exception(dc, E2K_EXCP_ILLOPC);
             }
         }
     } else {
         /* Note that according to Table B.4.1 it's possible to obtain
     `      gettsd %ctpr{1,2} with an invalid value for CS0.param.type.  */
         if (type == GETTSD && param_type != 1) {
-            e2k_gen_exception(dc, E2K_EXCP_ILLOPC);
+            e2k_tr_gen_exception(dc, E2K_EXCP_ILLOPC);
         }
         int ipd = GET_FIELD(bundle->ss, 30, 2);
         if (type == DISP || type == LDISP) {
@@ -361,7 +361,7 @@ static void gen_cs1(DisasContext *dc)
 
         if (opc == SETR1) {
             if (! bundle->lts_present[0]) {
-                e2k_gen_exception(dc, E2K_EXCP_ILLOPC);
+                e2k_tr_gen_exception(dc, E2K_EXCP_ILLOPC);
             } else {
                 /* Find out if VFRPSZ is always encoded together with SETWD. This
                 seems to be the case even if no SETWD has been explicitly
@@ -373,7 +373,7 @@ static void gen_cs1(DisasContext *dc)
 
         if (opc == SETR0 || opc == SETR1) {
             if (! bundle->lts_present[0]) {
-                e2k_gen_exception(dc, E2K_EXCP_ILLOPC);
+                e2k_tr_gen_exception(dc, E2K_EXCP_ILLOPC);
             } else {
                 TCGv_i32 lts = tcg_const_i32(bundle->lts[0]);
 
@@ -407,7 +407,7 @@ static void gen_cs1(DisasContext *dc)
                 // TODO: setsft
                 abort();
             } else {
-                e2k_gen_exception(dc, E2K_EXCP_ILLOPC);
+                e2k_tr_gen_exception(dc, E2K_EXCP_ILLOPC);
             }
         } else {
 //            uint8_t eir = GET_FIELD_LEN(cs1, 0, 8);
@@ -465,7 +465,7 @@ static void gen_cs1(DisasContext *dc)
                     abort();
                 }
             } else {
-                e2k_gen_exception(dc, E2K_EXCP_ILLOPC);
+                e2k_tr_gen_exception(dc, E2K_EXCP_ILLOPC);
             }
         }
     } else if (opc == MAS_OPC) {
@@ -491,7 +491,7 @@ static void gen_cs1(DisasContext *dc)
         // TODO: vfbg
         abort();
     } else {
-        e2k_gen_exception(dc, E2K_EXCP_ILLOPC);
+        e2k_tr_gen_exception(dc, E2K_EXCP_ILLOPC);
     }
 }
 
