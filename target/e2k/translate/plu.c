@@ -29,7 +29,7 @@ void e2k_gen_cond_i32(DisasContext *ctx, TCGv_i32 ret, uint8_t psrc)
             // TODO: rndpred
             abort();
         } else {
-            e2k_gen_exception(ctx, E2K_EXCP_ILLOPN);
+            e2k_tr_gen_exception(ctx, E2K_EXCP_ILLOPN);
         }
     } else {
         int reg = GET_FIELD(psrc, 0, 5);
