@@ -19,9 +19,14 @@ void e2k_tcg_initialize(void);
 #define MMU_USER_IDX 1
 #define CPU_RESOLVING_TYPE TYPE_E2K_CPU
 
-#define REG_SIZE (sizeof(uint64_t))
+#define REG_SIZE sizeof(uint64_t)
+#define TAG_BITS 4 /* 2 bit per 32-bit half */
+/* how many tags can be packed into register */
+#define TAGS_PER_REG (REG_SIZE * 8 / TAG_BITS)
 #define WREGS_SIZE 192
+#define WTAGS_SIZE (WREGS_SIZE / TAGS_PER_REG)
 #define GREGS_SIZE 32
+#define GTAGS_SIZE (GREGS_SIZE / TAGS_PER_REG)
 #define WREGS_MAX 64
 #define BREGS_MAX 128
 #define GREGS_MAX 24
@@ -279,8 +284,11 @@ typedef struct {
 typedef struct {
     /* register file */
     uint64_t gregs[GREGS_SIZE]; /* global registers */
+    uint64_t gtags[GTAGS_SIZE]; /* global registers tags */
     uint64_t wregs[WREGS_SIZE]; /* window registers */
-    uint64_t *wptr;
+    uint64_t wtags[WTAGS_SIZE]; /* window registers tags */
+    uint64_t *wptr; /* pointer to wregs */
+    uint64_t *tptr; /* pointer to wtags */
 
     E2KCr1State cr1;
 

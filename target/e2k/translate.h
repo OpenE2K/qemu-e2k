@@ -63,8 +63,11 @@ typedef struct CPUE2KStateTCG {
     TCGv_i32 is_bp; /* breakpoint flag */
     TCGv_i64 lsr;
     TCGv_i64 wregs[WREGS_SIZE];
+    TCGv_i64 wtags[WTAGS_SIZE];
     TCGv_i64 gregs[GREGS_SIZE];
+    TCGv_i64 gtags[GTAGS_SIZE];
     TCGv_ptr wptr; /* pointer to wregs */
+    TCGv_ptr tptr; /* pointer to wtags */
     TCGv_i32 wd_base; /* holds wbs * 2 */
     TCGv_i32 wd_size; /* holds wsz * 2 */
     TCGv_i32 boff; /* holds rbs * 2 */
@@ -162,9 +165,79 @@ typedef struct DisasContext {
 
     TCGv_i64 cond[6];
     Result alc[6];
+    TCGv_i64 alc_tags;
     PluResult plu[3];
     ControlTransfer ct;
 } DisasContext;
+
+static inline void e2k_gen_mask_i64(TCGv_i64 ret, TCGv_i64 len)
+{
+    TCGv_i64 one = tcg_const_i64(1);
+    TCGv_i64 t0 = tcg_temp_new_i64();
+
+    tcg_gen_shl_i64(t0, one, len);
+    tcg_gen_subi_i64(ret, t0, 1);
+
+    tcg_temp_free_i64(t0);
+    tcg_temp_free_i64(one);
+}
+
+static inline void e2k_gen_maski_i64(TCGv_i64 ret, int len)
+{
+    TCGv_i64 t0 = tcg_const_i64(len);
+    e2k_gen_mask_i64(ret, t0);
+    tcg_temp_free_i64(t0);
+}
+
+static inline void e2k_gen_extract_i64(TCGv_i64 ret, TCGv_i64 arg1,
+    TCGv_i64 offset, TCGv_i64 len)
+{
+    TCGv_i64 t0 = tcg_temp_new_i64();
+    TCGv_i64 t1 = tcg_temp_new_i64();
+
+    tcg_gen_shr_i64(t0, arg1, offset);
+    e2k_gen_mask_i64(t1, len);
+    tcg_gen_and_i64(ret, t0, t1);
+
+    tcg_temp_free_i64(t1);
+    tcg_temp_free_i64(t0);
+}
+
+static inline void e2k_gen_deposit_i64(TCGv_i64 ret, TCGv_i64 arg1,
+    TCGv_i64 arg2, TCGv_i64 offset, TCGv_i64 len)
+{
+    TCGv_i64 t0 = tcg_temp_new_i64();
+    TCGv_i64 t1 = tcg_temp_new_i64();
+    TCGv_i64 t2 = tcg_temp_new_i64();
+    TCGv_i64 t3 = tcg_temp_new_i64();
+    TCGv_i64 t4 = tcg_temp_new_i64();
+    TCGv_i64 t5 = tcg_temp_new_i64();
+
+    e2k_gen_mask_i64(t0, len);
+    tcg_gen_shl_i64(t1, t0, offset);
+    tcg_gen_not_i64(t2, t1);
+    tcg_gen_and_i64(t3, arg1, t2);
+    tcg_gen_and_i64(t4, arg2, t0);
+    tcg_gen_shl_i64(t5, t4, offset);
+    tcg_gen_or_i64(ret, t3, t5);
+
+    tcg_temp_free_i64(t5);
+    tcg_temp_free_i64(t4);
+    tcg_temp_free_i64(t3);
+    tcg_temp_free_i64(t2);
+    tcg_temp_free_i64(t1);
+    tcg_temp_free_i64(t0);
+}
+
+/* register index must be valid */
+void e2k_gen_wtag_get(TCGv_i64 ret, TCGv_i32 idx);
+void e2k_gen_wtagi_get(TCGv_i64 ret, int reg);
+void e2k_gen_wtag_set(TCGv_i32 idx, TCGv_i64 tag);
+void e2k_gen_wtagi_set(int reg, TCGv_i64 tag);
+void e2k_gen_btag_get(TCGv_i64 ret, int reg);
+void e2k_gen_btag_set(int reg, TCGv_i64 tag);
+void e2k_gen_gtag_get(TCGv_i64 ret, int reg);
+void e2k_gen_gtag_set(int reg, TCGv_i64 tag);
 
 static inline TCGv_i32 e2k_get_temp_i32(DisasContext *dc)
 {

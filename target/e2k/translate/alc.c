@@ -93,6 +93,12 @@ static void store_reg_alc_result(DisasContext *dc, int chan, TCGv_i64 val)
     Result *res = &dc->alc[chan];
     res->u.reg.v = val;
 
+    // TODO: write tag to temp storage
+    TCGv_i64 tag = tcg_const_i64(dst % 15);
+    tcg_gen_deposit_i64(dc->alc_tags, dc->alc_tags, tag, chan * TAG_BITS,
+        TAG_BITS);
+    tcg_temp_free_i64(tag);
+
     if (IS_BASED(dst)) {
         res->tag = RESULT_BASED_REG;
         res->u.reg.i = GET_BASED(dst);
