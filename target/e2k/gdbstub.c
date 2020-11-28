@@ -264,6 +264,6 @@ int e2k_cpu_gdb_write_register(CPUState *cs, uint8_t *mem_buf, int n)
 
     fprintf(stderr, "%s: unknown register %d\n", __FUNCTION__, n);
 
-    /* TODO */
+    // TODO: e2k_cpu_gdb_write_register
     return 0;
 }

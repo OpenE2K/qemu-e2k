@@ -25,10 +25,8 @@
 void cpu_loop(CPUE2KState *env)
 {
     CPUState *cs = env_cpu(env);
-    int trapnr; //TODO , n, sig;
+    int trapnr;
     target_siginfo_t info;
-    //target_ulong addr;
-    //abi_long ret;
 
     while (1) {
         cpu_exec_start(cs);
