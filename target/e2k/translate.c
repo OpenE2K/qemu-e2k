@@ -524,9 +524,7 @@ void gen_intermediate_code(CPUState *cs, TranslationBlock *tb, int max_insns)
 void restore_state_to_opc(CPUE2KState *env, TranslationBlock *tb,
                           target_ulong *data)
 {
-//    target_ulong pc = data[0];
-//    target_ulong npc = data[0];
-    // TODO
+    // TODO: restore_state_to_opc
     qemu_log_mask(LOG_UNIMP, "restore_state_to_opc: not implemented\n");
 }
 

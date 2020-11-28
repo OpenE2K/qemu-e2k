@@ -80,7 +80,7 @@ static void cpu_e2k_disas_set_info(CPUState *cpu, disassemble_info *info)
 
 void cpu_e2k_set_id(CPUE2KState *env, unsigned int cpu)
 {
-    // TODO
+    // TODO: cpu_e2k_set_id
     qemu_log_mask(LOG_UNIMP, "cpu_e2k_set_id: not implemented\n");
 }
 
@@ -159,14 +159,14 @@ static void e2k_cpu_synchronize_from_tb(CPUState *cs, TranslationBlock *tb)
 
 static bool e2k_cpu_has_work(CPUState *cs)
 {
-    // TODO
+    // TODO: e2k_cpu_has_work
     qemu_log_mask(LOG_UNIMP, "e2k_cpu_has_work: not implemented\n");
     return true;
 }
 
 static char *e2k_cpu_type_name(const char *cpu_model)
 {
-    // TODO
+    // TODO: e2k_cpu_type_name
     char *name = g_strdup_printf("%s", cpu_model);
     return name;
 }
