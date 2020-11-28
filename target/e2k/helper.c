@@ -39,7 +39,7 @@ static inline void restore_proc_chain_info(CPUE2KState *env, uint64_t buf[4])
 
     e2k_state_cr1_hi_set(env, buf[3]);
     e2k_state_cr1_lo_set(env, buf[2]);
-    env->cr0_hi = buf[1];
+    env->cr0_hi = buf[1]; // FIXME: is it necessary to restore ip?
     env->cr0_lo = buf[0];
 
     env->wd.psize = env->cr1.wpsz * 2;
