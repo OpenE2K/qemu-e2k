@@ -62,11 +62,9 @@ typedef struct CPUE2KStateTCG {
     TCGv ct_cond;
     TCGv_i32 is_bp; /* breakpoint flag */
     TCGv_i64 lsr;
-    TCGv_i64 wregs[WREGS_SIZE];
-    TCGv_i64 wtags[WTAGS_SIZE];
-    TCGv_i64 gregs[GREGS_SIZE];
-    TCGv_i64 gtags[GTAGS_SIZE];
-    TCGv_ptr wptr; /* pointer to wregs */
+    TCGv_i64 regs[E2K_REG_COUNT];
+    TCGv_i64 tags[E2K_TAGS_REG_COUNT];
+    TCGv_ptr rptr; /* pointer to wregs */
     TCGv_ptr tptr; /* pointer to wtags */
     TCGv_i32 wd_base; /* holds wbs * 2 */
     TCGv_i32 wd_size; /* holds wsz * 2 */
@@ -103,30 +101,40 @@ typedef struct UnpackedBundle {
   bool cds_present[3];
 } UnpackedBundle;
 
-enum ResultType {
-    RESULT_NONE,
-    RESULT_BASED_REG,
-    RESULT_REGULAR_REG,
-    RESULT_GLOBAL_REG,
-    RESULT_PREG,
-};
+typedef enum {
+    AL_RESULT_NONE,
+    AL_RESULT_REG32,
+    AL_RESULT_REG64,
+    AL_RESULT_PREG,
+} AlResultType;
 
 typedef struct {
-    enum ResultType tag;
-    bool has_cond;
-    TCGv_i64 cond;
+    AlResultType type;
     union {
         struct {
-            unsigned int i;
-            TCGv_i64 v;
+            TCGv_i32 index;
+            union {
+                TCGv_i32 v32;
+                TCGv_i64 v64;
+            };
+            TCGv_i32 tag;
         } reg;
-    } u;
-} Result;
+        struct {
+            int index;
+            TCGv_i64 value;
+        } preg;
+    };
+} AlResult;
+
+typedef struct {
+    bool is_set;
+    TCGv_i64 value;
+} AlCond;
 
 typedef struct {
     int reg; // -1 means do not write
     TCGv_i32 value;
-} PluResult;
+} PlResult;
 
 typedef enum {
     CT_NONE,
@@ -164,9 +172,9 @@ typedef struct DisasContext {
     int ttl_len;
 
     TCGv_i64 cond[6];
-    Result alc[6];
-    TCGv_i64 alc_tags;
-    PluResult plu[3];
+    AlResult al_results[6];
+    AlCond al_cond[6];
+    PlResult pl_results[3];
     ControlTransfer ct;
 } DisasContext;
 
@@ -229,26 +237,28 @@ static inline void e2k_gen_deposit_i64(TCGv_i64 ret, TCGv_i64 arg1,
     tcg_temp_free_i64(t0);
 }
 
-/* register index must be valid */
-void e2k_gen_wtag_get(TCGv_i64 ret, TCGv_i32 idx);
-void e2k_gen_wtagi_get(TCGv_i64 ret, int reg);
-void e2k_gen_wtag_set(TCGv_i32 idx, TCGv_i64 tag);
-void e2k_gen_wtagi_set(int reg, TCGv_i64 tag);
-void e2k_gen_btag_get(TCGv_i64 ret, int reg);
-void e2k_gen_btag_set(int reg, TCGv_i64 tag);
-void e2k_gen_gtag_get(TCGv_i64 ret, int reg);
-void e2k_gen_gtag_set(int reg, TCGv_i64 tag);
-
 static inline TCGv_i32 e2k_get_temp_i32(DisasContext *dc)
 {
     assert(dc->t32_len < ARRAY_SIZE(dc->t32));
     return dc->t32[dc->t32_len++] = tcg_temp_local_new_i32();
 }
 
+static inline TCGv_i32 e2k_get_const_i32(DisasContext *dc, uint32_t value)
+{
+    assert(dc->t32_len < ARRAY_SIZE(dc->t32));
+    return dc->t32[dc->t32_len++] = tcg_const_local_i32(value);
+}
+
 static inline TCGv_i64 e2k_get_temp_i64(DisasContext *dc)
 {
     assert(dc->t64_len < ARRAY_SIZE(dc->t64));
     return dc->t64[dc->t64_len++] = tcg_temp_local_new_i64();
+}
+
+static inline TCGv_i64 e2k_get_const_i64(DisasContext *dc, uint64_t value)
+{
+    assert(dc->t64_len < ARRAY_SIZE(dc->t64));
+    return dc->t64[dc->t64_len++] = tcg_const_local_i64(value);
 }
 
 static inline TCGv e2k_get_temp(DisasContext *dc)
@@ -287,15 +297,51 @@ static inline void e2k_gen_lcntex(TCGv_i32 ret)
     tcg_temp_free_i32(t0);
 }
 
+void e2k_gen_store_preg(int idx, TCGv_i64 val);
+
+void e2k_gen_reg_tag_read_i64(TCGv_i32 ret, TCGv_i32 idx);
+void e2k_gen_reg_tag_read_i32(TCGv_i32 ret, TCGv_i32 idx);
+void e2k_gen_reg_tag_write_i64(TCGv_i32 value, TCGv_i32 idx);
+void e2k_gen_reg_tag_write_i32(TCGv_i32 value, TCGv_i32 idx);
+
+static inline void e2k_gen_reg_tag_writei_i64(int value, TCGv_i32 idx)
+{
+    TCGv_i32 t0 = tcg_const_i32(value);
+    e2k_gen_reg_tag_write_i64(t0, idx);
+    tcg_temp_free_i32(t0);
+}
+
+static inline void e2k_gen_reg_tag_writei_i32(int value, TCGv_i32 idx)
+{
+    TCGv_i32 t0 = tcg_const_i32(value);
+    e2k_gen_reg_tag_write_i32(t0, idx);
+    tcg_temp_free_i32(t0);
+}
+
+static inline void e2k_gen_reg_tag_extract_lo(TCGv_i32 ret, TCGv_i32 tags)
+{
+    tcg_gen_andi_i32(ret, tags, GEN_MASK(0, E2K_TAG_SIZE));
+}
+
+static inline void e2k_gen_reg_tag_extract_hi(TCGv_i32 ret, TCGv_i32 tags)
+{
+    tcg_gen_shri_i32(ret, tags, E2K_TAG_SIZE);
+}
+
+void e2k_gen_reg_tag_check_i64(TCGv_i32 ret, TCGv_i32 tag);
+void e2k_gen_reg_tag_check_i32(TCGv_i32 ret, TCGv_i32 tag);
+
+void e2k_gen_reg_index_from_wregi(TCGv_i32 ret, int idx);
+void e2k_gen_reg_index_from_bregi(TCGv_i32 ret, int idx);
+void e2k_gen_reg_index_from_gregi(TCGv_i32 ret, int idx);
+
+void e2k_gen_reg_read_i64(TCGv_i64 ret, TCGv_i32 idx);
+void e2k_gen_reg_read_i32(TCGv_i32 ret, TCGv_i32 idx);
+void e2k_gen_reg_write_i64(TCGv_i64 value, TCGv_i32 idx);
+void e2k_gen_reg_write_i32(TCGv_i32 value, TCGv_i32 idx);
+
 void e2k_gen_preg(TCGv_i64 ret, int reg);
 TCGv_i64 e2k_get_preg(DisasContext *dc, int reg);
-void e2k_gen_store_preg(int reg, TCGv_i64 val);
-TCGv_i64 e2k_get_wreg(DisasContext *ctx, int reg);
-void e2k_gen_store_wreg(DisasContext *ctx, int reg, TCGv_i64 val);
-TCGv_i64 e2k_get_breg(DisasContext *ctx, int reg);
-void e2k_gen_store_breg(DisasContext *ctx, int reg, TCGv_i64 val);
-TCGv_i64 e2k_get_greg(DisasContext *dc, int reg);
-void e2k_gen_store_greg(int reg, TCGv_i64 val);
 void e2k_gen_cond_i32(DisasContext *ctx, TCGv_i32 ret, uint8_t psrc);
 
 static inline void e2k_gen_cond_i64(DisasContext *ctx, TCGv_i64 ret,
@@ -325,7 +371,7 @@ static inline void e2k_gen_exception(int excp)
 
 void e2k_control_gen(DisasContext *dc);
 
-void e2k_execute_alc(DisasContext *ctx, int index);
+void e2k_alc_execute(DisasContext *ctx, int index);
 void e2k_alc_commit(DisasContext *dc);
 
 void e2k_plu_execute(DisasContext *ctx);

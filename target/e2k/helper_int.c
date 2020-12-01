@@ -29,52 +29,63 @@ uint64_t helper_sxt(uint64_t x, uint64_t y)
     }
 }
 
-uint64_t helper_state_reg_get(CPUE2KState *env, int reg)
+static uint64_t* state_reg_ptr(CPUE2KState *env, int idx)
 {
-    switch (reg) {
-    case 0x2c: /* %usd.hi */
-        return env->usd_hi;
-    case 0x2d: /* %usd.lo */
-        return env->usd_lo;
-    case 0x80: /* %upsr */
-        return env->upsr;
-    case 0x81: /* %ip */
-        return env->ip;
-    case 0x83: /* %lsr */
-        return env->lsr;
-    case 0x8a: /* %idr */
-        return env->idr;
-    case 0x90: /* %clkr */
-        return cpu_get_host_ticks();
-    default:
-        /* TODO: exception */
-        qemu_log_mask(LOG_UNIMP, "unknown register 0x%x\n", reg);
-        abort();
-        return 0; /* unreachable */
+    switch (idx) {
+    /* FIXME: user cannot write */
+    case 0x2c: return &env->usd_hi; /* %usd.hi */
+    /* FIXME: user cannot write */
+    case 0x2d: return &env->usd_lo; /* %usd.lo */
+    case 0x80: return &env->upsr; /* %upsr */
+    case 0x83: return &env->lsr; /* %lsr */
+    default: return NULL;
     }
 }
 
-void helper_state_reg_set(CPUE2KState *env, int reg, uint64_t val)
+uint64_t helper_state_reg_read_i64(CPUE2KState *env, int idx)
 {
-    switch (reg) {
-    case 0x2c: /* %usd.hi */
-        /* FIXME: user cannot write */
-        env->usd_hi = val;
-        break;
-    case 0x2d: /* %usd.lo */
-        /* FIXME: user cannot write */
-        env->usd_lo = val;
-        break;
-    case 0x80: /* %upsr */
-        env->upsr = val;
-        break;
-    case 0x83: /* %lsr */
-        env->lsr = val;
-        break;
-    default:
-        qemu_log_mask(LOG_UNIMP, "unknown register 0x%x\n", reg);
+    switch (idx) {
+    case 0x90: /* %clkr */
+        return cpu_get_host_ticks();
+    default: {
+        uint64_t *p = state_reg_ptr(env, idx);
+
+        if (p != NULL) {
+            return *p;
+        } else {
+            qemu_log_mask(LOG_UNIMP, "read unknown state register 0x%x\n", idx);
+            return 0;
+        }
+    }
+    }
+}
+
+uint32_t helper_state_reg_read_i32(CPUE2KState *env, int idx)
+{
+    return helper_state_reg_read_i64(env, idx);
+}
+
+void helper_state_reg_write_i64(CPUE2KState *env, int idx, uint64_t val)
+{
+    uint64_t *p = state_reg_ptr(env, idx);
+
+    if (p != NULL) {
+        *p = val;
+    } else {
+        qemu_log_mask(LOG_UNIMP, "unknown state register 0x%x\n", idx);
         abort();
-        break;
+    }
+}
+
+void helper_state_reg_write_i32(CPUE2KState *env, int idx, uint32_t val)
+{
+    uint32_t *p = (uint32_t*) state_reg_ptr(env, idx);
+
+    if (p != NULL) {
+        *p = val;
+    } else {
+        qemu_log_mask(LOG_UNIMP, "unknown state register 0x%x\n", idx);
+        abort();
     }
 }
 

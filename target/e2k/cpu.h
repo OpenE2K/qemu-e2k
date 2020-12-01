@@ -19,19 +19,24 @@ void e2k_tcg_initialize(void);
 #define MMU_USER_IDX 1
 #define CPU_RESOLVING_TYPE TYPE_E2K_CPU
 
-#define REG_SIZE sizeof(uint64_t)
-#define TAG_BITS 4 /* 2 bit per 32-bit half */
-/* how many tags can be packed into register */
-#define TAGS_PER_REG (REG_SIZE * 8 / TAG_BITS)
-#define WREGS_SIZE 192
-#define WTAGS_SIZE (WREGS_SIZE / TAGS_PER_REG)
-#define GREGS_SIZE 32
-#define GTAGS_SIZE (GREGS_SIZE / TAGS_PER_REG)
-#define WREGS_MAX 64
-#define BREGS_MAX 128
-#define GREGS_MAX 24
-#define BGREGS_MAX 8
-#define PF_SIZE 32
+#define E2K_TAG_SIZE 2 /* 2-bit tag for 32-bit value */
+#define E2K_REG_LEN sizeof(uint64_t)
+#define E2K_REG_SIZE (E2K_REG_LEN * 8)
+#define E2K_REG_TAGS_SIZE (E2K_TAG_SIZE * 2) /* two tags for 32-bit halves */
+
+#define E2K_WR_COUNT 64     /* %rN      [0, 64) */
+#define E2K_BR_COUNT 128    /* %b[N]    [0, 128) */
+#define E2K_NR_COUNT (E2K_WR_COUNT + E2K_BR_COUNT)
+#define E2K_GR_COUNT 32     /* %gN      [0, 32) */
+#define E2K_BGR_COUNT 8     /* %gN      [24, 32) */
+#define E2K_REG_COUNT (E2K_NR_COUNT + E2K_GR_COUNT)
+
+/* how many tags can be packed into a register */
+#define E2K_TAGS_PER_REG (E2K_REG_LEN * 8 / E2K_REG_TAGS_SIZE)
+/* packed tags registers count */
+#define E2K_TAGS_REG_COUNT (E2K_REG_COUNT / E2K_TAGS_PER_REG)
+
+#define E2K_PR_COUNT 32     /* %predN   [0, 32) */
 
 #define CTPR_BASE_OFF 0
 #define CTPR_BASE_END 47
@@ -283,12 +288,10 @@ typedef struct {
 
 typedef struct {
     /* register file */
-    uint64_t gregs[GREGS_SIZE]; /* global registers */
-    uint64_t gtags[GTAGS_SIZE]; /* global registers tags */
-    uint64_t wregs[WREGS_SIZE]; /* window registers */
-    uint64_t wtags[WTAGS_SIZE]; /* window registers tags */
-    uint64_t *wptr; /* pointer to wregs */
-    uint64_t *tptr; /* pointer to wtags */
+    uint64_t regs[E2K_REG_COUNT]; /* registers */
+    uint64_t tags[E2K_TAGS_REG_COUNT]; /* registers tags */
+    uint64_t *rptr; /* pointer to regs */
+    uint64_t *tptr; /* pointer to tags */
 
     E2KCr1State cr1;
 
@@ -314,7 +317,7 @@ typedef struct {
     target_ulong ct_cond;
     
     union {
-        uint64_t pf; /* predicate file */
+        uint64_t pregs; /* predicate file */
         uint64_t cr0_lo;
     };
     union {
@@ -324,7 +327,7 @@ typedef struct {
 
     target_ulong nip; /* next instruction address */
     
-    uint32_t upsr;
+    uint64_t upsr;
     uint64_t idr;
 
     uint32_t pfpfr; // Packed Floating Point Flag Register (PFPFR)
