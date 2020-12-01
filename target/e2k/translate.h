@@ -328,6 +328,44 @@ static inline void e2k_gen_reg_tag_extract_hi(TCGv_i32 ret, TCGv_i32 tags)
     tcg_gen_shri_i32(ret, tags, E2K_TAG_SIZE);
 }
 
+static inline bool is_load_chan(int chan)
+{
+    switch(chan) {
+        case 0:
+        case 2:
+        case 3:
+        case 5:
+            return true;
+    }
+    return false;
+}
+
+static inline bool is_store_chan(int chan)
+{
+    switch(chan) {
+        case 2:
+        case 5:
+            return true;
+    }
+    return false;
+}
+
+static inline bool is_cmp_chan(int chan)
+{
+    switch(chan) {
+        case 0:
+        case 1:
+        case 3:
+        case 4:
+            return true;
+    }
+    return false;
+}
+
+static inline bool is_div_chan(int chan) {
+    return chan == 5;
+}
+
 void e2k_gen_reg_tag_check_i64(TCGv_i32 ret, TCGv_i32 tag);
 void e2k_gen_reg_tag_check_i32(TCGv_i32 ret, TCGv_i32 tag);
 

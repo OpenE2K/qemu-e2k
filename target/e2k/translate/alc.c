@@ -861,35 +861,35 @@ static void execute_alopf_simple(DisasContext *dc, int chan)
     case 0x1e: /* getfs */ gen_alopf1_i32(dc, chan, gen_getfs); break;
     case 0x1f: /* getfd */ gen_alopf1_i64(dc, chan, gen_getfd); break;
     case 0x20:
-        if (chan == 2 || chan == 5) {
-            abort();
-        } else {
+        if (is_cmp_chan(chan)) {
             gen_alopf1_cmp_i32(dc, chan, gen_cmp_i32); /* cmp{op}sb */
+        } else {
+            abort();
         }
         break;
     case 0x21:
-        if (chan == 2 || chan == 5) {
-            abort();
-        } else {
+        if (is_cmp_chan(chan)) {
             gen_alopf1_cmp_i64(dc, chan, gen_cmp_i64); /* cmp{op}db */
+        } else {
+            abort();
         }
         break;
     case 0x22:
-        if (chan == 2 || chan == 5) {
-            abort();
-        } else {
+        if (is_cmp_chan(chan)) {
             gen_alopf1_cmp_i32(dc, chan, gen_cmpand_i32); /* cmpand{op}sb */
+        } else {
+            abort();
         }
         break;
     case 0x23:
-        if (chan == 2 || chan == 5) {
-            abort();
-        } else {
+        if (is_cmp_chan(chan)) {
             gen_alopf1_cmp_i64(dc, chan, gen_cmpand_i64); /* cmpand{op}db */
+        } else {
+            abort();
         }
         break;
     case 0x24: { /* stb */
-        if (chan == 2 || chan == 5) {
+        if (is_store_chan(chan)) {
             gen_st(dc, chan, MO_UB);
         } else {
             abort();
@@ -897,7 +897,7 @@ static void execute_alopf_simple(DisasContext *dc, int chan)
         break;
     }
     case 0x25: { /* sth */
-        if (chan == 2 || chan == 5) {
+        if (is_store_chan(chan)) {
             gen_st(dc, chan, MO_UW);
         } else {
             abort();
@@ -905,7 +905,7 @@ static void execute_alopf_simple(DisasContext *dc, int chan)
         break;
     }
     case 0x26: { /* stw */
-        if (chan == 2 || chan == 5) {
+        if (is_store_chan(chan)) {
             gen_st(dc, chan, MO_UL);
         } else {
             abort();
@@ -913,7 +913,7 @@ static void execute_alopf_simple(DisasContext *dc, int chan)
         break;
     }
     case 0x27: { /* std */
-        if (chan == 2 || chan == 5) {
+        if (is_store_chan(chan)) {
             gen_st(dc, chan, MO_Q);
         } else {
             abort();
@@ -921,7 +921,7 @@ static void execute_alopf_simple(DisasContext *dc, int chan)
         break;
     }
     case 0x40:
-        if (chan == 5) {
+        if (is_div_chan(chan)) {
             // FIXME: temp hack
             TCGLabel *l0 = gen_new_label();
             Src64 s2 = get_src2_i64(dc, chan);
@@ -935,21 +935,21 @@ static void execute_alopf_simple(DisasContext *dc, int chan)
         }
         break;
     case 0x41:
-        if (chan == 5) {
+        if (is_div_chan(chan)) {
             gen_alopf1_i64(dc, chan, tcg_gen_divu_i64);
         } else {
             abort();
         }
         break;
     case 0x42:
-        if (chan == 5) {
+        if (is_div_chan(chan)) {
             gen_alopf1_i32(dc, chan, tcg_gen_div_i32);
         } else {
             abort();
         }
         break;
     case 0x43:
-        if (chan == 5) {
+        if (is_div_chan(chan)) {
             gen_alopf1_i64(dc, chan, tcg_gen_div_i64);
         } else {
             abort();
@@ -963,34 +963,34 @@ static void execute_alopf_simple(DisasContext *dc, int chan)
         }
         break;
     case 0x64: { /* ldb */
-        if (chan == 1 || chan == 4) {
-            abort();
-        } else {
+        if (is_load_chan(chan)) {
             gen_ld(dc, chan, MO_UB);
+        } else {
+            abort();
         }
         break;
     }
     case 0x65: { /* ldh */
-        if (chan == 1 || chan == 4) {
-            abort();
-        } else {
+        if (is_load_chan(chan)) {
             gen_ld(dc, chan, MO_UW);
+        } else {
+            abort();
         }
         break;
     }
     case 0x66: { /* ldw */
-        if (chan == 1 || chan == 4) {
-            abort();
-        } else {
+        if (is_load_chan(chan)) {
             gen_ld(dc, chan, MO_UL);
+        } else {
+            abort();
         }
         break;
     }
     case 0x67: { /* ldd */
-        if (chan == 1 || chan == 4) {
-            abort();
-        } else {
+        if (is_load_chan(chan)) {
             gen_ld(dc, chan, MO_Q);
+        } else {
+            abort();
         }
         break;
     }
