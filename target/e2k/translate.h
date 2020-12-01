@@ -163,7 +163,7 @@ typedef struct DisasContext {
     int version;
 
     // Temporary values.
-    TCGv_i32 t32[16];
+    TCGv_i32 t32[32];
     TCGv_i64 t64[32];
     TCGv ttl[8];
     // Allocated temporary values count.
