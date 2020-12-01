@@ -63,7 +63,6 @@ void cpu_loop(CPUE2KState *env)
                     regs[(i + offset) % E2K_NR_COUNT] = 0;
                 }
             }
-            env->ip = env->nip;
             break;
         }
         case E2K_EXCP_ILLOPC:
