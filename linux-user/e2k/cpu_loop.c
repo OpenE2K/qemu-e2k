@@ -37,17 +37,17 @@ void cpu_loop(CPUE2KState *env)
         switch (trapnr) {
         case E2K_EXCP_SYSCALL: {
             int offset = env->wd.base + env->syscall_wbs * 2;
-            uint64_t *regs = env->wregs;
+            uint64_t *regs = env->regs;
             abi_ulong ret = do_syscall(env,
-                regs[(0 + offset) % WREGS_SIZE],
-                regs[(1 + offset) % WREGS_SIZE],
-                regs[(2 + offset) % WREGS_SIZE],
-                regs[(3 + offset) % WREGS_SIZE],
-                regs[(4 + offset) % WREGS_SIZE],
-                regs[(5 + offset) % WREGS_SIZE],
-                regs[(6 + offset) % WREGS_SIZE],
-                regs[(7 + offset) % WREGS_SIZE],
-                regs[(8 + offset) % WREGS_SIZE]
+                regs[(0 + offset) % E2K_NR_COUNT],
+                regs[(1 + offset) % E2K_NR_COUNT],
+                regs[(2 + offset) % E2K_NR_COUNT],
+                regs[(3 + offset) % E2K_NR_COUNT],
+                regs[(4 + offset) % E2K_NR_COUNT],
+                regs[(5 + offset) % E2K_NR_COUNT],
+                regs[(6 + offset) % E2K_NR_COUNT],
+                regs[(7 + offset) % E2K_NR_COUNT],
+                regs[(8 + offset) % E2K_NR_COUNT]
             );
             if (ret == -TARGET_ERESTARTSYS) {
                 /* TODO: restart syscall */
@@ -57,7 +57,7 @@ void cpu_loop(CPUE2KState *env)
 
                 regs[0] = ret;
                 for (i = 1; i < 8; i++) {
-                    regs[(i + offset) % WREGS_SIZE] = 0;
+                    regs[(i + offset) % E2K_NR_COUNT] = 0;
                 }
             }
             env->ip = env->nip;
