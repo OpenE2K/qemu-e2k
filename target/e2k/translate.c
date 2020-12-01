@@ -287,19 +287,11 @@ static inline void do_execute(DisasContext *ctx)
     e2k_plu_execute(ctx);
     e2k_control_gen(ctx);
 
-    /* allocate storage for tags if needed */
     for (i = 0; i < 6; i++) {
-        if (ctx->bundle.als_present[i]) {
-            ctx->alc_tags = e2k_get_temp_i64(ctx);
-            tcg_gen_movi_i64(ctx->alc_tags, 0);
-            break;
-        }
-    }
+        ctx->al_results[i].type = AL_RESULT_NONE;
 
-    for (i = 0; i < 6; i++) {
         if (ctx->bundle.als_present[i]) {
-            ctx->alc[i].tag = RESULT_NONE;
-            e2k_execute_alc(ctx, i);
+            e2k_alc_execute(ctx, i);
         }
     }
 }
@@ -314,50 +306,7 @@ static inline void do_execute(DisasContext *ctx)
  * */
 static inline void do_commit(DisasContext *ctx)
 {
-    unsigned int i;
-
-    for (i = 0; i < 6; i++) {
-        TCGLabel *l0 = gen_new_label();
-        TCGv_i64 t0;
-        Result *res = &ctx->alc[i];
-
-        if (!ctx->bundle.als_present[i]) {
-            continue;
-        }
-
-        t0 = tcg_temp_new_i64();
-
-        if (res->has_cond) {
-            tcg_gen_brcondi_i64(TCG_COND_EQ, res->cond, 0, l0);
-        }
-
-        switch(res->tag) {
-        case RESULT_BASED_REG:
-            e2k_gen_store_breg(ctx, res->u.reg.i, res->u.reg.v);
-            tcg_gen_extract_i64(t0, ctx->alc_tags, i * TAG_BITS, TAG_BITS);
-            e2k_gen_btag_set(res->u.reg.i, t0);
-            break;
-        case RESULT_REGULAR_REG:
-            e2k_gen_store_wreg(ctx, res->u.reg.i, res->u.reg.v);
-            tcg_gen_extract_i64(t0, ctx->alc_tags, i * TAG_BITS, TAG_BITS);
-            e2k_gen_wtagi_set(res->u.reg.i, t0);
-            break;
-        case RESULT_GLOBAL_REG:
-            e2k_gen_store_greg(res->u.reg.i, res->u.reg.v);
-            tcg_gen_extract_i64(t0, ctx->alc_tags, i * TAG_BITS, TAG_BITS);
-            e2k_gen_gtag_set(res->u.reg.i, t0);
-            break;
-        case RESULT_PREG:
-            e2k_gen_store_preg(res->u.reg.i, res->u.reg.v);
-            break;
-        default:
-            break;
-        }
-
-        gen_set_label(l0);
-        tcg_temp_free_i64(t0);
-    }
-
+    e2k_alc_commit(ctx);
     e2k_plu_commit(ctx);
     e2k_commit_stubs(ctx);
 }
@@ -559,7 +508,7 @@ void e2k_tcg_initialize(void) {
     };
 
     static const struct { TCGv_i64 *ptr; int off; const char *name; } r64[] = {
-        { &e2k_cs.pregs, offsetof(CPUE2KState, pf), "pregs" },
+        { &e2k_cs.pregs, offsetof(CPUE2KState, pregs), "pregs" },
         { &e2k_cs.lsr, offsetof(CPUE2KState, lsr), "lsr" },
     };
 
@@ -583,33 +532,23 @@ void e2k_tcg_initialize(void) {
         *rtl[i].ptr = tcg_global_mem_new(cpu_env, rtl[i].off, rtl[i].name);
     }
 
-    e2k_cs.wptr = tcg_global_mem_new_ptr(cpu_env,
-        offsetof(CPUE2KState, wptr), "wptr");
+    e2k_cs.rptr = tcg_global_mem_new_ptr(cpu_env,
+        offsetof(CPUE2KState, rptr), "regs_ptr");
     e2k_cs.tptr = tcg_global_mem_new_ptr(cpu_env,
-        offsetof(CPUE2KState, tptr), "tptr");
+        offsetof(CPUE2KState, tptr), "tags_ptr");
 
-    for (i = 0; i < WREGS_SIZE; i++) {
-        snprintf(buf, ARRAY_SIZE(buf), "%%r%d", i);
-        e2k_cs.wregs[i] = tcg_global_mem_new_i64(e2k_cs.wptr,
-            i * REG_SIZE, buf);
+    for (i = 0; i < E2K_REG_COUNT; i++) {
+        char name = i < E2K_NR_COUNT ? 'r' : 'g';
+        snprintf(buf, ARRAY_SIZE(buf), "%%%c%d", name, i);
+        e2k_cs.regs[i] = tcg_global_mem_new_i64(e2k_cs.rptr,
+            i * E2K_REG_LEN, buf);
     }
 
-    for (i = 0; i < WTAGS_SIZE; i++) {
-        snprintf(buf, ARRAY_SIZE(buf), "%%wtags%d", i);
-        e2k_cs.wtags[i] = tcg_global_mem_new_i64(e2k_cs.tptr,
-            i * REG_SIZE, buf);
-    }
-
-    for (i = 0; i < GREGS_SIZE; i++) {
-        snprintf(buf, ARRAY_SIZE(buf), "%%g%d", i);
-        e2k_cs.gregs[i] = tcg_global_mem_new_i64(cpu_env,
-            offsetof(CPUE2KState, gregs[i]), buf);
-    }
-
-    for (i = 0; i < GTAGS_SIZE; i++) {
-        snprintf(buf, ARRAY_SIZE(buf), "%%gtags%d", i);
-        e2k_cs.gtags[i] = tcg_global_mem_new_i64(cpu_env,
-            offsetof(CPUE2KState, gtags[i]), buf);
+    for (i = 0; i < E2K_TAGS_REG_COUNT; i++) {
+        char name = i < E2K_NR_COUNT ? 'r' : 'g';
+        snprintf(buf, ARRAY_SIZE(buf), "%%%c_tags%d", name, i);
+        e2k_cs.tags[i] = tcg_global_mem_new_i64(e2k_cs.tptr,
+            i * E2K_REG_LEN, buf);
     }
 
     for (i = 0; i < 3; i++) {
