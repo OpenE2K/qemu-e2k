@@ -104,7 +104,7 @@ void e2k_plu_execute(DisasContext *ctx)
 
     for (i = 0; i < 3; i++) {
         if (!bundle->pls_present[i]) {
-            ctx->plu[i].reg = -1;
+            ctx->pl_results[i].reg = -1;
             continue;
         }
 
@@ -138,8 +138,8 @@ void e2k_plu_execute(DisasContext *ctx)
             gen_get_lp(p1, clp, 6, lp);
 
             if (vdst) {
-                ctx->plu[i].reg = pdst;
-                ctx->plu[i].value = e2k_get_temp_i32(ctx);
+                ctx->pl_results[i].reg = pdst;
+                ctx->pl_results[i].value = e2k_get_temp_i32(ctx);
             }
 
             switch (opc) {
@@ -148,7 +148,7 @@ void e2k_plu_execute(DisasContext *ctx)
             case 1: /* landp */
                 tcg_gen_and_i32(lp[4 + i], p0, p1);
                 if (vdst) {
-                    tcg_gen_mov_i32(ctx->plu[i].value, lp[4 + i]);
+                    tcg_gen_mov_i32(ctx->pl_results[i].value, lp[4 + i]);
                 }
                 break;
             case 3: { /* movep */
@@ -162,7 +162,7 @@ void e2k_plu_execute(DisasContext *ctx)
 
                     e2k_gen_preg(t0, pdst);
                     tcg_gen_extrl_i64_i32(t1, t0);
-                    tcg_gen_movcond_i32(TCG_COND_EQ, ctx->plu[i].value,
+                    tcg_gen_movcond_i32(TCG_COND_EQ, ctx->pl_results[i].value,
                         p0, one, p1, t1);
 
                     tcg_temp_free_i32(t1);
@@ -192,14 +192,14 @@ void e2k_plu_commit(DisasContext *ctx)
     for (i = 0; i < 3; i++) {
         TCGv_i64 t0;
 
-        if (ctx->plu[i].reg < 0) {
+        if (ctx->pl_results[i].reg < 0) {
             continue;
         }
 
         t0 = tcg_temp_new_i64();
 
-        tcg_gen_extu_i32_i64(t0, ctx->plu[i].value);
-        e2k_gen_store_preg(ctx->plu[i].reg, t0);
+        tcg_gen_extu_i32_i64(t0, ctx->pl_results[i].value);
+        e2k_gen_store_preg(ctx->pl_results[i].reg, t0);
 
         tcg_temp_free_i64(t0);
     }
