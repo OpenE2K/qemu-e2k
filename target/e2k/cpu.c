@@ -47,7 +47,7 @@ static void e2k_cpu_reset(DeviceState *dev)
     env->cr1.wpsz = 4;
     env->cr1.wbs = 4;
     env->wd.base = 0;
-    env->wd.size = 8;
+    env->wd.size = 16;
     env->wd.psize = 8;
     env->bn.base = 8;
     env->bn.size = 8;
