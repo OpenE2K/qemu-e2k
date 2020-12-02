@@ -1488,6 +1488,20 @@ static void execute_ext_01(DisasContext *dc, int chan)
     uint8_t opc = GET_FIELD(dc->bundle.als[chan], 24, 7);
 
     switch (opc) {
+    case 0x20:
+        if (is_cmp_chan(chan)) {
+            gen_alopf1_i32(dc, chan, tcg_gen_mul_i32); /* muls */
+        } else {
+            e2k_tr_gen_exception(dc, E2K_EXCP_ILLOPC);
+        }
+        break;
+    case 0x21:
+        if (is_cmp_chan(chan)) {
+            gen_alopf1_i64(dc, chan, tcg_gen_mul_i64); /* muld */
+        } else {
+            e2k_tr_gen_exception(dc, E2K_EXCP_ILLOPC);
+        }
+        break;
     case 0x3c: /* rws */ gen_rw_i32(dc, chan); break; /* TODO: only channel 1 */
     case 0x3d: /* rwd */ gen_rw_i64(dc, chan); break; /* TODO: only channel 1 */
     case 0x3e: /* rrs */ gen_rr_i32(dc, chan); break; /* TODO: only channel 1 */
