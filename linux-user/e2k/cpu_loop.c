@@ -55,7 +55,7 @@ void cpu_loop(CPUE2KState *env)
             } else if (ret != -TARGET_QEMU_ESIGRETURN) {
                 unsigned int i;
 
-                regs[0] = ret;
+                regs[offset % E2K_NR_COUNT] = ret;
                 for (i = 1; i < 8; i++) {
                     regs[(i + offset) % E2K_NR_COUNT] = 0;
                 }
