@@ -297,36 +297,6 @@ static inline void e2k_gen_lcntex(TCGv_i32 ret)
     tcg_temp_free_i32(t0);
 }
 
-void e2k_gen_store_preg(int idx, TCGv_i64 val);
-
-void e2k_gen_reg_tag_read(TCGv_i32 ret, TCGv_i32 idx);
-void e2k_gen_reg_tag_write_i64(TCGv_i32 value, TCGv_i32 idx);
-void e2k_gen_reg_tag_write_i32(TCGv_i32 value, TCGv_i32 idx);
-
-static inline void e2k_gen_reg_tag_writei_i64(int value, TCGv_i32 idx)
-{
-    TCGv_i32 t0 = tcg_const_i32(value);
-    e2k_gen_reg_tag_write_i64(t0, idx);
-    tcg_temp_free_i32(t0);
-}
-
-static inline void e2k_gen_reg_tag_writei_i32(int value, TCGv_i32 idx)
-{
-    TCGv_i32 t0 = tcg_const_i32(value);
-    e2k_gen_reg_tag_write_i32(t0, idx);
-    tcg_temp_free_i32(t0);
-}
-
-static inline void e2k_gen_reg_tag_extract_lo(TCGv_i32 ret, TCGv_i32 tags)
-{
-    tcg_gen_andi_i32(ret, tags, GEN_MASK(0, E2K_TAG_SIZE));
-}
-
-static inline void e2k_gen_reg_tag_extract_hi(TCGv_i32 ret, TCGv_i32 tags)
-{
-    tcg_gen_shri_i32(ret, tags, E2K_TAG_SIZE);
-}
-
 static inline bool is_load_chan(int chan)
 {
     switch(chan) {
@@ -363,6 +333,37 @@ static inline bool is_cmp_chan(int chan)
 
 static inline bool is_div_chan(int chan) {
     return chan == 5;
+}
+
+void e2k_gen_store_preg(int idx, TCGv_i64 val);
+
+void e2k_gen_reg_tag_read_i64(TCGv_i32 ret, TCGv_i32 idx);
+void e2k_gen_reg_tag_read_i32(TCGv_i32 ret, TCGv_i32 idx);
+void e2k_gen_reg_tag_write_i64(TCGv_i32 value, TCGv_i32 idx);
+void e2k_gen_reg_tag_write_i32(TCGv_i32 value, TCGv_i32 idx);
+
+static inline void e2k_gen_reg_tag_writei_i64(int value, TCGv_i32 idx)
+{
+    TCGv_i32 t0 = tcg_const_i32(value);
+    e2k_gen_reg_tag_write_i64(t0, idx);
+    tcg_temp_free_i32(t0);
+}
+
+static inline void e2k_gen_reg_tag_writei_i32(int value, TCGv_i32 idx)
+{
+    TCGv_i32 t0 = tcg_const_i32(value);
+    e2k_gen_reg_tag_write_i32(t0, idx);
+    tcg_temp_free_i32(t0);
+}
+
+static inline void e2k_gen_reg_tag_extract_lo(TCGv_i32 ret, TCGv_i32 tags)
+{
+    tcg_gen_andi_i32(ret, tags, GEN_MASK(0, E2K_TAG_SIZE));
+}
+
+static inline void e2k_gen_reg_tag_extract_hi(TCGv_i32 ret, TCGv_i32 tags)
+{
+    tcg_gen_shri_i32(ret, tags, E2K_TAG_SIZE);
 }
 
 void e2k_gen_reg_tag_check_i64(TCGv_i32 ret, TCGv_i32 tag);

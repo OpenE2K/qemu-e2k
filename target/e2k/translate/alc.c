@@ -33,7 +33,7 @@ static inline void gen_reg_i64(DisasContext *ctx, Src64 *ret, uint8_t arg)
     gen_reg_index(t0, arg);
     ret->tag = e2k_get_temp_i32(ctx);
     ret->value = e2k_get_temp_i64(ctx);
-    e2k_gen_reg_tag_read(ret->tag, t0);
+    e2k_gen_reg_tag_read_i64(ret->tag, t0);
     e2k_gen_reg_read_i64(ret->value, t0);
 
     tcg_temp_free_i32(t0);
@@ -46,7 +46,7 @@ static inline void gen_reg_i32(DisasContext *ctx, Src32 *ret, uint8_t arg)
     gen_reg_index(t0, arg);
     ret->tag = e2k_get_temp_i32(ctx);
     ret->value = e2k_get_temp_i32(ctx);
-    e2k_gen_reg_tag_read(ret->tag, t0);
+    e2k_gen_reg_tag_read_i32(ret->tag, t0);
     e2k_gen_reg_read_i32(ret->value, t0);
 
     tcg_temp_free_i32(t0);
@@ -734,6 +734,34 @@ static inline void gen_sdivs(TCGv_i32 ret, TCGv_i32 ret_tag, bool sm,
     gen_set_label(l0);
 }
 
+static inline void gen_gettag_i64(DisasContext *ctx, int chan)
+{
+    Src64 s2 = get_src2_i64(ctx, chan);
+    TCGv_i64 dst = e2k_get_temp_i64(ctx);
+
+    if (s2.tag != NULL) {
+        tcg_gen_extu_i32_i64(dst, s2.tag);
+    } else {
+        tcg_gen_movi_i64(dst, 0);
+    }
+
+    set_al_result_reg64(ctx, chan, dst);
+}
+
+static inline void gen_gettag_i32(DisasContext *ctx, int chan)
+{
+    Src32 s2 = get_src2_i32(ctx, chan);
+    TCGv_i32 dst = e2k_get_temp_i32(ctx);
+
+    if (s2.tag != NULL) {
+        tcg_gen_mov_i32(dst, s2.tag);
+    } else {
+        tcg_gen_movi_i32(dst, 0);
+    }
+
+    set_al_result_reg32(ctx, chan, dst);
+}
+
 static inline void gen_puttag_i64(DisasContext *ctx, int chan)
 {
     bool sm = extract32(ctx->bundle.als[chan], 31, 1);
@@ -1297,6 +1325,18 @@ static void execute_ext1_25(DisasContext *ctx, int chan)
     uint8_t opc = GET_FIELD(ctx->bundle.als[chan], 24, 7);
 
     switch(opc) {
+    case 0x08: if (chan == 2 || chan == 5) {
+        gen_gettag_i32(ctx, chan); /* gettags */
+    } else {
+        e2k_tr_gen_exception(ctx, E2K_EXCP_ILLOPC);
+    }
+    break;
+    case 0x09: if (chan == 2 || chan == 5) {
+        gen_gettag_i64(ctx, chan); /* gettagd */
+    } else {
+        e2k_tr_gen_exception(ctx, E2K_EXCP_ILLOPC);
+    }
+    break;
     case 0x0a: if (chan == 2 || chan == 5) {
         gen_puttag_i32(ctx, chan); /* puttags */
     } else {
