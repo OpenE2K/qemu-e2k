@@ -137,9 +137,14 @@ static inline void gen_reg_tags_read(TCGv_i32 ret, TCGv_i32 idx, int len)
     tcg_temp_free_i64(t4);
 }
 
-void e2k_gen_reg_tag_read(TCGv_i32 ret, TCGv_i32 idx)
+void e2k_gen_reg_tag_read_i64(TCGv_i32 ret, TCGv_i32 idx)
 {
     gen_reg_tags_read(ret, idx, E2K_REG_TAGS_SIZE);
+}
+
+void e2k_gen_reg_tag_read_i32(TCGv_i32 ret, TCGv_i32 idx)
+{
+    gen_reg_tags_read(ret, idx, E2K_TAG_SIZE);
 }
 
 static inline void gen_tag_check(TCGv_i32 ret, TCGv_i32 tag)
