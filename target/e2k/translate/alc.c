@@ -734,6 +734,48 @@ static inline void gen_sdivs(TCGv_i32 ret, TCGv_i32 ret_tag, bool sm,
     gen_set_label(l0);
 }
 
+static inline void gen_puttag_i64(DisasContext *ctx, int chan)
+{
+    bool sm = extract32(ctx->bundle.als[chan], 31, 1);
+    TCGLabel *l0 = gen_new_label();
+    TCGLabel *l1 = gen_new_label();
+    Src64 s1 = get_src1_i64(ctx, chan);
+    Src32 s2 = get_src2_i32(ctx, chan);
+    TCGv_i32 tag = e2k_get_temp_i32(ctx);
+    TCGv_i64 dst = e2k_get_temp_i64(ctx);
+
+    tcg_gen_movi_i32(tag, 0);
+    tcg_gen_mov_i64(dst, s1.value);
+    tcg_gen_brcondi_i32(TCG_COND_EQ, s2.value, 0, l0);
+    gen_tag_check_i64(sm, dst, tag, s1.tag, l1);
+    gen_tag_check_i64(sm, dst, tag, s2.tag, l1);
+    gen_set_label(l0);
+    tcg_gen_mov_i32(tag, s2.value);
+    gen_set_label(l1);
+    set_al_result_reg64_tag(ctx, chan, dst, tag);
+}
+
+static inline void gen_puttag_i32(DisasContext *ctx, int chan)
+{
+    bool sm = extract32(ctx->bundle.als[chan], 31, 1);
+    TCGLabel *l0 = gen_new_label();
+    TCGLabel *l1 = gen_new_label();
+    Src32 s1 = get_src1_i32(ctx, chan);
+    Src32 s2 = get_src2_i32(ctx, chan);
+    TCGv_i32 tag = e2k_get_temp_i32(ctx);
+    TCGv_i32 dst = e2k_get_temp_i32(ctx);
+
+    tcg_gen_movi_i32(tag, 0);
+    tcg_gen_mov_i32(dst, s1.value);
+    tcg_gen_brcondi_i32(TCG_COND_EQ, s2.value, 0, l0);
+    gen_tag_check_i32(sm, dst, tag, s1.tag, l1);
+    gen_tag_check_i32(sm, dst, tag, s2.tag, l1);
+    gen_set_label(l0);
+    tcg_gen_mov_i32(tag, s2.value);
+    gen_set_label(l1);
+    set_al_result_reg32_tag(ctx, chan, dst, tag);
+}
+
 static inline void gen_rr_i64(DisasContext *ctx, int chan)
 {
     uint32_t als = ctx->bundle.als[chan];
@@ -1250,11 +1292,38 @@ static void execute_alopf_simple(DisasContext *dc, int chan)
     }
 }
 
+static void execute_ext1_25(DisasContext *ctx, int chan)
+{
+    uint8_t opc = GET_FIELD(ctx->bundle.als[chan], 24, 7);
+
+    switch(opc) {
+    case 0x0a: if (chan == 2 || chan == 5) {
+        gen_puttag_i32(ctx, chan); /* puttags */
+    } else {
+        e2k_tr_gen_exception(ctx, E2K_EXCP_ILLOPC);
+    }
+    break;
+    case 0x0b: if (chan == 2 || chan == 5) {
+        gen_puttag_i64(ctx, chan); /* puttagd */
+    } else {
+        e2k_tr_gen_exception(ctx, E2K_EXCP_ILLOPC);
+    }
+    break;
+    default:
+        e2k_tr_gen_exception(ctx, E2K_EXCP_ILLOPC);
+        break;
+    }
+}
+
 static void execute_ext1(DisasContext *dc, int chan)
 {
     uint8_t opc = GET_FIELD(dc->bundle.als[chan], 24, 7);
 
     switch (opc) {
+    case 0x3c: /* rws */ gen_rw_i32(dc, chan); break; /* TODO: only channel 1 */
+    case 0x3d: /* rwd */ gen_rw_i64(dc, chan); break; /* TODO: only channel 1 */
+    case 0x3e: /* rrs */ gen_rr_i32(dc, chan); break; /* TODO: only channel 1 */
+    case 0x3f: /* rrd */ gen_rr_i64(dc, chan); break; /* TODO: only channel 1 */
     case 0x58: {
         if (chan == 0 || chan == 3) {
             gen_getsp(dc, chan);
@@ -1262,12 +1331,8 @@ static void execute_ext1(DisasContext *dc, int chan)
         /* TODO: exception */
         break;
     }
-    case 0x3c: /* rws */ gen_rw_i32(dc, chan); break; /* TODO: only channel 1 */
-    case 0x3d: /* rwd */ gen_rw_i64(dc, chan); break; /* TODO: only channel 1 */
-    case 0x3e: /* rrs */ gen_rr_i32(dc, chan); break; /* TODO: only channel 1 */
-    case 0x3f: /* rrd */ gen_rr_i64(dc, chan); break; /* TODO: only channel 1 */
     default:
-        /* TODO: exception */
+        e2k_tr_gen_exception(dc, E2K_EXCP_ILLOPC);
         break;
     }
 }
@@ -1297,7 +1362,7 @@ void e2k_alc_execute(DisasContext *ctx, int chan)
         execute_alopf_simple(ctx, chan);
         break;
     case ALES_ALLOCATED: // 2 or 5 channel
-        e2k_tr_gen_exception(ctx, E2K_EXCP_ILLOPC);
+        execute_ext1_25(ctx, chan);
         break;
     case ALES_PRESENT: {
         uint8_t opc = GET_FIELD(bundle->ales[chan], 8, 8);
