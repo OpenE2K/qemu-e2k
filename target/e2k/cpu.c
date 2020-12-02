@@ -88,7 +88,7 @@ void cpu_e2k_set_id(CPUE2KState *env, unsigned int cpu)
 static const struct e2k_def_t e2k_defs[] = {
     {
         .name = "any",
-        .isa_version = 0xffffffff,
+        .isa_version = 4,
     }
 };
 

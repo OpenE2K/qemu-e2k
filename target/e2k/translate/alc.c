@@ -1530,6 +1530,24 @@ static void execute_ext_0b(DisasContext *ctx, int chan)
     }
 }
 
+static void execute_ext_0f(DisasContext *ctx, int chan)
+{
+    uint8_t opc = GET_FIELD(ctx->bundle.als[chan], 24, 7);
+
+    switch(opc) {
+    case 0x4d:
+        if (is_cmp_chan(chan) && ctx->version >= 2) {
+            gen_alopf21_i64(ctx, chan, gen_helper_packed_shuffle_i64); /* pshufb */
+        } else {
+            e2k_tr_gen_exception(ctx, E2K_EXCP_ILLOPC);
+        }
+        break;
+    default:
+        e2k_tr_gen_exception(ctx, E2K_EXCP_ILLOPC);
+        break;
+    }
+}
+
 void e2k_alc_execute(DisasContext *ctx, int chan)
 {
     const UnpackedBundle *bundle = &ctx->bundle;
@@ -1565,6 +1583,9 @@ void e2k_alc_execute(DisasContext *ctx, int chan)
             break;
         case 0x0b:
             execute_ext_0b(ctx, chan);
+            break;
+        case 0x0f:
+            execute_ext_0f(ctx, chan);
             break;
         default:
             e2k_tr_gen_exception(ctx, E2K_EXCP_ILLOPC);
