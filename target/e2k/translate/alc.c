@@ -163,6 +163,26 @@ static inline Src32 get_src2_i32(DisasContext *ctx, int chan)
     return ret;
 }
 
+static inline Src64 get_src3_i64(DisasContext *ctx, int chan)
+{
+    uint8_t arg = extract32(ctx->bundle.ales[chan], 0, 8);
+    Src64 ret = { 0 };
+
+    gen_reg_i64(ctx, &ret, arg);
+
+    return ret;
+}
+
+static inline Src32 get_src3_i32(DisasContext *ctx, int chan)
+{
+    uint8_t arg = extract32(ctx->bundle.ales[chan], 0, 8);
+    Src32 ret = { 0 };
+
+    gen_reg_i32(ctx, &ret, arg);
+
+    return ret;
+}
+
 static inline Src64 get_src4_i64(DisasContext *ctx, int chan)
 {
     uint8_t arg = extract32(ctx->bundle.als[chan], 0, 8);
@@ -804,6 +824,74 @@ static inline void gen_puttag_i32(DisasContext *ctx, int chan)
     set_al_result_reg32_tag(ctx, chan, dst, tag);
 }
 
+static inline void gen_insert_field_i64(TCGv_i64 ret, TCGv_i64 src1,
+    TCGv_i64 src2, TCGv_i64 src3)
+{
+    TCGv_i64 one = tcg_const_i64(1);
+    TCGv_i64 offset = tcg_temp_new_i64();
+    TCGv_i64 len = tcg_temp_new_i64();
+    TCGv_i64 t0 = tcg_temp_new_i64();
+    TCGv_i64 t1 = tcg_temp_new_i64();
+    TCGv_i64 t2 = tcg_temp_new_i64();
+    TCGv_i64 t3 = tcg_temp_new_i64();
+    TCGv_i64 t4 = tcg_temp_new_i64();
+    TCGv_i64 t5 = tcg_temp_new_i64();
+
+    tcg_gen_extract_i64(offset, src2, 0, 6);
+    tcg_gen_extract_i64(len, src2, 6, 6);
+    tcg_gen_shl_i64(t0, one, len);
+    tcg_gen_subi_i64(t1, t0, 1);
+    tcg_gen_rotr_i64(t2, src1, offset);
+    tcg_gen_not_i64(t3, t1);
+    tcg_gen_and_i64(t4, t2, t3);
+    tcg_gen_and_i64(t5, src3, t1);
+    tcg_gen_or_i64(ret, t4, t5);
+
+    tcg_temp_free_i64(t5);
+    tcg_temp_free_i64(t4);
+    tcg_temp_free_i64(t3);
+    tcg_temp_free_i64(t2);
+    tcg_temp_free_i64(t1);
+    tcg_temp_free_i64(t0);
+    tcg_temp_free_i64(len);
+    tcg_temp_free_i64(offset);
+    tcg_temp_free_i64(one);
+}
+
+static inline void gen_insert_field_i32(TCGv_i32 ret, TCGv_i32 src1,
+    TCGv_i32 src2, TCGv_i32 src3)
+{
+    TCGv_i32 one = tcg_const_i32(1);
+    TCGv_i32 offset = tcg_temp_new_i32();
+    TCGv_i32 len = tcg_temp_new_i32();
+    TCGv_i32 t0 = tcg_temp_new_i32();
+    TCGv_i32 t1 = tcg_temp_new_i32();
+    TCGv_i32 t2 = tcg_temp_new_i32();
+    TCGv_i32 t3 = tcg_temp_new_i32();
+    TCGv_i32 t4 = tcg_temp_new_i32();
+    TCGv_i32 t5 = tcg_temp_new_i32();
+
+    tcg_gen_extract_i32(offset, src2, 0, 6);
+    tcg_gen_extract_i32(len, src2, 6, 6);
+    tcg_gen_shl_i32(t0, one, len);
+    tcg_gen_subi_i32(t1, t0, 1);
+    tcg_gen_rotr_i32(t2, src1, offset);
+    tcg_gen_not_i32(t3, t1);
+    tcg_gen_and_i32(t4, t2, t3);
+    tcg_gen_and_i32(t5, src3, t1);
+    tcg_gen_or_i32(ret, t4, t5);
+
+    tcg_temp_free_i32(t5);
+    tcg_temp_free_i32(t4);
+    tcg_temp_free_i32(t3);
+    tcg_temp_free_i32(t2);
+    tcg_temp_free_i32(t1);
+    tcg_temp_free_i32(t0);
+    tcg_temp_free_i32(len);
+    tcg_temp_free_i32(offset);
+    tcg_temp_free_i32(one);
+}
+
 static inline void gen_rr_i64(DisasContext *ctx, int chan)
 {
     uint32_t als = ctx->bundle.als[chan];
@@ -1143,6 +1231,46 @@ static void gen_alopf1_mrgc_i64(DisasContext *ctx, int chan)
     tcg_temp_free_i64(cond);
 }
 
+static void gen_alopf21_i64(DisasContext *ctx, int chan,
+    void (*op)(TCGv_i64, TCGv_i64, TCGv_i64, TCGv_i64))
+{
+    bool sm = GET_BIT(ctx->bundle.als[chan], 31);
+    Src64 s1 = get_src1_i64(ctx, chan);
+    Src64 s2 = get_src2_i64(ctx, chan);
+    Src64 s3 = get_src3_i64(ctx, chan);
+    TCGv_i32 tag = e2k_get_temp_i32(ctx);
+    TCGv_i64 dst = e2k_get_temp_i64(ctx);
+
+    tcg_gen_movi_i32(tag, 0);
+    (*op)(dst, s1.value, s2.value, s3.value);
+
+    gen_tag_check_i64(sm, dst, tag, s1.tag, NULL);
+    gen_tag_check_i64(sm, dst, tag, s2.tag, NULL);
+    gen_tag_check_i64(sm, dst, tag, s3.tag, NULL);
+
+    set_al_result_reg64_tag(ctx, chan, dst, tag);
+}
+
+static void gen_alopf21_i32(DisasContext *ctx, int chan,
+    void (*op)(TCGv_i32, TCGv_i32, TCGv_i32, TCGv_i32))
+{
+    bool sm = GET_BIT(ctx->bundle.als[chan], 31);
+    Src32 s1 = get_src1_i32(ctx, chan);
+    Src32 s2 = get_src2_i32(ctx, chan);
+    Src32 s3 = get_src3_i32(ctx, chan);
+    TCGv_i32 tag = e2k_get_temp_i32(ctx);
+    TCGv_i32 dst = e2k_get_temp_i32(ctx);
+
+    tcg_gen_movi_i32(tag, 0);
+    (*op)(dst, s1.value, s2.value, s3.value);
+
+    gen_tag_check_i32(sm, dst, tag, s1.tag, NULL);
+    gen_tag_check_i32(sm, dst, tag, s2.tag, NULL);
+    gen_tag_check_i32(sm, dst, tag, s3.tag, NULL);
+
+    set_al_result_reg32_tag(ctx, chan, dst, tag);
+}
+
 static void execute_alopf_simple(DisasContext *dc, int chan)
 {
     uint32_t als = dc->bundle.als[chan];
@@ -1320,7 +1448,7 @@ static void execute_alopf_simple(DisasContext *dc, int chan)
     }
 }
 
-static void execute_ext1_25(DisasContext *ctx, int chan)
+static void execute_ext_01_25(DisasContext *ctx, int chan)
 {
     uint8_t opc = GET_FIELD(ctx->bundle.als[chan], 24, 7);
 
@@ -1355,7 +1483,7 @@ static void execute_ext1_25(DisasContext *ctx, int chan)
     }
 }
 
-static void execute_ext1(DisasContext *dc, int chan)
+static void execute_ext_01(DisasContext *dc, int chan)
 {
     uint8_t opc = GET_FIELD(dc->bundle.als[chan], 24, 7);
 
@@ -1373,6 +1501,31 @@ static void execute_ext1(DisasContext *dc, int chan)
     }
     default:
         e2k_tr_gen_exception(dc, E2K_EXCP_ILLOPC);
+        break;
+    }
+}
+
+static void execute_ext_0b(DisasContext *ctx, int chan)
+{
+    uint8_t opc = GET_FIELD(ctx->bundle.als[chan], 24, 7);
+
+    switch(opc) {
+    case 0x6c:
+        if (is_cmp_chan(chan) && ctx->version >= 4) {
+            gen_alopf21_i32(ctx, chan, gen_insert_field_i32); /* insfs */
+        } else {
+            e2k_tr_gen_exception(ctx, E2K_EXCP_ILLOPC);
+        }
+        break;
+    case 0x6d:
+        if (is_cmp_chan(chan) && ctx->version>= 4) {
+            gen_alopf21_i64(ctx, chan, gen_insert_field_i64); /* insfd */
+        } else {
+            e2k_tr_gen_exception(ctx, E2K_EXCP_ILLOPC);
+        }
+        break;
+    default:
+        e2k_tr_gen_exception(ctx, E2K_EXCP_ILLOPC);
         break;
     }
 }
@@ -1402,13 +1555,16 @@ void e2k_alc_execute(DisasContext *ctx, int chan)
         execute_alopf_simple(ctx, chan);
         break;
     case ALES_ALLOCATED: // 2 or 5 channel
-        execute_ext1_25(ctx, chan);
+        execute_ext_01_25(ctx, chan);
         break;
     case ALES_PRESENT: {
         uint8_t opc = GET_FIELD(bundle->ales[chan], 8, 8);
         switch (opc) {
         case 0x01:
-            execute_ext1(ctx, chan);
+            execute_ext_01(ctx, chan);
+            break;
+        case 0x0b:
+            execute_ext_0b(ctx, chan);
             break;
         default:
             e2k_tr_gen_exception(ctx, E2K_EXCP_ILLOPC);
