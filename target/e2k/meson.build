@@ -5,6 +5,7 @@ e2k_ss.add(files(
   'helper.c',
   'helper_int.c',
   'helper_sm.c',
+  'helper_vec.c',
   'translate.c',
   'translate/state.c',
   'translate/control.c',
