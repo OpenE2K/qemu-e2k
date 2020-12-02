@@ -4,6 +4,7 @@ e2k_ss.add(files(
   'gdbstub.c',
   'helper.c',
   'helper_int.c',
+  'helper_sm.c',
   'translate.c',
   'translate/state.c',
   'translate/control.c',
