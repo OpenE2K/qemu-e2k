@@ -299,8 +299,7 @@ static inline void e2k_gen_lcntex(TCGv_i32 ret)
 
 void e2k_gen_store_preg(int idx, TCGv_i64 val);
 
-void e2k_gen_reg_tag_read_i64(TCGv_i32 ret, TCGv_i32 idx);
-void e2k_gen_reg_tag_read_i32(TCGv_i32 ret, TCGv_i32 idx);
+void e2k_gen_reg_tag_read(TCGv_i32 ret, TCGv_i32 idx);
 void e2k_gen_reg_tag_write_i64(TCGv_i32 value, TCGv_i32 idx);
 void e2k_gen_reg_tag_write_i32(TCGv_i32 value, TCGv_i32 idx);
 

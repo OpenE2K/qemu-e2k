@@ -78,8 +78,8 @@ void e2k_gen_store_preg(int idx, TCGv_i64 val)
 
     gen_preg_offset(t0, idx);
     gen_preg_clear(t1, t0);
-    tcg_gen_setcondi_i64(TCG_COND_NE, t2, val, 0);
-    tcg_gen_shl_i64(t3, t2, t0);
+    tcg_gen_andi_i64(t2, val, 3);
+    tcg_gen_shl_i64(t3, val, t0);
     tcg_gen_or_i64(e2k_cs.pregs, t1, t3);
 
     tcg_temp_free_i64(t3);
@@ -137,43 +137,29 @@ static inline void gen_reg_tags_read(TCGv_i32 ret, TCGv_i32 idx, int len)
     tcg_temp_free_i64(t4);
 }
 
-void e2k_gen_reg_tag_read_i64(TCGv_i32 ret, TCGv_i32 idx)
+void e2k_gen_reg_tag_read(TCGv_i32 ret, TCGv_i32 idx)
 {
     gen_reg_tags_read(ret, idx, E2K_REG_TAGS_SIZE);
-}
-
-void e2k_gen_reg_tag_read_i32(TCGv_i32 ret, TCGv_i32 idx)
-{
-    gen_reg_tags_read(ret, idx, E2K_TAG_SIZE);
 }
 
 static inline void gen_tag_check(TCGv_i32 ret, TCGv_i32 tag)
 {
     // FIXME: what CPU does if tag is greater than 1?
-    tcg_gen_setcondi_i32(TCG_COND_GTU, ret, tag, 0);
+    tcg_gen_setcondi_i32(TCG_COND_NE, ret, tag, 0);
 }
 
 void e2k_gen_reg_tag_check_i64(TCGv_i32 ret, TCGv_i32 tag)
 {
-    TCGv_i32 t0 = tcg_temp_new_i32();
-    TCGv_i32 t1 = tcg_temp_new_i32();
-    TCGv_i32 t2 = tcg_temp_new_i32();
-    TCGv_i32 t3 = tcg_temp_new_i32();
-
-    e2k_gen_reg_tag_extract_lo(t0, tag);
-    gen_tag_check(t1, t0);
-    tcg_temp_free_i32(t0);
-    e2k_gen_reg_tag_extract_hi(t2, tag);
-    gen_tag_check(t3, t2);
-    tcg_temp_free_i32(t2);
-    tcg_gen_or_i32(ret, t1, t3);
-    tcg_temp_free_i32(t1);
-    tcg_temp_free_i32(t3);
+    gen_tag_check(ret, tag);
 }
 
 void e2k_gen_reg_tag_check_i32(TCGv_i32 ret, TCGv_i32 tag)
 {
-    gen_tag_check(ret, tag);
+    TCGv_i32 t0 = tcg_temp_new_i32();
+
+    e2k_gen_reg_tag_extract_lo(t0, tag);
+    gen_tag_check(ret, t0);
+    tcg_temp_free_i32(t0);
 }
 
 static inline void gen_reg_tags_write(TCGv_i32 value, TCGv_i32 idx, int len)
@@ -184,7 +170,7 @@ static inline void gen_reg_tags_write(TCGv_i32 value, TCGv_i32 idx, int len)
     TCGv_i64 t3 = tcg_temp_new_i64();
     TCGv_i64 t4 = tcg_const_i64(len);
     TCGv_i64 t5 = tcg_temp_new_i64();
-    
+
     gen_reg_tags_group_ptr(t0, idx);
     tcg_gen_ld_i64(t1, t0, 0);
     tcg_gen_extu_i32_i64(t2, value);

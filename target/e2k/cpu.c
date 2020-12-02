@@ -135,7 +135,7 @@ void e2k_cpu_dump_state(CPUState *cs, FILE *f, int flags)
     for (i = 0; i < E2K_REG_COUNT; i++) {
         char name = i < E2K_NR_COUNT ? 'r' : 'g';
         int tag = extract_tag(env->tags, i);
-        qemu_fprintf(f, "%%%c%d\t<%d%d> 0x%lx\n", name, i, tag & 3, tag >> 2,
+        qemu_fprintf(f, "%%%c%d\t<%d%d> 0x%lx\n", name, i, tag >> 2, tag & 3,
             env->regs[i]);
     }
 
