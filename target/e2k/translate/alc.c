@@ -1488,6 +1488,14 @@ static void execute_ext_01(DisasContext *dc, int chan)
     uint8_t opc = GET_FIELD(dc->bundle.als[chan], 24, 7);
 
     switch (opc) {
+    case 0x0f:
+        if (chan == 0 || chan == 3) {
+            // FIXME: what is the point in packed add on vector of 64-bit elements if reg size is 64 bits?
+            gen_alopf1_i64(dc, chan, tcg_gen_add_i64); /* paddd */
+        } else {
+            e2k_tr_gen_exception(dc, E2K_EXCP_ILLOPC);
+        }
+        break;
     case 0x20:
         if (is_cmp_chan(chan)) {
             gen_alopf1_i32(dc, chan, tcg_gen_mul_i32); /* muls */
