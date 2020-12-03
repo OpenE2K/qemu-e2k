@@ -47,6 +47,18 @@ static uint64_t* state_reg_ptr(CPUE2KState *env, int idx)
 uint64_t helper_state_reg_read_i64(CPUE2KState *env, int idx)
 {
     switch (idx) {
+    case 0x01:
+        return e2k_state_wd(env); /* %wd */
+    case 0x0f:
+        return e2k_state_pcsp_lo(env); /* %pcsp.lo */
+    case 0x0d:
+        return e2k_state_pcsp_hi(env); /* %pcsp.hi */
+    case 0x13:
+        return env->pcshtp; /* %pcshtp */
+    case 0x55:
+        return e2k_state_cr1_hi(env); /* %cr1.hi */
+    case 0x57:
+        return e2k_state_cr1_lo(env); /* %cr1.lo */
     case 0x81: /* %ip */
         return env->ip;
     case 0x90: /* %clkr */
