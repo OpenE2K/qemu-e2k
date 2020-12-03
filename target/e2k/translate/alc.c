@@ -209,12 +209,17 @@ static inline void set_al_result_reg64_tag(DisasContext *ctx, int chan,
     uint8_t arg = extract32(ctx->bundle.als[chan], 0, 8);
     AlResult *res = &ctx->al_results[chan];
 
-    // TODO: %ctpr, %tst, %tc, %tcd
+    // TODO: %tst, %tc, %tcd
     if (arg == 0xdf) { /* %empty */
         res->type = AL_RESULT_NONE;
         res->reg.index = NULL;
         res->reg.v64 = NULL;
         res->reg.tag = NULL;
+    } else if ((arg & 0xfc) == 0xd0 && (arg & 3) != 0) {
+        // TODO: check if instruction can write to ctpr
+        res->type = AL_RESULT_CTPR64;
+        res->ctpr64.index = (arg & 3) - 1;
+        res->ctpr64.value = value;
     } else {
         res->type = AL_RESULT_REG64;
         res->reg.v64 = value;
@@ -236,12 +241,17 @@ static inline void set_al_result_reg32_tag(DisasContext *ctx, int chan,
     uint8_t arg = extract32(ctx->bundle.als[chan], 0, 8);
     AlResult *res = &ctx->al_results[chan];
 
-    // TODO: %ctpr, %tst, %tc, %tcd
+    // TODO: %tst, %tc, %tcd
     if (arg == 0xdf) { /* %empty */
         res->type = AL_RESULT_NONE;
         res->reg.index = NULL;
         res->reg.v32 = NULL;
         res->reg.tag = NULL;
+    } else if ((arg & 0xfc) == 0xd0 && (arg & 3) != 0) {
+        // TODO: check if instruction can write to ctpr
+        res->type = AL_RESULT_CTPR32;
+        res->ctpr32.index = (arg & 3) - 1;
+        res->ctpr32.value = value;
     } else {
         res->type = AL_RESULT_REG32;
         res->reg.v32 = value;
@@ -1746,6 +1756,31 @@ void e2k_alc_commit(DisasContext *ctx)
         case AL_RESULT_PREG:
             e2k_gen_store_preg(res->preg.index, res->preg.value);
             break;
+        case AL_RESULT_CTPR32: {
+            TCGv_i64 ctpr = e2k_cs.ctprs[res->ctpr32.index];
+            TCGv_i64 t0 = tcg_temp_new_i64();
+            TCGv_i64 t1 = tcg_const_i64(CTPR_TAG_DISP);
+
+            assert(res->ctpr32.index < 3);
+            tcg_gen_extu_i32_i64(t0, res->ctpr32.value);
+            tcg_gen_deposit_i64(ctpr, ctpr, t0, 0, 48);
+            tcg_gen_deposit_i64(ctpr, ctpr, t1, CTPR_TAG_OFF,
+                CTPR_TAG_LEN);
+            tcg_temp_free_i64(t1);
+            tcg_temp_free_i64(t0);
+            break;
+        }
+        case AL_RESULT_CTPR64: {
+            TCGv_i64 ctpr = e2k_cs.ctprs[res->ctpr64.index];
+            TCGv_i64 t0 = tcg_const_i64(CTPR_TAG_DISP);
+
+            assert(res->ctpr64.index < 3);
+            tcg_gen_deposit_i64(ctpr, ctpr, res->ctpr64.value, 0, 48);
+            tcg_gen_deposit_i64(ctpr, ctpr, t0, CTPR_TAG_OFF,
+                CTPR_TAG_LEN);
+            tcg_temp_free_i64(t0);
+            break;
+        }
         default:
             break;
         }
