@@ -1020,6 +1020,109 @@ static void gen_ld(DisasContext *ctx, int chan, MemOp memop)
     tcg_temp_free_i64(t0);
 }
 
+static void gen_staa_i64(DisasContext *ctx, int chan)
+{
+    uint32_t als = ctx->bundle.als[chan];
+    uint8_t mas = ctx->mas[chan];
+    bool sm = extract32(als, 31, 1);
+    int lit = extract32(als, 8, 2);
+    int am = extract32(als, 10, 1);
+    int incr = extract32(als, 12, 3);
+    int ind = extract32(als, 15, 4);
+    int d = extract32(als, 19, 5);
+    Src64 s4 = get_src4_i64(ctx, chan);
+    TCGv_i32 t0 = tcg_const_i32(am);
+    TCGv_i32 t1 = tcg_const_i32(incr);
+    TCGv_i32 t2 = tcg_const_i32(ind);
+    TCGv_i32 t3 = tcg_const_i32(d);
+    TCGv_i32 t4;
+
+    if (lit) {
+        if (!ctx->bundle.lts_present[lit - 1]) {
+            e2k_tr_gen_exception(ctx, E2K_EXCP_ILLOPN);
+            return;
+        }
+        t4 = tcg_const_i32(ctx->bundle.lts[lit - 1]);
+    } else {
+        t4 = tcg_const_i32(0);
+    }
+
+    if (sm) {
+        qemu_log_mask(LOG_UNIMP, "staad: sm is not implemented\n");
+        abort();
+    }
+
+    if (mas == 0) {
+        gen_helper_staa_i64(cpu_env, s4.value, t4, t0, t1, t2, t3);
+    } else if (mas == 0x3f) {
+        if (!am) {
+            gen_helper_set_aad_i64(cpu_env, s4.value, t1, t3);
+        } else {
+            gen_helper_set_aasti_i64(cpu_env, s4.value, t2);
+        }
+    } else {
+        qemu_log_mask(LOG_UNIMP, "staad: not implemented mas\n");
+        abort();
+    }
+
+    tcg_temp_free_i32(t4);
+    tcg_temp_free_i32(t3);
+    tcg_temp_free_i32(t2);
+    tcg_temp_free_i32(t1);
+    tcg_temp_free_i32(t0);
+}
+static void gen_staa_i32(DisasContext *ctx, int chan)
+{
+    uint32_t als = ctx->bundle.als[chan];
+    uint8_t mas = ctx->mas[chan];
+    bool sm = extract32(als, 31, 1);
+    int lit = extract32(als, 8, 2);
+    int am = extract32(als, 10, 1);
+    int incr = extract32(als, 12, 3);
+    int ind = extract32(als, 15, 4);
+    int d = extract32(als, 19, 5);
+    Src32 s4 = get_src4_i32(ctx, chan);
+    TCGv_i32 t0 = tcg_const_i32(am);
+    TCGv_i32 t1 = tcg_const_i32(incr);
+    TCGv_i32 t2 = tcg_const_i32(ind);
+    TCGv_i32 t3 = tcg_const_i32(d);
+    TCGv_i32 t4;
+
+    if (lit) {
+        if (!ctx->bundle.lts_present[lit - 1]) {
+            e2k_tr_gen_exception(ctx, E2K_EXCP_ILLOPN);
+            return;
+        }
+        t4 = tcg_const_i32(ctx->bundle.lts[lit - 1]);
+    } else {
+        t4 = tcg_const_i32(0);
+    }
+
+    if (sm) {
+        qemu_log_mask(LOG_UNIMP, "staaw: sm is not implemented\n");
+        abort();
+    }
+
+    if (mas == 0) {
+        gen_helper_staa_i32(cpu_env, s4.value, t4, t0, t1, t2, t3);
+    } else if (mas == 0x3f) {
+        if (!am) {
+            gen_helper_set_aad_i32(cpu_env, s4.value, t1, t3);
+        } else {
+            gen_helper_set_aasti_i32(cpu_env, s4.value, t2);
+        }
+    } else {
+        qemu_log_mask(LOG_UNIMP, "staaw: not implemented mas\n");
+        abort();
+    }
+
+    tcg_temp_free_i32(t4);
+    tcg_temp_free_i32(t3);
+    tcg_temp_free_i32(t2);
+    tcg_temp_free_i32(t1);
+    tcg_temp_free_i32(t0);
+}
+
 static void gen_st(DisasContext *ctx, int chan, MemOp memop)
 {
     bool sm = GET_BIT(ctx->bundle.als[chan], 31);
@@ -1452,31 +1555,18 @@ static void execute_ext_01_25(DisasContext *ctx, int chan)
 {
     uint8_t opc = GET_FIELD(ctx->bundle.als[chan], 24, 7);
 
+    if (chan != 2 && chan != 5) {
+        e2k_tr_gen_exception(ctx, E2K_EXCP_ILLOPC);
+        return;
+    }
+
     switch(opc) {
-    case 0x08: if (chan == 2 || chan == 5) {
-        gen_gettag_i32(ctx, chan); /* gettags */
-    } else {
-        e2k_tr_gen_exception(ctx, E2K_EXCP_ILLOPC);
-    }
-    break;
-    case 0x09: if (chan == 2 || chan == 5) {
-        gen_gettag_i64(ctx, chan); /* gettagd */
-    } else {
-        e2k_tr_gen_exception(ctx, E2K_EXCP_ILLOPC);
-    }
-    break;
-    case 0x0a: if (chan == 2 || chan == 5) {
-        gen_puttag_i32(ctx, chan); /* puttags */
-    } else {
-        e2k_tr_gen_exception(ctx, E2K_EXCP_ILLOPC);
-    }
-    break;
-    case 0x0b: if (chan == 2 || chan == 5) {
-        gen_puttag_i64(ctx, chan); /* puttagd */
-    } else {
-        e2k_tr_gen_exception(ctx, E2K_EXCP_ILLOPC);
-    }
-    break;
+    case 0x08: gen_gettag_i32(ctx, chan); break; /* gettags */
+    case 0x09: gen_gettag_i64(ctx, chan); break; /* gettagd */
+    case 0x0a: gen_puttag_i32(ctx, chan); break; /* puttags */
+    case 0x0b: gen_puttag_i64(ctx, chan); break; /* puttagd */
+    case 0x1e: gen_staa_i32(ctx, chan); break; /* staaw */
+    case 0x1f: gen_staa_i64(ctx, chan); break; /* staad */
     default:
         e2k_tr_gen_exception(ctx, E2K_EXCP_ILLOPC);
         break;

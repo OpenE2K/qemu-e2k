@@ -286,6 +286,87 @@ typedef struct {
     bool fx;
 } E2KWdState;
 
+typedef enum {
+    AASR_NULL = 0,
+    AASR_READY = 1,
+    AASR_ACTIVE = 3,
+    AASR_STOPPED = 5,
+} E2KAasrState;
+
+typedef union {
+    struct {
+        uint32_t unused     : 5;
+        uint32_t stb        : 1;
+        uint32_t iab        : 1;
+        uint32_t lds        : 3;
+    };
+    uint32_t raw;
+} E2KAasr;
+
+typedef enum {
+    AAD_TAG_UNV = 0,
+    AAD_TAG_UDT = 1,
+    AAD_TAG_UET = 2,
+    AAD_TAG_UAP = 4,
+    AAD_TAG_USAP = 5,
+    AAD_TAG_UDS = 6,
+} E2KAadTag;
+
+typedef struct {
+    union {
+        struct {
+            uint64_t base       : 48;
+            uint64_t unused1    : 6;
+            uint64_t tag        : 3;
+            uint64_t mb         : 1;
+            uint64_t ed         : 1;
+            uint64_t rw         : 2;
+            uint64_t unused2    : 3;
+        };
+        uint64_t lo;
+    };
+    union {
+        struct {
+            uint64_t unused3    : 32;
+            uint64_t size       : 32;
+        };
+        uint64_t hi;
+    };
+} E2KAad;
+
+typedef enum {
+    AALDA_EXC_EIO = 1,
+    AALDA_EXC_EPM = 2,
+    AALDA_EXC_EPMSI = 3,
+} E2KAaldaExc;
+
+typedef union {
+    struct {
+        uint8_t exc:        2;
+        uint8_t cincr:      1;
+        uint8_t unused1:    1;
+        uint8_t root:       1;
+        uint8_t unused2:    3;
+    };
+    uint8_t raw;
+} E2KAalda;
+
+typedef struct {
+    E2KAasr sr;
+    uint32_t fstr;
+    uint64_t ldm;
+    uint64_t ldv;
+    uint32_t stis[16];
+    uint32_t sti_tags;
+    uint32_t incrs[8];
+    uint32_t incr_tags;
+    uint32_t inds[16];
+    uint32_t ind_tags;
+    E2KAad ds[32];
+    uint32_t ldi[64];
+    E2KAalda lda[64];
+} E2KAauState;
+
 typedef struct {
     /* register file */
     uint64_t regs[E2K_REG_COUNT]; /* registers */
@@ -333,6 +414,8 @@ typedef struct {
     uint32_t pfpfr; // Packed Floating Point Flag Register (PFPFR)
     uint32_t fpcr; // Floating point control register (FPCR)
     uint32_t fpsr; // Floating point state register (FPSR)
+
+    E2KAauState aau;
 
     int interrupt_index;
     uint32_t is_bp; /* breakpoint flag */
