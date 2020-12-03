@@ -90,42 +90,42 @@ int e2k_cpu_gdb_read_register(CPUState *cs, GByteArray *mem_buf, int n)
 
     if (76 <= n && n < 140) {
         if (n & 1) {
-            return gdb_get_reg64(mem_buf, 0); // addN_hi
+            return gdb_get_reg64(mem_buf, env->aau.ds[n - 76].hi); // addN_hi
         } else {
-            return gdb_get_reg64(mem_buf, 0); // addN_lo
+            return gdb_get_reg64(mem_buf, env->aau.ds[n - 76].lo); // addN_lo
         }
     }
 
     if (140 <= n && n < 156) {
-        return gdb_get_reg64(mem_buf, 0); // aaindN
+        return gdb_get_reg64(mem_buf, env->aau.inds[n - 140]); // aaindN
     }
 
     if (156 <= n && n < 164) {
-        return gdb_get_reg64(mem_buf, 0); // aaincrN
+        return gdb_get_reg64(mem_buf, env->aau.incrs[n - 156]); // aaincrN
     }
 
     if (164 <= n && n < 228) {
-        return gdb_get_reg64(mem_buf, 0); // aaldiN
+        return gdb_get_reg64(mem_buf, env->aau.ldi[n - 164]); // aaldiN
     }
 
     if (n == 228) {
-        return gdb_get_reg64(mem_buf, 0); // aaldv
+        return gdb_get_reg64(mem_buf, env->aau.ldv); // aaldv
     }
 
     if (229 <= n && n < 293) {
-        return gdb_get_reg64(mem_buf, 0); // aaldaN
+        return gdb_get_reg64(mem_buf, env->aau.lda[n - 229].raw); // aaldaN
     }
 
     switch (n) {
-    case 293: return gdb_get_reg64(mem_buf, 0); // aaldm
-    case 294: return gdb_get_reg64(mem_buf, 0); // aasr
-    case 295: return gdb_get_reg64(mem_buf, 0); // aafstr
+    case 293: return gdb_get_reg64(mem_buf, env->aau.ldm); // aaldm
+    case 294: return gdb_get_reg64(mem_buf, env->aau.sr.raw); // aasr
+    case 295: return gdb_get_reg64(mem_buf, env->aau.fstr); // aafstr
     default:
         break;
     }
 
     if (296 <= n && n < 312) {
-        return gdb_get_reg64(mem_buf, 0); // aastiN
+        return gdb_get_reg64(mem_buf, env->aau.stis[n - 296]); // aastiN
     }
 
     switch (n) {
