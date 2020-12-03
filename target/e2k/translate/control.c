@@ -448,7 +448,7 @@ static void gen_cs1(DisasContext *dc)
 //          my_printf ("trap = %d, ", trap);
         }
 
-        abort();
+    qemu_log_mask(LOG_UNIMP, "0x%lx: wait is not implemented!\n", dc->pc);
 //      my_printf ("ma_c = %d, fl_c = %d, ld_c = %d, st_c = %d, all_e = %d, "
 //                 "all_c = %d", ma_c, fl_c, ld_c, st_c, all_e, all_c);
     } else if (opc == CALL) {
