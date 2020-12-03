@@ -36,6 +36,8 @@ static uint64_t* state_reg_ptr(CPUE2KState *env, int idx)
     case 0x2c: return &env->usd_hi; /* %usd.hi */
     /* FIXME: user cannot write */
     case 0x2d: return &env->usd_lo; /* %usd.lo */
+    case 0x51: return &env->ip; /* %cr1.hi */
+    case 0x53: return &env->pregs; /* %cr1.lo */
     case 0x80: return &env->upsr; /* %upsr */
     case 0x83: return &env->lsr; /* %lsr */
     default: return NULL;
