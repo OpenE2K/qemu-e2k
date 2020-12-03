@@ -106,6 +106,8 @@ typedef enum {
     AL_RESULT_REG32,
     AL_RESULT_REG64,
     AL_RESULT_PREG,
+    AL_RESULT_CTPR32,
+    AL_RESULT_CTPR64,
 } AlResultType;
 
 typedef struct {
@@ -122,7 +124,11 @@ typedef struct {
         struct {
             int index;
             TCGv_i64 value;
-        } preg;
+        } preg, ctpr64;
+        struct {
+            int index;
+            TCGv_i32 value;
+        } ctpr32;
     };
 } AlResult;
 
