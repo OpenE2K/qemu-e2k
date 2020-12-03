@@ -479,7 +479,7 @@ static void gen_bitrevs(TCGv_i32 ret, TCGv_i32 src1) {
     TCGv_i32 ltemp1 = tcg_temp_new_i32();
     TCGv_i32 rtemp1 = tcg_temp_new_i32();
     
-    tcg_gen_bswap16_i32(ret, src1);
+    tcg_gen_bswap32_i32(ret, src1);
     
     tcg_gen_andi_i32(ltemp0, ret, 0xf0f0f0f0);
     tcg_gen_andi_i32(rtemp0, ret, 0x0f0f0f0f);
@@ -511,7 +511,7 @@ static void gen_bitrevd(TCGv_i64 ret, TCGv_i64 src1) {
     TCGv_i64 ltemp1 = tcg_temp_new_i64();
     TCGv_i64 rtemp1 = tcg_temp_new_i64();
     
-    tcg_gen_bswap16_i64(ret, src1);
+    tcg_gen_bswap64_i64(ret, src1);
     
     tcg_gen_andi_i64(ltemp0, ret, 0xf0f0f0f0f0f0f0f0);
     tcg_gen_andi_i64(rtemp0, ret, 0x0f0f0f0f0f0f0f0f);
