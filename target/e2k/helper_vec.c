@@ -87,3 +87,23 @@ uint64_t HELPER(packed_shuffle_i64)(uint64_t src1, uint64_t src2, uint64_t src3)
 
     return ret.n;
 }
+
+// FIXME: not tested
+uint64_t HELPER(pcmpeqb)(uint64_t src1, uint64_t src2)
+{
+    unsigned int i;
+    u8x8 s1, s2, ret;
+
+    s1.n = src1;
+    s2.n = src2;
+
+    for (i = 0; i < 8; i++) {
+        if (s1.s[i] == s2.s[i]) {
+            ret.s[i] = 0xff;
+        } else {
+            ret.s[i] = 0;
+        }
+    }
+
+    return ret.n;
+}
