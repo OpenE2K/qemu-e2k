@@ -1600,6 +1600,13 @@ static void execute_ext_01(DisasContext *dc, int chan)
             e2k_tr_gen_exception(dc, E2K_EXCP_ILLOPC);
         }
         break;
+    case 0x18:
+        if (chan == 0 || chan == 3) {
+            gen_alopf1_i64(dc, chan, gen_helper_pcmpeqb);
+        } else {
+            e2k_tr_gen_exception(dc, E2K_EXCP_ILLOPC);
+        }
+        break;
     case 0x20:
         if (is_cmp_chan(chan)) {
             gen_alopf1_i32(dc, chan, tcg_gen_mul_i32); /* muls */
