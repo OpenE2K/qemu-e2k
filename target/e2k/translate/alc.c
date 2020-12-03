@@ -972,14 +972,18 @@ static MemOp gen_mas(DisasContext *ctx, int chan, MemOp memop, TCGv_i64 addr)
 
     if ((mas & 0x7) == 7) {
         // TODO: special mas
-        e2k_tr_gen_exception(ctx, E2K_EXCP_ILLOPC);
+//        e2k_tr_gen_exception(ctx, E2K_EXCP_ILLOPC);
+        qemu_log_mask(LOG_UNIMP, "0x%lx: mas=0x%x is not implemented!\n",
+            ctx->pc, mas);
     } else if (mas) {
         int mod = extract8(mas, 0, 3);
 //        int dc = extract8(mas, 5, 2);
 
         if (mod != 0) {
             // TODO: mas modes
-            e2k_tr_gen_exception(ctx, E2K_EXCP_ILLOPC);
+//            e2k_tr_gen_exception(ctx, E2K_EXCP_ILLOPC);
+            qemu_log_mask(LOG_UNIMP, "0x%lx: mas=0x%x is not implemented!\n",
+                ctx->pc, mas);
         }
 
         memop |= GET_BIT(mas, 3) ? MO_BE : MO_LE;
