@@ -537,6 +537,13 @@ static void gen_bitrevd(TCGv_i64 ret, TCGv_i64 src1) {
     tcg_temp_free_i64(ltemp0);
 }
 
+static void gen_lzcnts(TCGv_i32 ret, TCGv_i32 src1) {
+    tcg_gen_clzi_i32(ret, src1, 32);
+}
+
+static void gen_lzcntd(TCGv_i64 ret, TCGv_i64 src1) {
+    tcg_gen_clzi_i64(ret, src1, 64);
+}
 
 static TCGCond e2k_gen_cmp_op(unsigned int cmp_op)
 {
@@ -1625,33 +1632,41 @@ static void execute_alopf_simple(DisasContext *dc, int chan)
             gen_movtd(dc, chan);
         }
         break;
-    case 0x64: { /* ldb */
-        if (is_load_chan(chan)) {
+    case 0x64: {
+        if (is_load_chan(chan)) { /* ldb */
             gen_ld(dc, chan, MO_UB);
+        } else if (alopf2_opce == 0xc0) { /* lzcnts */
+            gen_alopf2_i32(dc, chan, gen_lzcnts);
         } else {
             abort();
         }
         break;
     }
-    case 0x65: { /* ldh */
-        if (is_load_chan(chan)) {
+    case 0x65: { 
+        if (is_load_chan(chan)) { /* ldh */
             gen_ld(dc, chan, MO_UW);
+        } else if (alopf2_opce == 0xc0) { /* lzcntd */
+            gen_alopf2_i64(dc, chan, gen_lzcntd);
         } else {
             abort();
         }
         break;
     }
-    case 0x66: { /* ldw */
-        if (is_load_chan(chan)) {
+    case 0x66: { 
+        if (is_load_chan(chan)) { /* ldw */
             gen_ld(dc, chan, MO_UL);
+        } else if (alopf2_opce == 0xc0) { /* popcnts */
+            gen_alopf2_i32(dc, chan, tcg_gen_ctpop_i32);
         } else {
             abort();
         }
         break;
     }
-    case 0x67: { /* ldd */
-        if (is_load_chan(chan)) {
+    case 0x67: { 
+        if (is_load_chan(chan)) { /* ldd */
             gen_ld(dc, chan, MO_Q);
+        } else if (alopf2_opce == 0xc0) { /* popcntd */
+            gen_alopf2_i64(dc, chan, tcg_gen_ctpop_i64);
         } else {
             abort();
         }
