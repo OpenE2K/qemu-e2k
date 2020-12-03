@@ -91,10 +91,10 @@ void helper_state_reg_write_i32(CPUE2KState *env, int idx, uint32_t val)
     }
 }
 
-uint64_t helper_getsp(CPUE2KState *env, uint64_t src2) {
+uint64_t helper_getsp(CPUE2KState *env, uint32_t src2) {
     uint64_t base = GET_FIELD(env->usd_lo, USD_LO_BASE_OFF, USD_LO_BASE_LEN);
 
-    base += src2;
+    base += (int32_t) src2;
 
     /* TODO: stack overflow */
     env->usd_lo = SET_FIELD(env->usd_lo, base, USD_LO_BASE_OFF,

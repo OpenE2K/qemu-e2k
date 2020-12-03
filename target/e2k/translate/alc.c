@@ -1024,7 +1024,7 @@ static inline void gen_rw_i32(DisasContext *ctx, int chan)
 
 static void gen_getsp(DisasContext *ctx, int chan)
 {
-    Src64 s2 = get_src2_i64(ctx, chan);
+    Src32 s2 = get_src2_i32(ctx, chan);
     TCGv_i64 dst = e2k_get_temp_i64(ctx);
 
     // TODO: check tags
