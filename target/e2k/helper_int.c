@@ -61,6 +61,8 @@ uint64_t helper_state_reg_read_i64(CPUE2KState *env, int idx)
         return e2k_state_cr1_lo(env); /* %cr1.lo */
     case 0x81: /* %ip */
         return env->ip;
+    case 0x8a: /* %idr */
+        return env->idr;
     case 0x90: /* %clkr */
         return cpu_get_host_ticks();
     default: {
