@@ -258,6 +258,8 @@ static inline void gen_goto_ctpr_disp(TCGv_i64 ctpr)
 static inline void do_reset(DisasContext *ctx)
 {
     memset(ctx->mas, 0, sizeof(ctx->mas));
+    ctx->illtag = e2k_get_temp_i32(ctx);
+    tcg_gen_movi_i32(ctx->illtag, 0);
 }
 
 static inline target_ulong do_decode(DisasContext *ctx, CPUState *cs)
@@ -313,6 +315,12 @@ static inline void do_commit(DisasContext *ctx)
 
 static inline void do_branch(DisasContext *ctx, target_ulong pc_next)
 {
+    TCGLabel *l0 = gen_new_label();
+
+    tcg_gen_brcondi_i32(TCG_COND_EQ, ctx->illtag, 0, l0);
+    e2k_gen_exception(E2K_EXCP_ILLOPC);
+    gen_set_label(l0);
+
     if (ctx->ct.type == CT_NONE) {
         // FIXME: do not write to e2k_cs.pc if not necessary
         tcg_gen_movi_tl(e2k_cs.pc, pc_next);
