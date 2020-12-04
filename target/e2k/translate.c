@@ -299,8 +299,6 @@ static inline void do_commit(DisasContext *ctx)
 
 static inline void do_branch(DisasContext *ctx, target_ulong pc_next)
 {
-    TCGLabel *l0;
-
     if (ctx->ct.type == CT_NONE) {
         // FIXME: do not write to e2k_cs.pc if not necessary
         tcg_gen_movi_tl(e2k_cs.pc, pc_next);
@@ -309,10 +307,12 @@ static inline void do_branch(DisasContext *ctx, target_ulong pc_next)
 
     ctx->base.is_jmp = DISAS_NORETURN;
 
-    l0 = gen_new_label();
-    tcg_gen_brcondi_tl(TCG_COND_NE, e2k_cs.ct_cond, 0, l0);
-    gen_goto_tb(ctx, TB_EXIT_IDX0, ctx->pc, pc_next);
-    gen_set_label(l0);
+    if (ctx->ct.is_branch) {
+        TCGLabel *l0 = gen_new_label();
+        tcg_gen_brcondi_tl(TCG_COND_NE, e2k_cs.ct_cond, 0, l0);
+        gen_goto_tb(ctx, TB_EXIT_IDX1, pc_next);
+        gen_set_label(l0);
+    }
 
     switch(ctx->ct.type) {
     case CT_NONE:
@@ -413,18 +413,8 @@ static void e2k_tr_tb_stop(DisasContextBase *db, CPUState *cs)
 {
     DisasContext *ctx = container_of(db, DisasContext, base);
 
-    switch(ctx->base.is_jmp) {
-    case DISAS_NEXT:
-    case DISAS_TOO_MANY:
-        if (ctx->ct.type != CT_NONE) {
-            gen_goto_tb(ctx, TB_EXIT_IDX0, ctx->pc, ctx->base.pc_next);
-        }
-        break;
-    case DISAS_NORETURN:
-        break;
-    default:
-        g_assert_not_reached();
-        break;
+    if (ctx->base.is_jmp == DISAS_TOO_MANY) {
+        gen_goto_tb(ctx, TB_EXIT_IDX0, ctx->base.pc_next);
     }
 }
 
