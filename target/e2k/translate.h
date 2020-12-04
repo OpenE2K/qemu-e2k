@@ -178,6 +178,8 @@ typedef struct DisasContext {
     int t64_len;
     int ttl_len;
 
+    /* illegal tag for delayed exception */
+    TCGv_i32 illtag;
     TCGv_i64 cond[6];
     AlResult al_results[6];
     AlCond al_cond[6];
