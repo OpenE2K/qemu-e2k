@@ -520,6 +520,7 @@ static void gen_jmp(DisasContext *dc)
         TCGv cond = e2k_cs.ct_cond;
         TCGv_i64 t0 = tcg_temp_new_i64();
 
+        dc->ct.is_branch = true;
         e2k_gen_preg(t0, psrc);
         tcg_gen_trunc_i64_tl(preg, t0);
         gen_is_loop_end(loop_end);

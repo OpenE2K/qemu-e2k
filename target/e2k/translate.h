@@ -156,6 +156,7 @@ typedef struct {
         TCGv_i64 ctpr;
     } u;
     int wbs;
+    bool is_branch;
 } ControlTransfer;
 
 typedef struct DisasContext {
