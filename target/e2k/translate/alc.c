@@ -81,24 +81,11 @@ static inline bool is_chan_0235(int c)
     return is_chan_03(c) || is_chan_25(c);
 }
 
-static inline void gen_reg_index(TCGv_i32 ret, uint8_t arg)
-{
-    if (IS_BASED(arg)) {
-        e2k_gen_reg_index_from_bregi(ret, GET_BASED(arg));
-    } else if (IS_REGULAR(arg)) {
-        e2k_gen_reg_index_from_wregi(ret, GET_REGULAR(arg));
-    } else if (IS_GLOBAL(arg)) {
-        e2k_gen_reg_index_from_gregi(ret, GET_GLOBAL(arg));
-    } else {
-        e2k_gen_exception(E2K_EXCP_ILLOPN);
-    }
-}
-
 static inline void gen_reg_i64(DisasContext *ctx, Src64 *ret, uint8_t arg)
 {
     TCGv_i32 t0 = tcg_temp_new_i32();
 
-    gen_reg_index(t0, arg);
+    e2k_gen_reg_index(t0, arg);
     ret->tag = e2k_get_temp_i32(ctx);
     ret->value = e2k_get_temp_i64(ctx);
     e2k_gen_reg_tag_read_i64(ret->tag, t0);
@@ -111,7 +98,7 @@ static inline void gen_reg_i32(DisasContext *ctx, Src32 *ret, uint8_t arg)
 {
     TCGv_i32 t0 = tcg_temp_new_i32();
 
-    gen_reg_index(t0, arg);
+    e2k_gen_reg_index(t0, arg);
     ret->tag = e2k_get_temp_i32(ctx);
     ret->value = e2k_get_temp_i32(ctx);
     e2k_gen_reg_tag_read_i32(ret->tag, t0);
@@ -373,7 +360,7 @@ static inline void set_al_result_reg64_tag(DisasContext *ctx, int chan,
         res->reg.v64 = value;
         res->reg.tag = tag;
         res->reg.index = e2k_get_temp_i32(ctx);
-        gen_reg_index(res->reg.index, arg);
+        e2k_gen_reg_index(res->reg.index, arg);
     }
 }
 
@@ -405,7 +392,7 @@ static inline void set_al_result_reg32_tag(DisasContext *ctx, int chan,
         res->reg.v32 = value;
         res->reg.tag = tag;
         res->reg.index = e2k_get_temp_i32(ctx);
-        gen_reg_index(res->reg.index, arg);
+        e2k_gen_reg_index(res->reg.index, arg);
     }
 }
 
@@ -1166,10 +1153,12 @@ static MemOp gen_mas(DisasContext *ctx, int chan, MemOp memop, TCGv_i64 addr)
     uint8_t mas = ctx->mas[chan];
 
     if ((mas & 0x7) == 7) {
+        int opc = mas >> 3;
         // TODO: special mas
 //        e2k_tr_gen_exception(ctx, E2K_EXCP_ILLOPC);
-        qemu_log_mask(LOG_UNIMP, "0x%lx: mas=0x%x is not implemented!\n",
-            ctx->pc, mas);
+        qemu_log_mask(LOG_UNIMP, "0x%lx: mas=%#x, opc=%#x is not implemented!\n",
+            ctx->pc, mas, opc);
+        return 0;
     } else if (mas) {
         int mod = extract8(mas, 0, 3);
 //        int dc = extract8(mas, 5, 2);
@@ -1177,8 +1166,8 @@ static MemOp gen_mas(DisasContext *ctx, int chan, MemOp memop, TCGv_i64 addr)
         if (mod != 0) {
             // TODO: mas modes
 //            e2k_tr_gen_exception(ctx, E2K_EXCP_ILLOPC);
-            qemu_log_mask(LOG_UNIMP, "0x%lx: mas=0x%x is not implemented!\n",
-                ctx->pc, mas);
+            qemu_log_mask(LOG_UNIMP, "0x%lx: mas=%#x, mod=%#x is not implemented!\n",
+                ctx->pc, mas, mod);
         }
 
         memop |= GET_BIT(mas, 3) ? MO_BE : MO_LE;
@@ -1221,6 +1210,39 @@ static void gen_ld(DisasContext *ctx, int chan, MemOp memop)
     gen_al_result_i64(ctx, chan, dst, tag);
 
     tcg_temp_free_i32(t1);
+    tcg_temp_free_i64(t0);
+}
+
+static void gen_st(DisasContext *ctx, int chan, MemOp memop)
+{
+    bool sm = GET_BIT(ctx->bundle.als[chan], 31);
+    TCGLabel *l0 = gen_new_label();
+    Src64 s1 = get_src1_i64(ctx, chan);
+    Src64 s2 = get_src2_i64(ctx, chan);
+    Src64 s4 = get_src4_i64(ctx, chan);
+    TCGv_i64 t0 = tcg_temp_local_new_i64();
+
+    gen_tag_check(ctx, sm, s1.tag);
+    gen_tag_check(ctx, sm, s2.tag);
+    gen_tag_check(ctx, sm, s4.tag);
+    tcg_gen_add_i64(t0, s1.value, s2.value);
+    memop = gen_mas(ctx, chan, memop, t0);
+
+    if (memop == 0) {
+        // TODO: memop is zero after gen_mas
+        tcg_gen_br(l0);
+    }
+
+    if (sm) {
+        TCGv_i32 t1 = tcg_temp_new_i32();
+        gen_helper_probe_write_access(t1, cpu_env, t0);
+        tcg_gen_brcondi_i32(TCG_COND_EQ, t1, 0, l0);
+        tcg_temp_free_i32(t1);
+    }
+
+    tcg_gen_qemu_st_i64(s4.value, t0, ctx->mmuidx, memop);
+    gen_set_label(l0);
+
     tcg_temp_free_i64(t0);
 }
 
@@ -1325,34 +1347,6 @@ static void gen_staa_i32(DisasContext *ctx, int chan)
     tcg_temp_free_i32(t2);
     tcg_temp_free_i32(t1);
     tcg_temp_free_i32(t0);
-}
-
-static void gen_st(DisasContext *ctx, int chan, MemOp memop)
-{
-    bool sm = GET_BIT(ctx->bundle.als[chan], 31);
-    TCGLabel *l0 = gen_new_label();
-    Src64 s1 = get_src1_i64(ctx, chan);
-    Src64 s2 = get_src2_i64(ctx, chan);
-    Src64 s4 = get_src4_i64(ctx, chan);
-    TCGv_i64 t0 = tcg_temp_local_new_i64();
-
-    gen_tag_check(ctx, sm, s1.tag);
-    gen_tag_check(ctx, sm, s2.tag);
-    gen_tag_check(ctx, sm, s4.tag);
-    tcg_gen_add_i64(t0, s1.value, s2.value);
-    memop = gen_mas(ctx, chan, memop, t0);
-
-    if (sm) {
-        TCGv_i32 t1 = tcg_temp_new_i32();
-        gen_helper_probe_write_access(t1, cpu_env, t0);
-        tcg_gen_brcondi_i32(TCG_COND_EQ, t1, 0, l0);
-        tcg_temp_free_i32(t1);
-    }
-
-    tcg_gen_qemu_st_i64(s4.value, t0, ctx->mmuidx, memop);
-    gen_set_label(l0);
-
-    tcg_temp_free_i64(t0);
 }
 
 static void gen_alopf1_i64(DisasContext *ctx, int chan,
@@ -2236,14 +2230,14 @@ static void execute_ext_0b(DisasContext *ctx, Instr *instr)
 {
     switch(instr->opc1) {
     case 0x6c:
-        if (is_cmp_chan(instr->chan) && ctx->version >= 4) {
+        if (is_chan_0134(instr->chan) && ctx->version >= 4) {
             /* insfs */
             gen_alopf21_i32(ctx, instr, gen_insert_field_i32);
             return;
         }
         break;
     case 0x6d:
-        if (is_cmp_chan(instr->chan) && ctx->version>= 4) {
+        if (is_chan_0134(instr->chan) && ctx->version>= 4) {
             /* insfd */
             gen_alopf21_i64(ctx, instr, gen_insert_field_i64);
             return;
@@ -2259,7 +2253,7 @@ static void execute_ext_0f(DisasContext *ctx, Instr *instr)
 {
     switch(instr->opc1) {
     case 0x4d:
-        if (is_cmp_chan(instr->chan) && ctx->version >= 2) {
+        if (is_chan_0134(instr->chan) && ctx->version >= 2) {
             /* pshufb */
             gen_alopf21_i64(ctx, instr, gen_helper_packed_shuffle_i64);
             return;
