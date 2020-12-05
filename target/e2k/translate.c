@@ -296,6 +296,8 @@ static inline void do_execute(DisasContext *ctx)
             e2k_alc_execute(ctx, i);
         }
     }
+
+    e2k_aau_execute(ctx);
 }
 
 /*
@@ -309,6 +311,7 @@ static inline void do_execute(DisasContext *ctx)
 static inline void do_commit(DisasContext *ctx)
 {
     e2k_alc_commit(ctx);
+    e2k_aau_commit(ctx);
     e2k_plu_commit(ctx);
     e2k_commit_stubs(ctx);
 }
