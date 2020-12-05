@@ -406,17 +406,15 @@ static inline void e2k_gen_cond_i64(DisasContext *ctx, TCGv_i64 ret,
     tcg_temp_free_i32(t0);
 }
 
-void e2k_control_gen(DisasContext *dc);
+void e2k_control_execute(DisasContext *ctx);
+void e2k_stubs_commit(DisasContext *ctx);
 
-void e2k_alc_execute(DisasContext *ctx, int index);
-void e2k_alc_commit(DisasContext *dc);
+void e2k_alc_execute(DisasContext *ctx);
+void e2k_alc_commit(DisasContext *ctx);
 
 void e2k_aau_execute(DisasContext *ctx);
 void e2k_aau_commit(DisasContext *ctx);
-
 void e2k_plu_execute(DisasContext *ctx);
 void e2k_plu_commit(DisasContext *ctx);
-
-void e2k_commit_stubs(DisasContext *dc);
 
 #endif

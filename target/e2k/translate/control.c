@@ -124,7 +124,7 @@ static inline void gen_cur_dec(DisasContext *ctx, TCGv_i32 ret, int cond,
     tcg_temp_free_i32(t0);
 }
 
-void e2k_commit_stubs(DisasContext *ctx)
+void e2k_stubs_commit(DisasContext *ctx)
 {
     uint32_t ss = ctx->bundle.ss;
 //    unsigned int vfdi = (ss & 0x04000000) >> 26;
@@ -143,7 +143,10 @@ void e2k_commit_stubs(DisasContext *ctx)
     }
 
     if (abp) {
-        gen_cur_dec(ctx, e2k_cs.pcur, abp, e2k_cs.pcur, 1, e2k_cs.psize);
+        TCGv_i32 t0 = tcg_temp_local_new_i32();
+        tcg_gen_addi_i32(t0, e2k_cs.psize, 1);
+        gen_cur_dec(ctx, e2k_cs.pcur, abp, e2k_cs.pcur, 1, t0);
+        tcg_temp_free_i32(t0);
     }
 
     if (abn) {
@@ -617,7 +620,7 @@ static void gen_jmp(DisasContext *dc)
     }
 }
 
-void e2k_control_gen(DisasContext *dc)
+void e2k_control_execute(DisasContext *dc)
 {
     dc->ct.type = CT_NONE;
 
