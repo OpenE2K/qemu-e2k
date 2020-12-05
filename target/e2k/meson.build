@@ -3,15 +3,16 @@ e2k_ss.add(files(
   'cpu.c',
   'gdbstub.c',
   'helper.c',
+  'helper_aau.c',
   'helper_int.c',
   'helper_sm.c',
   'helper_vec.c',
-  'helper_aau.c',
   'translate.c',
-  'translate/state.c',
-  'translate/control.c',
   'translate/alc.c',
+  'translate/aau.c',
+  'translate/control.c',
   'translate/plu.c',
+  'translate/state.c',
 ))
 
 # no softmmu support yet

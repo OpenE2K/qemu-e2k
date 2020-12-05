@@ -132,6 +132,21 @@ typedef struct {
     };
 } AlResult;
 
+typedef enum {
+    AAU_RESULT_NONE,
+    AAU_RESULT_REG32,
+    AAU_RESULT_REG64,
+} AauResultType;
+
+typedef struct {
+    AauResultType type;
+    TCGv_i32 index;
+    union {
+        TCGv_i32 v32;
+        TCGv_i64 v64;
+    };
+} AauResult;
+
 typedef struct {
     bool is_set;
     TCGv_i64 value;
@@ -183,9 +198,24 @@ typedef struct DisasContext {
     TCGv_i64 cond[6];
     AlResult al_results[6];
     AlCond al_cond[6];
+    AauResult aau_results[4];
     PlResult pl_results[3];
     ControlTransfer ct;
 } DisasContext;
+
+/* exception generated in translation time */
+void e2k_tr_gen_exception(DisasContext *dc, int which);
+
+/* exception generated in runtime */
+static inline void e2k_gen_exception(int excp)
+{
+    TCGv_i32 t0 = tcg_const_i32(excp);
+
+    // TODO: check if need to save state
+    gen_helper_raise_exception(cpu_env, t0);
+
+    tcg_temp_free_i32(t0);
+}
 
 static inline void e2k_gen_mask_i64(TCGv_i64 ret, TCGv_i64 len)
 {
@@ -306,44 +336,6 @@ static inline void e2k_gen_lcntex(TCGv_i32 ret)
     tcg_temp_free_i32(t0);
 }
 
-static inline bool is_load_chan(int chan)
-{
-    switch(chan) {
-        case 0:
-        case 2:
-        case 3:
-        case 5:
-            return true;
-    }
-    return false;
-}
-
-static inline bool is_store_chan(int chan)
-{
-    switch(chan) {
-        case 2:
-        case 5:
-            return true;
-    }
-    return false;
-}
-
-static inline bool is_cmp_chan(int chan)
-{
-    switch(chan) {
-        case 0:
-        case 1:
-        case 3:
-        case 4:
-            return true;
-    }
-    return false;
-}
-
-static inline bool is_div_chan(int chan) {
-    return chan == 5;
-}
-
 void e2k_gen_store_preg(int idx, TCGv_i64 val);
 
 void e2k_gen_reg_tag_read_i64(TCGv_i32 ret, TCGv_i32 idx);
@@ -381,6 +373,18 @@ void e2k_gen_reg_tag_check_i32(TCGv_i32 ret, TCGv_i32 tag);
 void e2k_gen_reg_index_from_wregi(TCGv_i32 ret, int idx);
 void e2k_gen_reg_index_from_bregi(TCGv_i32 ret, int idx);
 void e2k_gen_reg_index_from_gregi(TCGv_i32 ret, int idx);
+static inline void e2k_gen_reg_index(TCGv_i32 ret, uint8_t arg)
+{
+    if (IS_BASED(arg)) {
+        e2k_gen_reg_index_from_bregi(ret, GET_BASED(arg));
+    } else if (IS_REGULAR(arg)) {
+        e2k_gen_reg_index_from_wregi(ret, GET_REGULAR(arg));
+    } else if (IS_GLOBAL(arg)) {
+        e2k_gen_reg_index_from_gregi(ret, GET_GLOBAL(arg));
+    } else {
+        e2k_gen_exception(E2K_EXCP_ILLOPN);
+    }
+}
 
 void e2k_gen_reg_read_i64(TCGv_i64 ret, TCGv_i32 idx);
 void e2k_gen_reg_read_i32(TCGv_i32 ret, TCGv_i32 idx);
@@ -402,24 +406,13 @@ static inline void e2k_gen_cond_i64(DisasContext *ctx, TCGv_i64 ret,
     tcg_temp_free_i32(t0);
 }
 
-/* exception generated in translation time */
-void e2k_tr_gen_exception(DisasContext *dc, int which);
-
-/* exception generated in runtime */
-static inline void e2k_gen_exception(int excp)
-{
-    TCGv_i32 t0 = tcg_const_i32(excp);
-
-    // TODO: check if need to save state
-    gen_helper_raise_exception(cpu_env, t0);
-
-    tcg_temp_free_i32(t0);
-}
-
 void e2k_control_gen(DisasContext *dc);
 
 void e2k_alc_execute(DisasContext *ctx, int index);
 void e2k_alc_commit(DisasContext *dc);
+
+void e2k_aau_execute(DisasContext *ctx);
+void e2k_aau_commit(DisasContext *ctx);
 
 void e2k_plu_execute(DisasContext *ctx);
 void e2k_plu_commit(DisasContext *ctx);
