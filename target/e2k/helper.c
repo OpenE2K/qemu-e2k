@@ -325,8 +325,10 @@ void helper_setwd(CPUE2KState *env, uint32_t lts)
         bool dbl = extract32(lts, 3, 1);
         // TODO: set dbl
         if (dbl != false) {
-            abort();
+            qemu_log_mask(LOG_UNIMP, "0x%lx: dbl is not implemented!\n",
+                env->ip);
         }
+        env->cr1.wdbl = dbl;
     }
 
     ps_push(env);
