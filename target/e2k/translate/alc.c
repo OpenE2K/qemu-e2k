@@ -2293,7 +2293,7 @@ static void execute_ext_0f(DisasContext *ctx, Instr *instr)
     e2k_tr_gen_exception(ctx, E2K_EXCP_ILLOPC);
 }
 
-void e2k_alc_execute(DisasContext *ctx, int chan)
+static void chan_execute(DisasContext *ctx, int chan)
 {
     const UnpackedBundle *bundle = &ctx->bundle;
     uint16_t rlp = find_cond(ctx, chan);
@@ -2352,6 +2352,19 @@ void e2k_alc_execute(DisasContext *ctx, int chan)
 
     ctx->al_cond[chan].is_set = rlp != 0;
     ctx->al_cond[chan].value = cond;
+}
+
+void e2k_alc_execute(DisasContext *ctx)
+{
+    unsigned int i;
+
+    for (i = 0; i < 6; i++) {
+        ctx->al_results[i].type = AL_RESULT_NONE;
+
+        if (ctx->bundle.als_present[i]) {
+            chan_execute(ctx, i);
+        }
+    }
 }
 
 void e2k_alc_commit(DisasContext *ctx)
