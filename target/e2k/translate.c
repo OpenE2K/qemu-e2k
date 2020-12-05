@@ -284,20 +284,10 @@ static inline target_ulong do_decode(DisasContext *ctx, CPUState *cs)
  */
 static inline void do_execute(DisasContext *ctx)
 {
-    unsigned int i;
-
-    e2k_plu_execute(ctx);
-    e2k_control_gen(ctx);
-
-    for (i = 0; i < 6; i++) {
-        ctx->al_results[i].type = AL_RESULT_NONE;
-
-        if (ctx->bundle.als_present[i]) {
-            e2k_alc_execute(ctx, i);
-        }
-    }
-
+    e2k_control_execute(ctx);
+    e2k_alc_execute(ctx);
     e2k_aau_execute(ctx);
+    e2k_plu_execute(ctx);
 }
 
 /*
@@ -313,7 +303,7 @@ static inline void do_commit(DisasContext *ctx)
     e2k_alc_commit(ctx);
     e2k_aau_commit(ctx);
     e2k_plu_commit(ctx);
-    e2k_commit_stubs(ctx);
+    e2k_stubs_commit(ctx);
 }
 
 static inline void do_branch(DisasContext *ctx, target_ulong pc_next)
