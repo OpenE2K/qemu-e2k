@@ -1085,6 +1085,20 @@ static inline void gen_insert_field_i32(TCGv_i32 ret, TCGv_i32 src1,
     tcg_temp_free_i32(one);
 }
 
+static inline void gen_umulhd(TCGv_i64 ret, TCGv_i64 src1, TCGv_i64 src2)
+{
+    TCGv_i64 t0 = tcg_temp_new_i64();
+    tcg_gen_mulu2_i64(t0, ret, src1, src2);
+    tcg_temp_free_i64(t0);
+}
+
+static inline void gen_smulhd(TCGv_i64 ret, TCGv_i64 src1, TCGv_i64 src2)
+{
+    TCGv_i64 t0 = tcg_temp_new_i64();
+    tcg_gen_muls2_i64(t0, ret, src1, src2);
+    tcg_temp_free_i64(t0);
+}
+
 static inline void gen_rr_i64(DisasContext *ctx, int chan)
 {
     uint32_t als = ctx->bundle.als[chan];
@@ -1816,13 +1830,26 @@ static void execute_ext_01(DisasContext *dc, Instr *instr)
             return;
         }
         break;
-    case 0x58: {
+    case 0x58:
         if (is_chan_03(chan)) {
             gen_getsp(dc, chan);
             return;
         }
         break;
-    }
+    case 0x70:
+        if (is_chan_0134(chan)) {
+            /* umulhd */
+            gen_alopf1_i64(dc, chan, gen_umulhd);
+            return;
+        }
+        break;
+    case 0x71:
+        if (is_chan_0134(chan)) {
+            /* smulhd */
+            gen_alopf1_i64(dc, chan, gen_smulhd);
+            return;
+        }
+        break;
     default:
         break;
     }
