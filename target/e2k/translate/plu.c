@@ -103,8 +103,9 @@ void e2k_plu_execute(DisasContext *ctx)
     }
 
     for (i = 0; i < 3; i++) {
+        ctx->pl_results[i].reg = -1;
+
         if (!bundle->pls_present[i]) {
-            ctx->pl_results[i].reg = -1;
             continue;
         }
 
