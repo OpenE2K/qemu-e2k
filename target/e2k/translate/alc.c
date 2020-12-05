@@ -31,7 +31,8 @@ typedef struct {
             uint32_t unused1: 8;
         };
         struct {
-            uint32_t unused2: 8;
+            uint32_t dst_preg: 5;
+            uint32_t opc_cmp: 3;
             uint32_t lts: 2;
             uint32_t inc: 1;
             uint32_t ind_type: 1;
@@ -885,10 +886,13 @@ static inline void gen_merge_i32(TCGv_i32 ret, TCGv_i32 x, TCGv_i32 y, TCGv_i32 
     tcg_temp_free_i32(zero);
 }
 
-static inline void gen_merge_i64(TCGv_i64 ret, TCGv_i64 x, TCGv_i64 y, TCGv_i64 cond)
+static inline void gen_merge_i64(TCGv_i64 ret, TCGv_i64 x, TCGv_i64 y, TCGv_i32 cond)
 {
     TCGv_i64 zero = tcg_const_i64(0);
-    tcg_gen_movcond_i64(TCG_COND_EQ, ret, cond, zero, x, y);
+    TCGv_i64 t0 = tcg_temp_new_i64();
+    tcg_gen_extu_i32_i64(t0, cond);
+    tcg_gen_movcond_i64(TCG_COND_EQ, ret, t0, zero, x, y);
+    tcg_temp_free_i64(t0);
     tcg_temp_free_i64(zero);
 }
 
@@ -1403,13 +1407,10 @@ static void gen_alopf1_tag_i32(DisasContext *ctx, int chan,
     gen_al_result_i32(ctx, chan, dst, tag);
 }
 
-static void gen_alopf1_cmp_i64(DisasContext *ctx, int chan,
+static void gen_alopf1_cmp_i64(DisasContext *ctx, Instr *instr,
     void (*op)(TCGv_i64, int, TCGv_i64, TCGv_i64))
 {
-    uint32_t als = ctx->bundle.als[chan];
-    bool sm = extract32(als, 31, 1);
-    int opc = extract32(als, 5, 3);
-    int idx = extract32(als, 0, 5);
+    int chan = instr->chan;
     TCGLabel *l0 = gen_new_label();
     TCGLabel *l1 = gen_new_label();
     Src64 s1 = get_src1_i64(ctx, chan);
@@ -1418,24 +1419,21 @@ static void gen_alopf1_cmp_i64(DisasContext *ctx, int chan,
     TCGv_i32 t0 = tcg_temp_new_i32();
 
     gen_tag2_i64(t0, s1.tag, s2.tag);
-    gen_tag_check(ctx, sm, t0);
+    gen_tag_check(ctx, instr->sm, t0);
     tcg_gen_brcondi_i32(TCG_COND_NE, t0, 0, l0);
-    (*op)(dst, opc, s1.value, s2.value);
+    (*op)(dst, instr->opc_cmp, s1.value, s2.value);
     tcg_gen_br(l1);
     gen_set_label(l0);
     tcg_gen_movi_i64(dst, 2);
     gen_set_label(l1);
-    set_al_result_preg(ctx, chan, idx, dst);
+    set_al_result_preg(ctx, chan, instr->dst_preg, dst);
     tcg_temp_free_i32(t0);
 }
 
-static void gen_alopf1_cmp_i32(DisasContext *ctx, int chan,
+static void gen_alopf1_cmp_i32(DisasContext *ctx, Instr *instr,
     void (*op)(TCGv_i32, int, TCGv_i32, TCGv_i32))
 {
-    uint32_t als = ctx->bundle.als[chan];
-    bool sm = extract32(als, 31, 1);
-    int opc = extract32(als, 5, 3);
-    int idx = extract32(als, 0, 5);
+    int chan = instr->chan;
     TCGLabel *l0 = gen_new_label();
     TCGLabel *l1 = gen_new_label();
     Src32 s1 = get_src1_i32(ctx, chan);
@@ -1445,15 +1443,15 @@ static void gen_alopf1_cmp_i32(DisasContext *ctx, int chan,
     TCGv_i32 t1 = tcg_temp_new_i32();
 
     gen_tag2_i32(t0, s1.tag, s2.tag);
-    gen_tag_check(ctx, sm, t0);
+    gen_tag_check(ctx, instr->sm, t0);
     tcg_gen_brcondi_i32(TCG_COND_NE, t0, 0, l0);
-    (*op)(t1, opc, s1.value, s2.value);
+    (*op)(t1, instr->opc_cmp, s1.value, s2.value);
     tcg_gen_extu_i32_i64(dst, t1);
     tcg_gen_br(l1);
     gen_set_label(l0);
     tcg_gen_movi_i64(dst, 2);
     gen_set_label(l1);
-    set_al_result_preg(ctx, chan, idx, dst);
+    set_al_result_preg(ctx, chan, instr->dst_preg, dst);
     tcg_temp_free_i32(t1);
     tcg_temp_free_i32(t0);
 }
@@ -1478,11 +1476,9 @@ static void gen_alopf1_mrgc_i64(DisasContext *ctx, Instr *instr)
     Src64 s2 = get_src2_i64(ctx, chan);
     TCGv_i32 tag = e2k_get_temp_i32(ctx);
     TCGv_i64 dst = e2k_get_temp_i64(ctx);
-    TCGv_i64 t0 = tcg_temp_new_i64();
 
     gen_tag2_i64(tag, s1.tag, s2.tag);
-    tcg_gen_extu_i32_i64(t0, instr->mrgc);
-    gen_merge_i64(dst, s1.value, s2.value, t0);
+    gen_merge_i64(dst, s1.value, s2.value, instr->mrgc);
     gen_al_result_i64(ctx, chan, dst, tag);
 }
 
@@ -1575,28 +1571,28 @@ static void execute_ext_00(DisasContext *ctx, Instr *instr)
     case 0x20:
         if (is_chan_0134(chan)) {
             /* cmp{op}sb */
-            gen_alopf1_cmp_i32(ctx, chan, gen_cmp_i32);
+            gen_alopf1_cmp_i32(ctx, instr, gen_cmp_i32);
             return;
         }
         break;
     case 0x21:
         if (is_chan_0134(chan)) {
             /* cmp{op}db */
-            gen_alopf1_cmp_i64(ctx, chan, gen_cmp_i64);
+            gen_alopf1_cmp_i64(ctx, instr, gen_cmp_i64);
             return;
         }
         break;
     case 0x22:
         if (is_chan_0134(chan)) {
             /* cmpand{op}sb */
-            gen_alopf1_cmp_i32(ctx, chan, gen_cmpand_i32);
+            gen_alopf1_cmp_i32(ctx, instr, gen_cmpand_i32);
             return;
         }
         break;
     case 0x23:
         if (is_chan_0134(chan)) {
             /* cmpand{op}db */
-            gen_alopf1_cmp_i64(ctx, chan, gen_cmpand_i64);
+            gen_alopf1_cmp_i64(ctx, instr, gen_cmpand_i64);
             return;
         }
         break;
@@ -1840,6 +1836,402 @@ static void execute_ext_01(DisasContext *dc, Instr *instr)
     e2k_tr_gen_exception(dc, E2K_EXCP_ILLOPC);
 }
 
+static void execute_icomb_i64(DisasContext *ctx, Instr *instr)
+{
+    int opc1 = instr->opc1 & 0x1f;
+    int opc2 = instr->opc1 & 0x60;
+    Src64 s1 = get_src1_i64(ctx, instr->chan);
+    Src64 s2 = get_src2_i64(ctx, instr->chan);
+    Src64 s3 = get_src3_i64(ctx, instr->chan);
+    TCGv_i32 tag = e2k_get_temp_i32(ctx);
+    TCGv_i64 dst = e2k_get_temp_i64(ctx);
+
+    gen_tag3_i64(tag, s1.tag, s2.tag, s3.tag);
+    switch(opc1) {
+    case 0x01:
+        /* and_{op}d */
+        tcg_gen_and_i64(dst, s1.value, s2.value);
+        break;
+    case 0x03:
+        /* andn_{op}d */
+        gen_andn_i64(dst, s1.value, s2.value);
+        break;
+    case 0x05:
+        /* or_{op}d */
+        tcg_gen_or_i64(dst, s1.value, s2.value);
+        break;
+    case 0x07:
+        /* orn_{op}d */
+        gen_orn_i64(dst, s1.value, s2.value);
+        break;
+    case 0x09:
+        /* xor_{op}d */
+        tcg_gen_xor_i64(dst, s1.value, s2.value);
+        break;
+    case 0x0b:
+        /* xorn_{op}d */
+        gen_xorn_i64(dst, s1.value, s2.value);
+        break;
+    case 0x0f:
+        /* merge_{op}d */
+        gen_merge_i64(dst, s1.value, s2.value, instr->mrgc);
+        break;
+    case 0x11:
+        /* add_{op}d */
+        tcg_gen_add_i64(dst, s1.value, s2.value);
+        break;
+    case 0x13:
+        /* sub_{op}d */
+        tcg_gen_sub_i64(dst, s1.value, s2.value);
+        break;
+    case 0x15:
+        /* scl_{op}d */
+        tcg_gen_rotl_i64(dst, s1.value, s2.value);
+        break;
+    case 0x17:
+        /* scr_{op}d */
+        tcg_gen_rotr_i64(dst, s1.value, s2.value);
+        break;
+    case 0x19:
+        /* shl_{op}d */
+        tcg_gen_shl_i64(dst, s1.value, s2.value);
+        break;
+    case 0x1b:
+        /* shr_{op}d */
+        tcg_gen_shr_i64(dst, s1.value, s2.value);
+        break;
+    case 0x1d:
+        /* sar_{op}d */
+        tcg_gen_sar_i64(dst, s1.value, s2.value);
+        break;
+    case 0x1f:
+        /* gef_{op}d */
+        gen_getfd(dst, s1.value, s2.value);
+        break;
+    default:
+        e2k_tr_gen_exception(ctx, E2K_EXCP_ILLOPC);
+        return;
+    }
+
+    if (instr->opc2 == 0x08) {
+        switch (opc2) {
+        case 0x00:
+            /* {op}_andd */
+            tcg_gen_and_i64(dst, dst, s3.value);
+            break;
+        case 0x20:
+            /* {op}_andnd */
+            gen_andn_i64(dst, dst, s3.value);
+            break;
+        case 0x40:
+            /* {op}_ord */
+            tcg_gen_or_i64(dst, dst, s3.value);
+            break;
+        case 0x60:
+            /* {op}_ornd */
+            gen_orn_i64(dst, dst, s3.value);
+            break;
+        default:
+            g_assert_not_reached();
+            break;
+        }
+    } else if (instr->opc2 == 0x09) {
+        switch(opc2) {
+        case 0x00:
+            /* {op}_xord */
+            tcg_gen_xor_i64(dst, dst, s3.value);
+            break;
+        case 0x20:
+            /* {op}_xornd */
+            gen_xorn_i64(dst, dst, s3.value);
+            break;
+        case 0x40:
+            /* {op}_rsubd */
+            tcg_gen_sub_i64(dst, s3.value, dst);
+            break;
+        case 0x60:
+            /* {op}_merged */
+            if (ctx->version == 1) {
+                gen_merge_i64(dst, dst, s3.value, instr->mrgc);
+            } else {
+                e2k_tr_gen_exception(ctx, E2K_EXCP_ILLOPC);
+                return;
+            }
+            break;
+        default:
+            g_assert_not_reached();
+            break;
+        }
+    } else if (instr->opc2 == 0x0a) {
+        switch (opc2) {
+        case 0x00:
+            /* {op}_addd */
+            tcg_gen_add_i64(dst, dst, s3.value);
+            break;
+        case 0x20:
+            /* {op}_subd */
+            tcg_gen_sub_i64(dst, dst, s3.value);
+            break;
+        case 0x40:
+            /* {op}_scld */
+            if (ctx->version == 1) {
+                tcg_gen_rotl_i64(dst, dst, s3.value);
+            } else {
+                e2k_tr_gen_exception(ctx, E2K_EXCP_ILLOPC);
+                return;
+            }
+            break;
+        case 0x60:
+            /* {op}_scrd */
+            if (ctx->version == 1) {
+                tcg_gen_rotr_i64(dst, dst, s3.value);
+            } else {
+                e2k_tr_gen_exception(ctx, E2K_EXCP_ILLOPC);
+                return;
+            }
+            break;
+        default:
+            g_assert_not_reached();
+            break;
+        }
+    } else if (instr->opc2 == 0x0b) {
+        if (ctx->version != 1) {
+            e2k_tr_gen_exception(ctx, E2K_EXCP_ILLOPC);
+            return;
+        }
+
+        switch (opc2) {
+        case 0x00:
+            /* {op}_shld */
+            tcg_gen_shl_i64(dst, dst, s3.value);
+            break;
+        case 0x20:
+            /* {op}_shrd */
+            tcg_gen_shr_i64(dst, dst, s3.value);
+            break;
+        case 0x40:
+            /* {op}_sard */
+            tcg_gen_sar_i64(dst, dst, s3.value);
+            break;
+        case 0x60:
+            /* {op}_getfd */
+            gen_getfd(dst, dst, s3.value);
+            break;
+        default:
+            g_assert_not_reached();
+            break;
+        }
+    }
+
+    gen_al_result_i64(ctx, instr->chan, dst, tag);
+}
+
+static void execute_icomb_i32(DisasContext *ctx, Instr *instr)
+{
+    int opc1 = instr->opc1 & 0x1f;
+    int opc2 = instr->opc1 & 0x60;
+    Src32 s1 = get_src1_i32(ctx, instr->chan);
+    Src32 s2 = get_src2_i32(ctx, instr->chan);
+    Src32 s3 = get_src3_i32(ctx, instr->chan);
+    TCGv_i32 tag = e2k_get_temp_i32(ctx);
+    TCGv_i32 dst = e2k_get_temp_i32(ctx);
+
+    gen_tag3_i32(tag, s1.tag, s2.tag, s3.tag);
+    switch(opc1) {
+    case 0x00:
+        /* and_{op}s */
+        tcg_gen_and_i32(dst, s1.value, s2.value);
+        break;
+    case 0x02:
+        /* andn_{op}s */
+        gen_andn_i32(dst, s1.value, s2.value);
+        break;
+    case 0x04:
+        /* or_{op}s */
+        tcg_gen_or_i32(dst, s1.value, s2.value);
+        break;
+    case 0x06:
+        /* orn_{op}s */
+        gen_orn_i32(dst, s1.value, s2.value);
+        break;
+    case 0x08:
+        /* xor_{op}s */
+        tcg_gen_xor_i32(dst, s1.value, s2.value);
+        break;
+    case 0x0a:
+        /* xorn_{op}s */
+        gen_xorn_i32(dst, s1.value, s2.value);
+        break;
+    case 0x0e:
+        /* merge_{op}s */
+        gen_merge_i32(dst, s1.value, s2.value, instr->mrgc);
+        break;
+    case 0x10:
+        /* add_{op}s */
+        tcg_gen_add_i32(dst, s1.value, s2.value);
+        break;
+    case 0x12:
+        /* sub_{op}s */
+        tcg_gen_sub_i32(dst, s1.value, s2.value);
+        break;
+    case 0x14:
+        /* scl_{op}s */
+        tcg_gen_rotl_i32(dst, s1.value, s2.value);
+        break;
+    case 0x16:
+        /* scr_{op}s */
+        tcg_gen_rotr_i32(dst, s1.value, s2.value);
+        break;
+    case 0x18:
+        /* shl_{op}s */
+        tcg_gen_shl_i32(dst, s1.value, s2.value);
+        break;
+    case 0x1a:
+        /* shr_{op}s */
+        tcg_gen_shr_i32(dst, s1.value, s2.value);
+        break;
+    case 0x1c:
+        /* sar_{op}s */
+        tcg_gen_sar_i32(dst, s1.value, s2.value);
+        break;
+    case 0x1e:
+        /* gef_{op}s */
+        gen_getfs(dst, s1.value, s2.value);
+        break;
+    default:
+        e2k_tr_gen_exception(ctx, E2K_EXCP_ILLOPC);
+        return;
+    }
+
+    if (instr->opc2 == 0x08) {
+        switch (opc2) {
+        case 0x00:
+            /* {op}_ands */
+            tcg_gen_and_i32(dst, dst, s3.value);
+            break;
+        case 0x20:
+            /* {op}_andns */
+            gen_andn_i32(dst, dst, s3.value);
+            break;
+        case 0x40:
+            /* {op}_ors */
+            tcg_gen_or_i32(dst, dst, s3.value);
+            break;
+        case 0x60:
+            /* {op}_orns */
+            gen_orn_i32(dst, dst, s3.value);
+            break;
+        default:
+            g_assert_not_reached();
+            break;
+        }
+    } else if (instr->opc2 == 0x09) {
+        switch(opc2) {
+        case 0x00:
+            /* {op}_xors */
+            tcg_gen_xor_i32(dst, dst, s3.value);
+            break;
+        case 0x20:
+            /* {op}_xorns */
+            gen_xorn_i32(dst, dst, s3.value);
+            break;
+        case 0x40:
+            /* {op}_rsubs */
+            tcg_gen_sub_i32(dst, s3.value, dst);
+            break;
+        case 0x60:
+            /* {op}_merges */
+            if (ctx->version == 1) {
+                gen_merge_i32(dst, dst, s3.value, instr->mrgc);
+            } else {
+                e2k_tr_gen_exception(ctx, E2K_EXCP_ILLOPC);
+                return;
+            }
+            break;
+        default:
+            g_assert_not_reached();
+            break;
+        }
+    } else if (instr->opc2 == 0x0a) {
+        switch (opc2) {
+        case 0x00:
+            /* {op}_adds */
+            tcg_gen_add_i32(dst, dst, s3.value);
+            break;
+        case 0x20:
+            /* {op}_subs */
+            tcg_gen_sub_i32(dst, dst, s3.value);
+            break;
+        case 0x40:
+            /* {op}_scls */
+            if (ctx->version == 1) {
+                tcg_gen_rotl_i32(dst, dst, s3.value);
+            } else {
+                e2k_tr_gen_exception(ctx, E2K_EXCP_ILLOPC);
+                return;
+            }
+            break;
+        case 0x60:
+            /* {op}_scrs */
+            if (ctx->version == 1) {
+                tcg_gen_rotr_i32(dst, dst, s3.value);
+            } else {
+                e2k_tr_gen_exception(ctx, E2K_EXCP_ILLOPC);
+                return;
+            }
+            break;
+        default:
+            g_assert_not_reached();
+            break;
+        }
+    } else if (instr->opc2 == 0x0b) {
+        if (ctx->version != 1) {
+            e2k_tr_gen_exception(ctx, E2K_EXCP_ILLOPC);
+            return;
+        }
+
+        switch (opc2) {
+        case 0x00:
+            /* {op}_shls */
+            tcg_gen_shl_i32(dst, dst, s3.value);
+            break;
+        case 0x20:
+            /* {op}_shrs */
+            tcg_gen_shr_i32(dst, dst, s3.value);
+            break;
+        case 0x40:
+            /* {op}_sars */
+            tcg_gen_sar_i32(dst, dst, s3.value);
+            break;
+        case 0x60:
+            /* {op}_getfs */
+            gen_getfs(dst, dst, s3.value);
+            break;
+        default:
+            g_assert_not_reached();
+            break;
+        }
+    }
+
+    gen_al_result_i32(ctx, instr->chan, dst, tag);
+}
+
+static void execute_icomb(DisasContext *ctx, Instr *instr)
+{
+    if (!is_chan_14(instr->chan)) {
+        e2k_tr_gen_exception(ctx, E2K_EXCP_ILLOPC);
+        return;
+    }
+
+    assert(0x08 <= instr->opc2 && instr->opc2 <= 0x0b);
+
+    if (instr->opc1 & 1) {
+        execute_icomb_i64(ctx, instr);
+    } else {
+        execute_icomb_i32(ctx, instr);
+    }
+}
+
 static void execute_ext_0b(DisasContext *ctx, Instr *instr)
 {
     switch(instr->opc1) {
@@ -1858,10 +2250,9 @@ static void execute_ext_0b(DisasContext *ctx, Instr *instr)
         }
         break;
     default:
+        execute_icomb(ctx, instr);
         break;
     }
-
-    e2k_tr_gen_exception(ctx, E2K_EXCP_ILLOPC);
 }
 
 static void execute_ext_0f(DisasContext *ctx, Instr *instr)
@@ -1915,6 +2306,10 @@ void e2k_alc_execute(DisasContext *ctx, int chan)
         case 0x01:
             execute_ext_01(ctx, &instr);
             break;
+        case 0x08:
+        case 0x09:
+        case 0x0a:
+            execute_icomb(ctx, &instr);
         case 0x0b:
             execute_ext_0b(ctx, &instr);
             break;
@@ -1943,7 +2338,7 @@ void e2k_alc_commit(DisasContext *ctx)
     unsigned int i;
 
     for (i = 0; i < 6; i++) {
-        TCGLabel *l0;
+        TCGLabel *l0 = gen_new_label();
         AlResult *res = &ctx->al_results[i];
         AlCond *cond = &ctx->al_cond[i];
 
@@ -1952,7 +2347,6 @@ void e2k_alc_commit(DisasContext *ctx)
         }
 
         if (res->type != AL_RESULT_NONE && cond->is_set) {
-            l0 = gen_new_label();
             tcg_gen_brcondi_i64(TCG_COND_EQ, cond->value, 0, l0);
         }
 
@@ -1997,8 +2391,6 @@ void e2k_alc_commit(DisasContext *ctx)
             break;
         }
 
-        if (res->type != AL_RESULT_NONE && cond->is_set) {
-            gen_set_label(l0);
-        }
+        gen_set_label(l0);
     }
 }
