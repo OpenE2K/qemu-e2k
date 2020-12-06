@@ -360,7 +360,12 @@ static inline void set_al_result_reg64_tag(DisasContext *ctx, int chan,
         res->reg.v64 = value;
         res->reg.tag = tag;
         res->reg.index = e2k_get_temp_i32(ctx);
-        e2k_gen_reg_index(res->reg.index, arg);
+        if (IS_REGULAR(arg)) {
+            res->reg.dst = arg;
+        } else {
+            res->reg.dst = 0;
+            e2k_gen_reg_index(res->reg.index, arg);
+        }
     }
 }
 
@@ -392,7 +397,12 @@ static inline void set_al_result_reg32_tag(DisasContext *ctx, int chan,
         res->reg.v32 = value;
         res->reg.tag = tag;
         res->reg.index = e2k_get_temp_i32(ctx);
-        e2k_gen_reg_index(res->reg.index, arg);
+        if (IS_REGULAR(arg)) {
+            res->reg.dst = arg;
+        } else {
+            res->reg.dst = 0;
+            e2k_gen_reg_index(res->reg.index, arg);
+        }
     }
 }
 
@@ -2370,6 +2380,17 @@ void e2k_alc_execute(DisasContext *ctx)
 void e2k_alc_commit(DisasContext *ctx)
 {
     unsigned int i;
+
+    for (i = 0; i < 6; i++) {
+        AlResult *res = &ctx->al_results[i];
+
+        if (res->type == AL_RESULT_REG32 || res->type == AL_RESULT_REG64) {
+            uint8_t dst = res->reg.dst;
+            if (IS_REGULAR(dst)) {
+                e2k_gen_reg_index_from_wregi(res->reg.index, GET_REGULAR(dst));
+            }
+        }
+    }
 
     for (i = 0; i < 6; i++) {
         TCGLabel *l0 = gen_new_label();
