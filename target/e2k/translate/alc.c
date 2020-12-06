@@ -1095,6 +1095,30 @@ static inline void gen_insert_field_i32(TCGv_i32 ret, TCGv_i32 src1,
     tcg_temp_free_i32(one);
 }
 
+static inline void gen_umulx(TCGv_i64 ret, TCGv_i32 src1, TCGv_i32 src2)
+{
+    TCGv_i32 l = tcg_temp_new_i32();
+    TCGv_i32 h = tcg_temp_new_i32();
+
+    tcg_gen_mulu2_i32(l, h, src1, src2);
+    tcg_gen_concat_i32_i64(ret, l, h);
+
+    tcg_temp_free_i32(h);
+    tcg_temp_free_i32(l);
+}
+
+static inline void gen_smulx(TCGv_i64 ret, TCGv_i32 src1, TCGv_i32 src2)
+{
+    TCGv_i32 l = tcg_temp_new_i32();
+    TCGv_i32 h = tcg_temp_new_i32();
+
+    tcg_gen_muls2_i32(l, h, src1, src2);
+    tcg_gen_concat_i32_i64(ret, l, h);
+
+    tcg_temp_free_i32(h);
+    tcg_temp_free_i32(l);
+}
+
 static inline void gen_umulhd(TCGv_i64 ret, TCGv_i64 src1, TCGv_i64 src2)
 {
     TCGv_i64 t0 = tcg_temp_new_i64();
@@ -1431,6 +1455,19 @@ static void gen_alopf1_i32(DisasContext *ctx, int chan,
     gen_tag2_i32(tag, s1.tag, s2.tag);
     (*op)(dst, s1.value, s2.value);
     gen_al_result_i32(ctx, chan, dst, tag);
+}
+
+static void gen_alopf1_i32_i64(DisasContext *ctx, int chan,
+    void (*op)(TCGv_i64, TCGv_i32, TCGv_i32))
+{
+    Src32 s1 = get_src1_i32(ctx, chan);
+    Src32 s2 = get_src2_i32(ctx, chan);
+    TCGv_i32 tag = e2k_get_temp_i32(ctx);
+    TCGv_i64 dst = e2k_get_temp_i64(ctx);
+
+    gen_tag2_i32(tag, s1.tag, s2.tag);
+    (*op)(dst, s1.value, s2.value);
+    gen_al_result_i64(ctx, chan, dst, tag);
 }
 
 static void gen_alopf1_tag_i64(DisasContext *ctx, int chan,
@@ -1846,6 +1883,20 @@ static void execute_ext_01(DisasContext *dc, Instr *instr)
             return;
         }
         break;
+    case 0x22:
+        if (is_chan_0134(chan)) {
+            /* umulx */
+            gen_alopf1_i32_i64(dc, chan, gen_umulx);
+            return;
+        }
+        break;
+    case 0x23:
+        if (is_chan_0134(chan)) {
+            /* smulx */
+            gen_alopf1_i32_i64(dc, chan, gen_smulx);
+            return;
+        }
+        break;
     case 0x3c:
         if (chan == 0) {
             /* rws */
@@ -1876,6 +1927,7 @@ static void execute_ext_01(DisasContext *dc, Instr *instr)
         break;
     case 0x58:
         if (is_chan_03(chan)) {
+            /* getsp */
             gen_getsp(dc, chan);
             return;
         }
