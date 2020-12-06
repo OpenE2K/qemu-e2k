@@ -363,51 +363,7 @@ static void gen_cs1(DisasContext *dc)
     unsigned int cs1 = bundle->cs1;
     unsigned int opc = (cs1 & 0xf0000000) >> 28;
 
-    if (opc == SETR0 || opc == SETR1 || opc == SETBR) {
-        unsigned int setbp = (cs1 & 0x08000000) >> 27;
-        unsigned int setbn = (cs1 & 0x04000000) >> 26;
-
-        if (opc == SETR1) {
-            if (! bundle->lts_present[0]) {
-                e2k_tr_gen_exception(dc, E2K_EXCP_ILLOPC);
-            } else {
-                /* Find out if VFRPSZ is always encoded together with SETWD. This
-                seems to be the case even if no SETWD has been explicitly
-                specified.  */
-//                unsigned int rpsz = (bundle->lts[0] & 0x0001f000) >> 12;
-                abort();
-            }
-        }
-
-        if (opc == SETR0 || opc == SETR1) {
-            if (! bundle->lts_present[0]) {
-                e2k_tr_gen_exception(dc, E2K_EXCP_ILLOPC);
-            } else {
-                TCGv_i32 lts = tcg_const_i32(bundle->lts[0]);
-
-                gen_helper_setwd(cpu_env, lts);
-
-                tcg_temp_free_i32(lts);
-            }
-        }
-
-        if (setbn) {
-            int rbs = GET_FIELD(cs1, BR_RBS_OFF, BR_RBS_LEN);
-            int rsz = GET_FIELD(cs1, BR_RSZ_OFF, BR_RSZ_LEN);
-            int rcur = GET_FIELD(cs1, BR_RCUR_OFF, BR_RCUR_LEN);
-
-            tcg_gen_movi_i32(e2k_cs.boff, rbs * 2);
-            tcg_gen_movi_i32(e2k_cs.bsize, (rsz + 1) * 2);
-            tcg_gen_movi_i32(e2k_cs.bcur, rcur * 2);
-        }
-
-        if (setbp) {
-            int psz = GET_FIELD(cs1, BR_PSZ_OFF, BR_PSZ_LEN);
-
-            tcg_gen_movi_i32(e2k_cs.psize, psz);
-            tcg_gen_movi_i32(e2k_cs.pcur, 0);
-        }
-    } else if (opc == SETEI) {
+    if (opc == SETEI) {
         bool sft = GET_BIT(cs1, 27);
 
         if (sft) {
@@ -498,8 +454,6 @@ static void gen_cs1(DisasContext *dc)
 
         // TODO: vfbg
         abort();
-    } else {
-        e2k_tr_gen_exception(dc, E2K_EXCP_ILLOPC);
     }
 }
 
@@ -620,19 +574,88 @@ static void gen_jmp(DisasContext *dc)
     }
 }
 
-void e2k_control_execute(DisasContext *dc)
+void e2k_control_window_change(DisasContext *dc)
 {
-    dc->ct.type = CT_NONE;
+    enum {
+        SETR0,
+        SETR1,
+        SETEI,
+        WAIT,
+        SETBR,
+        CALL,
+        MAS_OPC,
+        FLUSHR,
+        BG
+    };
 
-    if (dc->bundle.ss_present) {
-        gen_jmp(dc);
+    const UnpackedBundle *bundle = &dc->bundle;
+    uint32_t cs1 = bundle->cs1;
+    int opc = extract32(cs1, 28, 4);
+
+    if (!dc->bundle.cs1_present) {
+        return;
     }
 
-    if (dc->bundle.cs0_present) {
-        gen_cs0(dc);
+    if (opc == SETR0 || opc == SETR1 || opc == SETBR) {
+        bool setbp = (cs1 >> 27) & 1;
+        bool setbn = (cs1 >> 26) & 1;
+
+        if (opc == SETR1) {
+            if (!bundle->lts_present[0]) {
+                e2k_tr_gen_exception(dc, E2K_EXCP_ILLOPC);
+            } else {
+                /* Find out if VFRPSZ is always encoded together with SETWD. This
+                seems to be the case even if no SETWD has been explicitly
+                specified.  */
+//                unsigned int rpsz = (bundle->lts[0] & 0x0001f000) >> 12;
+                qemu_log_mask(LOG_UNIMP, "0x%lx: vfrpsz is not implemented!",
+                    dc->pc);
+            }
+        }
+
+        if (opc == SETR0 || opc == SETR1) {
+            if (!bundle->lts_present[0]) {
+                e2k_tr_gen_exception(dc, E2K_EXCP_ILLOPC);
+            } else {
+                TCGv_i32 lts = tcg_const_i32(bundle->lts[0]);
+
+                gen_helper_setwd(cpu_env, lts);
+                tcg_temp_free_i32(lts);
+            }
+        }
+
+        if (setbn) {
+            int rbs = GET_FIELD(cs1, BR_RBS_OFF, BR_RBS_LEN);
+            int rsz = GET_FIELD(cs1, BR_RSZ_OFF, BR_RSZ_LEN);
+            int rcur = GET_FIELD(cs1, BR_RCUR_OFF, BR_RCUR_LEN);
+
+            tcg_gen_movi_i32(e2k_cs.boff, rbs * 2);
+            tcg_gen_movi_i32(e2k_cs.bsize, (rsz + 1) * 2);
+            tcg_gen_movi_i32(e2k_cs.bcur, rcur * 2);
+        }
+
+        if (setbp) {
+            int psz = GET_FIELD(cs1, BR_PSZ_OFF, BR_PSZ_LEN);
+
+            tcg_gen_movi_i32(e2k_cs.psize, psz);
+            tcg_gen_movi_i32(e2k_cs.pcur, 0);
+        }
+    }
+}
+
+void e2k_control_execute(DisasContext *ctx)
+{
+    ctx->ct.type = CT_NONE;
+
+    if (ctx->bundle.ss_present) {
+        gen_jmp(ctx);
     }
 
-    if (dc->bundle.cs1_present) {
-        gen_cs1(dc);
+    if (ctx->bundle.cs0_present) {
+        gen_cs0(ctx);
+    }
+
+    if (ctx->bundle.cs1_present) {
+        gen_cs1(ctx);
     }
 }
