@@ -6,7 +6,7 @@
 #include "exec/helper-proto.h"
 #include "translate.h"
 
-uint64_t helper_sxt(uint64_t x, uint64_t y)
+uint64_t helper_sxt(uint64_t x, uint32_t y)
 {
     int size;
 
