@@ -114,6 +114,7 @@ typedef struct {
     AlResultType type;
     union {
         struct {
+            uint8_t dst;    /* %rN, 1st phase */
             TCGv_i32 index;
             union {
                 TCGv_i32 v32;
@@ -407,6 +408,7 @@ static inline void e2k_gen_cond_i64(DisasContext *ctx, TCGv_i64 ret,
 }
 
 void e2k_control_execute(DisasContext *ctx);
+void e2k_control_window_change(DisasContext *ctx);
 void e2k_stubs_commit(DisasContext *ctx);
 
 void e2k_alc_execute(DisasContext *ctx);
