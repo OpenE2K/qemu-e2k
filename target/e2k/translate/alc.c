@@ -1155,6 +1155,18 @@ static inline void gen_rw_i32(DisasContext *ctx, int chan)
     tcg_temp_free_i32(t0);
 }
 
+static void gen_sxt(DisasContext *ctx, int chan)
+{
+    Src64 s1 = get_src1_i64(ctx, chan);
+    Src32 s2 = get_src2_i32(ctx, chan);
+    TCGv_i32 tag = e2k_get_temp_i32(ctx);
+    TCGv_i64 dst = e2k_get_temp_i64(ctx);
+
+    gen_tag2_i64(tag, s1.tag, s2.tag);
+    gen_helper_sxt(dst, s1.value, s2.value);
+    gen_al_result_i64(ctx, chan, dst, tag);
+}
+
 static void gen_getsp(DisasContext *ctx, int chan)
 {
     Src32 s2 = get_src2_i32(ctx, chan);
@@ -1182,7 +1194,6 @@ static MemOp gen_mas(DisasContext *ctx, int chan, MemOp memop, TCGv_i64 addr)
 //        e2k_tr_gen_exception(ctx, E2K_EXCP_ILLOPC);
         qemu_log_mask(LOG_UNIMP, "0x%lx: mas=%#x, opc=%#x is not implemented!\n",
             ctx->pc, mas, opc);
-        return 0;
     } else if (mas) {
         int mod = extract8(mas, 0, 3);
 //        int dc = extract8(mas, 5, 2);
@@ -1237,7 +1248,7 @@ static void gen_ld(DisasContext *ctx, int chan, MemOp memop)
     tcg_temp_free_i64(t0);
 }
 
-static void gen_st(DisasContext *ctx, int chan, MemOp memop)
+static void gen_st_i64(DisasContext *ctx, int chan, MemOp memop)
 {
     bool sm = GET_BIT(ctx->bundle.als[chan], 31);
     TCGLabel *l0 = gen_new_label();
@@ -1252,11 +1263,6 @@ static void gen_st(DisasContext *ctx, int chan, MemOp memop)
     tcg_gen_add_i64(t0, s1.value, s2.value);
     memop = gen_mas(ctx, chan, memop, t0);
 
-    if (memop == 0) {
-        // TODO: memop is zero after gen_mas
-        tcg_gen_br(l0);
-    }
-
     if (sm) {
         TCGv_i32 t1 = tcg_temp_new_i32();
         gen_helper_probe_write_access(t1, cpu_env, t0);
@@ -1265,6 +1271,34 @@ static void gen_st(DisasContext *ctx, int chan, MemOp memop)
     }
 
     tcg_gen_qemu_st_i64(s4.value, t0, ctx->mmuidx, memop);
+    gen_set_label(l0);
+
+    tcg_temp_free_i64(t0);
+}
+
+static void gen_st_i32(DisasContext *ctx, int chan, MemOp memop)
+{
+    bool sm = GET_BIT(ctx->bundle.als[chan], 31);
+    TCGLabel *l0 = gen_new_label();
+    Src64 s1 = get_src1_i64(ctx, chan);
+    Src64 s2 = get_src2_i64(ctx, chan);
+    Src32 s4 = get_src4_i32(ctx, chan);
+    TCGv_i64 t0 = tcg_temp_local_new_i64();
+
+    gen_tag_check(ctx, sm, s1.tag);
+    gen_tag_check(ctx, sm, s2.tag);
+    gen_tag_check(ctx, sm, s4.tag);
+    tcg_gen_add_i64(t0, s1.value, s2.value);
+    memop = gen_mas(ctx, chan, memop, t0);
+
+    if (sm) {
+        TCGv_i32 t1 = tcg_temp_new_i32();
+        gen_helper_probe_write_access(t1, cpu_env, t0);
+        tcg_gen_brcondi_i32(TCG_COND_EQ, t1, 0, l0);
+        tcg_temp_free_i32(t1);
+    }
+
+    tcg_gen_qemu_st_i32(s4.value, t0, ctx->mmuidx, memop);
     gen_set_label(l0);
 
     tcg_temp_free_i64(t0);
@@ -1567,7 +1601,7 @@ static void execute_ext_00(DisasContext *ctx, Instr *instr)
     case 0x09: /* xord */ gen_alopf1_i64(ctx, chan, tcg_gen_xor_i64); return;
     case 0x0a: /* xorns */ gen_alopf1_i32(ctx, chan, gen_xorn_i32); return;
     case 0x0b: /* xornd */ gen_alopf1_i64(ctx, chan, gen_xorn_i64); return;
-    case 0x0c: /* sxt */ gen_alopf1_i64(ctx, chan, gen_helper_sxt); return;
+    case 0x0c: /* sxt */ gen_sxt(ctx, chan); return;
     case 0x0e: /* merges */ gen_alopf1_mrgc_i32(ctx, instr); return;
     case 0x0f: /* merged */ gen_alopf1_mrgc_i64(ctx, instr); return;
     case 0x10: /* adds */ gen_alopf1_i32(ctx, chan, tcg_gen_add_i32); return;
@@ -1617,7 +1651,7 @@ static void execute_ext_00(DisasContext *ctx, Instr *instr)
     case 0x24: {
         if (is_chan_25(chan)) {
             /* stb */
-            gen_st(ctx, chan, MO_UB);
+            gen_st_i32(ctx, chan, MO_UB);
             return;
         }
         break;
@@ -1625,7 +1659,7 @@ static void execute_ext_00(DisasContext *ctx, Instr *instr)
     case 0x25: {
         if (is_chan_25(chan)) {
             /* sth */
-            gen_st(ctx, chan, MO_UW);
+            gen_st_i32(ctx, chan, MO_UW);
             return;
         }
         break;
@@ -1633,7 +1667,7 @@ static void execute_ext_00(DisasContext *ctx, Instr *instr)
     case 0x26: {
         if (is_chan_25(chan)) {
             /* stw */
-            gen_st(ctx, chan, MO_UL);
+            gen_st_i32(ctx, chan, MO_UL);
             return;
         } else if(instr->opce1 == 0xc0 && ctx->version >= 2) {
             /* bitrevs */
@@ -1645,7 +1679,7 @@ static void execute_ext_00(DisasContext *ctx, Instr *instr)
     case 0x27: {
         if (is_chan_25(chan)) {
             /* std */
-            gen_st(ctx, chan, MO_Q);
+            gen_st_i64(ctx, chan, MO_Q);
             return;
         } else if(instr->opce1 == 0xc0 && ctx->version >= 2) {
             /* bitrevd */
