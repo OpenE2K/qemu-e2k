@@ -242,8 +242,10 @@ typedef enum {
 } Exception;
 
 struct e2k_def_t {
-	const char *name;
-	uint32_t isa_version;
+    const char *name;
+    const char *canonical_name;
+    const char *gdb_arch;
+    uint32_t isa_version;
 };
 
 typedef struct {
@@ -460,12 +462,14 @@ static inline void cpu_get_tb_cpu_state(CPUE2KState *env, target_ulong *pc,
 }
 
 void e2k_cpu_do_interrupt(CPUState *cs);
+void e2k_cpu_list(void);
 int e2k_cpu_signal_handler(int host_signum, void *pinfo, void *puc);
 int e2k_cpu_gdb_read_register(CPUState *cs, GByteArray *mem_buf, int n);
 int e2k_cpu_gdb_write_register(CPUState *cs, uint8_t *mem_buf, int n);
 void e2k_break_save_state(CPUE2KState *env);
 
 #define cpu_signal_handler e2k_cpu_signal_handler
+#define cpu_list e2k_cpu_list
 
 static inline uint64_t e2k_state_desc_lo(E2KDescState *desc)
 {
