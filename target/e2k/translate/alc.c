@@ -258,6 +258,9 @@ static inline Src32 get_src4_i32(DisasContext *ctx, int chan)
     return ret;
 }
 
+/*
+ * Returns zero if all @args is zero otherwise returns @tag.
+ */
 static inline void gen_tag3(TCGv_i32 ret, int tag, TCGv_i32 arg1, TCGv_i32 arg2,
     TCGv_i32 arg3)
 {
@@ -293,11 +296,19 @@ static inline void gen_tag1(TCGv_i32 ret, int tag, TCGv_i32 arg1)
     gen_tag2(ret, tag, arg1, NULL);
 }
 
-#define gen_tag3_i64(ret, a1, a2, a3) gen_tag3((ret), 5, (a1), (a2), (a3))
+/*
+ * Returns zero if all @args is zero otherwise returns tag of non 64-bit number.
+ */
+#define gen_tag3_i64(ret, a1, a2, a3) \
+    gen_tag3((ret), E2K_TAG_NON_NUMBER64, (a1), (a2), (a3))
 #define gen_tag2_i64(ret, a1, a2) gen_tag3_i64((ret), (a1), (a2), NULL)
 #define gen_tag1_i64(ret, a1) gen_tag2_i64((ret), (a1), NULL)
 
-#define gen_tag3_i32(ret, a1, a2, a3) gen_tag3((ret), 1, (a1), (a2), (a3))
+/*
+ * Returns zero if all @args is zero otherwise returns tag of non 32-bit number.
+ */
+#define gen_tag3_i32(ret, a1, a2, a3) \
+    gen_tag3((ret), E2K_TAG_NON_NUMBER32, (a1), (a2), (a3))
 #define gen_tag2_i32(ret, a1, a2) gen_tag3_i32((ret), (a1), (a2), NULL)
 #define gen_tag1_i32(ret, a1) gen_tag2_i32((ret), (a1), NULL)
 
@@ -1465,7 +1476,7 @@ static void gen_alopf1_i32_i64(DisasContext *ctx, int chan,
     TCGv_i32 tag = e2k_get_temp_i32(ctx);
     TCGv_i64 dst = e2k_get_temp_i64(ctx);
 
-    gen_tag2_i32(tag, s1.tag, s2.tag);
+    gen_tag2_i64(tag, s1.tag, s2.tag);
     (*op)(dst, s1.value, s2.value);
     gen_al_result_i64(ctx, chan, dst, tag);
 }
