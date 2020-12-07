@@ -38,6 +38,13 @@ void e2k_tcg_initialize(void);
 
 #define E2K_PR_COUNT 32     /* %predN   [0, 32) */
 
+typedef enum {
+    E2K_TAG_NUMBER32 = 0,
+    E2K_TAG_NUMBER64 = 0,
+    E2K_TAG_NON_NUMBER32 = 1,
+    E2K_TAG_NON_NUMBER64 = 5,
+} E2kRegisterTag;
+
 #define CTPR_BASE_OFF 0
 #define CTPR_BASE_END 47
 #define CTPR_BASE_LEN (CTPR_BASE_END - CTPR_BASE_OFF + 1)
