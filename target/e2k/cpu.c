@@ -279,7 +279,6 @@ static struct TCGCPUOps e2k_tcg_ops = {
     .cpu_exec_interrupt = e2k_cpu_exec_interrupt,
     .tlb_fill = e2k_cpu_tlb_fill,
 #endif
-};
 
 static void e2k_cpu_class_init(ObjectClass *oc, void *data)
 {
