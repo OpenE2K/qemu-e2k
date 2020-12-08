@@ -325,7 +325,7 @@ static inline void do_branch(DisasContext *ctx, target_ulong pc_next)
 
     if (ctx->ct.is_branch) {
         TCGLabel *l0 = gen_new_label();
-        tcg_gen_brcondi_tl(TCG_COND_NE, e2k_cs.ct_cond, 0, l0);
+        tcg_gen_brcondi_i32(TCG_COND_NE, e2k_cs.ct_cond, 0, l0);
         gen_goto_tb(ctx, TB_EXIT_IDX0, ctx->pc, pc_next);
         gen_set_label(l0);
     }
@@ -402,7 +402,7 @@ static void e2k_tr_tb_start(DisasContextBase *db, CPUState *cs)
 {
 //    DisasContext *ctx = container_of(db, DisasContext, base);
 
-    tcg_gen_movi_tl(e2k_cs.ct_cond, 0);
+    tcg_gen_movi_i32(e2k_cs.ct_cond, 0);
 }
 
 static void e2k_tr_insn_start(DisasContextBase *db, CPUState *cs)
@@ -500,6 +500,7 @@ void e2k_tcg_initialize(void) {
         { &e2k_cs.aasti_tags, offsetof(CPUE2KState, aau.sti_tags), "aasti_tags" },
         { &e2k_cs.aaind_tags, offsetof(CPUE2KState, aau.ind_tags), "aaind_tags" },
         { &e2k_cs.aaincr_tags, offsetof(CPUE2KState, aau.incr_tags), "aaincr_tags" },
+        { &e2k_cs.ct_cond, offsetof(CPUE2KState, ct_cond), "cond" },
     };
 
     static const struct { TCGv_i64 *ptr; int off; const char *name; } r64[] = {
@@ -510,7 +511,6 @@ void e2k_tcg_initialize(void) {
     static const struct { TCGv *ptr; int off; const char *name; } rtl[] = {
         { &e2k_cs.pc, offsetof(CPUE2KState, ip), "pc" },
         { &e2k_cs.npc, offsetof(CPUE2KState, nip), "npc" },
-        { &e2k_cs.ct_cond, offsetof(CPUE2KState, ct_cond), "cond" },
     };
 
     unsigned int i;

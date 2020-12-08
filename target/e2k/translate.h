@@ -4,21 +4,6 @@
 #include "tcg/tcg-op.h"
 #include "exec/translator.h"
 
-/* ibranch disp */
-#define DISAS_JUMP_STATIC DISAS_TARGET_0
-/* ibranch disp ? cond */
-#define DISAS_BRANCH_STATIC DISAS_TARGET_1
-/*
- * ct %ctprN
- * call %ctprN, wbs=M
- * */
-#define DISAS_JUMP DISAS_TARGET_2
-/*
- * ct %ctprN ? cond
- * call %ctprN, wbs=M ? cond
- */
-#define DISAS_BRANCH DISAS_TARGET_3
-
 #define IS_BASED(i) (((i) & 0x80) == 0)
 #define IS_REGULAR(i) (((i) & 0xc0) == 0x80)
 #define IS_IMM5(i) (((i) & 0xe0) == 0xc0)
@@ -52,7 +37,7 @@ typedef struct CPUE2KStateTCG {
     TCGv pc;
     TCGv npc;
     TCGv_i64 ctprs[3];
-    TCGv ct_cond;
+    TCGv_i32 ct_cond;
     TCGv_i32 is_bp; /* breakpoint flag */
     TCGv_i64 lsr;
     TCGv_i64 regs[E2K_REG_COUNT];
@@ -186,6 +171,9 @@ typedef struct DisasContext {
     int jump_ctpr;
     int mmuidx;
     uint8_t mas[6];
+    bool loop_mode;
+    TCGv_i32 is_prologue;
+    TCGv_i32 is_epilogue;
 
     int version;
 
@@ -312,23 +300,67 @@ static inline TCGv e2k_get_temp(DisasContext *dc)
     return dc->ttl[dc->ttl_len++] = tcg_temp_local_new();
 }
 
-static inline void e2k_gen_lcnt(TCGv_i64 ret)
+static inline void e2k_gen_lcnt_i64(TCGv_i64 ret)
 {
     tcg_gen_andi_i64(ret, e2k_cs.lsr, (1UL << 32) - 1);
 }
 
-static inline void e2k_gen_ecnt(TCGv_i64 ret)
+static inline void e2k_gen_lcnt_i32(TCGv_i32 ret)
+{
+    TCGv_i64 t0 = tcg_temp_new_i64();
+
+    e2k_gen_lcnt_i64(t0);
+    tcg_gen_extrl_i64_i32(ret, t0);
+    tcg_temp_free_i64(t0);
+}
+
+static inline void e2k_gen_lcnt_set_i32(TCGv_i32 value)
+{
+    TCGv_i64 t0 = tcg_temp_new_i64();
+
+    tcg_gen_extu_i32_i64(t0, value);
+    tcg_gen_deposit_i64(e2k_cs.lsr, e2k_cs.lsr, t0, LSR_LCNT_OFF, LSR_LCNT_LEN);
+    tcg_temp_free_i64(t0);
+}
+
+static inline void e2k_gen_ecnt_i64(TCGv_i64 ret)
 {
     tcg_gen_extract_i64(ret, e2k_cs.lsr, LSR_ECNT_OFF, LSR_ECNT_LEN);
 }
 
-static inline void e2k_gen_pcnt(TCGv_i32 ret)
+static inline void e2k_gen_ecnt_i32(TCGv_i32 ret)
+{
+    TCGv_i64 t0 = tcg_temp_new_i64();
+
+    e2k_gen_ecnt_i64(t0);
+    tcg_gen_extrl_i64_i32(ret, t0);
+    tcg_temp_free_i64(t0);
+}
+
+static inline void e2k_gen_ecnt_set_i32(TCGv_i32 value)
+{
+    TCGv_i64 t0 = tcg_temp_new_i64();
+
+    tcg_gen_extu_i32_i64(t0, value);
+    tcg_gen_deposit_i64(e2k_cs.lsr, e2k_cs.lsr, t0, LSR_ECNT_OFF, LSR_ECNT_LEN);
+    tcg_temp_free_i64(t0);
+}
+
+static inline void e2k_gen_pcnt_i32(TCGv_i32 ret)
 {
     TCGv_i64 t0 = tcg_temp_new_i64();
 
     tcg_gen_extract_i64(t0, e2k_cs.lsr, LSR_PCNT_OFF, LSR_PCNT_LEN);
     tcg_gen_extrl_i64_i32(ret, t0);
+    tcg_temp_free_i64(t0);
+}
 
+static inline void e2k_gen_pcnt_set_i32(TCGv_i32 value)
+{
+    TCGv_i64 t0 = tcg_temp_new_i64();
+
+    tcg_gen_extu_i32_i64(t0, value);
+    tcg_gen_deposit_i64(e2k_cs.lsr, e2k_cs.lsr, t0, LSR_PCNT_OFF, LSR_PCNT_LEN);
     tcg_temp_free_i64(t0);
 }
 
@@ -397,7 +429,8 @@ void e2k_gen_reg_read_i32(TCGv_i32 ret, TCGv_i32 idx);
 void e2k_gen_reg_write_i64(TCGv_i64 value, TCGv_i32 idx);
 void e2k_gen_reg_write_i32(TCGv_i32 value, TCGv_i32 idx);
 
-void e2k_gen_preg(TCGv_i64 ret, int reg);
+void e2k_gen_preg_i64(TCGv_i64 ret, int reg);
+void e2k_gen_preg_i32(TCGv_i32 ret, int reg);
 TCGv_i64 e2k_get_preg(DisasContext *dc, int reg);
 void e2k_gen_cond_i32(DisasContext *ctx, TCGv_i32 ret, uint8_t psrc);
 
@@ -409,6 +442,42 @@ static inline void e2k_gen_cond_i64(DisasContext *ctx, TCGv_i64 ret,
     e2k_gen_cond_i32(ctx, t0, psrc);
     tcg_gen_extu_i32_i64(ret, t0);
 
+    tcg_temp_free_i32(t0);
+}
+
+static inline void e2k_gen_is_last_iter(TCGv_i32 ret)
+{
+    TCGv_i32 t0 = tcg_temp_new_i32();
+    TCGv_i32 t1 = tcg_temp_new_i32();
+    TCGv_i64 t2 = tcg_temp_new_i64();
+    TCGv_i32 t3 = tcg_temp_new_i32();
+
+    e2k_gen_lcnt_i32(t0);
+    tcg_gen_setcondi_i32(TCG_COND_LTU, t1, t0, 2);
+    tcg_gen_andi_i64(t2, e2k_cs.lsr, LSR_VLC_BIT);
+    tcg_gen_setcondi_i64(TCG_COND_NE, t2, t2, 0);
+    tcg_gen_extrl_i64_i32(t3, t2);
+    tcg_gen_and_i32(ret, t1, t3);
+
+    tcg_temp_free_i32(t3);
+    tcg_temp_free_i64(t2);
+    tcg_temp_free_i32(t1);
+    tcg_temp_free_i32(t0);
+}
+
+static inline void e2k_gen_is_loop_end_i32(TCGv_i32 ret)
+{
+    TCGv_i32 t0 = tcg_temp_new_i32();
+    TCGv_i32 t1 = tcg_temp_new_i32();
+    TCGv_i32 t2 = tcg_temp_new_i32();
+
+    e2k_gen_ecnt_i32(t0);
+    tcg_gen_setcondi_i32(TCG_COND_EQ, t1, t0, 0);
+    e2k_gen_is_last_iter(t2);
+    tcg_gen_and_i32(ret, t1, t2);
+
+    tcg_temp_free_i32(t2);
+    tcg_temp_free_i32(t1);
     tcg_temp_free_i32(t0);
 }
 

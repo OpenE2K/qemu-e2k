@@ -54,7 +54,7 @@ static void gen_preg_clear(TCGv_i64 ret, TCGv_i64 offset)
     tcg_temp_free_i64(t0);
 }
 
-void e2k_gen_preg(TCGv_i64 ret, int reg)
+void e2k_gen_preg_i64(TCGv_i64 ret, int reg)
 {
     TCGv_i64 one = tcg_const_i64(1);
     TCGv_i64 t0 = tcg_temp_new_i64();
@@ -72,10 +72,19 @@ void e2k_gen_preg(TCGv_i64 ret, int reg)
     tcg_temp_free_i64(one);
 }
 
+void e2k_gen_preg_i32(TCGv_i32 ret, int reg)
+{
+    TCGv_i64 t0 = tcg_temp_new_i64();
+
+    e2k_gen_preg_i64(t0, reg);
+    tcg_gen_extrl_i64_i32(ret, t0);
+    tcg_temp_free_i64(t0);
+}
+
 TCGv_i64 e2k_get_preg(DisasContext *dc, int reg)
 {
     TCGv_i64 ret = e2k_get_temp_i64(dc);
-    e2k_gen_preg(ret, reg);
+    e2k_gen_preg_i64(ret, reg);
     return ret;
 }
 

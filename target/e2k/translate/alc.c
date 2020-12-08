@@ -1506,7 +1506,12 @@ static void gen_aad_ptr(DisasContext *ctx, TCGv ret, Instr *instr)
 static void gen_staa_i64(DisasContext *ctx, Instr *instr)
 {
     uint8_t mas = ctx->mas[instr->chan];
+    TCGLabel *l0 = gen_new_label();
     Src64 s4 = get_src4_i64(ctx, instr->chan);
+
+    if (ctx->loop_mode) {
+        tcg_gen_brcondi_i32(TCG_COND_EQ, ctx->is_prologue, 1, l0);
+    }
 
     gen_tag_check(ctx, instr->sm, s4.tag);
     if (mas == 0x3f) {
@@ -1545,12 +1550,19 @@ static void gen_staa_i64(DisasContext *ctx, Instr *instr)
             gen_aasti_incr(ctx, instr, 8);
         }
     }
+
+    gen_set_label(l0);
 }
 
 static void gen_staa_i32(DisasContext *ctx, Instr *instr, MemOp memop)
 {
     uint8_t mas = ctx->mas[instr->chan];
+    TCGLabel *l0 = gen_new_label();
     Src32 s4 = get_src4_i32(ctx, instr->chan);
+
+    if (ctx->loop_mode) {
+        tcg_gen_brcondi_i32(TCG_COND_EQ, ctx->is_prologue, 1, l0);
+    }
 
     gen_tag_check(ctx, instr->sm, s4.tag);
     if (mas == 0x3f) {
@@ -1608,6 +1620,8 @@ static void gen_staa_i32(DisasContext *ctx, Instr *instr, MemOp memop)
             gen_aasti_incr(ctx, instr, len);
         }
     }
+
+    gen_set_label(l0);
 }
 
 static void gen_alopf1_i64(DisasContext *ctx, int chan,

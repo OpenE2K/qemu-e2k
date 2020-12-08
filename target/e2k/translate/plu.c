@@ -35,7 +35,7 @@ void e2k_gen_cond_i32(DisasContext *ctx, TCGv_i32 ret, uint8_t psrc)
         int reg = GET_FIELD(psrc, 0, 5);
         TCGv_i64 t0 = tcg_temp_new_i64();
 
-        e2k_gen_preg(t0, reg);
+        e2k_gen_preg_i64(t0, reg);
         tcg_gen_extrl_i64_i32(ret, t0);
 
         tcg_temp_free_i64(t0);
@@ -161,7 +161,7 @@ void e2k_plu_execute(DisasContext *ctx)
                     TCGv_i64 t0 = tcg_temp_new_i64();
                     TCGv_i32 t1 = tcg_temp_new_i32();
 
-                    e2k_gen_preg(t0, pdst);
+                    e2k_gen_preg_i64(t0, pdst);
                     tcg_gen_extrl_i64_i32(t1, t0);
                     tcg_gen_movcond_i32(TCG_COND_EQ, ctx->pl_results[i].value,
                         p0, one, p1, t1);
