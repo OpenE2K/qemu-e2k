@@ -58,6 +58,17 @@ typedef enum {
 #define CTPR_IPD_END 60
 #define CTPR_IPD_LEN (CTPR_IPD_END - CTPR_IPD_OFF + 1)
 
+typedef enum {
+    CTPR_TAG_NONE = 0x0,
+    CTPR_TAG_RETURN = 0x2,
+    CTPR_TAG_DISP = 0x3,
+    CTPR_TAG_SDISP = 0x5,
+} CtprTag;
+
+typedef enum {
+    CTPR_OPC_LDISP = 0x1,
+} CtprOpc;
+
 #define WD_BASE_OFF 0
 #define WD_BASE_END 10
 #define WD_BASE_LEN (WD_BASE_END - WD_BASE_OFF + 1)
@@ -360,6 +371,56 @@ typedef union {
     uint8_t raw;
 } E2KAalda;
 
+/* AAU prefetch instruction */
+typedef union {
+    struct {
+        union {
+            struct {
+                uint32_t abs: 5;
+                uint32_t asz: 3;
+
+                /* version >= 2 || si == 0 */
+                uint32_t ind: 4;
+                uint32_t incr: 3;
+
+                uint32_t aad: 5;
+                uint32_t mrng: 5;
+                uint32_t fmt: 3;
+                uint32_t dcd: 2;
+                uint32_t si: 1;
+                uint32_t ct: 1;
+            };
+            struct {
+                uint32_t unused1: 8;
+
+                /* version <= 1 && si == 1 */
+                uint32_t area: 5;
+                uint32_t am: 1;
+                uint32_t be: 1;
+
+                uint32_t unused2: 16;
+                uint32_t dpl: 1;
+            };
+            uint32_t lo;
+        };
+        union {
+            uint32_t disp;
+            uint32_t hi;
+        };
+    };
+    uint64_t raw;
+} E2KAauPrefInstr;
+
+typedef struct {
+    E2KAauPrefInstr pi;     /* prefetch instr */
+    uint32_t cdi;   /* current data index */
+    uint32_t ldi;   /* loaded data index */
+} E2KAauAreaState;
+
+typedef struct {
+    E2KAauAreaState area[32];
+} E2KAauPrefState;
+
 typedef struct {
     E2KAasr sr;
     uint32_t fstr;
@@ -372,9 +433,8 @@ typedef struct {
     uint32_t inds[16];
     uint32_t ind_tags;
     E2KAad ds[32];
-    uint32_t ldi[64];
     E2KAalda lda[64];
-    uint64_t pib[64];
+    E2KAauPrefState pl, pr;
 } E2KAauState;
 
 typedef union {

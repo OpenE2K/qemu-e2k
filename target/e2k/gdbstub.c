@@ -104,8 +104,12 @@ int e2k_cpu_gdb_read_register(CPUState *cs, GByteArray *mem_buf, int n)
         return gdb_get_reg64(mem_buf, env->aau.incrs[n - 156]); // aaincrN
     }
 
-    if (164 <= n && n < 228) {
-        return gdb_get_reg64(mem_buf, env->aau.ldi[n - 164]); // aaldiN
+    if (164 <= n && n < 196) {
+        return gdb_get_reg64(mem_buf, env->aau.pl.area[n - 164].ldi); // aaldiN
+    }
+
+    if (196 <= n && n < 228) {
+        return gdb_get_reg64(mem_buf, env->aau.pr.area[n - 196].ldi); // aaldiN
     }
 
     if (n == 228) {
