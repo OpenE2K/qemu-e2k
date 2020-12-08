@@ -11,8 +11,7 @@ static inline void reset_ctprs(CPUE2KState *env)
     unsigned int i;
 
     for (i = 0; i < 3; i++) {
-        env->ctprs[i] = SET_FIELD(env->ctprs[i], CTPR_TAG_NONE,
-            CTPR_TAG_OFF, CTPR_TAG_LEN);
+        env->ctprs[i].tag = CTPR_TAG_NONE;
     }
 }
 
@@ -194,7 +193,8 @@ static inline void do_call(CPUE2KState *env, int wbs, target_ulong pc_next)
 
 uint64_t helper_prep_return(CPUE2KState *env, int ipd)
 {
-    uint64_t pc, ret = 0;
+    uint64_t pc;
+    E2KCtpr ret = { 0 };
     void *p;
 
     if (env->pcsp.index < 32) {
@@ -204,11 +204,12 @@ uint64_t helper_prep_return(CPUE2KState *env, int ipd)
 
     p = (void *) env->pcsp.base + env->pcsp.index - 24;
     memcpy(&pc, p, 8);
-    ret |= deposit64(ret, CTPR_BASE_OFF, CTPR_BASE_LEN, pc);
-    ret |= deposit64(ret, CTPR_TAG_OFF, CTPR_TAG_LEN, CTPR_TAG_RETURN);
-    ret |= deposit64(ret, CTPR_IPD_OFF, CTPR_IPD_LEN, ipd);
 
-    return ret;
+    ret.base = pc;
+    ret.tag = CTPR_TAG_RETURN;
+    ret.ipd = ipd;
+
+    return ret.raw;
 }
 
 void helper_return(CPUE2KState *env)
@@ -240,15 +241,15 @@ static inline void do_syscall(CPUE2KState *env, int call_wbs,
     helper_raise_exception(env, E2K_EXCP_SYSCALL);
 }
 
-void helper_call(CPUE2KState *env, uint64_t ctpr, int call_wbs,
+void helper_call(CPUE2KState *env, uint64_t ctpr_raw, int call_wbs,
     target_ulong pc_next)
 {
-    int ctpr_tag = extract64(ctpr, CTPR_TAG_OFF, CTPR_TAG_LEN);
+    E2KCtpr ctpr = { .raw = ctpr_raw };
 
-    switch (ctpr_tag) {
+    switch (ctpr.tag) {
     case CTPR_TAG_DISP:
         do_call(env, call_wbs, pc_next);
-        env->ip = extract64(ctpr, CTPR_BASE_OFF, CTPR_BASE_LEN);
+        env->ip = ctpr.base;
         break;
     case CTPR_TAG_SDISP:
         do_syscall(env, call_wbs, pc_next);
