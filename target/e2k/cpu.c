@@ -56,6 +56,7 @@ static void e2k_cpu_reset(DeviceState *dev)
     env->bn.cur = 0;
     /* Based predicate window must not be zero. */
     env->bp.size = 1;
+    env->aau.incrs[0] = 1; /* always one */
 
     // FIXME: testing
     env->idr = 0x3a207; // mimic 8c
@@ -279,6 +280,7 @@ static struct TCGCPUOps e2k_tcg_ops = {
     .cpu_exec_interrupt = e2k_cpu_exec_interrupt,
     .tlb_fill = e2k_cpu_tlb_fill,
 #endif
+};
 
 static void e2k_cpu_class_init(ObjectClass *oc, void *data)
 {
