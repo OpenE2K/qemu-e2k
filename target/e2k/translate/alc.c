@@ -58,7 +58,6 @@ typedef struct {
             uint16_t unused5: 8;
         };
     };
-    TCGv_i32 mrgc;
 } Instr;
 
 static inline bool is_chan_03(int c)
@@ -548,42 +547,27 @@ static inline void gen_am_cond_i32(DisasContext *ctx, TCGv_i32 ret, int chan,
     tcg_temp_free_i32(t0);
 }
 
-static inline void gen_mrgc_i64(DisasContext *ctx, int chan, TCGv_i64 ret)
+static inline void gen_mrgc_i32(DisasContext *ctx, int chan, TCGv_i32 ret)
 {
     uint16_t rlp = find_mrgc(ctx, chan);
-    TCGv_i64 t0 = tcg_temp_new_i64();
 
-    e2k_gen_cond_i64(ctx, t0, rlp & 0x7f);
-    tcg_gen_xori_i64(ret, t0, GET_BIT(rlp, 7 + chan % 3));
-
-    tcg_temp_free_i64(t0);
-}
-
-static inline void gen_mrgc_i32(DisasContext *dc, int chan, TCGv_i32 ret)
-{
-    TCGv_i64 t0 = tcg_temp_new_i64();
-    gen_mrgc_i64(dc, chan, t0);
-    tcg_gen_extrl_i64_i32(ret, t0);
-    tcg_temp_free(t0);
-}
-
-static inline Instr instr_new(DisasContext *ctx, int chan)
-{
-    uint16_t rlp = find_mrgc(ctx, chan);
-    Instr ret = { 0 };
-
-    ret.chan = chan;
-    ret.als = ctx->bundle.als[chan];
-    ret.ales = ctx->bundle.ales[chan];
     if (rlp) {
-        TCGv_i32 t0 = tcg_temp_new_i32();
-        e2k_gen_cond_i32(ctx, t0, rlp & 0x7f);
-        ret.mrgc = e2k_get_temp_i32(ctx);
-        tcg_gen_xori_i32(ret.mrgc, t0, GET_BIT(rlp, 7 + chan % 3));
-        tcg_temp_free_i32(t0);
-    }
+        int psrc = extract16(rlp, 0, 7);
 
-    return ret;
+        if (GET_BIT(rlp, 7 + chan % 3)) {
+            TCGv_i32 t0 = tcg_temp_new_i32();
+
+            e2k_gen_cond_i32(ctx, t0, psrc);
+            tcg_gen_setcondi_i32(TCG_COND_EQ, ret, t0, 0);
+
+            tcg_temp_free_i32(t0);
+        } else {
+            e2k_gen_cond_i32(ctx, ret, psrc);
+        }
+    } else {
+        /* Undefined behavior if MRGC is not provided but CPU returns src2. */
+        tcg_gen_movi_i32(ret, 0);
+    }
 }
 
 static inline void gen_andn_i32(TCGv_i32 ret, TCGv_i32 src1, TCGv_i32 src2)
@@ -924,19 +908,23 @@ static inline void gen_movehl_i64(TCGv_i64 ret, TCGv_i64 x, TCGv_i64 y)
     tcg_temp_free_i32(lo);
 }
 
-static inline void gen_merge_i32(TCGv_i32 ret, TCGv_i32 x, TCGv_i32 y, TCGv_i32 cond)
+static inline void gen_merge_i32(TCGv_i32 ret, TCGv_i32 src1, TCGv_i32 src2,
+    TCGv_i32 cond)
 {
     TCGv_i32 zero = tcg_const_i32(0);
-    tcg_gen_movcond_i32(TCG_COND_EQ, ret, cond, zero, x, y);
+    tcg_gen_movcond_i32(TCG_COND_EQ, ret, cond, zero, src1, src2);
     tcg_temp_free_i32(zero);
 }
 
-static inline void gen_merge_i64(TCGv_i64 ret, TCGv_i64 x, TCGv_i64 y, TCGv_i32 cond)
+static inline void gen_merge_i64(TCGv_i64 ret, TCGv_i64 src1, TCGv_i64 src2,
+    TCGv_i32 cond)
 {
     TCGv_i64 zero = tcg_const_i64(0);
     TCGv_i64 t0 = tcg_temp_new_i64();
+
     tcg_gen_extu_i32_i64(t0, cond);
-    tcg_gen_movcond_i64(TCG_COND_EQ, ret, t0, zero, x, y);
+    tcg_gen_movcond_i64(TCG_COND_EQ, ret, t0, zero, src1, src2);
+
     tcg_temp_free_i64(t0);
     tcg_temp_free_i64(zero);
 }
@@ -1743,9 +1731,12 @@ static void gen_alopf1_mrgc_i32(DisasContext *ctx, Instr *instr)
     Src32 s2 = get_src2_i32(ctx, chan);
     TCGv_i32 tag = e2k_get_temp_i32(ctx);
     TCGv_i32 dst = e2k_get_temp_i32(ctx);
+    TCGv_i32 t0 = tcg_temp_new_i32();
 
     gen_tag2_i32(tag, s1.tag, s2.tag);
-    gen_merge_i32(dst, s1.value, s2.value, instr->mrgc);
+    gen_mrgc_i32(ctx, instr->chan, t0);
+    gen_merge_i32(dst, s1.value, s2.value, t0);
+    tcg_temp_free_i32(t0);
     gen_al_result_i32(ctx, chan, dst, tag);
 }
 
@@ -1756,9 +1747,12 @@ static void gen_alopf1_mrgc_i64(DisasContext *ctx, Instr *instr)
     Src64 s2 = get_src2_i64(ctx, chan);
     TCGv_i32 tag = e2k_get_temp_i32(ctx);
     TCGv_i64 dst = e2k_get_temp_i64(ctx);
+    TCGv_i32 t0 = tcg_temp_new_i32();
 
     gen_tag2_i64(tag, s1.tag, s2.tag);
-    gen_merge_i64(dst, s1.value, s2.value, instr->mrgc);
+    gen_mrgc_i32(ctx, instr->chan, t0);
+    gen_merge_i64(dst, s1.value, s2.value, t0);
+    tcg_temp_free_i32(t0);
     gen_al_result_i64(ctx, chan, dst, tag);
 }
 
@@ -2155,6 +2149,7 @@ static void execute_icomb_i64(DisasContext *ctx, Instr *instr)
     Src64 s3 = get_src3_i64(ctx, instr->chan);
     TCGv_i32 tag = e2k_get_temp_i32(ctx);
     TCGv_i64 dst = e2k_get_temp_i64(ctx);
+    TCGv_i32 mrgc = NULL;
 
     gen_tag3_i64(tag, s1.tag, s2.tag, s3.tag);
     switch(opc1) {
@@ -2184,7 +2179,9 @@ static void execute_icomb_i64(DisasContext *ctx, Instr *instr)
         break;
     case 0x0f:
         /* merge_{op}d */
-        gen_merge_i64(dst, s1.value, s2.value, instr->mrgc);
+        mrgc = tcg_temp_new_i32();
+        gen_mrgc_i32(ctx, instr->chan, mrgc);
+        gen_merge_i64(dst, s1.value, s2.value, mrgc);
         break;
     case 0x11:
         /* add_{op}d */
@@ -2262,7 +2259,11 @@ static void execute_icomb_i64(DisasContext *ctx, Instr *instr)
         case 0x60:
             /* {op}_merged */
             if (ctx->version == 1) {
-                gen_merge_i64(dst, dst, s3.value, instr->mrgc);
+                if (mrgc == NULL) {
+                    mrgc = tcg_temp_new_i32();
+                    gen_mrgc_i32(ctx, instr->chan, mrgc);
+                }
+                gen_merge_i64(dst, dst, s3.value, mrgc);
             } else {
                 e2k_tr_gen_exception(ctx, E2K_EXCP_ILLOPC);
                 return;
@@ -2333,6 +2334,10 @@ static void execute_icomb_i64(DisasContext *ctx, Instr *instr)
         }
     }
 
+    if (mrgc != NULL) {
+        tcg_temp_free_i32(mrgc);
+    }
+
     gen_al_result_i64(ctx, instr->chan, dst, tag);
 }
 
@@ -2345,6 +2350,7 @@ static void execute_icomb_i32(DisasContext *ctx, Instr *instr)
     Src32 s3 = get_src3_i32(ctx, instr->chan);
     TCGv_i32 tag = e2k_get_temp_i32(ctx);
     TCGv_i32 dst = e2k_get_temp_i32(ctx);
+    TCGv_i32 mrgc = NULL;
 
     gen_tag3_i32(tag, s1.tag, s2.tag, s3.tag);
     switch(opc1) {
@@ -2374,7 +2380,9 @@ static void execute_icomb_i32(DisasContext *ctx, Instr *instr)
         break;
     case 0x0e:
         /* merge_{op}s */
-        gen_merge_i32(dst, s1.value, s2.value, instr->mrgc);
+        mrgc = tcg_temp_new_i32();
+        gen_mrgc_i32(ctx, instr->chan, mrgc);
+        gen_merge_i32(dst, s1.value, s2.value, mrgc);
         break;
     case 0x10:
         /* add_{op}s */
@@ -2452,7 +2460,11 @@ static void execute_icomb_i32(DisasContext *ctx, Instr *instr)
         case 0x60:
             /* {op}_merges */
             if (ctx->version == 1) {
-                gen_merge_i32(dst, dst, s3.value, instr->mrgc);
+                if (mrgc == NULL) {
+                    mrgc = tcg_temp_new_i32();
+                    gen_mrgc_i32(ctx, instr->chan, mrgc);
+                }
+                gen_merge_i32(dst, dst, s3.value, mrgc);
             } else {
                 e2k_tr_gen_exception(ctx, E2K_EXCP_ILLOPC);
                 return;
@@ -2523,6 +2535,10 @@ static void execute_icomb_i32(DisasContext *ctx, Instr *instr)
         }
     }
 
+    if (mrgc != NULL) {
+        tcg_temp_free_i32(mrgc);
+    }
+
     gen_al_result_i32(ctx, instr->chan, dst, tag);
 }
 
@@ -2587,8 +2603,12 @@ static void chan_execute(DisasContext *ctx, int chan)
     const UnpackedBundle *bundle = &ctx->bundle;
     uint16_t rlp = find_cond(ctx, chan);
     TCGLabel *l0 = gen_new_label();
-    Instr instr = instr_new(ctx, chan);
+    Instr instr = { 0 };
     TCGv_i64 cond = NULL;
+
+    instr.chan = chan;
+    instr.als = ctx->bundle.als[chan];
+    instr.ales = ctx->bundle.ales[chan];
 
     if (rlp != 0) {
         TCGv_i64 t0 = tcg_temp_new_i64();
