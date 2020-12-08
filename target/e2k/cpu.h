@@ -186,6 +186,7 @@ typedef enum {
 #define LSR_ECNT_END 36
 #define LSR_ECNT_LEN (LSR_ECNT_END - LSR_ECNT_OFF + 1)
 #define LSR_VLC_OFF 37      /* loop count valid bit */
+#define LSR_VLC_BIT (1UL << LSR_VLC_OFF)
 #define LSR_OVER_OFF 38     /* loop count overflow */
 #define LSR_LDMC_OFF 39     /* loads manual control */
 #define LSR_LDOVL_OFF 40    /* load overlap */
