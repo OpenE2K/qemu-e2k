@@ -74,6 +74,15 @@ typedef struct CPUE2KStateTCG {
     TCGv_i64 pregs;
     TCGv_i32 psize; /* holds psz */
     TCGv_i32 pcur; /* holds pcur */
+    /* AAU */
+    TCGv_i32 aasti[16];
+    TCGv_i32 aasti_tags;
+    TCGv_i32 aaind[16];
+    TCGv_i32 aaind_tags;
+    TCGv_i32 aaincr[8];
+    TCGv_i32 aaincr_tags;
+    TCGv_i64 aad_lo[32];
+    TCGv_i64 aad_hi[32];
 } CPUE2KStateTCG;
 
 extern struct CPUE2KStateTCG e2k_cs;

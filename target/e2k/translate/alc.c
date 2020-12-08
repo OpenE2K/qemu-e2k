@@ -33,13 +33,18 @@ typedef struct {
         struct {
             uint32_t dst_preg: 5;
             uint32_t opc_cmp: 3;
-            uint32_t lts: 2;
-            uint32_t inc: 1;
-            uint32_t ind_type: 1;
-            uint32_t incr: 3;
-            uint32_t index: 4;
-            uint32_t desc: 5;
+            uint32_t unused2: 24;
+        };
+        /* staa/ldaa/aaurw/aaurr */
+        struct {
             uint32_t unused3: 8;
+            uint32_t aalit: 2;
+            uint32_t aaopc: 2;
+            uint32_t aaincr: 3;
+            /* aaind/aasti/aaincr for aaurw/aaurr */
+            uint32_t aaind: 4;
+            uint32_t aad: 5;
+            uint32_t unused4: 8;
         };
     };
     union {
@@ -50,7 +55,7 @@ typedef struct {
         };
         struct {
             uint16_t opce3: 8;
-            uint16_t unused4: 8;
+            uint16_t unused5: 8;
         };
     };
     TCGv_i32 mrgc;
@@ -509,6 +514,38 @@ static uint16_t find_cond(DisasContext *ctx, int chan)
     }
 
     return 0;
+}
+
+static uint16_t find_am_cond(DisasContext *ctx, int chan)
+{
+    unsigned int i, j;
+
+    for (i = 0; i < ctx->bundle.cds_present[i]; i++) {
+        uint16_t *cds = (uint16_t *) &ctx->bundle.cds[i];
+
+        for (j = 0; j < 2; j++) {
+            int opc = extract16(cds[j], 13, 3);
+            int req = chan <= 2 ? 1 : 3;
+
+            if (opc == req) {
+                return cds[j];
+            }
+        }
+    }
+
+    return 0;
+}
+
+static inline void gen_am_cond_i32(DisasContext *ctx, TCGv_i32 ret, int chan,
+    uint16_t rlp)
+{
+    TCGv_i32 t0 = tcg_temp_new_i32();
+
+    e2k_gen_cond_i32(ctx, t0, extract16(rlp, 0, 7));
+    // FIXME: It isn't clear if am can be the only one cond in RLP.
+    tcg_gen_xori_i32(ret, t0, GET_BIT(rlp, 7 + chan % 3));
+
+    tcg_temp_free_i32(t0);
 }
 
 static inline void gen_mrgc_i64(DisasContext *ctx, int chan, TCGv_i64 ret)
@@ -1339,107 +1376,250 @@ static void gen_st_i32(DisasContext *ctx, int chan, MemOp memop)
     tcg_temp_free_i64(t0);
 }
 
-static void gen_staa_i64(DisasContext *ctx, int chan)
+static void gen_aad_tag(TCGv_i64 ret, TCGv_i32 tag)
 {
-    uint32_t als = ctx->bundle.als[chan];
-    uint8_t mas = ctx->mas[chan];
-    bool sm = extract32(als, 31, 1);
-    int lit = extract32(als, 8, 2);
-    int am = extract32(als, 10, 1);
-    int incr = extract32(als, 12, 3);
-    int ind = extract32(als, 15, 4);
-    int d = extract32(als, 19, 5);
-    Src64 s4 = get_src4_i64(ctx, chan);
-    TCGv_i32 t0 = tcg_const_i32(am);
-    TCGv_i32 t1 = tcg_const_i32(incr);
-    TCGv_i32 t2 = tcg_const_i32(ind);
-    TCGv_i32 t3 = tcg_const_i32(d);
-    TCGv_i32 t4;
+    TCGv_i32 t0 = tcg_temp_new_i32();
+    TCGv_i64 t1 = tcg_temp_new_i64();
 
-    if (lit) {
-        if (!ctx->bundle.lts_present[lit - 1]) {
-            e2k_tr_gen_exception(ctx, E2K_EXCP_ILLOPN);
-            return;
-        }
-        t4 = tcg_const_i32(ctx->bundle.lts[lit - 1]);
-    } else {
-        t4 = tcg_const_i32(0);
-    }
+    tcg_gen_setcondi_i32(TCG_COND_NE, t0, tag, 0);
+    tcg_gen_extu_i32_i64(t1, t0);
+    tcg_gen_shli_i64(ret, t1, 54);
 
-    if (sm) {
-        qemu_log_mask(LOG_UNIMP, "staad: sm is not implemented\n");
-        abort();
-    }
-
-    if (mas == 0) {
-        gen_helper_staa_i64(cpu_env, s4.value, t4, t0, t1, t2, t3);
-    } else if (mas == 0x3f) {
-        if (!am) {
-            gen_helper_set_aad_i64(cpu_env, s4.value, t1, t3);
-        } else {
-            gen_helper_set_aasti_i64(cpu_env, s4.value, t2);
-        }
-    } else {
-        qemu_log_mask(LOG_UNIMP, "staad: not implemented mas\n");
-        abort();
-    }
-
-    tcg_temp_free_i32(t4);
-    tcg_temp_free_i32(t3);
-    tcg_temp_free_i32(t2);
-    tcg_temp_free_i32(t1);
+    tcg_temp_free_i64(t1);
     tcg_temp_free_i32(t0);
 }
-static void gen_staa_i32(DisasContext *ctx, int chan)
-{
-    uint32_t als = ctx->bundle.als[chan];
-    uint8_t mas = ctx->mas[chan];
-    bool sm = extract32(als, 31, 1);
-    int lit = extract32(als, 8, 2);
-    int am = extract32(als, 10, 1);
-    int incr = extract32(als, 12, 3);
-    int ind = extract32(als, 15, 4);
-    int d = extract32(als, 19, 5);
-    Src32 s4 = get_src4_i32(ctx, chan);
-    TCGv_i32 t0 = tcg_const_i32(am);
-    TCGv_i32 t1 = tcg_const_i32(incr);
-    TCGv_i32 t2 = tcg_const_i32(ind);
-    TCGv_i32 t3 = tcg_const_i32(d);
-    TCGv_i32 t4;
 
-    if (lit) {
-        if (!ctx->bundle.lts_present[lit - 1]) {
+static void gen_aaurw_aad_i64(Instr *instr, TCGv_i64 arg1, TCGv_i32 tag)
+{
+    TCGv_i64 lo = e2k_cs.aad_lo[instr->aad];
+    TCGv_i64 t0 = tcg_temp_new_i64();
+    TCGv_i64 t1 = tcg_temp_new_i64();
+
+    tcg_gen_andi_i64(t0, arg1, 3UL << 57);
+    tcg_gen_andi_i64(lo, lo, !(0x1fUL << 54));
+    tcg_gen_or_i64(lo, lo, t0);
+    tcg_gen_deposit_i64(lo, lo, arg1, 0, 48);
+    tcg_gen_ori_i64(lo, lo, 3UL << 59);
+    gen_aad_tag(t1, tag);
+    tcg_gen_or_i64(lo, lo, t1);
+
+    tcg_temp_free_i64(t1);
+    tcg_temp_free_i64(t0);
+}
+
+static void gen_aaurw_aad_i32(Instr *instr, TCGv_i32 arg1, TCGv_i32 tag)
+{
+    TCGv_i64 lo = e2k_cs.aad_lo[instr->aad];
+    TCGv_i64 t0 = tcg_temp_new_i64();
+    TCGv_i64 t1 = tcg_temp_new_i64();
+    TCGv_i64 t2 = tcg_temp_new_i64();
+
+    tcg_gen_extu_i32_i64(t0, arg1);
+    tcg_gen_deposit_i64(lo, lo, t0, 0, 48);
+    tcg_gen_ori_i64(lo, lo, 3UL << 59);
+    tcg_gen_andi_i64(lo, lo, !(0x7UL << 54));
+    gen_aad_tag(t1, tag);
+    tcg_gen_or_i64(lo, lo, t1);
+
+    tcg_temp_free_i64(t2);
+    tcg_temp_free_i64(t1);
+    tcg_temp_free_i64(t0);
+}
+
+static void gen_aaurw_rest_i32(Instr* instr, TCGv_i32 arg1, TCGv_i32 tag)
+{
+    int idx = instr->aaind;
+    TCGv_i32 t0 = tcg_temp_new_i32();
+    tcg_gen_setcondi_i32(TCG_COND_NE, t0, tag, 0);
+    switch(instr->aaopc) {
+    case 1: /* aaurwd src4, aasti */
+        tcg_gen_mov_i32(e2k_cs.aasti[idx], arg1);
+        tcg_gen_deposit_i32(e2k_cs.aasti_tags, e2k_cs.aasti_tags, t0, idx, 1);
+        break;
+    case 2: { /* aaurwd src4, aaind */
+        if (idx == 0) {
+            tcg_gen_movi_i32(e2k_cs.aaind[idx], 0);
+        } else {
+            tcg_gen_mov_i32(e2k_cs.aaind[idx], arg1);
+            tcg_gen_deposit_i32(e2k_cs.aaind_tags, e2k_cs.aaind_tags, t0,
+                idx, 1);
+        }
+        break;
+    }
+    case 3: /* aaurwd src4, aaincr */
+        idx &= 7;
+        if (idx > 0) {
+            tcg_gen_mov_i32(e2k_cs.aaincr[idx], arg1);
+            tcg_gen_deposit_i32(e2k_cs.aaincr_tags, e2k_cs.aaincr_tags, t0,
+                idx, 1);
+        }
+        break;
+    default:
+        g_assert_not_reached();
+        break;
+    }
+    tcg_temp_free_i32(t0);
+}
+
+static void gen_aasti_incr(DisasContext *ctx, Instr *instr, int size)
+{
+    uint16_t rlp = find_am_cond(ctx, instr->chan);
+    TCGLabel *l0 = gen_new_label();
+    TCGv_i32 t0 = tcg_temp_new_i32();
+
+    if (rlp != 0) {
+        TCGv_i32 t1 = tcg_temp_new_i32();
+
+        gen_am_cond_i32(ctx, t1, instr->chan, rlp);
+        tcg_gen_brcondi_i32(TCG_COND_EQ, t1, 0, l0);
+        tcg_temp_free_i32(t1);
+    }
+
+    tcg_gen_muli_i32(t0, e2k_cs.aaincr[instr->aaincr], size);
+    tcg_gen_add_i32(e2k_cs.aasti[instr->aaind], e2k_cs.aasti[instr->aaind], t0);
+    gen_set_label(l0);
+
+    tcg_temp_free_i32(t0);
+}
+
+static void gen_aad_ptr(DisasContext *ctx, TCGv ret, Instr *instr)
+{
+    uint32_t lit = 0;
+    TCGv_i64 t0 = tcg_temp_new_i64();
+    TCGv t1 = tcg_temp_new();
+    TCGv t2 = tcg_temp_new();
+
+    if (instr->aalit) {
+        int lts = instr->aalit - 1;
+        if (ctx->bundle.lts_present[lts]) {
+            lit = ctx->bundle.lts[lts];
+        } else {
             e2k_tr_gen_exception(ctx, E2K_EXCP_ILLOPN);
             return;
         }
-        t4 = tcg_const_i32(ctx->bundle.lts[lit - 1]);
+    }
+
+    tcg_gen_extract_i64(t0, e2k_cs.aad_lo[instr->aad], 0, 48);
+    tcg_gen_trunc_i64_tl(t1, t0);
+    tcg_gen_ext_i32_tl(t2, e2k_cs.aasti[instr->aaind]);
+    if (lit != 0) {
+        TCGv t3 = tcg_temp_new();
+        tcg_gen_add_tl(t3, t1, t2);
+        tcg_gen_addi_tl(ret, t3, lit);
+        tcg_temp_free(t3);
     } else {
-        t4 = tcg_const_i32(0);
+        tcg_gen_add_tl(ret, t1, t2);
     }
+    tcg_temp_free(t2);
+    tcg_temp_free(t1);
+    tcg_temp_free_i64(t0);
+}
 
-    if (sm) {
-        qemu_log_mask(LOG_UNIMP, "staaw: sm is not implemented\n");
-        abort();
-    }
+static void gen_staa_i64(DisasContext *ctx, Instr *instr)
+{
+    uint8_t mas = ctx->mas[instr->chan];
+    Src64 s4 = get_src4_i64(ctx, instr->chan);
 
-    if (mas == 0) {
-        gen_helper_staa_i32(cpu_env, s4.value, t4, t0, t1, t2, t3);
-    } else if (mas == 0x3f) {
-        if (!am) {
-            gen_helper_set_aad_i32(cpu_env, s4.value, t1, t3);
+    gen_tag_check(ctx, instr->sm, s4.tag);
+    if (mas == 0x3f) {
+        /* aaurwd */
+        if (instr->aaopc == 0) {
+            gen_aaurw_aad_i64(instr, s4.value, s4.tag);
         } else {
-            gen_helper_set_aasti_i32(cpu_env, s4.value, t2);
+            TCGv_i32 t0 = tcg_temp_new_i32();
+            tcg_gen_extrl_i64_i32(t0, s4.value);
+            gen_aaurw_rest_i32(instr, t0, s4.tag);
+            tcg_temp_free_i32(t0);
         }
     } else {
-        qemu_log_mask(LOG_UNIMP, "staaw: not implemented mas\n");
-        abort();
-    }
+        /* staad */
+        TCGLabel *l0 = gen_new_label();
+        TCGv t0 = tcg_temp_local_new();
 
-    tcg_temp_free_i32(t4);
-    tcg_temp_free_i32(t3);
-    tcg_temp_free_i32(t2);
-    tcg_temp_free_i32(t1);
-    tcg_temp_free_i32(t0);
+        if (mas != 0) {
+            qemu_log_mask(LOG_UNIMP,
+                "0x%lx: staad mas=%#x is not implemented\n", ctx->pc, mas);
+        }
+
+        gen_aad_ptr(ctx, t0, instr);
+
+        if (instr->sm) {
+            TCGv_i32 t1 = tcg_temp_new_i32();
+            gen_helper_probe_write_access(t1, cpu_env, t0);
+            tcg_gen_brcondi_i32(TCG_COND_EQ, t1, 0, l0);
+        }
+
+        tcg_gen_qemu_st_i64(s4.value, t0, 0, MO_Q);
+        gen_set_label(l0);
+        tcg_temp_free(t0);
+
+        if (instr->aaopc & 1) {
+            gen_aasti_incr(ctx, instr, 8);
+        }
+    }
+}
+
+static void gen_staa_i32(DisasContext *ctx, Instr *instr, MemOp memop)
+{
+    uint8_t mas = ctx->mas[instr->chan];
+    Src32 s4 = get_src4_i32(ctx, instr->chan);
+
+    gen_tag_check(ctx, instr->sm, s4.tag);
+    if (mas == 0x3f) {
+        /* aaurw */
+        /* CPU do nothing if size less than 32 bits */
+        if ((memop & MO_SIZE) == MO_32) {
+            if (instr->aaopc == 0) {
+                gen_aaurw_aad_i32(instr, s4.value, s4.tag);
+            } else {
+                gen_aaurw_rest_i32(instr, s4.value, s4.tag);
+            }
+        }
+    } else {
+        /* staaw */
+        int len;
+        TCGLabel *l0 = gen_new_label();
+        TCGv t0 = tcg_temp_local_new();
+
+        if (mas != 0) {
+            char c;
+            switch(memop & MO_SIZE) {
+            case MO_8: c = 'b'; break;
+            case MO_16: c = 'h'; break;
+            case MO_32: c = 'w'; break;
+            default:
+                g_assert_not_reached();
+                break;
+            }
+            qemu_log_mask(LOG_UNIMP,
+                "0x%lx: staa%c mas=%#x is not implemented\n", ctx->pc, c, mas);
+        }
+
+        gen_aad_ptr(ctx, t0, instr);
+
+        if (instr->sm) {
+            TCGv_i32 t1 = tcg_temp_new_i32();
+            gen_helper_probe_write_access(t1, cpu_env, t0);
+            tcg_gen_brcondi_i32(TCG_COND_EQ, t1, 0, l0);
+        }
+
+        tcg_gen_qemu_st_i32(s4.value, t0, 0, memop);
+        gen_set_label(l0);
+        tcg_temp_free(t0);
+
+        switch(memop & MO_SIZE) {
+        case MO_8: len = 1; break;
+        case MO_16: len = 2; break;
+        case MO_32: len = 4; break;
+        default:
+            g_assert_not_reached();
+            break;
+        }
+
+        if (instr->aaopc & 1) {
+            gen_aasti_incr(ctx, instr, len);
+        }
+    }
 }
 
 static void gen_alopf1_i64(DisasContext *ctx, int chan,
@@ -1854,8 +2034,10 @@ static void execute_ext_01_25(DisasContext *ctx, Instr *instr)
     case 0x09: gen_gettag_i64(ctx, chan); break; /* gettagd */
     case 0x0a: gen_puttag_i32(ctx, chan); break; /* puttags */
     case 0x0b: gen_puttag_i64(ctx, chan); break; /* puttagd */
-    case 0x1e: gen_staa_i32(ctx, chan); break; /* staaw */
-    case 0x1f: gen_staa_i64(ctx, chan); break; /* staad */
+    case 0x1c: gen_staa_i32(ctx, instr, MO_8); break; /* staab */
+    case 0x1d: gen_staa_i32(ctx, instr, MO_16); break; /* staah */
+    case 0x1e: gen_staa_i32(ctx, instr, MO_32); break; /* staaw */
+    case 0x1f: gen_staa_i64(ctx, instr); break; /* staad */
     default:
         e2k_tr_gen_exception(ctx, E2K_EXCP_ILLOPC);
         break;
