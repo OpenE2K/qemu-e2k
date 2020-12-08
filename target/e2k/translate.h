@@ -38,22 +38,15 @@
 #define GET_GLOBAL(i) ((i) & 0x1f)
 
 typedef enum {
-    CTPR_TAG_NONE = 0x0,
-    CTPR_TAG_RETURN = 0x2,
-    CTPR_TAG_DISP = 0x3,
-    CTPR_TAG_LDISP = 0x3,
-    CTPR_TAG_SDISP = 0x5,
-} CtprTag;
-
-typedef enum {
-    CTPR_OPC_LDISP = 0x1,
-} CtprOpc;
-
-typedef enum {
     ALES_NONE = 0x00,
     ALES_PRESENT = 0x01,
     ALES_ALLOCATED = 0x02,
 } AlesFlag;
+
+typedef struct {
+    TCGv_i32 cdi[32];
+    TCGv_i64 pib[32];
+} CPUE2KAauPrefStateTCG;
 
 typedef struct CPUE2KStateTCG {
     TCGv pc;
@@ -83,6 +76,7 @@ typedef struct CPUE2KStateTCG {
     TCGv_i32 aaincr_tags;
     TCGv_i64 aad_lo[32];
     TCGv_i64 aad_hi[32];
+    CPUE2KAauPrefStateTCG aapl, aapr;
 } CPUE2KStateTCG;
 
 extern struct CPUE2KStateTCG e2k_cs;
@@ -150,6 +144,7 @@ typedef enum {
 
 typedef struct {
     AauResultType type;
+    uint8_t dst;
     TCGv_i32 index;
     union {
         TCGv_i32 v32;
@@ -209,6 +204,7 @@ typedef struct DisasContext {
     AlResult al_results[6];
     AlCond al_cond[6];
     AauResult aau_results[4];
+    int aau_am[4];
     PlResult pl_results[3];
     ControlTransfer ct;
 } DisasContext;
