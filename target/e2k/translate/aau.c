@@ -97,7 +97,8 @@ static void gen_mova(DisasContext *ctx, Instr *instr)
     TCGv t5 = tcg_temp_new();
 
     ctx->aau_am[instr->chan] = instr->am ? instr->area : -1;
-    // TODO: check ind
+    // TODO: check ind has proper alignment
+    // TODO: check ind is less than mrng
     gen_mova_ptr(t5, instr);
 
     switch(instr->opc) {
@@ -110,9 +111,11 @@ static void gen_mova(DisasContext *ctx, Instr *instr)
         gen_mova_i64(ctx, instr, t5);
         break;
     case 5: /* movaq */
+        qemu_log_mask(LOG_UNIMP, "0x%lx: movaq is not implemented\n", ctx->pc);
         abort();
         break;
     case 7: /* movaqp */
+        qemu_log_mask(LOG_UNIMP, "0x%lx: movaqp is not implemented\n", ctx->pc);
         abort();
         break;
     default:

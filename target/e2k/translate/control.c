@@ -3,95 +3,24 @@
 #include "exec/log.h"
 #include "translate.h"
 
-static inline void gen_lcnt_dec(TCGv_i64 ret, TCGv_i64 lsr)
+static inline TCGCond cond_from_advance(int advance)
 {
-    TCGv_i32 zero = tcg_const_i32(0);
-    TCGv_i32 lcnt = tcg_temp_new_i32();
-    TCGv_i32 t0 = tcg_temp_new_i32();
-    TCGv_i32 t1 = tcg_temp_new_i32();
-    TCGv_i32 t2 = tcg_temp_new_i32();
-    TCGv_i32 t3 = tcg_temp_new_i32();
-    TCGv_i32 t4 = tcg_temp_new_i32();
-    TCGv_i32 t5 = tcg_temp_new_i32();
-
-    tcg_gen_extrl_i64_i32(lcnt, lsr);
-    tcg_gen_subi_i32(t0, lcnt, 1);
-    tcg_gen_movcond_i32(TCG_COND_EQ, t1, lcnt, zero, zero, t0);
-
-    /* overflow bit */
-    tcg_gen_extrh_i64_i32(t2, lsr);
-    tcg_gen_setcondi_i32(TCG_COND_EQ, t3, lcnt, 1);
-    tcg_gen_shli_i32(t4, t3, LSR_OVER_OFF - 32);
-    tcg_gen_or_i32(t5, t2, t4);
-
-    tcg_gen_concat_i32_i64(ret, t1, t5);
-
-    tcg_temp_free_i32(t5);
-    tcg_temp_free_i32(t4);
-    tcg_temp_free_i32(t3);
-    tcg_temp_free_i32(t2);
-    tcg_temp_free_i32(t1);
-    tcg_temp_free_i32(t0);
-    tcg_temp_free_i32(lcnt);
-    tcg_temp_free_i32(zero);
+    switch (advance) {
+    case 0x01: return TCG_COND_EQ;
+    case 0x02: return TCG_COND_NE;
+    case 0x03: return TCG_COND_ALWAYS;
+    default: return TCG_COND_NEVER;
+    }
 }
 
 static void gen_movcond_flag_i32(TCGv_i32 ret, int flag, TCGv_i32 cond,
     TCGv_i32 v1, TCGv_i32 v2)
 {
     TCGv_i32 one = tcg_const_i32(1);
-    TCGCond c;
-
-    switch (flag) {
-    case 0x00:
-        c = TCG_COND_NEVER;
-        break;
-    case 0x01:
-        c = TCG_COND_EQ;
-        break;
-    case 0x02:
-        c = TCG_COND_NE;
-        break;
-    case 0x03:
-        c = TCG_COND_ALWAYS;
-        break;
-    default:
-        g_assert_not_reached();
-        break;
-    }
+    TCGCond c = cond_from_advance(flag);
 
     tcg_gen_movcond_i32(c, ret, cond, one, v1, v2);
-
     tcg_temp_free_i32(one);
-}
-
-static inline void gen_movcond_flag_i64(TCGv_i64 ret, int flag, TCGv_i64 cond,
-    TCGv_i64 v1, TCGv_i64 v2)
-{
-    TCGv_i64 one = tcg_const_i64(1);
-    TCGCond c;
-
-    switch (flag) {
-    case 0x00:
-        c = TCG_COND_NEVER;
-        break;
-    case 0x01:
-        c = TCG_COND_EQ;
-        break;
-    case 0x02:
-        c = TCG_COND_NE;
-        break;
-    case 0x03:
-        c = TCG_COND_ALWAYS;
-        break;
-    default:
-        g_assert_not_reached();
-        break;
-    }
-
-    tcg_gen_movcond_i64(c, ret, cond, one, v1, v2);
-
-    tcg_temp_free_i64(one);
 }
 
 static inline void gen_dec_wrap(TCGv_i32 ret, TCGv_i32 cur, int n,
@@ -112,15 +41,89 @@ static inline void gen_cur_dec(DisasContext *ctx, TCGv_i32 ret, int cond,
 {
     TCGLabel *l0 = gen_new_label();
     TCGv_i32 t0 = tcg_temp_new_i32();
-    TCGv_i32 t1 = tcg_temp_new_i32();
 
     tcg_gen_brcondi_i32(TCG_COND_EQ, size, 0, l0);
-    tcg_gen_trunc_tl_i32(t0, e2k_cs.ct_cond);
-    gen_dec_wrap(t1, cur, n, size);
-    gen_movcond_flag_i32(ret, cond, t0, t1, cur);
+    gen_dec_wrap(t0, cur, n, size);
+    gen_movcond_flag_i32(ret, cond, e2k_cs.ct_cond, t0, cur);
+    gen_set_label(l0);
+
+    tcg_temp_free_i32(t0);
+}
+
+static void gen_advance_pcnt(void)
+{
+    TCGLabel *l0 = gen_new_label();
+    TCGv_i32 t0 = tcg_temp_local_new_i32();
+    TCGv_i32 t1 = tcg_temp_new_i32();
+
+    e2k_gen_pcnt_i32(t0);
+    tcg_gen_brcondi_i32(TCG_COND_EQ, t0, 0, l0);
+    tcg_gen_subi_i32(t1, t0, 1);
+    e2k_gen_pcnt_set_i32(t1);
     gen_set_label(l0);
 
     tcg_temp_free_i32(t1);
+    tcg_temp_free_i32(t0);
+}
+
+static inline void gen_lcnt_overflow(TCGv_i32 lcnt)
+{
+    TCGv_i64 t0 = tcg_temp_new_i64();
+    TCGv_i64 t1 = tcg_temp_new_i64();
+
+    tcg_gen_extu_i32_i64(t0, lcnt);
+    tcg_gen_setcondi_i64(TCG_COND_EQ, t1, t0, 0);
+    tcg_gen_shli_i64(t1, t1, LSR_OVER_OFF);
+    tcg_gen_or_i64(e2k_cs.lsr, e2k_cs.lsr, t1);
+
+    tcg_temp_free_i64(t1);
+    tcg_temp_free_i64(t0);
+}
+
+static void gen_advance_lcnt(TCGv_i32 ret)
+{
+    TCGLabel *l0 = gen_new_label();
+    TCGv_i32 t0 = tcg_temp_local_new_i32();
+
+    e2k_gen_lcnt_i32(t0);
+    tcg_gen_brcondi_i32(TCG_COND_EQ, t0, 0, l0);
+    tcg_gen_subi_i32(t0, t0, 1);
+    e2k_gen_lcnt_set_i32(t0);
+
+    gen_set_label(l0);
+    gen_lcnt_overflow(t0);
+    tcg_gen_mov_i32(ret, t0);
+
+    tcg_temp_free_i32(t0);
+}
+
+static void gen_advance_ecnt(void)
+{
+    TCGLabel *l0 = gen_new_label();
+    TCGv_i32 t0 = tcg_temp_local_new_i32();
+    TCGv_i32 t1 = tcg_temp_new_i32();
+
+    e2k_gen_ecnt_i32(t0);
+    tcg_gen_brcondi_i32(TCG_COND_EQ, t0, 0, l0);
+    tcg_gen_subi_i32(t1, t0, 1);
+    e2k_gen_ecnt_set_i32(t1);
+    gen_set_label(l0);
+
+    tcg_temp_free_i32(t1);
+    tcg_temp_free_i32(t0);
+}
+
+static void gen_advance_loop_counters(void)
+{
+    TCGLabel *l0 = gen_new_label();
+    TCGv_i32 t0 = tcg_temp_new_i32();
+
+    gen_advance_pcnt();
+    gen_advance_lcnt(t0);
+    tcg_gen_brcondi_i32(TCG_COND_NE, t0, 0, l0);
+    gen_advance_ecnt();
+    gen_set_label(l0);
+
     tcg_temp_free_i32(t0);
 }
 
@@ -135,11 +138,12 @@ void e2k_stubs_commit(DisasContext *ctx)
     int abg = GET_FIELD(ss, 23, 2);
 
     if (alc) {
-        TCGv_i64 t0 = tcg_temp_new_i64();
+        TCGLabel *l0 = gen_new_label();
+        TCGCond cond = cond_from_advance(alc);
 
-        gen_lcnt_dec(t0, e2k_cs.lsr);
-        gen_movcond_flag_i64(e2k_cs.lsr, alc, e2k_cs.ct_cond, t0, e2k_cs.lsr);
-        tcg_temp_free_i64(t0);
+        tcg_gen_brcondi_i32(tcg_invert_cond(cond), e2k_cs.ct_cond, 1, l0);
+        gen_advance_loop_counters();
+        gen_set_label(l0);
     }
 
     if (abp) {
@@ -168,38 +172,6 @@ void e2k_stubs_commit(DisasContext *ctx)
         e2k_tr_gen_exception(ctx, E2K_EXCP_ILLOPC);
         break;
     }
-}
-
-static inline void gen_is_last_iter(TCGv ret)
-{
-    TCGv t0 = tcg_temp_new();
-    TCGv t1 = tcg_temp_new();
-    TCGv t2 = tcg_temp_new();
-
-    e2k_gen_lcnt(t0);
-    tcg_gen_setcondi_tl(TCG_COND_LTU, t1, t0, 2);
-    tcg_gen_extract_tl(t2, e2k_cs.lsr, LSR_VLC_OFF, 1);
-    tcg_gen_and_tl(ret, t1, t2);
-
-    tcg_temp_free(t2);
-    tcg_temp_free(t1);
-    tcg_temp_free(t0);
-}
-
-static inline void gen_is_loop_end(TCGv ret)
-{
-    TCGv t0 = tcg_temp_new();
-    TCGv t1 = tcg_temp_new();
-    TCGv t2 = tcg_temp_new();
-
-    e2k_gen_ecnt(t0);
-    tcg_gen_setcondi_tl(TCG_COND_EQ, t1, t0, 0);
-    gen_is_last_iter(t2);
-    tcg_gen_and_tl(ret, t1, t2);
-
-    tcg_temp_free(t2);
-    tcg_temp_free(t1);
-    tcg_temp_free(t0);
 }
 
 static void gen_cs0(DisasContext *dc)
@@ -469,30 +441,28 @@ static void gen_jmp(DisasContext *dc)
     }
 
     if (cond_type == 1) {
-        tcg_gen_movi_tl(e2k_cs.ct_cond, 1);
+        tcg_gen_movi_i32(e2k_cs.ct_cond, 1);
     } else if (cond_type > 1) {
-        TCGv preg = tcg_temp_new();
-        TCGv loop_end = tcg_temp_new();
-        TCGv not_loop_end = tcg_temp_new();
-        TCGv cond = e2k_cs.ct_cond;
-        TCGv_i64 t0 = tcg_temp_new_i64();
+        TCGv_i32 preg = tcg_temp_new_i32();
+        TCGv_i32 loop_end = tcg_temp_new_i32();
+        TCGv_i32 not_loop_end = tcg_temp_new_i32();
+        TCGv_i32 cond = e2k_cs.ct_cond;
 
         dc->ct.is_branch = true;
-        e2k_gen_preg(t0, psrc);
-        tcg_gen_trunc_i64_tl(preg, t0);
-        gen_is_loop_end(loop_end);
-        tcg_gen_setcondi_tl(TCG_COND_NE, not_loop_end, loop_end, 1);
+        e2k_gen_preg_i32(preg, psrc);
+        e2k_gen_is_loop_end_i32(loop_end);
+        tcg_gen_setcondi_i32(TCG_COND_NE, not_loop_end, loop_end, 1);
 
         switch (cond_type) {
         case 0x2:
         case 0x6:
         case 0xf:
-            tcg_gen_mov_tl(cond, preg);
+            tcg_gen_mov_i32(cond, preg);
             break;
         case 0x3:
         case 0x7:
         case 0xe:
-            tcg_gen_setcondi_tl(TCG_COND_NE, cond, preg, 1);
+            tcg_gen_setcondi_i32(TCG_COND_NE, cond, preg, 1);
             break;
         default:
             break;
@@ -500,24 +470,25 @@ static void gen_jmp(DisasContext *dc)
 
         switch (cond_type) {
         case 0x4:
-            tcg_gen_mov_tl(cond, loop_end);
+            tcg_gen_mov_i32(cond, loop_end);
             break;
         case 0x5:
-            tcg_gen_mov_tl(cond, not_loop_end);
+            tcg_gen_mov_i32(cond, not_loop_end);
             break;
         case 0x6:
         case 0xe:
-            tcg_gen_or_tl(cond, cond, loop_end);
+            tcg_gen_or_i32(cond, cond, loop_end);
             break;
         case 0x7:
         case 0xf:
-            tcg_gen_and_tl(cond, cond, not_loop_end);
+            tcg_gen_and_i32(cond, cond, not_loop_end);
             break;
         default:
             break;
         }
 
         if (cond_type == 8) {
+            qemu_log_mask(LOG_UNIMP, "0x%lx: ct cond is not implemented!\n", dc->pc);
             // %MLOCK
             /* It's not clearly said in C.17.1.2 of iset-vX.single if the uppermost
                fourth bit in `psrc' has any meaning at all.  */
@@ -536,6 +507,7 @@ static void gen_jmp(DisasContext *dc)
 
         /* `lock_cond || pl_cond' control transfer conditions.  */
         if (cond_type == 9) {
+            qemu_log_mask(LOG_UNIMP, "0x%lx: ct cond is not implemented!\n", dc->pc);
             unsigned int type = (psrc & 0x18) >> 3;
             if (type == 0) {
     //            static const int cmp_num_to_alc[] = {0, 1, 3, 4};
@@ -567,10 +539,9 @@ static void gen_jmp(DisasContext *dc)
         }
 
 
-        tcg_temp_free_i64(t0);
-        tcg_temp_free(not_loop_end);
-        tcg_temp_free(loop_end);
-        tcg_temp_free(preg);
+        tcg_temp_free_i32(not_loop_end);
+        tcg_temp_free_i32(loop_end);
+        tcg_temp_free_i32(preg);
     }
 }
 
@@ -646,6 +617,21 @@ void e2k_control_window_change(DisasContext *dc)
 void e2k_control_execute(DisasContext *ctx)
 {
     ctx->ct.type = CT_NONE;
+
+    ctx->loop_mode = (ctx->bundle.hs & (1 << 10)) != 0;
+    if (ctx->loop_mode) {
+        TCGv_i32 t0 = tcg_temp_new_i32();
+
+        ctx->is_prologue = e2k_get_temp_i32(ctx);
+        e2k_gen_pcnt_i32(t0);
+        tcg_gen_setcondi_i32(TCG_COND_NE, ctx->is_prologue, t0, 0);
+
+        ctx->is_epilogue = e2k_get_temp_i32(ctx);
+        e2k_gen_lcnt_i32(t0);
+        tcg_gen_setcondi_i32(TCG_COND_EQ, ctx->is_epilogue, t0, 0);
+
+        tcg_temp_free_i32(t0);
+    }
 
     if (ctx->bundle.ss_present) {
         gen_jmp(ctx);
