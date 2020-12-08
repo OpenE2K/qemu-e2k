@@ -374,7 +374,20 @@ typedef struct {
     E2KAad ds[32];
     uint32_t ldi[64];
     E2KAalda lda[64];
+    uint64_t pib[64];
 } E2KAauState;
+
+typedef union {
+    struct {
+        uint64_t base: 48;      /* 47:0 */
+        uint64_t unused1: 6;    /* 53:48 */
+        uint64_t tag: 3;        /* 56:54 */
+        uint64_t opc: 2;        /* 58:57 */
+        uint64_t ipd: 2;        /* 60:59 */
+        uint64_t unused2: 3;    /* 63:61 */
+    };
+    uint64_t raw;
+} E2KCtpr;
 
 typedef struct {
     /* register file */
@@ -403,7 +416,7 @@ typedef struct {
     uint64_t usd_hi;
 
     /* control registers */
-    target_ulong ctprs[3]; // Control Transfer Preparation Register (CTPR)
+    E2KCtpr ctprs[3]; // Control Transfer Preparation Register (CTPR)
     target_ulong ct_cond;
     
     union {
