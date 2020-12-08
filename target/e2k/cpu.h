@@ -324,13 +324,13 @@ typedef enum {
 typedef struct {
     union {
         struct {
-            uint64_t base       : 48;
-            uint64_t unused1    : 6;
-            uint64_t tag        : 3;
-            uint64_t mb         : 1;
-            uint64_t ed         : 1;
-            uint64_t rw         : 2;
-            uint64_t unused2    : 3;
+            uint64_t base       : 48;   /* 48:0 */
+            uint64_t unused1    : 6;    /* 53:48 */
+            uint64_t tag        : 3;    /* 56:54 */
+            uint64_t mb         : 1;    /* 57 */
+            uint64_t ed         : 1;    /* 58 */
+            uint64_t rw         : 2;    /* 60:59 */
+            uint64_t unused2    : 3;    /* 63:60 */
         };
         uint64_t lo;
     };

@@ -497,6 +497,9 @@ void e2k_tcg_initialize(void) {
         { &e2k_cs.psize, offsetof(CPUE2KState, bp.size), "psize" },
         { &e2k_cs.pcur, offsetof(CPUE2KState, bp.cur), "pcur" },
         { &e2k_cs.is_bp, offsetof(CPUE2KState, is_bp), "is_bp" },
+        { &e2k_cs.aasti_tags, offsetof(CPUE2KState, aau.sti_tags), "aasti_tags" },
+        { &e2k_cs.aaind_tags, offsetof(CPUE2KState, aau.ind_tags), "aaind_tags" },
+        { &e2k_cs.aaincr_tags, offsetof(CPUE2KState, aau.incr_tags), "aaincr_tags" },
     };
 
     static const struct { TCGv_i64 *ptr; int off; const char *name; } r64[] = {
@@ -545,7 +548,34 @@ void e2k_tcg_initialize(void) {
 
     for (i = 0; i < 3; i++) {
         snprintf(buf, ARRAY_SIZE(buf), "%%ctpr%d", i + 1);
-        e2k_cs.ctprs[i] = tcg_global_mem_new(cpu_env,
+        e2k_cs.ctprs[i] = tcg_global_mem_new_i64(cpu_env,
             offsetof(CPUE2KState, ctprs[i]), buf);
+    }
+
+    for (i = 0; i < 16; i++) {
+        snprintf(buf, ARRAY_SIZE(buf), "%%aasti%d", i);
+        e2k_cs.aasti[i] = tcg_global_mem_new_i32(cpu_env,
+            offsetof(CPUE2KState, aau.stis[i]), buf);
+    }
+
+    for (i = 0; i < 16; i++) {
+        snprintf(buf, ARRAY_SIZE(buf), "%%aaind%d", i);
+        e2k_cs.aaind[i] = tcg_global_mem_new_i32(cpu_env,
+            offsetof(CPUE2KState, aau.inds[i]), buf);
+    }
+
+    for (i = 0; i < 7; i++) {
+        snprintf(buf, ARRAY_SIZE(buf), "%%aaincr%d", i);
+        e2k_cs.aaincr[i] = tcg_global_mem_new_i32(cpu_env,
+            offsetof(CPUE2KState, aau.incrs[i]), buf);
+    }
+
+    for (i = 0; i < 32; i++) {
+        snprintf(buf, ARRAY_SIZE(buf), "%%aad%d_lo", i);
+        e2k_cs.aad_lo[i] = tcg_global_mem_new_i64(cpu_env,
+            offsetof(CPUE2KState, aau.ds[i].lo), buf);
+        snprintf(buf, ARRAY_SIZE(buf), "%%aad%d_hi", i);
+        e2k_cs.aad_hi[i] = tcg_global_mem_new_i64(cpu_env,
+            offsetof(CPUE2KState, aau.ds[i].hi), buf);
     }
 }

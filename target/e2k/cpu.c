@@ -52,6 +52,7 @@ static void e2k_cpu_reset(DeviceState *dev)
     env->bn.base = 8;
     env->bn.size = 8;
     env->bn.cur = 0;
+    env->aau.incrs[0] = 1; /* always one */
 
     // FIXME: testing
     env->idr = 0x3a207; // mimic 8c
