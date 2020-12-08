@@ -161,9 +161,9 @@ int e2k_cpu_gdb_read_register(CPUState *cs, GByteArray *mem_buf, int n)
     case 336: return gdb_get_reg64(mem_buf, 0); // bgr
     case 337: return gdb_get_reg64(mem_buf, 0); // unk
     case 338: return gdb_get_reg64(mem_buf, 0); // nip
-    case 339: return gdb_get_reg64(mem_buf, env->ctprs[0]); // ctpr1
-    case 340: return gdb_get_reg64(mem_buf, env->ctprs[1]); // ctpr2
-    case 341: return gdb_get_reg64(mem_buf, env->ctprs[2]); // ctpr3
+    case 339: return gdb_get_reg64(mem_buf, env->ctprs[0].raw); // ctpr1
+    case 340: return gdb_get_reg64(mem_buf, env->ctprs[1].raw); // ctpr2
+    case 341: return gdb_get_reg64(mem_buf, env->ctprs[2].raw); // ctpr3
     case 342: return gdb_get_reg64(mem_buf, 0); // eir
     case 343: return gdb_get_reg64(mem_buf, 0); // tr
     case 344: return gdb_get_reg64(mem_buf, 0); // cutd
