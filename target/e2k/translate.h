@@ -58,7 +58,7 @@ typedef enum {
 typedef struct CPUE2KStateTCG {
     TCGv pc;
     TCGv npc;
-    TCGv ctprs[3];
+    TCGv_i64 ctprs[3];
     TCGv ct_cond;
     TCGv_i32 is_bp; /* breakpoint flag */
     TCGv_i64 lsr;
