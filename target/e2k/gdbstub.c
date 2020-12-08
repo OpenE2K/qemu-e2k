@@ -89,10 +89,11 @@ int e2k_cpu_gdb_read_register(CPUState *cs, GByteArray *mem_buf, int n)
     }
 
     if (76 <= n && n < 140) {
+        int idx = (n - 76) >> 1;
         if (n & 1) {
-            return gdb_get_reg64(mem_buf, env->aau.ds[n - 76].hi); // addN_hi
+            return gdb_get_reg64(mem_buf, env->aau.ds[idx].hi); // addN_hi
         } else {
-            return gdb_get_reg64(mem_buf, env->aau.ds[n - 76].lo); // addN_lo
+            return gdb_get_reg64(mem_buf, env->aau.ds[idx].lo); // addN_lo
         }
     }
 
