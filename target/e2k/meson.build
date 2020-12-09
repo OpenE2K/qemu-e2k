@@ -4,6 +4,7 @@ e2k_ss.add(files(
   'gdbstub.c',
   'helper.c',
   'helper_aau.c',
+  'helper_fpu.c',
   'helper_int.c',
   'helper_sm.c',
   'helper_vec.c',

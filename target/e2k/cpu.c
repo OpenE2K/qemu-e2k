@@ -57,6 +57,7 @@ static void e2k_cpu_reset(DeviceState *dev)
     /* Based predicate window must not be zero. */
     env->bp.size = 1;
     env->aau.incrs[0] = 1; /* always one */
+    env->fpcr._one = 1; 
 
     // FIXME: testing
     env->idr = 0x3a207; // mimic 8c
