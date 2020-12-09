@@ -199,6 +199,7 @@ typedef enum {
 #define LSR_STRMD_END 59
 #define LSR_STRMD_LEN (LSR_STRMD_END - LSR_STRMD_OFF + 1)
 #define LSR_SEMC_OFF        /* side effects manual control */
+#define LSR_ILCR_MASK 0x1f001fffffffffUL
 
 #define UPSR_FE_OFF 0 /* floating point enable */
 #define UPSR_FE_BIT 1
