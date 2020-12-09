@@ -245,7 +245,7 @@ static void gen_cs0(DisasContext *dc)
         if (type == GETTSD && param_type != 1) {
             e2k_tr_gen_exception(dc, E2K_EXCP_ILLOPC);
         }
-        int ipd = GET_FIELD(bundle->ss, 30, 2);
+        int ipd = bundle->ss_present ? GET_FIELD(bundle->ss, 30, 2) : 3;
         if (type == DISP || type == LDISP) {
             unsigned int disp = GET_FIELD(cs0, 0, 28);
             /* Calculate a signed displacement in bytes. */
