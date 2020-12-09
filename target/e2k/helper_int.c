@@ -34,6 +34,8 @@ static uint64_t* state_reg_ptr(CPUE2KState *env, int idx)
     switch (idx) {
     case 0x80: return &env->upsr; /* %upsr */
     case 0x83: return &env->lsr; /* %lsr */
+    case 0x85: return &env->fpcr.raw; /* %fpcr */
+    case 0x86: return &env->fpsr.raw; /* %fpsr */
     default: return NULL;
     }
 }
@@ -75,7 +77,7 @@ uint32_t helper_state_reg_read_i32(CPUE2KState *env, int idx)
 void helper_state_reg_write_i64(CPUE2KState *env, int idx, uint64_t val)
 {
     uint64_t *p = state_reg_ptr(env, idx);
-
+    
     if (p != NULL) {
         *p = val;
     } else {
@@ -90,6 +92,10 @@ void helper_state_reg_write_i32(CPUE2KState *env, int idx, uint32_t val)
 
     if (p != NULL) {
         *p = val;
+        
+        if (idx == 0x85) { /* %fpcr */
+            e2k_update_fp_status(env);
+        }
     } else {
         qemu_log_mask(LOG_UNIMP, "unknown state register 0x%x\n", idx);
         abort();
