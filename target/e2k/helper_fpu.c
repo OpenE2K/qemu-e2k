@@ -90,14 +90,24 @@ void e2k_update_fp_status(CPUE2KState *env)
         return z; \
     }
 
+#define no_cvt(x) (x) // when function already returns in correct type
+
+#define GENERATE_CVT_FLOAT1_OP(name, from_t, to_t, size_from, size_to, func_from, func_to) \
+    uint##size_to##_t HELPER(name)(CPUE2KState *env, uint##size_from##_t x) \
+    {\
+        uint8_t old_flags = save_exception_flags(env); \
+        uint##size_to##_t z = func_to( from_t##_to_##to_t (func_from(x), &env->fp_status) );\
+        merge_exception_flags(env, old_flags); \
+        return z; \
+    }
+
 #define GENERATE_SIMPLE_FLOAT2_OPS_32_64(name, function) \
     GENERATE_SIMPLE_FLOAT2_OP(name##s, function, 32) \
     GENERATE_SIMPLE_FLOAT2_OP(name##d, function, 64)
 
 #define GENERATE_CMP_FLOAT2_OPS_32_64(name, function, expr) \
-    GENERATE_CMP_FLOAT2_OP(name##s, function, 32) \
-    GENERATE_CMP_FLOAT2_OP(name##d, function, 64)
-
+    GENERATE_CMP_FLOAT2_OP(name##s, function, expr, 32) \
+    GENERATE_CMP_FLOAT2_OP(name##d, function, expr, 64)
         
 GENERATE_SIMPLE_FLOAT2_OPS_32_64(fadd, add)
 GENERATE_SIMPLE_FLOAT2_OPS_32_64(fsub, sub)
@@ -113,3 +123,21 @@ GENERATE_CMP_FLOAT2_OPS_32_64(fcmplt,  lt,  )
 GENERATE_CMP_FLOAT2_OPS_32_64(fcmpnlt, lt, !)
 GENERATE_CMP_FLOAT2_OPS_32_64(fcmpuod, unordered,  )
 GENERATE_CMP_FLOAT2_OPS_32_64(fcmpod,  unordered, !)
+
+GENERATE_CVT_FLOAT1_OP(fstois,   float32, int32,   32, 32, make_float32, no_cvt)
+GENERATE_CVT_FLOAT1_OP(istofs,   int32,   float32, 32, 32, no_cvt, float32_val)
+GENERATE_CVT_FLOAT1_OP(fstoistr, float32, int32_round_to_zero, 32, 32, make_float32, no_cvt)
+
+GENERATE_CVT_FLOAT1_OP(fdtoid,   float64, int64,   64, 64, make_float64, no_cvt)
+GENERATE_CVT_FLOAT1_OP(idtofd,   int64,   float64, 64, 64, no_cvt, float64_val)
+GENERATE_CVT_FLOAT1_OP(fdtoidtr, float64, int64_round_to_zero, 64, 64, make_float64, no_cvt)
+
+GENERATE_CVT_FLOAT1_OP(fstofd,   float32, float64, 32, 64, make_float32, float64_val)
+GENERATE_CVT_FLOAT1_OP(fstoid,   float32, int64,   32, 64, make_float32, no_cvt)
+GENERATE_CVT_FLOAT1_OP(istofd,   int32,   float64, 32, 64, no_cvt, float64_val)
+GENERATE_CVT_FLOAT1_OP(fstoidtr, float32, int64_round_to_zero, 32, 64, make_float32, no_cvt)
+
+GENERATE_CVT_FLOAT1_OP(fdtofs,   float64, float32, 64, 32, make_float64, float32_val)
+GENERATE_CVT_FLOAT1_OP(fdtois,   float64, int32,   64, 32, make_float64, no_cvt)
+GENERATE_CVT_FLOAT1_OP(idtofs,   int64,   float32, 64, 32, no_cvt, float32_val)
+GENERATE_CVT_FLOAT1_OP(fdtoistr, float64, int32_round_to_zero, 64, 32, make_float64, no_cvt)

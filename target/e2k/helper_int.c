@@ -34,7 +34,7 @@ static uint64_t* state_reg_ptr(CPUE2KState *env, int idx)
     switch (idx) {
     case 0x80: return &env->upsr; /* %upsr */
     case 0x83: return &env->lsr; /* %lsr */
-    case 0x85: return &env->fpcr.raw; /* %fpcr */
+    case 0x85: return &env->fpcr.raw; /* %fpcr */ /* TODO: fix invalid conversion! */
     case 0x86: return &env->fpsr.raw; /* %fpsr */
     default: return NULL;
     }
