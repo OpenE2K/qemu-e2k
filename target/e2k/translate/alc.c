@@ -986,6 +986,88 @@ static inline void gen_cmpand_i32(TCGv_i32 ret, int opc, TCGv_i32 src1,
     tcg_temp_free_i32(t0);
 }
 
+static void gen_fcmp_i32(TCGv_i32 ret, int opc, TCGv_i32 src1, TCGv_i32 src2)
+{
+    void (*f)(TCGv_i32, TCGv_env, TCGv_i32, TCGv_i32) = 0;
+    TCGv_i32 dst = tcg_temp_new_i32();
+
+    switch(opc) {
+    case 0: /* eq */
+        f = gen_helper_fcmpeqs;
+        break;
+    case 1: /* lt */
+        f = gen_helper_fcmplts;
+        break;
+    case 2: /* le */
+        f = gen_helper_fcmples;
+        break;
+    case 3: /* uod */
+        f = gen_helper_fcmpuods;
+        break;
+    case 4: /* neq */
+        f = gen_helper_fcmpneqs;
+        break;
+    case 5: /* nlt */
+        f = gen_helper_fcmpnlts;
+        break;
+    case 6: /* nle */
+        f = gen_helper_fcmpnles;
+        break;
+    case 7: /* od */
+        f = gen_helper_fcmpods;
+        break;
+    default:
+        e2k_gen_exception(E2K_EXCP_ILLOPC);
+        break;
+    }
+
+    (*f)(dst, cpu_env, src1, src2);
+    tcg_gen_setcondi_i32(TCG_COND_NE, ret, dst, 0);
+
+    tcg_temp_free_i32(dst);
+}
+
+static void gen_fcmp_i64(TCGv_i64 ret, int opc, TCGv_i64 src1, TCGv_i64 src2)
+{
+    void (*f)(TCGv_i64, TCGv_env, TCGv_i64, TCGv_i64) = 0;
+    TCGv_i64 dst = tcg_temp_new_i64();
+
+    switch(opc) {
+    case 0: /* eq */
+        f = gen_helper_fcmpeqd;
+        break;
+    case 1: /* lt */
+        f = gen_helper_fcmpltd;
+        break;
+    case 2: /* le */
+        f = gen_helper_fcmpled;
+        break;
+    case 3: /* uod */
+        f = gen_helper_fcmpuodd;
+        break;
+    case 4: /* neq */
+        f = gen_helper_fcmpneqd;
+        break;
+    case 5: /* nlt */
+        f = gen_helper_fcmpnltd;
+        break;
+    case 6: /* nle */
+        f = gen_helper_fcmpnled;
+        break;
+    case 7: /* od */
+        f = gen_helper_fcmpodd;
+        break;
+    default:
+        e2k_gen_exception(E2K_EXCP_ILLOPC);
+        break;
+    }
+
+    (*f)(dst, cpu_env, src1, src2);
+    tcg_gen_setcondi_i64(TCG_COND_NE, ret, dst, 0);
+
+    tcg_temp_free_i64(dst);
+}
+
 /*
  * ret[31:0] = x[31:0]
  * ret[63:32] = y[63:32]
@@ -1956,6 +2038,51 @@ static void gen_alopf2_i64(DisasContext *ctx, int chan, void (*op)(TCGv_i64, TCG
     gen_al_result_i64(ctx, chan, dst, tag);
 }
 
+static void gen_alopf2_i32_env(DisasContext *ctx, int chan, void (*op)(TCGv_i32, TCGv_env, TCGv_i32))
+{
+    Src32 s2 = get_src2_i32(ctx, chan);
+    TCGv_i32 dst = e2k_get_temp_i32(ctx);
+    TCGv_i32 tag = e2k_get_temp_i32(ctx);
+
+    gen_tag1_i32(tag, s2.tag);
+    (*op)(dst, cpu_env, s2.value);
+    gen_al_result_i32(ctx, chan, dst, tag);
+}
+
+static void gen_alopf2_i64_env(DisasContext *ctx, int chan, void (*op)(TCGv_i64, TCGv_env, TCGv_i64))
+{
+    Src64 s2 = get_src2_i64(ctx, chan);
+    TCGv_i64 dst = e2k_get_temp_i64(ctx);
+    TCGv_i32 tag = e2k_get_temp_i32(ctx);
+
+    gen_tag1_i64(tag, s2.tag);
+    (*op)(dst, cpu_env, s2.value);
+    gen_al_result_i64(ctx, chan, dst, tag);
+}
+
+static void gen_alopf2_i64_i32_env(DisasContext *ctx, int chan, void (*op)(TCGv_i32, TCGv_env, TCGv_i64))
+{
+    Src64 s2 = get_src2_i64(ctx, chan);
+    TCGv_i32 dst = e2k_get_temp_i32(ctx);
+    TCGv_i32 tag = e2k_get_temp_i32(ctx);
+
+    gen_tag1_i32(tag, s2.tag);
+    (*op)(dst, cpu_env, s2.value);
+    gen_al_result_i32(ctx, chan, dst, tag);
+}
+
+static void gen_alopf2_i32_i64_env(DisasContext *ctx, int chan, void (*op)(TCGv_i64, TCGv_env, TCGv_i32))
+{
+    Src32 s2 = get_src2_i32(ctx, chan);
+    TCGv_i64 dst = e2k_get_temp_i64(ctx);
+    TCGv_i32 tag = e2k_get_temp_i32(ctx);
+
+    gen_tag1_i64(tag, s2.tag);
+    (*op)(dst, cpu_env, s2.value);
+    gen_al_result_i64(ctx, chan, dst, tag);
+}
+
+
 static void execute_ext_00(DisasContext *ctx, Instr *instr)
 {
     int chan = instr->chan;
@@ -2060,6 +2187,22 @@ static void execute_ext_00(DisasContext *ctx, Instr *instr)
         }
         break;
     }
+    case 0x2e: {
+        if (is_chan_0134(chan)) {
+            /* fcmp{op}sb */
+            gen_alopf1_cmp_i32(ctx, instr, gen_fcmp_i32);
+            return;
+        }
+        break;
+    }
+    case 0x2f: {
+        if (is_chan_0134(chan)) {
+            /* fcmp{op}db */
+            gen_alopf1_cmp_i64(ctx, instr, gen_fcmp_i64);
+            return;
+        }
+        break;
+    }
     case 0x30:
         if (ctx->version >= 4 || is_chan_0134(chan)) {
             /* faddd */
@@ -2127,6 +2270,72 @@ static void execute_ext_00(DisasContext *ctx, Instr *instr)
         if (is_chan_0134(chan)) {
             /* fmuld */
             gen_alopf1_i64_env(ctx, chan, gen_helper_fmuld);
+            return;
+        }
+        break;
+    case 0x3c:
+        if (is_chan_0134(chan)) {
+            void (*func)(TCGv_i32, TCGv_env, TCGv_i32) = 0;
+
+            switch(instr->opce1) {
+            case 0xc0: func = gen_helper_fstois; break;
+            case 0xc2: func = gen_helper_fstoistr; break;
+            case 0xc4: func = gen_helper_istofs; break;
+            }
+
+            if (func) {
+                gen_alopf2_i32_env(ctx, chan, func);
+                return;
+            }
+        }
+        break;
+    case 0x3d:
+        if (is_chan_0134(chan)) {
+            void (*func)(TCGv_i64, TCGv_env, TCGv_i64) = 0;
+
+            switch(instr->opce1) {
+            case 0xc0: func = gen_helper_fdtoid; break;
+            case 0xc2: func = ctx->version >= 2 ? gen_helper_fdtoidtr : 0; break;
+            case 0xc4: func = gen_helper_idtofd; break;
+            }
+
+            if (func) {
+                gen_alopf2_i64_env(ctx, chan, func);
+               return;
+            }
+        }
+        break;
+    case 0x3e:
+        if (is_chan_0134(chan)) {
+            void (*func)(TCGv_i64, TCGv_env, TCGv_i32) = 0;
+
+            switch(instr->opce1) {
+            case 0xc0: func = gen_helper_fstoid; break;
+            case 0xc2: func = ctx->version >= 2 ? gen_helper_fstoidtr : 0; break;
+            case 0xc4: func = gen_helper_istofd; break;
+            case 0xc6: func = gen_helper_fstofd; break;
+            }
+
+            if (func) {
+                gen_alopf2_i32_i64_env(ctx, chan, func);
+            }
+            return;
+        }
+        break;
+    case 0x3f:
+        if (is_chan_0134(chan)) {
+            void (*func)(TCGv_i32, TCGv_env, TCGv_i64) = 0;
+
+            switch(instr->opce1) {
+            case 0xc0: func = gen_helper_fdtois; break;
+            case 0xc2: func = gen_helper_fdtoistr; break;
+            case 0xc4: func = gen_helper_idtofs; break;
+            case 0xc6: func = gen_helper_fdtofs; break;
+            }
+
+            if (func) {
+                gen_alopf2_i64_i32_env(ctx, chan, func);
+            }
             return;
         }
         break;
