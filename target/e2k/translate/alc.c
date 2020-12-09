@@ -1396,7 +1396,7 @@ static void gen_aad_tag(TCGv_i64 ret, TCGv_i32 tag)
     tcg_temp_free_i32(t0);
 }
 
-static void gen_aaurw_aad_i64(Instr *instr, TCGv_i64 arg1, TCGv_i32 tag)
+static void gen_aaurw_aad_lo_i64(Instr *instr, TCGv_i64 arg1, TCGv_i32 tag)
 {
     TCGv_i64 lo = e2k_cs.aad_lo[instr->aad];
     TCGv_i64 t0 = tcg_temp_new_i64();
@@ -1412,6 +1412,11 @@ static void gen_aaurw_aad_i64(Instr *instr, TCGv_i64 arg1, TCGv_i32 tag)
 
     tcg_temp_free_i64(t1);
     tcg_temp_free_i64(t0);
+}
+
+static void gen_aaurw_aad_hi_i64(Instr *instr, TCGv_i64 arg1, TCGv_i32 tag)
+{
+    tcg_gen_andi_i64(e2k_cs.aad_hi[instr->aad], arg1, 0xffffffff00000000);
 }
 
 static void gen_aaurw_aad_i32(Instr *instr, TCGv_i32 arg1, TCGv_i32 tag)
@@ -1533,7 +1538,11 @@ static void gen_staa_i64(DisasContext *ctx, Instr *instr)
     if (mas == 0x3f) {
         /* aaurwd */
         if (instr->aaopc == 0) {
-            gen_aaurw_aad_i64(instr, s4.value, s4.tag);
+            if (instr->chan == 5 && instr->opc1 == 0x3f) {
+                gen_aaurw_aad_hi_i64(instr, s4.value, s4.tag);
+            } else {
+                gen_aaurw_aad_lo_i64(instr, s4.value, s4.tag);
+            }
         } else {
             TCGv_i32 t0 = tcg_temp_new_i32();
             tcg_gen_extrl_i64_i32(t0, s4.value);
@@ -2168,6 +2177,18 @@ static void execute_ext_01(DisasContext *ctx, Instr *instr)
         if (chan == 0) {
             /* rrd */
             gen_rr_i64(ctx, chan);
+            return;
+        } else if (is_chan_25(chan)) {
+            /* staaq */
+            int pair_chan = chan == 2 ? 5 : 2;
+            if (!ctx->bundle.als_present[pair_chan] ||
+                extract32(ctx->bundle.als[pair_chan], 24, 7) != 0x3f ||
+                (instr->dst & 1) != (chan == 2 ? 0 : 1))
+            {
+                e2k_tr_gen_exception(ctx, E2K_EXCP_ILLOPC);
+                return;
+            }
+            gen_staa_i64(ctx, instr);
             return;
         }
         break;
