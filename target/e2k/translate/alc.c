@@ -2104,7 +2104,11 @@ static void execute_ext_01(DisasContext *ctx, Instr *instr)
         }
         break;
     case 0x0b:
-        if (is_chan_25(chan)) {
+        if (is_chan_14(chan)) {
+            /* pmovmskb */
+            gen_alopf1_i64(ctx, chan, gen_helper_pmovmskb);
+            return;
+        } else if (is_chan_25(chan)) {
             /* puttagd */
             gen_puttag_i64(ctx, chan);
             return;
