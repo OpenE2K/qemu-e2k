@@ -302,8 +302,6 @@ static inline void do_branch(DisasContext *ctx, target_ulong pc_next)
     gen_set_label(l0);
 
     if (ctx->ct.type == CT_NONE) {
-        // FIXME: do not write to e2k_cs.pc if not necessary
-        tcg_gen_movi_tl(e2k_cs.pc, pc_next);
         return;
     }
 
