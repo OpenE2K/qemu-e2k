@@ -1560,13 +1560,13 @@ static inline void init_thread(struct target_pt_regs *regs, struct image_info *i
     regs->pcsp.is_writable = true;
     regs->pcsp.index = 0;
     regs->pcsp.size = TARGET_PAGE_SIZE;
-    regs->pcsp.base = (void *) e2k_mmap(regs->pcsp.size);
+    regs->pcsp.base = e2k_mmap(regs->pcsp.size);
 
     regs->psp.is_readable = true;
     regs->psp.is_writable = true;
     regs->psp.index = 0;
     regs->psp.size = TARGET_PAGE_SIZE * 8;
-    regs->psp.base = (void *) e2k_mmap(regs->psp.size);
+    regs->psp.base = e2k_mmap(regs->psp.size);
 }
 
 static void elf_core_copy_regs(target_elf_gregset_t *regs, const CPUE2KState *env)
