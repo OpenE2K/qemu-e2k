@@ -287,12 +287,12 @@ typedef struct {
 } E2KCr1State;
 
 typedef struct {
-    void *base;
+    target_ulong base;
     uint32_t index;
     uint32_t size;
     bool is_readable;
     bool is_writable;
-} E2KDescState, E2KPsState, E2KPcsState;
+} E2KStackState, E2KPsState, E2KPcsState;
 
 typedef struct {
     int16_t index;
@@ -302,7 +302,7 @@ typedef struct {
 } E2KPshtpState;
 
 typedef struct {
-    uint32_t base;
+    int32_t base;
     uint32_t size;
     uint32_t psize;
     bool fx;
@@ -454,6 +454,7 @@ typedef union {
 typedef struct {
     /* register file */
     uint64_t regs[E2K_REG_COUNT]; /* registers */
+    uint16_t xregs[E2K_REG_COUNT]; /* x part of registers */
     uint64_t tags[E2K_TAGS_REG_COUNT]; /* registers tags */
     uint64_t *rptr; /* pointer to regs */
     uint64_t *tptr; /* pointer to tags */
@@ -546,7 +547,7 @@ void e2k_break_save_state(CPUE2KState *env);
 #define cpu_signal_handler e2k_cpu_signal_handler
 #define cpu_list e2k_cpu_list
 
-static inline uint64_t e2k_state_desc_lo(E2KDescState *desc)
+static inline uint64_t e2k_state_desc_lo(E2KStackState *desc)
 {
     uint64_t lo = 0;
 
@@ -558,7 +559,7 @@ static inline uint64_t e2k_state_desc_lo(E2KDescState *desc)
     return lo;
 }
 
-static inline uint64_t e2k_state_desc_hi(E2KDescState *env)
+static inline uint64_t e2k_state_desc_hi(E2KStackState *env)
 {
     uint64_t hi = 0;
 
@@ -678,6 +679,14 @@ static inline void e2k_state_cr1_hi_set(CPUE2KState *env, uint64_t hi)
     cr1->br = extract64(hi, CR1_HI_BR_OFF, CR1_HI_BR_LEN);
     cr1->wdbl = extract64(hi, CR1_HI_WDBL_OFF, 1);
     cr1->ussz = extract64(hi, CR1_HI_USSZ_OFF, CR1_HI_USSZ_LEN);
+}
+
+static inline void e2k_state_reg_tag_set_i64(CPUE2KState *env, int tag, int idx)
+{
+    int i = idx / E2K_TAGS_PER_REG, offset;
+
+    offset = (idx & (E2K_TAGS_PER_REG - 1)) * E2K_REG_TAGS_SIZE;
+    env->tags[i] = deposit64(env->tags[i], offset, E2K_REG_TAGS_SIZE, tag);
 }
 
 typedef CPUE2KState CPUArchState;
