@@ -4,6 +4,7 @@
 #include "qemu/bswap.h"
 #include "cpu-qom.h"
 #include "exec/cpu-defs.h"
+#include "fpu/softfloat.h"
 
 void e2k_tcg_initialize(void);
 
@@ -480,6 +481,54 @@ typedef union {
     uint64_t raw;
 } E2KCtpr;
 
+/* E2K FPU regs are compatible with x87 regs */
+#define FPSR_IE (1U << 0) /* invalid operation */
+#define FPSR_DE (1U << 1) /* denormalized operand */
+#define FPSR_ZE (1U << 2) /* zero divide */
+#define FPSR_OE (1U << 3) /* overflow */
+#define FPSR_UE (1U << 4) /* underflow */
+#define FPSR_PE (1U << 5) /* precision */
+
+typedef union {
+    struct {
+        uint32_t ef : 6; /* exception flags */
+        uint32_t sf : 1; /* stack fault, unused */
+        uint32_t es : 1; /* error summary status */
+        uint32_t _c0 : 1; /* condition code 0, unused */
+        uint32_t c1 : 1; /* condition code 1 */
+        uint32_t _c2 : 1; /* condition code 2, unused */
+        uint32_t top: 3; /* stack top, unused */
+        uint32_t _c3 : 1; /* condition code 3, unused */
+        uint32_t b  : 1; /* fpu busy */
+    };
+    uint32_t raw;
+} E2KFpsrState;
+
+#define FPCR_EM (FPSR_IE|FPSR_DE|FPSR_ZE|FPSR_OE|FPSR_UE|FPSR_PE)
+
+#define FPCR_PC_SP       0 /* single precision (32 bits) */
+#define FPCR_PC_RESERVED 1 /* reserved */
+#define FPCR_PC_DP       2 /* double precision (64 bits) */
+#define FPCR_PC_XP       3 /* extended precision (80 bits) */
+
+#define FPCR_RC_NEAR 0 /* round to nearest */
+#define FPCR_RC_DOWN 1 /* round down */
+#define FPCR_RC_UP   2 /* round up */
+#define FPCR_RC_CHOP 3 /* round toward zero (truncate) */
+
+typedef union {
+    struct {
+        uint32_t em : 6; /* masks flags */
+        uint32_t _one : 1; /* reserved, always 1 (?) */
+        uint32_t _zero0 : 1; /* reserved, always 0 */
+        uint32_t pc : 2; /* precision control */
+        uint32_t rc : 2; /* rounding control */
+        uint32_t ic : 1; /* infinity control */
+        uint32_t _zero1 : 3; /* reserved */             
+    };
+    uint32_t raw;
+} E2KFpcrState;
+
 typedef struct {
     union {
         uint64_t lo;
@@ -543,9 +592,11 @@ typedef struct {
     uint64_t idr;
 
     uint32_t pfpfr; // Packed Floating Point Flag Register (PFPFR)
-    uint32_t fpcr; // Floating point control register (FPCR)
-    uint32_t fpsr; // Floating point state register (FPSR)
+    E2KFpsrState fpsr; // Floating point state register (FPSR)
+    E2KFpcrState fpcr; // Floating point control register (FPCR)
 
+    float_status fp_status;
+    
     E2KAauState aau;
 
     int interrupt_index;
@@ -596,6 +647,7 @@ void e2k_break_save_state(CPUE2KState *env);
 bool e2k_cpu_tlb_fill(CPUState *cpu, vaddr address, int size,
                  MMUAccessType access_type, int mmu_idx,
                  bool probe, uintptr_t retaddr);
+void e2k_update_fp_status(CPUE2KState *env);
 
 #define cpu_signal_handler e2k_cpu_signal_handler
 #define cpu_list e2k_cpu_list
