@@ -46,3 +46,22 @@ DEF_HELPER_3_32_64(fcmplt)
 DEF_HELPER_3_32_64(fcmpnlt)
 DEF_HELPER_3_32_64(fcmpuod)
 DEF_HELPER_3_32_64(fcmpod)
+#undef DEF_HELPER_3_32_64
+
+DEF_HELPER_2(fstois, i32, env, i32)
+DEF_HELPER_2(istofs, i32, env, i32)
+DEF_HELPER_2(fstoistr, i32, env, i32)
+
+DEF_HELPER_2(fdtoid, i64, env, i64)
+DEF_HELPER_2(idtofd, i64, env, i64)
+DEF_HELPER_2(fdtoidtr, i64, env, i64)
+
+DEF_HELPER_2(fstofd, i64, env, i32)
+DEF_HELPER_2(fstoid, i64, env, i32)
+DEF_HELPER_2(istofd, i64, env, i32)
+DEF_HELPER_2(fstoidtr, i64, env, i32)
+
+DEF_HELPER_2(fdtofs, i32, env, i64)
+DEF_HELPER_2(fdtois, i32, env, i64)
+DEF_HELPER_2(idtofs, i32, env, i64)
+DEF_HELPER_2(fdtoistr, i32, env, i64)
