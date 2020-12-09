@@ -1741,6 +1741,19 @@ static void gen_alopf1_i64(DisasContext *ctx, int chan,
     gen_al_result_i64(ctx, chan, dst, tag);
 }
 
+static void gen_alopf1_i64_env(DisasContext *ctx, int chan,
+    void (*op)(TCGv_i64, TCGv_env, TCGv_i64, TCGv_i64))
+{
+    Src64 s1 = get_src1_i64(ctx, chan);
+    Src64 s2 = get_src2_i64(ctx, chan);
+    TCGv_i32 tag = e2k_get_temp_i32(ctx);
+    TCGv_i64 dst = e2k_get_temp_i64(ctx);
+    
+    gen_tag2_i64(tag, s1.tag, s2.tag);
+    (*op)(dst, cpu_env, s1.value, s2.value);
+    gen_al_result_i64(ctx, chan, dst, tag);
+}
+
 static void gen_alopf1_i32(DisasContext *ctx, int chan,
     void (*op)(TCGv_i32, TCGv_i32, TCGv_i32))
 {
@@ -1751,6 +1764,19 @@ static void gen_alopf1_i32(DisasContext *ctx, int chan,
 
     gen_tag2_i32(tag, s1.tag, s2.tag);
     (*op)(dst, s1.value, s2.value);
+    gen_al_result_i32(ctx, chan, dst, tag);
+}
+
+static void gen_alopf1_i32_env(DisasContext *ctx, int chan,
+    void (*op)(TCGv_i32, TCGv_env, TCGv_i32, TCGv_i32))
+{
+    Src32 s1 = get_src1_i32(ctx, chan);
+    Src32 s2 = get_src2_i32(ctx, chan);
+    TCGv_i32 tag = e2k_get_temp_i32(ctx);
+    TCGv_i32 dst = e2k_get_temp_i32(ctx);
+    
+    gen_tag2_i32(tag, s1.tag, s2.tag);
+    (*op)(dst, cpu_env, s1.value, s2.value);
     gen_al_result_i32(ctx, chan, dst, tag);
 }
 
@@ -2034,6 +2060,76 @@ static void execute_ext_00(DisasContext *ctx, Instr *instr)
         }
         break;
     }
+    case 0x30:
+        if (ctx->version >= 4 || is_chan_0134(chan)) {
+            /* faddd */
+            gen_alopf1_i32_env(ctx, chan, gen_helper_fadds);
+            return;
+        }
+        break;
+    case 0x31:
+        if (ctx->version >= 4 || is_chan_0134(chan)) {
+            /* faddd */
+            gen_alopf1_i64_env(ctx, chan, gen_helper_faddd);
+            return;
+        }
+        break;
+    case 0x32:
+        if (ctx->version >= 4 || is_chan_0134(chan)) {
+            /* fsubs */
+            gen_alopf1_i32_env(ctx, chan, gen_helper_fsubs);
+            return;
+        }
+        break;
+    case 0x33:
+        if (ctx->version >= 4 || is_chan_0134(chan)) {
+            /* fsubd */
+            gen_alopf1_i64_env(ctx, chan, gen_helper_fsubd);
+            return;
+        }
+        break;
+    case 0x34:
+        if (is_chan_0134(chan)) {
+            /* fmins */
+            gen_alopf1_i32_env(ctx, chan, gen_helper_fmins);
+            return;
+        }
+        break;
+    case 0x35:
+        if (is_chan_0134(chan)) {
+            /* fmind */
+            gen_alopf1_i64_env(ctx, chan, gen_helper_fmind);
+            return;
+        }
+        break;
+    case 0x36:
+        if (is_chan_0134(chan)) {
+            /* fmaxs */
+            gen_alopf1_i32_env(ctx, chan, gen_helper_fmaxs);
+            return;
+        }
+        break;
+    case 0x37:
+        if (is_chan_0134(chan)) {
+            /* fmaxd */
+            gen_alopf1_i64_env(ctx, chan, gen_helper_fmaxd);
+            return;
+        }
+        break;
+    case 0x38:
+        if (ctx->version >= 4 || is_chan_0134(chan)) {
+            /* fmuls */
+            gen_alopf1_i32_env(ctx, chan, gen_helper_fmuls);
+            return;
+        }
+        break;
+    case 0x39:
+        if (is_chan_0134(chan)) {
+            /* fmuld */
+            gen_alopf1_i64_env(ctx, chan, gen_helper_fmuld);
+            return;
+        }
+        break;
     case 0x40:
         if (chan == 5) {
             // FIXME: temp hack
@@ -2065,6 +2161,20 @@ static void execute_ext_00(DisasContext *ctx, Instr *instr)
         if (chan == 5) {
             /* sdivd */
             gen_alopf1_tag_i64(ctx, chan, gen_sdivd);
+            return;
+        }
+        break;
+    case 0x48:
+        if (chan == 5) {
+            /* fdivs */
+            gen_alopf1_i32_env(ctx, chan, gen_helper_fdivs);
+            return;
+        }
+        break;
+    case 0x49:
+        if (chan == 5) {
+            /* fdivd */
+            gen_alopf1_i64_env(ctx, chan, gen_helper_fdivd);
             return;
         }
         break;

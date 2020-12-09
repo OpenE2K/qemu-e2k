@@ -27,3 +27,22 @@ DEF_HELPER_2(pmovmskb, i64, i64, i64)
 DEF_HELPER_1(aau_load_program, void, env)
 DEF_HELPER_3(mova_ptr, tl, env, int, int)
 DEF_HELPER_3(aau_am, void, env, int, int)
+
+#define DEF_HELPER_3_32_64(name) \
+    DEF_HELPER_3(name##s, i32, env, i32, i32) \
+    DEF_HELPER_3(name##d, i64, env, i64, i64)
+
+DEF_HELPER_3_32_64(fadd)
+DEF_HELPER_3_32_64(fsub)
+DEF_HELPER_3_32_64(fmin)
+DEF_HELPER_3_32_64(fmax)
+DEF_HELPER_3_32_64(fmul)
+DEF_HELPER_3_32_64(fdiv)
+DEF_HELPER_3_32_64(fcmpeq)
+DEF_HELPER_3_32_64(fcmpneq)
+DEF_HELPER_3_32_64(fcmple)
+DEF_HELPER_3_32_64(fcmpnle)
+DEF_HELPER_3_32_64(fcmplt)
+DEF_HELPER_3_32_64(fcmpnlt)
+DEF_HELPER_3_32_64(fcmpuod)
+DEF_HELPER_3_32_64(fcmpod)
