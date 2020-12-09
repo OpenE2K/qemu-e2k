@@ -322,6 +322,11 @@ void helper_setwd(CPUE2KState *env, uint32_t lts)
     env->wd.size = extract32(lts, 5, 7) * 2;
     env->wd.fx = extract32(lts, 4, 1) == 0;
 
+    if (env->wd.fx) {
+        qemu_log_mask(LOG_UNIMP, "0x%lx: wd.fx is not implemented!\n",
+            env->ip);
+    }
+
     if (env->version >= 3) {
         bool dbl = extract32(lts, 3, 1);
         // TODO: set dbl
