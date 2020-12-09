@@ -138,7 +138,7 @@ static FloatParts parts_default_nan(float_status *status)
     /* !snan_bit_is_one, set all bits */
     frac = (1ULL << DECOMPOSED_BINARY_POINT) - 1;
 #elif defined(TARGET_I386) || defined(TARGET_X86_64) \
-    || defined(TARGET_MICROBLAZE)
+    || defined(TARGET_MICROBLAZE) || defined(TARGET_E2K)
     /* !snan_bit_is_one, set sign and msb */
     frac = 1ULL << (DECOMPOSED_BINARY_POINT - 1);
     sign = 1;
