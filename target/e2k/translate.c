@@ -316,8 +316,6 @@ static inline void do_branch(DisasContext *ctx, target_ulong pc_next)
     gen_set_label(l0);
 
     if (ctx->ct.type == CT_NONE) {
-        // FIXME: do not write to e2k_cs.pc if not necessary
-        tcg_gen_movi_tl(e2k_cs.pc, pc_next);
         return;
     }
 
@@ -384,7 +382,7 @@ static bool e2k_tr_breakpoint_check(DisasContextBase *db, CPUState *cs,
 {
     DisasContext *ctx = container_of(db, DisasContext, base);
 
-    // TODO: suppress on branch to self
+    gen_save_pc(ctx->base.pc_next);
     gen_helper_debug(cpu_env);
     tcg_gen_exit_tb(NULL, TB_EXIT_IDX0);
     ctx->base.is_jmp = DISAS_NORETURN;
