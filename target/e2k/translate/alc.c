@@ -1271,6 +1271,7 @@ static MemOp gen_mas(DisasContext *ctx, int chan, MemOp memop, TCGv_i64 addr)
 //        e2k_tr_gen_exception(ctx, E2K_EXCP_ILLOPC);
         qemu_log_mask(LOG_UNIMP, "0x%lx: mas=%#x, opc=%#x is not implemented!\n",
             ctx->pc, mas, opc);
+        return 0;
     } else if (mas) {
         int mod = extract8(mas, 0, 3);
 //        int dc = extract8(mas, 5, 2);
@@ -1341,6 +1342,11 @@ static void gen_st_i64(DisasContext *ctx, int chan, MemOp memop)
     tcg_gen_add_i64(t0, s1.value, s2.value);
     memop = gen_mas(ctx, chan, memop, t0);
 
+    if (memop == 0) {
+        // FIXME: hack
+        return;
+    }
+
     if (sm) {
         TCGv_i32 t1 = tcg_temp_new_i32();
         gen_helper_probe_write_access(t1, cpu_env, t0);
@@ -1369,6 +1375,11 @@ static void gen_st_i32(DisasContext *ctx, int chan, MemOp memop)
     gen_tag_check(ctx, sm, s4.tag);
     tcg_gen_add_i64(t0, s1.value, s2.value);
     memop = gen_mas(ctx, chan, memop, t0);
+
+    if (memop == 0) {
+        // FIXME: hack
+        return;
+    }
 
     if (sm) {
         TCGv_i32 t1 = tcg_temp_new_i32();
