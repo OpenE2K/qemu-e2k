@@ -570,6 +570,23 @@ static inline void gen_mrgc_i32(DisasContext *ctx, int chan, TCGv_i32 ret)
     }
 }
 
+static void gen_loop_mode_st(DisasContext *ctx, TCGLabel *l)
+{
+    if (ctx->loop_mode) {
+        TCGLabel *l0 = gen_new_label();
+        TCGv_i32 t0 = tcg_temp_local_new_i32();
+
+        tcg_gen_brcondi_i32(TCG_COND_EQ, ctx->is_prologue, 1, l);
+        e2k_gen_is_loop_end_i32(t0);
+        tcg_gen_brcondi_i32(TCG_COND_EQ, t0, 0, l0);
+        e2k_gen_lsr_strem_i32(t0);
+        tcg_gen_brcondi_i32(TCG_COND_EQ, t0, 0, l);
+        tcg_gen_subi_i32(t0, t0, 1);
+        e2k_gen_lsr_strem_set_i32(t0);
+        gen_set_label(l0);
+    }
+}
+
 static inline void gen_andn_i32(TCGv_i32 ret, TCGv_i32 src1, TCGv_i32 src2)
 {
     TCGv_i32 t0 = tcg_temp_new_i32();
@@ -1317,6 +1334,7 @@ static void gen_st_i64(DisasContext *ctx, int chan, MemOp memop)
     Src64 s4 = get_src4_i64(ctx, chan);
     TCGv_i64 t0 = tcg_temp_local_new_i64();
 
+    gen_loop_mode_st(ctx, l0);
     gen_tag_check(ctx, sm, s1.tag);
     gen_tag_check(ctx, sm, s2.tag);
     gen_tag_check(ctx, sm, s4.tag);
@@ -1345,6 +1363,7 @@ static void gen_st_i32(DisasContext *ctx, int chan, MemOp memop)
     Src32 s4 = get_src4_i32(ctx, chan);
     TCGv_i64 t0 = tcg_temp_local_new_i64();
 
+    gen_loop_mode_st(ctx, l0);
     gen_tag_check(ctx, sm, s1.tag);
     gen_tag_check(ctx, sm, s2.tag);
     gen_tag_check(ctx, sm, s4.tag);
@@ -1509,10 +1528,7 @@ static void gen_staa_i64(DisasContext *ctx, Instr *instr)
     TCGLabel *l0 = gen_new_label();
     Src64 s4 = get_src4_i64(ctx, instr->chan);
 
-    if (ctx->loop_mode) {
-        tcg_gen_brcondi_i32(TCG_COND_EQ, ctx->is_prologue, 1, l0);
-    }
-
+    gen_loop_mode_st(ctx, l0);
     gen_tag_check(ctx, instr->sm, s4.tag);
     if (mas == 0x3f) {
         /* aaurwd */
@@ -1560,10 +1576,7 @@ static void gen_staa_i32(DisasContext *ctx, Instr *instr, MemOp memop)
     TCGLabel *l0 = gen_new_label();
     Src32 s4 = get_src4_i32(ctx, instr->chan);
 
-    if (ctx->loop_mode) {
-        tcg_gen_brcondi_i32(TCG_COND_EQ, ctx->is_prologue, 1, l0);
-    }
-
+    gen_loop_mode_st(ctx, l0);
     gen_tag_check(ctx, instr->sm, s4.tag);
     if (mas == 0x3f) {
         /* aaurw */
