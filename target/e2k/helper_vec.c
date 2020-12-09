@@ -173,3 +173,24 @@ uint64_t HELPER(pmaxsh)(uint64_t src1, uint64_t src2)
 
     return ret.uq;
 }
+
+uint64_t HELPER(pmovmskb)(uint64_t src1, uint64_t src2)
+{
+    unsigned int i;
+    vec64 s1, s2;
+    uint16_t ret = 0;
+
+    s1.uq = src1;
+    s2.uq = src2;
+
+    for (i = 0; i < 8; i++) {
+        if (s1.sb[i] < 0) {
+            ret |= 1 << (i + 8);
+        }
+        if (s2.sb[i] < 0) {
+            ret |= 1 << i;
+        }
+    }
+
+    return ret;
+}
