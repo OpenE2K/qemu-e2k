@@ -364,6 +364,25 @@ static inline void e2k_gen_pcnt_set_i32(TCGv_i32 value)
     tcg_temp_free_i64(t0);
 }
 
+static inline void e2k_gen_lsr_strem_i32(TCGv_i32 ret)
+{
+    TCGv_i64 t0 = tcg_temp_new_i64();
+
+    tcg_gen_extract_i64(t0, e2k_cs.lsr, LSR_STRMD_OFF, LSR_STRMD_LEN);
+    tcg_gen_extrl_i64_i32(ret, t0);
+    tcg_temp_free_i64(t0);
+}
+
+static inline void e2k_gen_lsr_strem_set_i32(TCGv_i32 value)
+{
+    TCGv_i64 t0 = tcg_temp_new_i64();
+
+    tcg_gen_extu_i32_i64(t0, value);
+    tcg_gen_deposit_i64(e2k_cs.lsr, e2k_cs.lsr, t0, LSR_STRMD_OFF,
+        LSR_STRMD_LEN);
+    tcg_temp_free_i64(t0);
+}
+
 static inline void e2k_gen_lcntex(TCGv_i32 ret)
 {
     TCGv_i32 t0 = tcg_temp_new_i32();
