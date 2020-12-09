@@ -175,7 +175,7 @@ int e2k_cpu_gdb_read_register(CPUState *cs, GByteArray *mem_buf, int n)
     case 345: return gdb_get_reg64(mem_buf, 0); // cuir
     case 346: return gdb_get_reg64(mem_buf, 0); // tsd
     case 347: return gdb_get_reg64(mem_buf, env->lsr); // lsr
-    case 348: return gdb_get_reg64(mem_buf, 0); // ilcr
+    case 348: return gdb_get_reg64(mem_buf, env->lsr & LSR_ILCR_MASK); // ilcr
     default:
         break;
     }
