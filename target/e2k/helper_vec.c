@@ -15,29 +15,35 @@ static uint8_t reverse_bits(uint8_t b)
 }
 
 typedef union {
-    uint64_t n;
-    uint8_t s[8];
-} u8x8;
+    uint8_t ub[8];
+    uint16_t uh[4];
+    uint32_t uw[2];
+    uint64_t uq;
+    int8_t sb[8];
+    int16_t sh[4];
+    int32_t sw[2];
+    int64_t sq;
+} vec64;
 
 uint64_t HELPER(packed_shuffle_i64)(uint64_t src1, uint64_t src2, uint64_t src3)
 {
-    u8x8 ret, s1, s2, s3;
+    vec64 ret, s1, s2, s3;
     unsigned int i;
 
-    s1.n = src1;
-    s2.n = src2;
-    s3.n = src3;
+    s1.uq = src1;
+    s2.uq = src2;
+    s3.uq = src3;
 
     for (i = 0; i < 8; i++) {
-        uint8_t desc = s3.s[i];
+        uint8_t desc = s3.ub[i];
         int index = extract8(desc, 0, 3);
         uint8_t byte;
 
         if (desc < 0x80) {
             if (desc & 0x08) {
-                byte = s1.s[index];
+                byte = s1.ub[index];
             } else {
-                byte = s2.s[index];
+                byte = s2.ub[index];
             }
 
             switch(desc >> 5) {
@@ -82,28 +88,88 @@ uint64_t HELPER(packed_shuffle_i64)(uint64_t src1, uint64_t src2, uint64_t src3)
             }
         }
 
-        ret.s[i] = byte;
+        ret.ub[i] = byte;
     }
 
-    return ret.n;
+    return ret.uq;
 }
 
 // FIXME: not tested
 uint64_t HELPER(pcmpeqb)(uint64_t src1, uint64_t src2)
 {
     unsigned int i;
-    u8x8 s1, s2, ret;
+    vec64 s1, s2, ret;
 
-    s1.n = src1;
-    s2.n = src2;
+    s1.uq = src1;
+    s2.uq = src2;
 
     for (i = 0; i < 8; i++) {
-        if (s1.s[i] == s2.s[i]) {
-            ret.s[i] = 0xff;
+        if (s1.ub[i] == s2.ub[i]) {
+            ret.ub[i] = 0xff;
         } else {
-            ret.s[i] = 0;
+            ret.ub[i] = 0;
         }
     }
 
-    return ret.n;
+    return ret.uq;
+}
+
+uint64_t HELPER(pminub)(uint64_t src1, uint64_t src2)
+{
+    unsigned int i;
+    vec64 s1, s2, ret;
+
+    s1.uq = src1;
+    s2.uq = src2;
+
+    for (i = 0; i < 8; i++) {
+        ret.ub[i] = MIN(s1.ub[i], s2.ub[i]);
+    }
+
+    return ret.uq;
+}
+
+uint64_t HELPER(pminsh)(uint64_t src1, uint64_t src2)
+{
+    unsigned int i;
+    vec64 s1, s2, ret;
+
+    s1.uq = src1;
+    s2.uq = src2;
+
+    for (i = 0; i < 4; i++) {
+        ret.sh[i] = MIN(s1.sh[i], s2.sh[i]);
+    }
+
+    return ret.uq;
+}
+
+uint64_t HELPER(pmaxub)(uint64_t src1, uint64_t src2)
+{
+    unsigned int i;
+    vec64 s1, s2, ret;
+
+    s1.uq = src1;
+    s2.uq = src2;
+
+    for (i = 0; i < 8; i++) {
+        ret.ub[i] = MAX(s1.ub[i], s2.ub[i]);
+    }
+
+    return ret.uq;
+}
+
+uint64_t HELPER(pmaxsh)(uint64_t src1, uint64_t src2)
+{
+    unsigned int i;
+    vec64 s1, s2, ret;
+
+    s1.uq = src1;
+    s2.uq = src2;
+
+    for (i = 0; i < 4; i++) {
+        ret.sh[i] = MAX(s1.sh[i], s2.sh[i]);
+    }
+
+    return ret.uq;
 }

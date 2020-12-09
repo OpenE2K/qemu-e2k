@@ -2054,6 +2054,34 @@ static void execute_ext_01(DisasContext *ctx, Instr *instr)
 {
     int chan = instr->chan;
     switch (instr->opc1) {
+    case 0x00:
+        if (is_chan_03(chan)) {
+            /* pminub */
+            gen_alopf1_i64(ctx, chan, gen_helper_pminub);
+            return;
+        }
+        break;
+    case 0x01:
+        if (is_chan_03(chan)) {
+            /* pminsh */
+            gen_alopf1_i64(ctx, chan, gen_helper_pminsh);
+            return;
+        }
+        break;
+    case 0x02:
+        if (is_chan_03(chan)) {
+            /* pmaxub */
+            gen_alopf1_i64(ctx, chan, gen_helper_pmaxub);
+            return;
+        }
+        break;
+    case 0x03:
+        if (is_chan_03(chan)) {
+            /* pmaxsh */
+            gen_alopf1_i64(ctx, chan, gen_helper_pmaxsh);
+            return;
+        }
+        break;
     case 0x08:
         if (is_chan_25(chan)) {
             /* gettags */
