@@ -799,35 +799,142 @@ static void gen_lzcntd(TCGv_i64 ret, TCGv_i64 src1) {
     tcg_gen_clzi_i64(ret, src1, 64);
 }
 
-static TCGCond e2k_gen_cmp_op(unsigned int cmp_op)
-{
-    switch(cmp_op) {
-    case 0: abort(); break;
-    case 1: return TCG_COND_LTU; break;
-    case 2: return TCG_COND_EQ; break;
-    case 3: return TCG_COND_LEU; break;
-    case 4: abort(); break;
-    case 5: abort(); break;
-    case 6: return TCG_COND_LT; break;
-    case 7: return TCG_COND_LE; break;
-    default: g_assert_not_reached(); break;
-    }
-
-    return TCG_COND_NEVER; /* unreachable */
-}
-
-static inline void gen_cmp_i32(TCGv_i32 ret, int opc,
-    TCGv_i32 src1, TCGv_i32 src2)
-{
-    TCGCond cond = e2k_gen_cmp_op(opc);
-    tcg_gen_setcond_i32(cond, ret, src1, src2);
-}
-
 static inline void gen_cmp_i64(TCGv_i64 ret, int opc, TCGv_i64 src1,
     TCGv_i64 src2)
 {
-    TCGCond cond = e2k_gen_cmp_op(opc);
-    tcg_gen_setcond_i64(cond, ret, src1, src2);
+    switch(opc) {
+    case 0: { /* cmpodb */
+        TCGv_i64 s2 = tcg_temp_new_i64();
+        TCGv_i64 t0 = tcg_temp_new_i64();
+        TCGv_i64 t1 = tcg_temp_new_i64();
+        TCGv_i64 t2 = tcg_temp_new_i64();
+        TCGv_i64 t3 = tcg_temp_new_i64();
+
+        tcg_gen_not_i64(s2, src2);
+        tcg_gen_sub_i64(t0, src1, src2);
+        tcg_gen_xor_i64(t1, src1, t0);
+        tcg_gen_xor_i64(t2, s2, t0);
+        tcg_gen_and_i64(t3, t1, t2);
+        tcg_gen_setcondi_i64(TCG_COND_LT, ret, t3, 0);
+
+        tcg_temp_free_i64(t3);
+        tcg_temp_free_i64(t2);
+        tcg_temp_free_i64(t1);
+        tcg_temp_free_i64(t0);
+        tcg_temp_free_i64(s2);
+        break;
+    }
+    case 1: /* cmpbdb */
+        tcg_gen_setcond_i64(TCG_COND_LTU, ret, src1, src2);
+        break;
+    case 2: /* cmpedb */
+        tcg_gen_setcond_i64(TCG_COND_EQ, ret, src1, src2);
+        break;
+    case 3: /* cmpbedb */
+        tcg_gen_setcond_i64(TCG_COND_LEU, ret, src1, src2);
+        break;
+    case 4: { /* cmpsdb */
+        TCGv_i64 t0 = tcg_temp_new_i64();
+
+        tcg_gen_sub_i64(t0, src1, src2);
+        tcg_gen_setcondi_i64(TCG_COND_LT, ret, t0, 0);
+        tcg_temp_free_i64(t0);
+        break;
+    }
+    case 5: { /* cmppdb */
+        TCGv_i64 t0 = tcg_temp_new_i64();
+        TCGv_i64 t1 = tcg_temp_new_i64();
+        TCGv_i64 t2 = tcg_temp_new_i64();
+
+        tcg_gen_sub_i64(t0, src1, src2);
+        tcg_gen_ctpop_i64(t1, t0);
+        tcg_gen_andi_i64(t2, t1, 1);
+        tcg_gen_setcondi_i64(TCG_COND_EQ, ret, t2, 0);
+
+        tcg_temp_free_i64(t2);
+        tcg_temp_free_i64(t1);
+        tcg_temp_free_i64(t0);
+        break;
+    }
+    case 6: /* cmpldb */
+        tcg_gen_setcond_i64(TCG_COND_LT, ret, src1, src2);
+        break;
+    case 7: /* cmpledb */
+        tcg_gen_setcond_i64(TCG_COND_LE, ret, src1, src2);
+        break;
+    default:
+        g_assert_not_reached();
+        break;
+    }
+}
+
+static inline void gen_cmp_i32(TCGv_i32 ret, int opc, TCGv_i32 src1,
+    TCGv_i32 src2)
+{
+    switch(opc) {
+    case 0: { /* cmposb */
+        TCGv_i32 s2 = tcg_temp_new_i32();
+        TCGv_i32 t0 = tcg_temp_new_i32();
+        TCGv_i32 t1 = tcg_temp_new_i32();
+        TCGv_i32 t2 = tcg_temp_new_i32();
+        TCGv_i32 t3 = tcg_temp_new_i32();
+
+        tcg_gen_not_i32(s2, src2);
+        tcg_gen_sub_i32(t0, src1, src2);
+        tcg_gen_xor_i32(t1, src1, t0);
+        tcg_gen_xor_i32(t2, s2, t0);
+        tcg_gen_and_i32(t3, t1, t2);
+        tcg_gen_setcondi_i32(TCG_COND_LT, ret, t3, 0);
+
+        tcg_temp_free_i32(t3);
+        tcg_temp_free_i32(t2);
+        tcg_temp_free_i32(t1);
+        tcg_temp_free_i32(t0);
+        tcg_temp_free_i32(s2);
+        break;
+    }
+    case 1: /* cmpbsb */
+        tcg_gen_setcond_i32(TCG_COND_LTU, ret, src1, src2);
+        break;
+    case 2: /* cmpesb */
+        tcg_gen_setcond_i32(TCG_COND_EQ, ret, src1, src2);
+        break;
+    case 3: /* cmpbesb */
+        tcg_gen_setcond_i32(TCG_COND_LEU, ret, src1, src2);
+        break;
+    case 4: { /* cmpssb */
+        TCGv_i32 t0 = tcg_temp_new_i32();
+
+        tcg_gen_sub_i32(t0, src1, src2);
+        tcg_gen_setcondi_i32(TCG_COND_LT, ret, t0, 0);
+        tcg_temp_free_i32(t0);
+        break;
+    }
+    case 5: { /* cmppsb */
+        TCGv_i32 t0 = tcg_temp_new_i32();
+        TCGv_i32 t1 = tcg_temp_new_i32();
+        TCGv_i32 t2 = tcg_temp_new_i32();
+
+        tcg_gen_sub_i32(t0, src1, src2);
+        tcg_gen_ctpop_i32(t1, t0);
+        tcg_gen_andi_i32(t2, t1, 1);
+        tcg_gen_setcondi_i32(TCG_COND_EQ, ret, t2, 0);
+
+        tcg_temp_free_i32(t2);
+        tcg_temp_free_i32(t1);
+        tcg_temp_free_i32(t0);
+        break;
+    }
+    case 6: /* cmplsb */
+        tcg_gen_setcond_i32(TCG_COND_LT, ret, src1, src2);
+        break;
+    case 7: /* cmplesb */
+        tcg_gen_setcond_i32(TCG_COND_LE, ret, src1, src2);
+        break;
+    default:
+        g_assert_not_reached();
+        break;
+    }
 }
 
 static inline void gen_cmpand_i64(TCGv_i64 ret, int opc, TCGv_i64 src1,
@@ -837,28 +944,25 @@ static inline void gen_cmpand_i64(TCGv_i64 ret, int opc, TCGv_i64 src1,
     tcg_gen_and_i64(t0, src1, src2);
 
     switch (opc) {
-    case 2: /* is zero */
+    case 2: /* cmpandedb */
         tcg_gen_setcondi_i64(TCG_COND_EQ, ret, t0, 0);
         break;
-    case 4: /* is negative */
+    case 4: /* cmpandsdb */
         tcg_gen_setcondi_i64(TCG_COND_LT, ret, t0, 0);
         break;
-    case 5: { /* is odd and greater than 3 */
+    case 5: { /* cmpandpdb */
         TCGv_i64 t1 = tcg_temp_new_i64();
         TCGv_i64 t2 = tcg_temp_new_i64();
-        TCGv_i64 t3 = tcg_temp_new_i64();
 
-        tcg_gen_andi_i64(t1, t0, 1);
-        tcg_gen_setcondi_i64(TCG_COND_NE, t2, t1, 0);
-        tcg_gen_setcondi_i64(TCG_COND_GTU, t3, t0, 2);
-        tcg_gen_setcond_i64(TCG_COND_EQ, ret, t2, t3);
+        tcg_gen_ctpop_i64(t1, t0);
+        tcg_gen_andi_i64(t2, t1, 1);
+        tcg_gen_setcondi_i64(TCG_COND_EQ, ret, t2, 0);
 
-        tcg_temp_free_i64(t3);
         tcg_temp_free_i64(t2);
         tcg_temp_free_i64(t1);
         break;
     }
-    case 7: /* signed less or equal 0 */
+    case 7: /* cmpandledb */
         tcg_gen_setcondi_i64(TCG_COND_LE, ret, t0, 0);
         break;
     default:
@@ -876,28 +980,25 @@ static inline void gen_cmpand_i32(TCGv_i32 ret, int opc, TCGv_i32 src1,
     tcg_gen_and_i32(t0, src1, src2);
 
     switch (opc) {
-    case 2: /* is zero */
+    case 2: /* cmpandesb */
         tcg_gen_setcondi_i32(TCG_COND_EQ, ret, t0, 0);
         break;
-    case 4: /* is negative */
+    case 4: /* cmpandssb */
         tcg_gen_setcondi_i32(TCG_COND_LT, ret, t0, 0);
         break;
-    case 5: { /* is odd and greater than 3 */
+    case 5: { /* cmpandpsb */
         TCGv_i32 t1 = tcg_temp_new_i32();
         TCGv_i32 t2 = tcg_temp_new_i32();
-        TCGv_i32 t3 = tcg_temp_new_i32();
 
-        tcg_gen_andi_i32(t1, t0, 1);
-        tcg_gen_setcondi_i32(TCG_COND_NE, t2, t1, 0);
-        tcg_gen_setcondi_i32(TCG_COND_GTU, t3, t0, 2);
-        tcg_gen_setcond_i32(TCG_COND_EQ, ret, t2, t3);
+        tcg_gen_ctpop_i32(t1, t0);
+        tcg_gen_andi_i32(t2, t1, 1);
+        tcg_gen_setcondi_i32(TCG_COND_EQ, ret, t2, 0);
 
-        tcg_temp_free_i32(t3);
         tcg_temp_free_i32(t2);
         tcg_temp_free_i32(t1);
         break;
     }
-    case 7: /* signed less or equal 0 */
+    case 7: /* cmpandlesb */
         tcg_gen_setcondi_i32(TCG_COND_LE, ret, t0, 0);
         break;
     default:
