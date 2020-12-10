@@ -44,8 +44,25 @@ static inline uint64_t stack_pop(CPUE2KState *env, E2KStackState *s)
 #define ps_push(env, value) stack_push(env, &env->psp, (value))
 #define ps_pop(env) stack_pop(env, &env->psp)
 
+/* FIXME: I don't know how exactly it should works. */
+static inline void sbr_push(CPUE2KState *env)
+{
+    cpu_stq_le_data(env, env->sbr, env->usd_lo);
+    cpu_stq_le_data(env, env->sbr + 8, env->usd_hi);
+    env->sbr += 16;
+}
+
+static inline void sbr_pop(CPUE2KState *env)
+{
+    env->sbr -= 16;
+    env->usd_hi = cpu_ldq_le_data(env, env->sbr + 8);
+    env->usd_lo = cpu_ldq_le_data(env, env->sbr);
+}
+
 static void proc_chain_save(CPUE2KState *env, int wbs)
 {
+    sbr_push(env);
+
     env->pshtp.index += wbs * 2;
 
     env->cr1.wbs = wbs;
@@ -81,6 +98,8 @@ static inline void proc_chain_restore(CPUE2KState *env)
     env->wd.fx = env->cr1.wfx;
 
     env->pshtp.index -= wbs * 2;
+
+    sbr_pop(env);
 }
 
 static inline void ps_spill(CPUE2KState *env, bool force, bool force_fx)
