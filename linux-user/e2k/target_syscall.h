@@ -23,7 +23,7 @@ struct target_pt_regs {
     /* special registers */
     uint64_t wd; // Current window descriptor (WD)
         
-    uint32_t sbr; // User Stack Base Register (USBR/SBR)
+    uint64_t sbr; // User Stack Base Register (USBR/SBR)
                   // SBR - contains the base (top) virtual address of the current User Stack area.
     
     // uint64_t tr; // current type register
