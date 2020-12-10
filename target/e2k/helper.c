@@ -6,6 +6,8 @@
 #include "exec/helper-proto.h"
 #include "translate.h"
 
+#define PS_FORCE_FX true
+
 static inline void reset_ctprs(CPUE2KState *env)
 {
     unsigned int i;
@@ -142,7 +144,7 @@ void helper_setwd(CPUE2KState *env, uint32_t lts)
         env->cr1.wdbl = dbl;
     }
 
-    ps_spill(env, false, true);
+    ps_spill(env, false, PS_FORCE_FX);
 }
 
 uint64_t helper_prep_return(CPUE2KState *env, int ipd)
@@ -164,7 +166,7 @@ uint64_t helper_prep_return(CPUE2KState *env, int ipd)
 void helper_return(CPUE2KState *env)
 {
     proc_chain_restore(env);
-    ps_fill(env, false);
+    ps_fill(env, PS_FORCE_FX);
     reset_ctprs(env);
 }
 
