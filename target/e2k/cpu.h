@@ -475,6 +475,7 @@ typedef struct {
 
     uint64_t lsr; /* loop status register */
 
+    uint64_t sbr;
     uint64_t usd_lo;
     uint64_t usd_hi;
 
