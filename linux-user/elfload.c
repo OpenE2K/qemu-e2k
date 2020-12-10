@@ -1553,6 +1553,8 @@ static inline void init_thread(struct target_pt_regs *regs, struct image_info *i
     abi_ulong stack_size = infop->start_stack - infop->stack_limit;
 
     regs->ip = infop->entry;
+
+    regs->sbr = e2k_mmap(TARGET_PAGE_SIZE);
     regs->usd_hi = stack_size << 32;
     regs->usd_lo = (0x1800UL << 48) | infop->start_stack;
 

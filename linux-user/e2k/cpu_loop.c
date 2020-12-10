@@ -119,6 +119,7 @@ void target_cpu_copy_regs(CPUE2KState *env, struct target_pt_regs *regs)
     env->psp = regs->psp;
     env->usd_lo = regs->usd_lo;
     env->usd_hi = regs->usd_hi;
+    env->sbr = regs->sbr;
 
     e2k_break_save_state(env);
 }
