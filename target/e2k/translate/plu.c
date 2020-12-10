@@ -13,32 +13,38 @@ static void gen_get_lp(TCGv_i32 ret, uint16_t clp, int offset, TCGv_i32 lp[7])
 
 void e2k_gen_cond_i32(DisasContext *ctx, TCGv_i32 ret, uint8_t psrc)
 {
-    if (!GET_BIT(psrc, 6)) {
-        if (GET_FIELD(psrc, 0, 6) == 0) {
-            e2k_gen_lcntex(ret);
-        } else {
-            // TODO: spred
+    if (psrc & 0x80) {
+        if (psrc == 0xc0) {
+            // TODO: %bgrpred
+            qemu_log_mask(LOG_UNIMP, "%#lx: %%bgrpred is not implemented!\n", ctx->pc);
             abort();
-        }
-    } else if (GET_FIELD(psrc, 5, 2) == 0x40) {
-        int val = GET_FIELD(psrc, 0, 5);
-        if (val == 0) {
-            // TODO: bgrpred
-            abort();
-        } else if (val <= 15) {
-            // TODO: rndpred
+        } else if ((psrc & 0xe0) == 0xc0) {
+            // TODO: %rndpredN
+            qemu_log_mask(LOG_UNIMP, "%#lx: %%rndpred is not implemented!\n", ctx->pc);
             abort();
         } else {
             e2k_tr_gen_exception(ctx, E2K_EXCP_ILLOPN);
         }
     } else {
-        int reg = GET_FIELD(psrc, 0, 5);
-        TCGv_i64 t0 = tcg_temp_new_i64();
+        int idx = extract8(psrc, 0, 5);
+        if (psrc == 0) {
+            // %lcntex
+            e2k_gen_lcntex(ret);
+        } else if ((psrc & 0x40) == 0) {
+            // TODO: %spredMASK
+            qemu_log_mask(LOG_UNIMP, "%#lx: %%spred is not implemented!\n", ctx->pc);
+            abort();
+        } else if ((psrc & 0x60) == 0x60) {
+            // %predN
+            e2k_gen_preg_i32(ret, idx);
+        } else {
+            // %pcntN
+            TCGv_i32 t0 = tcg_temp_new_i32();
 
-        e2k_gen_preg_i64(t0, reg);
-        tcg_gen_extrl_i64_i32(ret, t0);
-
-        tcg_temp_free_i64(t0);
+            e2k_gen_pcnt_i32(t0);
+            tcg_gen_setcondi_i32(TCG_COND_LEU, ret, t0, idx);
+            tcg_temp_free_i32(t0);
+        }
     }
 }
 
