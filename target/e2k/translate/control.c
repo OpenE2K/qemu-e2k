@@ -50,7 +50,7 @@ static inline void gen_cur_dec(DisasContext *ctx, TCGv_i32 ret, int cond,
     tcg_temp_free_i32(t0);
 }
 
-static void gen_advance_pcnt(void)
+static void gen_advance_pcnt(TCGv_i32 ret)
 {
     TCGLabel *l0 = gen_new_label();
     TCGv_i32 t0 = tcg_temp_local_new_i32();
@@ -61,6 +61,7 @@ static void gen_advance_pcnt(void)
     tcg_gen_subi_i32(t1, t0, 1);
     e2k_gen_pcnt_set_i32(t1);
     gen_set_label(l0);
+    tcg_gen_mov_i32(ret, t0);
 
     tcg_temp_free_i32(t1);
     tcg_temp_free_i32(t0);
@@ -116,14 +117,17 @@ static void gen_advance_ecnt(void)
 static void gen_advance_loop_counters(void)
 {
     TCGLabel *l0 = gen_new_label();
-    TCGv_i32 t0 = tcg_temp_new_i32();
+    TCGv_i32 t0 = tcg_temp_local_new_i32();
+    TCGv_i32 t1 = tcg_temp_local_new_i32();
 
-    gen_advance_pcnt();
-    gen_advance_lcnt(t0);
+    gen_advance_pcnt(t0);
+    gen_advance_lcnt(t1);
     tcg_gen_brcondi_i32(TCG_COND_NE, t0, 0, l0);
+    tcg_gen_brcondi_i32(TCG_COND_NE, t1, 0, l0);
     gen_advance_ecnt();
     gen_set_label(l0);
 
+    tcg_temp_free_i32(t1);
     tcg_temp_free_i32(t0);
 }
 
@@ -429,66 +433,110 @@ static void gen_cs1(DisasContext *dc)
     }
 }
 
-static void gen_jmp(DisasContext *dc)
+static void gen_jmp(DisasContext *ctx)
 {
-    unsigned int psrc = GET_FIELD(dc->bundle.ss, 0, 5);
-    unsigned int cond_type = GET_FIELD(dc->bundle.ss, 5, 4);
-    unsigned int ctpr = GET_FIELD(dc->bundle.ss, 10, 2);
+    int cond_type = extract32(ctx->bundle.ss, 5, 4);
+    int ctpr = extract32(ctx->bundle.ss, 10, 2);
 
     if (ctpr != 0) {
-        dc->ct.type = CT_JUMP;
-        dc->ct.u.ctpr = e2k_cs.ctprs[ctpr - 1];
+        ctx->ct.type = CT_JUMP;
+        ctx->ct.u.ctpr = e2k_cs.ctprs[ctpr - 1];
     }
 
+    ctx->ct.is_branch = cond_type > 1;
     if (cond_type == 1) {
         tcg_gen_movi_i32(e2k_cs.ct_cond, 1);
     } else if (cond_type > 1) {
-        TCGv_i32 preg = tcg_temp_new_i32();
-        TCGv_i32 loop_end = tcg_temp_new_i32();
-        TCGv_i32 not_loop_end = tcg_temp_new_i32();
-        TCGv_i32 cond = e2k_cs.ct_cond;
-
-        dc->ct.is_branch = true;
-        e2k_gen_preg_i32(preg, psrc);
-        e2k_gen_is_loop_end_i32(loop_end);
-        tcg_gen_setcondi_i32(TCG_COND_NE, not_loop_end, loop_end, 1);
+        uint8_t psrc = extract32(ctx->bundle.ss, 0, 5);
+        TCGv_i32 pcond = tcg_temp_local_new_i32();
+        TCGv_i32 lcond = tcg_temp_local_new_i32();
 
         switch (cond_type) {
         case 0x2:
         case 0x6:
         case 0xf:
-            tcg_gen_mov_i32(cond, preg);
+            /* %predN */
+            e2k_gen_preg_i32(pcond, psrc);
             break;
         case 0x3:
         case 0x7:
-        case 0xe:
-            tcg_gen_setcondi_i32(TCG_COND_NE, cond, preg, 1);
+        case 0xe: {
+            TCGv_i32 t0 = tcg_temp_new_i32();
+            e2k_gen_preg_i32(t0, psrc);
+            tcg_gen_setcondi_i32(TCG_COND_EQ, pcond, t0, 0);
+            tcg_temp_free_i32(t0);
             break;
+        }
         default:
             break;
         }
 
         switch (cond_type) {
         case 0x4:
-            tcg_gen_mov_i32(cond, loop_end);
-            break;
-        case 0x5:
-            tcg_gen_mov_i32(cond, not_loop_end);
-            break;
         case 0x6:
         case 0xe:
-            tcg_gen_or_i32(cond, cond, loop_end);
+            /* #LOOP_END */
+            e2k_gen_is_loop_end_i32(lcond);
             break;
+        case 0x5:
         case 0x7:
-        case 0xf:
-            tcg_gen_and_i32(cond, cond, not_loop_end);
+        case 0xf: { /* #NOT_LOOP_END */
+            TCGv_i32 t0 = tcg_temp_new_i32();
+            e2k_gen_is_loop_end_i32(t0);
+            tcg_gen_setcondi_i32(TCG_COND_EQ, lcond, t0, 0);
+            tcg_temp_free_i32(t0);
             break;
+        }
+        }
+
+        switch (cond_type) {
+        case 0x2:
+        case 0x3:
+            /* {,~}%predN */
+            tcg_gen_mov_i32(e2k_cs.ct_cond, pcond);
+            break;
+        case 0x4:
+        case 0x5:
+            /* #{,NOT_}LOOP_END */
+            tcg_gen_mov_i32(e2k_cs.ct_cond, lcond);
+            break;
+        case 0x6:
+        case 0xe: {
+            /* {,~}%predN || #LOOP_END */
+            TCGv_i32 z = tcg_const_i32(0);
+            TCGv_i32 t0 = tcg_temp_new_i32();
+
+            tcg_gen_or_i32(t0, pcond, lcond);
+            tcg_gen_movcond_i32(TCG_COND_EQ, e2k_cs.ct_cond,
+                ctx->is_prologue, z, t0, lcond);
+            tcg_temp_free_i32(t0);
+            tcg_temp_free_i32(z);
+            break;
+        }
+        case 0x7:
+        case 0xf: {
+            /* {,~}%predN && #NOT_LOOP_END */
+            TCGv_i32 z = tcg_const_i32(0);
+            TCGv_i32 t0 = tcg_temp_new_i32();
+
+            tcg_gen_and_i32(t0, pcond, lcond);
+            tcg_gen_movcond_i32(TCG_COND_EQ, e2k_cs.ct_cond,
+                ctx->is_prologue, z, t0, lcond);
+            tcg_temp_free_i32(t0);
+            tcg_temp_free_i32(z);
+            break;
+        }
         default:
+            // TODO
+            qemu_log_mask(LOG_UNIMP, "%#lx: ct cond %#x is not implemented!\n", ctx->pc, cond_type);
+            tcg_gen_movi_i32(e2k_cs.ct_cond, 0);
             break;
         }
 
+        tcg_temp_free_i32(lcond);
+        tcg_temp_free_i32(pcond);
+
         if (cond_type == 8) {
-            qemu_log_mask(LOG_UNIMP, "0x%lx: ct cond is not implemented!\n", dc->pc);
             // %MLOCK
             /* It's not clearly said in C.17.1.2 of iset-vX.single if the uppermost
                fourth bit in `psrc' has any meaning at all.  */
@@ -496,18 +544,20 @@ static void gen_jmp(DisasContext *dc)
     //            static const int conv[] = {0, 1, 3, 4};
                 int i;
 
+                qemu_log_mask(LOG_UNIMP, "0x%lx: %%MLOCK || %%dt_alM is not implemented!\n", ctx->pc);
                 // %dt_al
                 for (i = 0; i < 4; i++) {
                     if (psrc & (1 << i)) {
                         // i
                     }
                 }
+            } else {
+                qemu_log_mask(LOG_UNIMP, "0x%lx: %%MLOCK is not implemented!\n", ctx->pc);
             }
         }
 
         /* `lock_cond || pl_cond' control transfer conditions.  */
         if (cond_type == 9) {
-            qemu_log_mask(LOG_UNIMP, "0x%lx: ct cond is not implemented!\n", dc->pc);
             unsigned int type = (psrc & 0x18) >> 3;
             if (type == 0) {
     //            static const int cmp_num_to_alc[] = {0, 1, 3, 4};
@@ -516,6 +566,7 @@ static void gen_jmp(DisasContext *dc)
 
     //            my_printf ("%%MLOCK || %s%%cmp%d", neg ? "~" : "",
     //                cmp_num_to_alc[cmp_num]);
+                qemu_log_mask(LOG_UNIMP, "0x%lx: %%MLOCK || %%cmpN is not implemented!\n", ctx->pc);
             } else if (type == 1) {
     //            unsigned int cmp_jk = (psrc & 0x4) >> 2;
     //            unsigned int negj = (psrc & 0x2) >> 1;
@@ -524,11 +575,13 @@ static void gen_jmp(DisasContext *dc)
     //            my_printf ("%%MLOCK || %s%%cmp%d || %s%%cmp%d",
     //                     negj ? "~" : "", cmp_jk == 0 ? 0 : 3,
     //                     negk ? "~" : "", cmp_jk == 0 ? 1 : 4);
+                qemu_log_mask(LOG_UNIMP, "0x%lx: %%MLOCK || %%cmpN || %%cmpM is not implemented!\n", ctx->pc);
             } else if (type == 2) {
     //            unsigned int clp_num = (psrc & 0x6) >> 1;
     //            unsigned int neg = psrc & 0x1;
 
                 // "%%MLOCK || %s%%clp%d", neg ? "~" : "", clp_num
+                qemu_log_mask(LOG_UNIMP, "0x%lx: %%MLOCK || %%clpN is not implemented!\n", ctx->pc);
             }
         }
 
@@ -537,11 +590,6 @@ static void gen_jmp(DisasContext *dc)
             qemu_log_mask(LOG_UNIMP, "Undefined control transfer type %#x\n", cond_type);
             abort();
         }
-
-
-        tcg_temp_free_i32(not_loop_end);
-        tcg_temp_free_i32(loop_end);
-        tcg_temp_free_i32(preg);
     }
 }
 
@@ -614,24 +662,27 @@ void e2k_control_window_change(DisasContext *dc)
     }
 }
 
+static void gen_prologue_epilogue(DisasContext *ctx)
+{
+    TCGv_i32 t0 = tcg_temp_new_i32();
+
+    ctx->is_prologue = e2k_get_temp_i32(ctx);
+    e2k_gen_pcnt_i32(t0);
+    tcg_gen_setcondi_i32(TCG_COND_NE, ctx->is_prologue, t0, 0);
+
+    ctx->is_epilogue = e2k_get_temp_i32(ctx);
+    e2k_gen_lcnt_i32(t0);
+    tcg_gen_setcondi_i32(TCG_COND_EQ, ctx->is_epilogue, t0, 0);
+
+    tcg_temp_free_i32(t0);
+}
+
 void e2k_control_execute(DisasContext *ctx)
 {
     ctx->ct.type = CT_NONE;
-
     ctx->loop_mode = (ctx->bundle.hs & (1 << 10)) != 0;
-    if (ctx->loop_mode) {
-        TCGv_i32 t0 = tcg_temp_new_i32();
 
-        ctx->is_prologue = e2k_get_temp_i32(ctx);
-        e2k_gen_pcnt_i32(t0);
-        tcg_gen_setcondi_i32(TCG_COND_NE, ctx->is_prologue, t0, 0);
-
-        ctx->is_epilogue = e2k_get_temp_i32(ctx);
-        e2k_gen_lcnt_i32(t0);
-        tcg_gen_setcondi_i32(TCG_COND_EQ, ctx->is_epilogue, t0, 0);
-
-        tcg_temp_free_i32(t0);
-    }
+    gen_prologue_epilogue(ctx);
 
     if (ctx->bundle.ss_present) {
         gen_jmp(ctx);
