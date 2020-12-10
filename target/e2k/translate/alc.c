@@ -2041,122 +2041,154 @@ static void execute_ext_00(DisasContext *ctx, Instr *instr)
     e2k_tr_gen_exception(ctx, E2K_EXCP_ILLOPC);
 }
 
-static void execute_ext_01_25(DisasContext *ctx, Instr *instr)
-{
-    int chan = instr->chan;
-
-    if (chan != 2 && chan != 5) {
-        e2k_tr_gen_exception(ctx, E2K_EXCP_ILLOPC);
-        return;
-    }
-
-    switch(instr->opc1) {
-    case 0x08: gen_gettag_i32(ctx, chan); break; /* gettags */
-    case 0x09: gen_gettag_i64(ctx, chan); break; /* gettagd */
-    case 0x0a: gen_puttag_i32(ctx, chan); break; /* puttags */
-    case 0x0b: gen_puttag_i64(ctx, chan); break; /* puttagd */
-    case 0x1c: gen_staa_i32(ctx, instr, MO_8); break; /* staab */
-    case 0x1d: gen_staa_i32(ctx, instr, MO_16); break; /* staah */
-    case 0x1e: gen_staa_i32(ctx, instr, MO_32); break; /* staaw */
-    case 0x1f: gen_staa_i64(ctx, instr); break; /* staad */
-    default:
-        e2k_tr_gen_exception(ctx, E2K_EXCP_ILLOPC);
-        break;
-    }
-}
-
-static void execute_ext_01(DisasContext *dc, Instr *instr)
+static void execute_ext_01(DisasContext *ctx, Instr *instr)
 {
     int chan = instr->chan;
     switch (instr->opc1) {
+    case 0x08:
+        if (is_chan_25(chan)) {
+            /* gettags */
+            gen_gettag_i32(ctx, chan);
+            return;
+        }
+        break;
+    case 0x09:
+        if (is_chan_25(chan)) {
+            /* gettagd */
+            gen_gettag_i64(ctx, chan);
+            return;
+        }
+        break;
+    case 0x0a:
+        if (is_chan_25(chan)) {
+            /* puttags */
+            gen_puttag_i32(ctx, chan);
+            return;
+        }
+        break;
+    case 0x0b:
+        if (is_chan_25(chan)) {
+            /* puttagd */
+            gen_puttag_i64(ctx, chan);
+            return;
+        }
+        break;
     case 0x0f:
         if (is_chan_03(chan)) {
             /* paddd */
-            gen_alopf1_i64(dc, chan, tcg_gen_add_i64);
+            gen_alopf1_i64(ctx, chan, tcg_gen_add_i64);
             return;
         }
         break;
     case 0x18:
         if (is_chan_03(chan)) {
             /* pcmpeqb */
-            gen_alopf1_i64(dc, chan, gen_helper_pcmpeqb);
+            gen_alopf1_i64(ctx, chan, gen_helper_pcmpeqb);
+            return;
+        }
+        break;
+    case 0x1c:
+        if (is_chan_25(chan)) {
+            /* staab */
+            gen_staa_i32(ctx, instr, MO_8);
+            return;
+        }
+        break;
+    case 0x1d:
+        if (is_chan_25(chan)) {
+            /* staah */
+            gen_staa_i32(ctx, instr, MO_16);
+            return;
+        }
+        break;
+    case 0x1e:
+        if (is_chan_25(chan)) {
+            /* staaw */
+            gen_staa_i32(ctx, instr, MO_32);
+            return;
+        }
+        break;
+    case 0x1f:
+        if (is_chan_25(chan)) {
+            /* staad */
+            gen_staa_i64(ctx, instr);
             return;
         }
         break;
     case 0x20:
         if (is_chan_0134(chan)) {
             /* muls */
-            gen_alopf1_i32(dc, chan, tcg_gen_mul_i32);
+            gen_alopf1_i32(ctx, chan, tcg_gen_mul_i32);
             return;
         }
         break;
     case 0x21:
         if (is_chan_0134(chan)) {
             /* muld */
-            gen_alopf1_i64(dc, chan, tcg_gen_mul_i64);
+            gen_alopf1_i64(ctx, chan, tcg_gen_mul_i64);
             return;
         }
         break;
     case 0x22:
         if (is_chan_0134(chan)) {
             /* umulx */
-            gen_alopf1_i32_i64(dc, chan, gen_umulx);
+            gen_alopf1_i32_i64(ctx, chan, gen_umulx);
             return;
         }
         break;
     case 0x23:
         if (is_chan_0134(chan)) {
             /* smulx */
-            gen_alopf1_i32_i64(dc, chan, gen_smulx);
+            gen_alopf1_i32_i64(ctx, chan, gen_smulx);
             return;
         }
         break;
     case 0x3c:
         if (chan == 0) {
             /* rws */
-            gen_rw_i32(dc, chan);
+            gen_rw_i32(ctx, chan);
             return;
         }
         break;
     case 0x3d:
         if (chan == 0) {
             /* rwd */
-            gen_rw_i64(dc, chan);
+            gen_rw_i64(ctx, chan);
             return;
         }
         break;
     case 0x3e:
         if (chan == 0) {
             /* rrs */
-            gen_rr_i32(dc, chan);
+            gen_rr_i32(ctx, chan);
             return;
         }
         break;
     case 0x3f:
         if (chan == 0) {
             /* rrd */
-            gen_rr_i64(dc, chan);
+            gen_rr_i64(ctx, chan);
             return;
         }
         break;
     case 0x58:
         if (is_chan_03(chan)) {
             /* getsp */
-            gen_getsp(dc, chan);
+            gen_getsp(ctx, chan);
             return;
         }
         break;
     case 0x70:
         if (is_chan_0134(chan)) {
             /* umulhd */
-            gen_alopf1_i64(dc, chan, gen_umulhd);
+            gen_alopf1_i64(ctx, chan, gen_umulhd);
             return;
         }
         break;
     case 0x71:
         if (is_chan_0134(chan)) {
             /* smulhd */
-            gen_alopf1_i64(dc, chan, gen_smulhd);
+            gen_alopf1_i64(ctx, chan, gen_smulhd);
             return;
         }
         break;
@@ -2164,7 +2196,7 @@ static void execute_ext_01(DisasContext *dc, Instr *instr)
         break;
     }
 
-    e2k_tr_gen_exception(dc, E2K_EXCP_ILLOPC);
+    e2k_tr_gen_exception(ctx, E2K_EXCP_ILLOPC);
 }
 
 static void execute_icomb_i64(DisasContext *ctx, Instr *instr)
@@ -2627,7 +2659,6 @@ static void execute_ext_0f(DisasContext *ctx, Instr *instr)
 
 static void chan_execute(DisasContext *ctx, int chan)
 {
-    const UnpackedBundle *bundle = &ctx->bundle;
     uint16_t rlp = find_cond(ctx, chan);
     TCGLabel *l0 = gen_new_label();
     Instr instr = { 0 };
@@ -2650,37 +2681,16 @@ static void chan_execute(DisasContext *ctx, int chan)
         tcg_temp_free_i64(t0);
     }
 
-    switch(bundle->ales_present[chan]) {
-    case ALES_NONE:
-        execute_ext_00(ctx, &instr);
-        break;
-    case ALES_ALLOCATED: // 2 or 5 channel
-        execute_ext_01_25(ctx, &instr);
-        break;
-    case ALES_PRESENT: {
-        uint8_t opc = GET_FIELD(bundle->ales[chan], 8, 8);
-        switch (opc) {
-        case 0x01:
-            execute_ext_01(ctx, &instr);
-            break;
-        case 0x08:
-        case 0x09:
-        case 0x0a:
-            execute_icomb(ctx, &instr);
-        case 0x0b:
-            execute_ext_0b(ctx, &instr);
-            break;
-        case 0x0f:
-            execute_ext_0f(ctx, &instr);
-            break;
-        default:
-            e2k_tr_gen_exception(ctx, E2K_EXCP_ILLOPC);
-            break;
-        }
-        break;
-    }
+    switch (instr.opc2) {
+    case 0x00: execute_ext_00(ctx, &instr); break; /* no ales */
+    case 0x01: execute_ext_01(ctx, &instr); break;
+    case 0x08:
+    case 0x09:
+    case 0x0a: execute_icomb(ctx, &instr); break;
+    case 0x0b: execute_ext_0b(ctx, &instr); break;
+    case 0x0f: execute_ext_0f(ctx, &instr); break;
     default:
-        g_assert_not_reached();
+        e2k_tr_gen_exception(ctx, E2K_EXCP_ILLOPC);
         break;
     }
 
