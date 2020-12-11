@@ -523,8 +523,12 @@ typedef struct {
     E2KAauState aau;
 
     int interrupt_index;
+
+    /* internal use */
     uint32_t is_bp; /* breakpoint flag */
     int syscall_wbs; // FIXME: temp for syscall
+    /* zeroing upper register half for 32-bit instructions */
+    uint32_t wdbl;
 
     /* Fields up to this point are cleared by a CPU reset */
     struct {} end_reset_fields;
