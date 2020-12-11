@@ -452,6 +452,27 @@ typedef union {
 } E2KCtpr;
 
 typedef struct {
+    union {
+        uint64_t lo;
+        struct {
+            uint64_t base: 48;
+            uint64_t unused1: 10;
+            uint64_t protected: 1;
+            uint64_t read: 1;
+            uint64_t write: 1;
+            uint64_t unsued2: 3;
+        };
+    };
+    union {
+        uint64_t hi;
+        struct {
+            uint64_t curptr: 32;
+            uint64_t size: 32;
+        };
+    };
+} E2KUserStackDesc;
+
+typedef struct {
     /* register file */
     uint64_t regs[E2K_REG_COUNT]; /* registers */
     uint16_t xregs[E2K_REG_COUNT]; /* x part of registers */
@@ -459,6 +480,14 @@ typedef struct {
     uint64_t *rptr; /* pointer to regs */
     uint64_t *tptr; /* pointer to tags */
 
+    union {
+        uint64_t pregs; /* predicate file */
+        uint64_t cr0_lo;
+    };
+    union {
+        target_ulong ip; /* instruction address */
+        uint64_t cr0_hi;
+    };
     E2KCr1State cr1;
 
     /* Procedure chain info = cr0_lo, cr0_hi, cr1_lo, cr1_hi */
@@ -476,21 +505,11 @@ typedef struct {
     uint64_t lsr; /* loop status register */
 
     uint64_t sbr;
-    uint64_t usd_lo;
-    uint64_t usd_hi;
+    E2KUserStackDesc usd;
 
     /* control registers */
     E2KCtpr ctprs[3]; // Control Transfer Preparation Register (CTPR)
     target_ulong ct_cond;
-    
-    union {
-        uint64_t pregs; /* predicate file */
-        uint64_t cr0_lo;
-    };
-    union {
-        target_ulong ip; /* instruction address */
-        uint64_t cr0_hi;
-    };
 
     target_ulong nip; /* next instruction address */
     
