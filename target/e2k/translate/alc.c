@@ -485,36 +485,6 @@ static uint16_t find_mrgc(DisasContext *dc, int chan)
     return 0;
 }
 
-static inline bool is_cond(uint16_t rlp, int chan)
-{
-    int is_mrgc = GET_BIT(rlp, 15);
-    int cluster = GET_BIT(rlp, 14);
-    int alc_mask = GET_FIELD(rlp, 10, 3);
-    int alc = GET_BIT(alc_mask, chan % 3);
-
-    return !is_mrgc && (cluster == (chan > 2)) && (alc != 0);
-}
-
-static uint16_t find_cond(DisasContext *ctx, int chan)
-{
-    unsigned int i;
-
-    for (i = 0; ctx->bundle.cds_present[i]; i++) {
-        uint32_t cds = ctx->bundle.cds[i];
-        uint16_t rlp0 = cds >> 16;
-        uint16_t rlp1 = cds & 0xffff;
-
-        if (is_cond(rlp0, chan)) {
-            return rlp0;
-        }
-        if (is_cond(rlp1, chan)) {
-            return rlp1;
-        }
-    }
-
-    return 0;
-}
-
 static uint16_t find_am_cond(DisasContext *ctx, int chan)
 {
     unsigned int i, j;
@@ -2822,29 +2792,109 @@ static void execute_ext_0f(DisasContext *ctx, Instr *instr)
     e2k_tr_gen_exception(ctx, E2K_EXCP_ILLOPC);
 }
 
+static inline bool rlp_check_chan(uint16_t rlp, int chan)
+{
+    return extract16(rlp, 14, 1) == (chan > 2) &&
+        extract16(rlp, 10 + chan % 3, 1);
+}
+
+static inline bool rlp_is_chan_pred(uint16_t rlp, int chan)
+{
+    return !extract16(rlp, 15, 1) && rlp_check_chan(rlp, chan);
+}
+
+static void chan_check_preds(DisasContext *ctx, int chan, TCGLabel *l)
+{
+    unsigned int i;
+    bool has_pcnt = false;
+    bool has_preg = false;
+    TCGv_i32 t0 = tcg_temp_new_i32();
+    TCGv_i32 t1 = tcg_temp_new_i32();
+    TCGv_i32 t2 = tcg_temp_new_i32();
+
+    tcg_gen_movi_i32(t0, 0);
+    tcg_gen_movi_i32(t1, 0);
+
+    for (i = 0; i < 3; i++) {
+        unsigned int j;
+        uint16_t *cds = (uint16_t *) &ctx->bundle.cds[i];
+
+        if (!ctx->bundle.cds_present[i]) {
+            continue;
+        }
+
+        for (j = 0; j < 2; j++) {
+            uint16_t rlp = cds[j];
+            uint8_t kind = extract8(rlp, 5, 2);
+            uint8_t idx = extract8(rlp, 0, 5);
+            bool invert = extract16(rlp, 7 + chan % 3, 1);
+
+            if (!rlp_is_chan_pred(rlp, chan)) {
+                continue;
+            }
+
+            switch(kind) {
+            case 0x2: { /* %pcntN */
+                TCGv_i32 t3 = tcg_temp_new_i32();
+
+                has_pcnt = true;
+                // FIXME: slow, need to store unpacked LSR for fast field access
+                e2k_gen_pcnt_i32(t3);
+                tcg_gen_setcondi_i32(TCG_COND_LEU, t2, t3, idx);
+                if (invert) {
+                    tcg_gen_xori_i32(t2, t2, 1);
+                }
+                tcg_gen_or_i32(t0, t0, t2);
+                tcg_temp_free_i32(t3);
+                break;
+            }
+            case 0x3: /* %predN */
+                has_preg = true;
+                e2k_gen_preg_i32(t2, idx);
+                if (invert) {
+                    tcg_gen_xori_i32(t2, t2, 1);
+                }
+                tcg_gen_or_i32(t1, t1, t2);
+                break;
+            default:
+                if (ctx->strict) {
+                    e2k_tr_gen_exception(ctx, E2K_EXCP_ILLOPN);
+                }
+                break;
+            }
+        }
+    }
+
+    if (has_preg || has_pcnt) {
+        TCGv_i32 cond = e2k_get_temp_i32(ctx);
+
+        if (has_preg && has_pcnt) {
+            tcg_gen_and_i32(cond, t0, t1);
+        } else if (has_preg) {
+            tcg_gen_mov_i32(cond, t1);
+        } else {
+            tcg_gen_mov_i32(cond, t0);
+        }
+
+        ctx->al_cond[chan] = cond;
+        tcg_gen_brcondi_i32(TCG_COND_EQ, cond, 0, l);
+    }
+
+    tcg_temp_free_i32(t2);
+    tcg_temp_free_i32(t1);
+    tcg_temp_free_i32(t0);
+}
+
 static void chan_execute(DisasContext *ctx, int chan)
 {
-    uint16_t rlp = find_cond(ctx, chan);
     TCGLabel *l0 = gen_new_label();
     Instr instr = { 0 };
-    TCGv_i64 cond = NULL;
 
     instr.chan = chan;
     instr.als = ctx->bundle.als[chan];
     instr.ales = ctx->bundle.ales[chan];
 
-    if (rlp != 0) {
-        TCGv_i64 t0 = tcg_temp_new_i64();
-        uint8_t psrc = GET_FIELD(rlp, 0, 7);
-        bool neg = GET_BIT(rlp, 7 + chan % 3);
-
-        e2k_gen_cond_i64(ctx, t0, psrc);
-        cond = e2k_get_temp_i64(ctx);
-        tcg_gen_xori_i64(cond, t0, neg);
-        tcg_gen_brcondi_i64(TCG_COND_EQ, cond, 0, l0);
-
-        tcg_temp_free_i64(t0);
-    }
+    chan_check_preds(ctx, chan, l0);
 
     switch (instr.opc2) {
     case 0x00: execute_ext_00(ctx, &instr); break; /* no ales */
@@ -2860,9 +2910,6 @@ static void chan_execute(DisasContext *ctx, int chan)
     }
 
     gen_set_label(l0);
-
-    ctx->al_cond[chan].is_set = rlp != 0;
-    ctx->al_cond[chan].value = cond;
 }
 
 void e2k_alc_execute(DisasContext *ctx)
@@ -2871,6 +2918,7 @@ void e2k_alc_execute(DisasContext *ctx)
 
     for (i = 0; i < 6; i++) {
         ctx->al_results[i].type = AL_RESULT_NONE;
+        ctx->al_cond[i] = NULL;
 
         if (ctx->bundle.als_present[i]) {
             chan_execute(ctx, i);
@@ -2896,14 +2944,13 @@ void e2k_alc_commit(DisasContext *ctx)
     for (i = 0; i < 6; i++) {
         TCGLabel *l0 = gen_new_label();
         AlResult *res = &ctx->al_results[i];
-        AlCond *cond = &ctx->al_cond[i];
 
         if (!ctx->bundle.als_present[i]) {
             continue;
         }
 
-        if (res->type != AL_RESULT_NONE && cond->is_set) {
-            tcg_gen_brcondi_i64(TCG_COND_EQ, cond->value, 0, l0);
+        if (res->type != AL_RESULT_NONE && ctx->al_cond[i] != NULL) {
+            tcg_gen_brcondi_i32(TCG_COND_EQ, ctx->al_cond[i], 0, l0);
         }
 
         switch(res->type) {

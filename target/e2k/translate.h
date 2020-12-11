@@ -138,11 +138,6 @@ typedef struct {
 } AauResult;
 
 typedef struct {
-    bool is_set;
-    TCGv_i64 value;
-} AlCond;
-
-typedef struct {
     int reg; // -1 means do not write
     TCGv_i32 value;
 } PlResult;
@@ -176,6 +171,9 @@ typedef struct DisasContext {
     TCGv_i32 is_epilogue;
 
     int version;
+    /* Force ILLOP for bad instruction format for cases where real CPU
+       do not generate it. */
+    bool strict;
 
     // Temporary values.
     TCGv_i32 t32[64];
@@ -190,7 +188,7 @@ typedef struct DisasContext {
     TCGv_i32 illtag;
     TCGv_i64 cond[6];
     AlResult al_results[6];
-    AlCond al_cond[6];
+    TCGv_i32 al_cond[6];
     AauResult aau_results[4];
     int aau_am[4];
     PlResult pl_results[3];
