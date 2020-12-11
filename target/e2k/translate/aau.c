@@ -184,10 +184,16 @@ void e2k_aau_commit(DisasContext *ctx)
 
         // TODO: aau.tags
         switch(res->type) {
-        case AAU_RESULT_REG32:
+        case AAU_RESULT_REG32: {
+            TCGv_i64 t0 = tcg_temp_new_i64();
+
+            /* mova{b,h,w} always write to reg64 */
+            tcg_gen_extu_i32_i64(t0, res->v32);
             e2k_gen_reg_tag_write_i32(zero, res->index);
-            e2k_gen_reg_write_i32(res->v32, res->index);
+            e2k_gen_reg_write_i64(t0, res->index);
+            tcg_temp_free_i64(t0);
             break;
+        }
         case AAU_RESULT_REG64:
             e2k_gen_reg_tag_write_i64(zero, res->index);
             e2k_gen_reg_write_i64(res->v64, res->index);
