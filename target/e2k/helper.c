@@ -47,16 +47,16 @@ static inline uint64_t stack_pop(CPUE2KState *env, E2KStackState *s)
 /* FIXME: I don't know how exactly it should works. */
 static inline void sbr_push(CPUE2KState *env)
 {
-    cpu_stq_le_data(env, env->sbr, env->usd_lo);
-    cpu_stq_le_data(env, env->sbr + 8, env->usd_hi);
+    cpu_stq_le_data(env, env->sbr, env->usd.lo);
+    cpu_stq_le_data(env, env->sbr + 8, env->usd.hi);
     env->sbr += 16;
 }
 
 static inline void sbr_pop(CPUE2KState *env)
 {
     env->sbr -= 16;
-    env->usd_hi = cpu_ldq_le_data(env, env->sbr + 8);
-    env->usd_lo = cpu_ldq_le_data(env, env->sbr);
+    env->usd.hi = cpu_ldq_le_data(env, env->sbr + 8);
+    env->usd.lo = cpu_ldq_le_data(env, env->sbr);
 }
 
 static void proc_chain_save(CPUE2KState *env, int wbs)

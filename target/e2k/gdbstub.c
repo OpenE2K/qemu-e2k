@@ -55,8 +55,8 @@ int e2k_cpu_gdb_read_register(CPUState *cs, GByteArray *mem_buf, int n)
     case 44: return gdb_get_reg64(mem_buf, 0); // fpcr
     case 45: return gdb_get_reg64(mem_buf, 0); // fpsr
     case 46: return gdb_get_reg64(mem_buf, 0); // usbr
-    case 47: return gdb_get_reg64(mem_buf, env->usd_lo); // usd_lo
-    case 48: return gdb_get_reg64(mem_buf, env->usd_hi); // usd_hi
+    case 47: return gdb_get_reg64(mem_buf, env->usd.lo); // usd_lo
+    case 48: return gdb_get_reg64(mem_buf, env->usd.hi); // usd_hi
     case 49: return gdb_get_reg64(mem_buf, e2k_state_psp_lo(env)); // psp_lo
     case 50: return gdb_get_reg64(mem_buf, e2k_state_psp_hi(env)); // psp_hi
     case 51: return gdb_get_reg64(mem_buf, e2k_state_pshtp(env)); // pshtp

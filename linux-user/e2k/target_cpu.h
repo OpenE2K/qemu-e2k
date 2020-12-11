@@ -7,9 +7,11 @@ static inline void cpu_clone_regs_child(CPUE2KState *env, target_ulong newsp,
                                         unsigned flags)
 {
     if (newsp) {
-        uint64_t size = 0x20000UL;
-        env->usd_hi = size << 32;
-        env->usd_lo = (0x1800UL << 48) | newsp;
+        // FIXME: what size must be?
+        env->usd.size = 0x20000;
+        env->usd.base = newsp;
+        env->usd.read = 1;
+        env->usd.write = 1;
     }
 }
 
@@ -34,7 +36,7 @@ static inline target_ulong cpu_get_tls(CPUE2KState *env)
 
 static inline abi_ulong get_sp_from_cpustate(CPUE2KState *env)
 {
-    return extract64(env->usd_lo, 0, 48);
+    return env->usd.base;
 }
 
 #endif /* E2K_TARGET_CPU_H */

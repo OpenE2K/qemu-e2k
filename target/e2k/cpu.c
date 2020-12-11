@@ -158,8 +158,8 @@ void e2k_cpu_dump_state(CPUState *cs, FILE *f, int flags)
     qemu_fprintf(f, "  pcsp_hi = 0x%016lx\n", e2k_state_pcsp_hi(env));
     qemu_fprintf(f, "   psp_lo = 0x%016lx\n", e2k_state_psp_lo(env));
     qemu_fprintf(f, "   psp_hi = 0x%016lx\n", e2k_state_psp_hi(env));
-    qemu_fprintf(f, "   usd_lo = 0x%016lx\n", env->usd_lo);
-    qemu_fprintf(f, "   usd_hi = 0x%016lx\n", env->usd_hi);
+    qemu_fprintf(f, "   usd_lo = 0x%016lx\n", env->usd.lo);
+    qemu_fprintf(f, "   usd_hi = 0x%016lx\n", env->usd.hi);
     qemu_fprintf(f, "      lsr = 0x%016lx\n", env->lsr);
     cpu_dump_state_br(env, f, flags);
 
