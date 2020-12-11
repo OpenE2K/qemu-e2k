@@ -353,11 +353,12 @@ static inline void gen_dst_poison_i32(TCGv_i32 ret, TCGv_i32 value,
 }
 
 static inline void set_al_result_reg64_tag(DisasContext *ctx, int chan,
-    TCGv_i64 value, TCGv_i32 tag)
+    TCGv_i64 value, TCGv_i32 tag, bool poison)
 {
     uint8_t arg = extract32(ctx->bundle.als[chan], 0, 8);
     AlResult *res = &ctx->al_results[chan];
 
+    res->poison = poison;
     // TODO: %tst, %tc, %tcd
     if (arg == 0xdf) { /* %empty */
         res->type = AL_RESULT_NONE;
@@ -387,15 +388,17 @@ static inline void set_al_result_reg64_tag(DisasContext *ctx, int chan,
 static inline void set_al_result_reg64(DisasContext *ctx, int chan,
     TCGv_i64 value)
 {
-    set_al_result_reg64_tag(ctx, chan, value, e2k_get_const_i32(ctx, 0));
+    set_al_result_reg64_tag(ctx, chan, value, e2k_get_const_i32(ctx, 0), true);
 }
 
 static inline void set_al_result_reg32_tag(DisasContext *ctx, int chan,
-    TCGv_i32 value, TCGv_i32 tag)
+    TCGv_i32 value, TCGv_i32 tag, bool poison, bool check_tag)
 {
     uint8_t arg = extract32(ctx->bundle.als[chan], 0, 8);
     AlResult *res = &ctx->al_results[chan];
 
+    res->check_tag = check_tag;
+    res->poison = poison;
     // TODO: %tst, %tc, %tcd
     if (arg == 0xdf) { /* %empty */
         res->type = AL_RESULT_NONE;
@@ -424,7 +427,8 @@ static inline void set_al_result_reg32_tag(DisasContext *ctx, int chan,
 static inline void set_al_result_reg32(DisasContext *ctx, int chan,
     TCGv_i32 value)
 {
-    set_al_result_reg32_tag(ctx, chan, value, e2k_get_const_i32(ctx, 0));
+    set_al_result_reg32_tag(ctx, chan, value, e2k_get_const_i32(ctx, 0), true,
+        true);
 }
 
 static inline void set_al_result_preg(DisasContext *ctx, int chan, int index,
@@ -442,8 +446,7 @@ static inline void gen_al_result_i64(DisasContext *ctx, int chan, TCGv_i64 dst,
 {
     bool sm = extract32(ctx->bundle.als[chan], 31, 1);
     gen_tag_check(ctx, sm, tag);
-    gen_dst_poison_i64(dst, dst, tag);
-    set_al_result_reg64_tag(ctx, chan, dst, tag);
+    set_al_result_reg64_tag(ctx, chan, dst, tag, true);
 }
 
 static inline void gen_al_result_i32(DisasContext *ctx, int chan, TCGv_i32 dst,
@@ -451,8 +454,7 @@ static inline void gen_al_result_i32(DisasContext *ctx, int chan, TCGv_i32 dst,
 {
     bool sm = extract32(ctx->bundle.als[chan], 31, 1);
     gen_tag_check(ctx, sm, tag);
-    gen_dst_poison_i32(dst, dst, tag);
-    set_al_result_reg32_tag(ctx, chan, dst, tag);
+    set_al_result_reg32_tag(ctx, chan, dst, tag, true, true);
 }
 
 static inline bool is_mrgc(uint16_t rlp, int chan)
@@ -1125,7 +1127,7 @@ static inline void gen_puttag_i64(DisasContext *ctx, int chan)
     gen_set_label(l0);
     tcg_gen_mov_i32(tag, s2.value);
     gen_set_label(l1);
-    set_al_result_reg64_tag(ctx, chan, dst, tag);
+    set_al_result_reg64_tag(ctx, chan, dst, tag, false);
 }
 
 static inline void gen_puttag_i32(DisasContext *ctx, int chan)
@@ -1148,7 +1150,7 @@ static inline void gen_puttag_i32(DisasContext *ctx, int chan)
     gen_set_label(l0);
     tcg_gen_mov_i32(tag, s2.value);
     gen_set_label(l1);
-    set_al_result_reg32_tag(ctx, chan, dst, tag);
+    set_al_result_reg32_tag(ctx, chan, dst, tag, false, false);
 }
 
 static inline void gen_insert_field_i64(TCGv_i64 ret, TCGv_i64 src1,
@@ -1329,7 +1331,7 @@ static void gen_getsp(DisasContext *ctx, int chan)
 static void gen_movtd(DisasContext *ctx, int chan)
 {
     Src64 s2 = get_src2_i64(ctx, chan);
-    set_al_result_reg64_tag(ctx, chan, s2.value, s2.tag);
+    set_al_result_reg64_tag(ctx, chan, s2.value, s2.tag, false);
 }
 
 static MemOp gen_mas(DisasContext *ctx, int chan, MemOp memop, TCGv_i64 addr)
@@ -2954,13 +2956,56 @@ void e2k_alc_commit(DisasContext *ctx)
         }
 
         switch(res->type) {
-        case AL_RESULT_REG32:
+        case AL_RESULT_REG32: {
+            TCGLabel *l0 = gen_new_label();
+            TCGLabel *l1 = gen_new_label();
+            TCGv_i32 t0 = tcg_temp_new_i32();
+            TCGv_i64 t1 = tcg_temp_new_i64();
+
+            tcg_gen_brcondi_i32(TCG_COND_NE, e2k_cs.wdbl, 0, l0);
+
             e2k_gen_reg_tag_write_i32(res->reg.tag, res->reg.index);
-            e2k_gen_reg_write_i32(res->reg.v32, res->reg.index);
+            if (res->poison) {
+                gen_dst_poison_i32(t0, res->reg.v32, res->reg.tag);
+                e2k_gen_reg_write_i32(t0, res->reg.index);
+            } else {
+                e2k_gen_reg_write_i32(res->reg.v32, res->reg.index);
+            }
+            tcg_gen_br(l1);
+
+            gen_set_label(l0);
+            if (res->check_tag) {
+                gen_tag1_i64(t0, res->reg.tag);
+                e2k_gen_reg_tag_write_i64(t0, res->reg.index);
+            } else {
+                e2k_gen_reg_tag_write_i64(res->reg.tag, res->reg.index);
+            }
+            tcg_gen_extu_i32_i64(t1, res->reg.v32);
+            if (res->poison) {
+                TCGv_i64 t2 = tcg_temp_new_i64();
+                gen_dst_poison_i64(t2, t1, t0);
+                e2k_gen_reg_write_i64(t2, res->reg.index);
+                tcg_temp_free_i64(t2);
+            } else {
+                e2k_gen_reg_write_i64(t1, res->reg.index);
+            }
+
+            gen_set_label(l1);
+
+            tcg_temp_free_i64(t1);
+            tcg_temp_free_i32(t0);
             break;
+        }
         case AL_RESULT_REG64:
             e2k_gen_reg_tag_write_i64(res->reg.tag, res->reg.index);
-            e2k_gen_reg_write_i64(res->reg.v64, res->reg.index);
+            if (res->poison) {
+                TCGv_i64 t0 = tcg_temp_new_i64();
+                gen_dst_poison_i64(t0, res->reg.v64, res->reg.tag);
+                e2k_gen_reg_write_i64(t0, res->reg.index);
+                tcg_temp_free_i64(t0);
+            } else {
+                e2k_gen_reg_write_i64(res->reg.v64, res->reg.index);
+            }
             break;
         case AL_RESULT_PREG:
             e2k_gen_store_preg(res->preg.index, res->preg.value);
