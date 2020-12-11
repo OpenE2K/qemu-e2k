@@ -33,9 +33,9 @@ static uint64_t* state_reg_ptr(CPUE2KState *env, int idx)
 {
     switch (idx) {
     /* FIXME: user cannot write */
-    case 0x2c: return &env->usd_hi; /* %usd.hi */
+    case 0x2c: return &env->usd.hi; /* %usd.hi */
     /* FIXME: user cannot write */
-    case 0x2d: return &env->usd_lo; /* %usd.lo */
+    case 0x2d: return &env->usd.lo; /* %usd.lo */
     case 0x51: return &env->ip; /* %cr1.hi */
     case 0x53: return &env->pregs; /* %cr1.lo */
     case 0x80: return &env->upsr; /* %upsr */
@@ -107,14 +107,17 @@ void helper_state_reg_write_i32(CPUE2KState *env, int idx, uint32_t val)
     }
 }
 
-uint64_t helper_getsp(CPUE2KState *env, uint32_t src2) {
-    uint64_t base = GET_FIELD(env->usd_lo, USD_LO_BASE_OFF, USD_LO_BASE_LEN);
+uint64_t helper_getsp(CPUE2KState *env, uint32_t src2)
+{
+    int32_t s2 = src2 & ~0xf;
+    uint32_t size = s2 >= 0 ? s2 : -s2;
 
-    base += (int32_t) src2;
+    if (size > env->usd.size) {
+        helper_raise_exception(env, E2K_EXCP_MAPERR);
+    }
 
-    /* TODO: stack overflow */
-    env->usd_lo = SET_FIELD(env->usd_lo, base, USD_LO_BASE_OFF,
-        USD_LO_BASE_LEN);
+    env->usd.base += s2;
+    env->usd.size -= size;
 
-    return base;
+    return env->usd.base;
 }
