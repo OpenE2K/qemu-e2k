@@ -133,6 +133,7 @@ static inline void gen_literal_i64(DisasContext *ctx, Src64 *ret, uint8_t arg)
         e2k_tr_gen_exception(ctx, E2K_EXCP_ILLOPN);
     }
 
+    ret->tag = e2k_get_const_i32(ctx, 0);
     ret->value = e2k_get_const_i64(ctx, lit);
 }
 
@@ -158,6 +159,7 @@ static inline void gen_literal_i32(DisasContext *ctx, Src32 *ret, uint8_t arg)
         e2k_tr_gen_exception(ctx, E2K_EXCP_ILLOPN);
     }
 
+    ret->tag = e2k_get_const_i32(ctx, 0);
     ret->value = e2k_get_const_i32(ctx, lit);
 }
 
@@ -167,6 +169,7 @@ static inline Src64 get_src1_i64(DisasContext *ctx, int chan)
     Src64 ret = { 0 };
 
     if (IS_IMM5(arg)) {
+        ret.tag = e2k_get_const_i32(ctx, 0);
         ret.value = e2k_get_const_i64(ctx, GET_IMM5(arg));
     } else {
         gen_reg_i64(ctx, &ret, arg);
@@ -181,6 +184,7 @@ static inline Src32 get_src1_i32(DisasContext *ctx, int chan)
     Src32 ret = { 0 };
 
     if (IS_IMM5(arg)) {
+        ret.tag = e2k_get_const_i32(ctx, 0);
         ret.value = e2k_get_const_i32(ctx, GET_IMM5(arg));
     } else {
         gen_reg_i32(ctx, &ret, arg);
@@ -195,6 +199,7 @@ static inline Src64 get_src2_i64(DisasContext *ctx, int chan)
     Src64 ret = { 0 };
 
     if (IS_IMM4(arg)) {
+        ret.tag = e2k_get_const_i32(ctx, 0);
         ret.value = e2k_get_const_i64(ctx, GET_IMM4(arg));
     } else if (IS_LIT(arg)) {
         gen_literal_i64(ctx, &ret, arg);
@@ -211,7 +216,7 @@ static inline Src32 get_src2_i32(DisasContext *ctx, int chan)
     Src32 ret = { 0 };
 
     if (IS_IMM4(arg)) {
-        ret.tag = NULL;
+        ret.tag = e2k_get_const_i32(ctx, 0);
         ret.value = e2k_get_const_i32(ctx, GET_IMM4(arg));
     } else if (IS_LIT(arg)) {
         gen_literal_i32(ctx, &ret, arg);
@@ -1846,34 +1851,40 @@ static void gen_alopf1_cmp_i32(DisasContext *ctx, Instr *instr,
 
 static void gen_alopf1_mrgc_i32(DisasContext *ctx, Instr *instr)
 {
-    int chan = instr->chan;
-    Src32 s1 = get_src1_i32(ctx, chan);
-    Src32 s2 = get_src2_i32(ctx, chan);
+    Src32 s1 = get_src1_i32(ctx, instr->chan);
+    Src32 s2 = get_src2_i32(ctx, instr->chan);
     TCGv_i32 tag = e2k_get_temp_i32(ctx);
     TCGv_i32 dst = e2k_get_temp_i32(ctx);
     TCGv_i32 t0 = tcg_temp_new_i32();
+    TCGv_i32 t1 = tcg_temp_new_i32();
 
-    gen_tag2_i32(tag, s1.tag, s2.tag);
     gen_mrgc_i32(ctx, instr->chan, t0);
+    gen_merge_i32(t1, s1.tag, s2.tag, t0);
     gen_merge_i32(dst, s1.value, s2.value, t0);
+    gen_tag1_i32(tag, t1);
+    gen_al_result_i32(ctx, instr->chan, dst, tag);
+
+    tcg_temp_free_i32(t1);
     tcg_temp_free_i32(t0);
-    gen_al_result_i32(ctx, chan, dst, tag);
 }
 
 static void gen_alopf1_mrgc_i64(DisasContext *ctx, Instr *instr)
 {
-    int chan = instr->chan;
-    Src64 s1 = get_src1_i64(ctx, chan);
-    Src64 s2 = get_src2_i64(ctx, chan);
+    Src64 s1 = get_src1_i64(ctx, instr->chan);
+    Src64 s2 = get_src2_i64(ctx, instr->chan);
     TCGv_i32 tag = e2k_get_temp_i32(ctx);
     TCGv_i64 dst = e2k_get_temp_i64(ctx);
     TCGv_i32 t0 = tcg_temp_new_i32();
+    TCGv_i32 t1 = tcg_temp_new_i32();
 
-    gen_tag2_i64(tag, s1.tag, s2.tag);
     gen_mrgc_i32(ctx, instr->chan, t0);
+    gen_merge_i32(t1, s1.tag, s2.tag, t0);
     gen_merge_i64(dst, s1.value, s2.value, t0);
+    gen_tag1_i64(tag, t1);
+    gen_al_result_i64(ctx, instr->chan, dst, tag);
+
+    tcg_temp_free_i32(t1);
     tcg_temp_free_i32(t0);
-    gen_al_result_i64(ctx, chan, dst, tag);
 }
 
 static void gen_alopf21_i64(DisasContext *ctx, Instr *instr,
