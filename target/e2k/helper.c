@@ -96,6 +96,7 @@ static inline void proc_chain_restore(CPUE2KState *env)
     env->wd.psize = env->cr1.wpsz * 2;
     env->wd.base = (E2K_NR_COUNT + env->wd.base - wbs * 2) % E2K_NR_COUNT;
     env->wd.fx = env->cr1.wfx;
+    env->wdbl = env->cr1.wdbl;
 
     env->pshtp.index -= wbs * 2;
 
@@ -155,12 +156,8 @@ void helper_setwd(CPUE2KState *env, uint32_t lts)
 
     if (env->version >= 3) {
         bool dbl = extract32(lts, 3, 1);
-        // TODO: set dbl
-        if (dbl != false) {
-            qemu_log_mask(LOG_UNIMP, "0x%lx: dbl is not implemented!\n",
-                env->ip);
-        }
         env->cr1.wdbl = dbl;
+        env->wdbl = dbl;
     }
 
     ps_spill(env, false, PS_FORCE_FX);

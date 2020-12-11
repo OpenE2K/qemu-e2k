@@ -495,6 +495,7 @@ void e2k_tcg_initialize(void) {
         { &e2k_cs.psize, offsetof(CPUE2KState, bp.size), "psize" },
         { &e2k_cs.pcur, offsetof(CPUE2KState, bp.cur), "pcur" },
         { &e2k_cs.is_bp, offsetof(CPUE2KState, is_bp), "is_bp" },
+        { &e2k_cs.wdbl, offsetof(CPUE2KState, wdbl), "wdbl" },
         { &e2k_cs.aasti_tags, offsetof(CPUE2KState, aau.sti_tags), "aasti_tags" },
         { &e2k_cs.aaind_tags, offsetof(CPUE2KState, aau.ind_tags), "aaind_tags" },
         { &e2k_cs.aaincr_tags, offsetof(CPUE2KState, aau.incr_tags), "aaincr_tags" },

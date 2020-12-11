@@ -39,6 +39,7 @@ typedef struct CPUE2KStateTCG {
     TCGv_i64 ctprs[3];
     TCGv_i32 ct_cond;
     TCGv_i32 is_bp; /* breakpoint flag */
+    TCGv_i32 wdbl;
     TCGv_i64 lsr;
     TCGv_i64 regs[E2K_REG_COUNT];
     TCGv_i64 tags[E2K_TAGS_REG_COUNT];
@@ -100,6 +101,10 @@ typedef enum {
 
 typedef struct {
     AlResultType type;
+    /* check tag for 32-bit ops if wdbl is set */
+    bool check_tag;
+    /* poison result if tag is not zero */
+    bool poison;
     union {
         struct {
             uint8_t dst;    /* %rN, 1st phase */
