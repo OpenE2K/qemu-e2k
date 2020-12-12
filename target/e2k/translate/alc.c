@@ -1264,48 +1264,44 @@ static inline void gen_smulhd(TCGv_i64 ret, TCGv_i64 src1, TCGv_i64 src2)
     tcg_temp_free_i64(t0);
 }
 
-static inline void gen_rr_i64(DisasContext *ctx, int chan)
+static inline void gen_rr_i64(DisasContext *ctx, Instr *instr)
 {
-    uint32_t als = ctx->bundle.als[chan];
-    uint8_t state_reg = extract32(als, 16, 8);
     TCGv_i64 dst = e2k_get_temp_i64(ctx);
-    TCGv_i32 t0 = tcg_const_i32(state_reg);
+    TCGv_i32 t0 = tcg_const_i32(instr->src1);
 
+    e2k_gen_save_cpu_state(ctx);
     gen_helper_state_reg_read_i64(dst, cpu_env, t0);
-    set_al_result_reg64(ctx, chan, dst);
+    set_al_result_reg64(ctx, instr->chan, dst);
     tcg_temp_free_i32(t0);
 }
 
-static inline void gen_rr_i32(DisasContext *ctx, int chan)
+static inline void gen_rr_i32(DisasContext *ctx, Instr *instr)
 {
-    uint32_t als = ctx->bundle.als[chan];
-    uint8_t state_reg = extract32(als, 16, 8);
     TCGv_i32 dst = e2k_get_temp_i32(ctx);
-    TCGv_i32 t0 = tcg_const_i32(state_reg);
+    TCGv_i32 t0 = tcg_const_i32(instr->src1);
 
+    e2k_gen_save_cpu_state(ctx);
     gen_helper_state_reg_read_i32(dst, cpu_env, t0);
-    set_al_result_reg32(ctx, chan, dst);
+    set_al_result_reg32(ctx, instr->chan, dst);
     tcg_temp_free_i32(t0);
 }
 
-static inline void gen_rw_i64(DisasContext *ctx, int chan)
+static inline void gen_rw_i64(DisasContext *ctx, Instr *instr)
 {
-    uint32_t als = ctx->bundle.als[chan];
-    Src64 s2 = get_src2_i64(ctx, chan);
-    TCGv_i32 t0 = tcg_const_i32(als & 0xff);
+    Src64 s2 = get_src2_i64(ctx, instr->chan);
+    TCGv_i32 t0 = tcg_const_i32(instr->dst);
 
-    gen_tag_check(ctx, als >> 31, s2.tag);
+    gen_tag_check(ctx, instr->sm, s2.tag);
     gen_helper_state_reg_write_i64(cpu_env, t0, s2.value);
     tcg_temp_free_i32(t0);
 }
 
-static inline void gen_rw_i32(DisasContext *ctx, int chan)
+static inline void gen_rw_i32(DisasContext *ctx, Instr *instr)
 {
-    uint32_t als = ctx->bundle.als[chan];
-    Src32 s2 = get_src2_i32(ctx, chan);
-    TCGv_i32 t0 = tcg_const_i32(als & 0xff);
+    Src32 s2 = get_src2_i32(ctx, instr->chan);
+    TCGv_i32 t0 = tcg_const_i32(instr->dst);
 
-    gen_tag_check(ctx, als >> 31, s2.tag);
+    gen_tag_check(ctx, instr->sm, s2.tag);
     gen_helper_state_reg_write_i32(cpu_env, t0, s2.value);
     tcg_temp_free_i32(t0);
 }
@@ -2282,28 +2278,28 @@ static void execute_ext_01(DisasContext *ctx, Instr *instr)
     case 0x3c:
         if (chan == 0) {
             /* rws */
-            gen_rw_i32(ctx, chan);
+            gen_rw_i32(ctx, instr);
             return;
         }
         break;
     case 0x3d:
         if (chan == 0) {
             /* rwd */
-            gen_rw_i64(ctx, chan);
+            gen_rw_i64(ctx, instr);
             return;
         }
         break;
     case 0x3e:
         if (chan == 0) {
             /* rrs */
-            gen_rr_i32(ctx, chan);
+            gen_rr_i32(ctx, instr);
             return;
         }
         break;
     case 0x3f:
         if (chan == 0) {
             /* rrd */
-            gen_rr_i64(ctx, chan);
+            gen_rr_i64(ctx, instr);
             return;
         } else if (is_chan_25(chan)) {
             /* staaq */
