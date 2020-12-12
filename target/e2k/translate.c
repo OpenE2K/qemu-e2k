@@ -185,16 +185,6 @@ static size_t unpack_bundle(CPUE2KState *env,
     return 8 + GET_FIELD(hs, 4, 3) * 8;
 }
 
-static inline void gen_save_pc(target_ulong pc)
-{
-    tcg_gen_movi_tl(e2k_cs.pc, pc);
-}
-
-static inline void gen_save_cpu_state(DisasContext *ctx)
-{
-    gen_save_pc(ctx->pc);
-}
-
 static inline bool use_goto_tb(DisasContext *s, target_ulong pc,
                                target_ulong npc)
 {
@@ -229,7 +219,7 @@ void e2k_tr_gen_exception(DisasContext *ctx, int which)
 {
     TCGv_i32 t = tcg_const_i32(which);
 
-    gen_save_cpu_state(ctx);
+    e2k_gen_save_cpu_state(ctx);
     gen_helper_raise_exception(cpu_env, t);
     ctx->base.is_jmp = DISAS_NORETURN;
 
@@ -382,7 +372,7 @@ static bool e2k_tr_breakpoint_check(DisasContextBase *db, CPUState *cs,
 {
     DisasContext *ctx = container_of(db, DisasContext, base);
 
-    gen_save_pc(ctx->base.pc_next);
+    e2k_gen_save_pc(ctx->base.pc_next);
     gen_helper_debug(cpu_env);
     tcg_gen_exit_tb(NULL, TB_EXIT_IDX0);
     ctx->base.is_jmp = DISAS_NORETURN;
