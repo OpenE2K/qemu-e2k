@@ -186,16 +186,6 @@ static size_t unpack_bundle(CPUE2KState *env, DisasContext *ctx)
     return 8 + GET_FIELD(hs, 4, 3) * 8;
 }
 
-static inline void gen_save_pc(target_ulong pc)
-{
-    tcg_gen_movi_tl(e2k_cs.pc, pc);
-}
-
-static inline void gen_save_cpu_state(DisasContext *ctx)
-{
-    gen_save_pc(ctx->pc);
-}
-
 static void gen_goto_tb(DisasContext *ctx, int tb_num, target_ulong pc)
 {
     if (translator_use_goto_tb(&ctx->base, pc))  {
@@ -214,7 +204,7 @@ void e2k_tr_gen_exception(DisasContext *ctx, int which)
 {
     TCGv_i32 t = tcg_const_i32(which);
 
-    gen_save_cpu_state(ctx);
+    e2k_gen_save_cpu_state(ctx);
     gen_helper_raise_exception(cpu_env, t);
     ctx->base.is_jmp = DISAS_NORETURN;
 
