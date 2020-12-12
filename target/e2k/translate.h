@@ -303,6 +303,16 @@ static inline TCGv e2k_get_temp(DisasContext *dc)
     return dc->ttl[dc->ttl_len++] = tcg_temp_local_new();
 }
 
+static inline void e2k_gen_save_pc(target_ulong pc)
+{
+    tcg_gen_movi_tl(e2k_cs.pc, pc);
+}
+
+static inline void e2k_gen_save_cpu_state(DisasContext *ctx)
+{
+    e2k_gen_save_pc(ctx->pc);
+}
+
 static inline void e2k_gen_lcnt_i64(TCGv_i64 ret)
 {
     tcg_gen_andi_i64(ret, e2k_cs.lsr, (1UL << 32) - 1);
