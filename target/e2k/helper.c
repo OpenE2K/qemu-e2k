@@ -113,7 +113,7 @@ static inline void proc_chain_restore(CPUE2KState *env)
 
     e2k_state_cr1_hi_set(env, pcs_pop(env));
     e2k_state_cr1_lo_set(env, pcs_pop(env));
-    env->cr0_hi = pcs_pop(env); // FIXME: is it necessary to restore ip?
+    env->cr0_hi = pcs_pop(env);
     env->cr0_lo = pcs_pop(env);
     sbr_pop(env);
 }
@@ -121,7 +121,7 @@ static inline void proc_chain_restore(CPUE2KState *env)
 static inline void ps_spill(CPUE2KState *env, bool force, bool force_fx)
 {
     while (E2K_NR_COUNT < env->pshtp.index + env->wd.size ||
-        (force && env->pshtp.index))
+        (force && env->wd.size + env->pshtp.index))
     {
         int i = (E2K_NR_COUNT + env->wd.base - env->pshtp.index) % E2K_NR_COUNT;
         ps_push(env, env->regs[i], env->tags[i]);
@@ -203,10 +203,14 @@ void helper_return(CPUE2KState *env)
 static inline void do_syscall(CPUE2KState *env, int call_wbs,
     target_ulong pc_next)
 {
+    CPUState *cs = env_cpu(env);
+
     env->ip = pc_next;
     env->syscall_wbs = call_wbs;
     reset_ctprs(env);
-    helper_raise_exception(env, E2K_EXCP_SYSCALL);
+
+    cs->exception_index = E2K_EXCP_SYSCALL;
+    cpu_loop_exit(cs);
 }
 
 void helper_call(CPUE2KState *env, uint64_t ctpr_raw, int call_wbs,
@@ -232,6 +236,10 @@ void helper_raise_exception(CPUE2KState *env, int tt)
 {
     CPUState *cs = env_cpu(env);
     cs->exception_index = tt;
+
+    proc_chain_save(env, env->wd.size / 2);
+    ps_spill(env, true, true);
+
     cpu_loop_exit(cs);
 }
 
