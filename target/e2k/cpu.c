@@ -279,6 +279,7 @@ static void e2k_cpu_class_init(ObjectClass *oc, void *data)
     cc->class_by_name = e2k_cpu_class_by_name;
     cc->disas_set_info = cpu_e2k_disas_set_info;
     cc->tcg_initialize = e2k_tcg_initialize;
+    cc->tlb_fill = e2k_cpu_tlb_fill;
 
     cc->gdb_arch_name      = e2k_cpu_gdb_arch_name;
     cc->gdb_read_register  = e2k_cpu_gdb_read_register;
