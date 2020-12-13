@@ -78,6 +78,8 @@ static void proc_chain_save(CPUE2KState *env, int wbs)
 
     env->pshtp.index += wbs * 2;
 
+    env->cr0_lo = env->pregs;
+    env->cr0_hi = env->ip;
     env->cr1.wbs = wbs;
     env->cr1.wpsz = env->wd.psize / 2;
     env->cr1.wfx = env->wd.fx;
@@ -103,6 +105,8 @@ static inline void proc_chain_restore(CPUE2KState *env)
     env->cr0_hi = pcs_pop(env); // FIXME: is it necessary to restore ip?
     env->cr0_lo = pcs_pop(env);
 
+    env->pregs = env->cr0_lo;
+    env->ip = env->cr0_hi;
     wbs = env->cr1.wbs;
     e2k_state_br_set(env, env->cr1.br);
     env->wd.size = env->wd.psize + wbs * 2;
