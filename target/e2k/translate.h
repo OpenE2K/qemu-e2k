@@ -212,6 +212,22 @@ static inline void e2k_gen_exception(int excp)
     tcg_temp_free_i32(t0);
 }
 
+#define e2k_todo(ctx, fmt, ...)                         \
+    do {                                                \
+        if (unlikely(qemu_loglevel_mask(LOG_UNIMP))) {  \
+            qemu_log("%#lx: todo: ", ctx->pc);          \
+            qemu_log(fmt, ## __VA_ARGS__);              \
+            qemu_log("\n");                             \
+        }                                               \
+    } while (0)
+
+
+#define e2k_todo_illop(ctx, fmt, ...)                   \
+    do {                                                \
+		e2k_todo(ctx, fmt, ## __VA_ARGS__);             \
+	    e2k_tr_gen_exception(ctx, E2K_EXCP_ILLOPC);     \
+    } while (0)
+
 static inline void e2k_gen_mask_i64(TCGv_i64 ret, TCGv_i64 len)
 {
     TCGv_i64 one = tcg_const_i64(1);
