@@ -107,63 +107,33 @@ void e2k_gen_store_preg(int idx, TCGv_i64 val)
     tcg_temp_free_i64(t0);
 }
 
-static inline void gen_reg_tags_group_ptr(TCGv_ptr ret, TCGv_i32 idx)
-{
-    TCGv_i32 t0 = tcg_const_i32(E2K_TAGS_PER_REG);
-    TCGv_i32 t1 = tcg_temp_new_i32();
-    TCGv_i32 t2 = tcg_temp_new_i32();
-    TCGv_ptr t3 = tcg_temp_new_ptr();
-
-    tcg_gen_divu_i32(t1, idx, t0);
-    tcg_temp_free_i32(t0);
-    tcg_gen_muli_i32(t2, t1, E2K_REG_LEN);
-    tcg_temp_free_i32(t1);
-    tcg_gen_ext_i32_ptr(t3, t2);
-    tcg_temp_free_i32(t2);
-    tcg_gen_add_ptr(ret, e2k_cs.tptr, t3);
-    tcg_temp_free_ptr(t3);
-}
-
-static inline void gen_reg_tags_group_offset(TCGv_i64 ret, TCGv_i32 idx)
-{
-    TCGv_i64 t0 = tcg_temp_new_i64();
-    TCGv_i64 t1 = tcg_temp_new_i64();
-
-    tcg_gen_extu_i32_i64(t0, idx);
-    tcg_gen_andi_i64(t1, t0, E2K_TAGS_PER_REG - 1);
-    tcg_temp_free_i64(t0);
-    tcg_gen_muli_i64(ret, t1, E2K_REG_TAGS_SIZE);
-    tcg_temp_free_i64(t1);
-}
-
-static inline void gen_reg_tags_read(TCGv_i32 ret, TCGv_i32 idx, int len)
+static inline void gen_reg_tag_ptr(TCGv_ptr ret, TCGv_i32 idx)
 {
     TCGv_ptr t0 = tcg_temp_new_ptr();
-    TCGv_i64 t1 = tcg_temp_new_i64();
-    TCGv_i64 t2 = tcg_temp_new_i64();
-    TCGv_i64 t3 = tcg_const_i64(len);
-    TCGv_i64 t4 = tcg_temp_new_i64();
 
-    gen_reg_tags_group_ptr(t0, idx);
-    tcg_gen_ld_i64(t1, t0, 0);
+    tcg_gen_ext_i32_ptr(t0, idx);
+    tcg_gen_add_ptr(ret, e2k_cs.tptr, t0);
     tcg_temp_free_ptr(t0);
-    gen_reg_tags_group_offset(t2, idx);
-    e2k_gen_extract_i64(t4, t1, t2, t3);
-    tcg_temp_free_i64(t1);
-    tcg_temp_free_i64(t2);
-    tcg_temp_free_i64(t3);
-    tcg_gen_extrl_i64_i32(ret, t4);
-    tcg_temp_free_i64(t4);
 }
 
 void e2k_gen_reg_tag_read_i64(TCGv_i32 ret, TCGv_i32 idx)
 {
-    gen_reg_tags_read(ret, idx, E2K_REG_TAGS_SIZE);
+    TCGv_ptr t0 = tcg_temp_new_ptr();
+
+    gen_reg_tag_ptr(t0, idx);
+    tcg_gen_ld8u_i32(ret, t0, 0);
+    tcg_temp_free_ptr(t0);
 }
 
 void e2k_gen_reg_tag_read_i32(TCGv_i32 ret, TCGv_i32 idx)
 {
-    gen_reg_tags_read(ret, idx, E2K_TAG_SIZE);
+    TCGv_ptr t0 = tcg_temp_new_ptr();
+    TCGv_i32 t1 = tcg_temp_new_i32();
+
+    gen_reg_tag_ptr(t0, idx);
+    tcg_gen_ld8u_i32(t1, t0, 0);
+    tcg_gen_andi_i32(ret, t1, GEN_MASK(0, E2K_TAG_SIZE));
+    tcg_temp_free_ptr(t0);
 }
 
 static inline void gen_tag_check(TCGv_i32 ret, TCGv_i32 tag)
@@ -186,37 +156,29 @@ void e2k_gen_reg_tag_check_i32(TCGv_i32 ret, TCGv_i32 tag)
     tcg_temp_free_i32(t0);
 }
 
-static inline void gen_reg_tags_write(TCGv_i32 value, TCGv_i32 idx, int len)
-{
-    TCGv_ptr t0 = tcg_temp_new_ptr();
-    TCGv_i64 t1 = tcg_temp_new_i64();
-    TCGv_i64 t2 = tcg_temp_new_i64();
-    TCGv_i64 t3 = tcg_temp_new_i64();
-    TCGv_i64 t4 = tcg_const_i64(len);
-    TCGv_i64 t5 = tcg_temp_new_i64();
-
-    gen_reg_tags_group_ptr(t0, idx);
-    tcg_gen_ld_i64(t1, t0, 0);
-    tcg_gen_extu_i32_i64(t2, value);
-    gen_reg_tags_group_offset(t3, idx);
-    e2k_gen_deposit_i64(t5, t1, t2, t3, t4);
-    tcg_temp_free_i64(t1);
-    tcg_temp_free_i64(t2);
-    tcg_temp_free_i64(t3);
-    tcg_temp_free_i64(t4);
-    tcg_gen_st_i64(t5, t0, 0);
-    tcg_temp_free_ptr(t0);
-    tcg_temp_free_i64(t5);
-}
-
 void e2k_gen_reg_tag_write_i64(TCGv_i32 value, TCGv_i32 idx)
 {
-    gen_reg_tags_write(value, idx, E2K_REG_TAGS_SIZE);
+    TCGv_ptr t0 = tcg_temp_new_ptr();
+
+    gen_reg_tag_ptr(t0, idx);
+    tcg_gen_st8_i32(value, t0, 0);
+    tcg_temp_free_ptr(t0);
 }
 
 void e2k_gen_reg_tag_write_i32(TCGv_i32 value, TCGv_i32 idx)
 {
-    gen_reg_tags_write(value, idx, E2K_TAG_SIZE);
+    TCGv_ptr t0 = tcg_temp_new_ptr();
+    TCGv_i32 t1 = tcg_temp_new_i32();
+    TCGv_i32 t2 = tcg_temp_new_i32();
+
+    gen_reg_tag_ptr(t0, idx);
+    tcg_gen_ld8u_i32(t1, t0, 0);
+    tcg_gen_deposit_i32(t2, t1, value, 0, E2K_TAG_SIZE);
+    tcg_gen_st8_i32(t2, t0, 0);
+
+    tcg_temp_free_i32(t2);
+    tcg_temp_free_i32(t1);
+    tcg_temp_free_ptr(t0);
 }
 
 static inline void gen_reg_index_from_wreg(TCGv_i32 ret, TCGv_i32 idx)

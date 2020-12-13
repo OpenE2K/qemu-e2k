@@ -2359,17 +2359,24 @@ static void handle_set_qemu_phy_mem_mode(GArray *params, void *user_ctx)
 #endif
 
 #ifdef TARGET_E2K
-static void handle_query_e2k_tags_read(GdbCmdContext *gdb_ctx, void *user_ctx)
+static void handle_query_e2k_tags_read(GArray *params, void *user_ctx)
 {
-//    unsigned long long addr = gdb_ctx->params[0].val_ull;
-    unsigned long len = gdb_ctx->params[1].val_ul;
+    E2KCPU *cpu = E2K_CPU(gdbserver_state.g_cpu);
+    CPUE2KState *env = &cpu->env;
+    target_ulong addr = get_param(params, 0)->val_ull;
+    unsigned long len = get_param(params, 1)->val_ul;
     unsigned int i;
-
-    // TODO: handle_query_e2k_tags_read
+    int tags = 0;
 
     g_string_assign(gdbserver_state.str_buf, "l");
+    if (env->psp.base <= addr && addr < (env->psp.base + env->psp.size)) {
+        target_ulong offset = addr - env->psp.base;
+        tags = cpu_ldub_data(env, env->psp.base_tag + offset / 8);
+    }
+
     for (i = 0; i < len; i++) {
-        g_string_append_c(gdbserver_state.str_buf, 0);
+        int tag = (tags >> i * E2K_TAG_SIZE) & 0x3;
+        g_string_append_c(gdbserver_state.str_buf, tag);
     }
 
     put_packet_binary(gdbserver_state.str_buf->str,

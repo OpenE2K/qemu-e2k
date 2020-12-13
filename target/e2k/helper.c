@@ -41,8 +41,21 @@ static inline uint64_t stack_pop(CPUE2KState *env, E2KStackState *s)
 
 #define pcs_push(env, value) stack_push(env, &env->pcsp, (value))
 #define pcs_pop(env) stack_pop(env, &env->pcsp)
-#define ps_push(env, value) stack_push(env, &env->psp, (value))
-#define ps_pop(env) stack_pop(env, &env->psp)
+
+static inline void ps_push(CPUE2KState *env, uint64_t value, uint8_t tag)
+{
+    cpu_stb_data(env, env->psp.base_tag + env->psp.index / 8, tag);
+    stack_push(env, &env->psp, value);
+}
+
+static inline uint64_t ps_pop(CPUE2KState *env, uint8_t *ret_tag)
+{
+    uint64_t ret = stack_pop(env, &env->psp);
+    if (ret_tag != NULL) {
+        *ret_tag = cpu_ldub_data(env, env->psp.base_tag + env->psp.index / 8);
+    }
+    return ret;
+}
 
 /* FIXME: I don't know how exactly it should works. */
 static inline void sbr_push(CPUE2KState *env)
@@ -109,19 +122,20 @@ static inline void ps_spill(CPUE2KState *env, bool force, bool force_fx)
         (force && env->pshtp.index))
     {
         int i = (E2K_NR_COUNT + env->wd.base - env->pshtp.index) % E2K_NR_COUNT;
-        // TODO: push tags
-        ps_push(env, env->regs[i]);
-        ps_push(env, env->regs[i + 1]);
-        env->regs[i] = 0;
-        env->regs[i + 1] = 0;
-        // TODO: set invalid reg tags
-//        e2k_state_reg_tag_set_i64(env, E2K_TAG_NON_NUMBER64, i);
-//        e2k_state_reg_tag_set_i64(env, E2K_TAG_NON_NUMBER64, i + 1);
+        ps_push(env, env->regs[i], env->tags[i]);
+        ps_push(env, env->regs[i + 1], env->tags[i + 1]);
+
         // TODO: push fx
         if (force_fx) {
-            ps_push(env, env->xregs[i]);
-            ps_push(env, env->xregs[i + 1]);
+            ps_push(env, env->xregs[i], 0);
+            ps_push(env, env->xregs[i + 1], 0);
         }
+
+        env->regs[i] = 0;
+        env->tags[i] = E2K_TAG_NON_NUMBER64;
+        env->regs[i + 1] = 0;
+        env->tags[i + 1] = E2K_TAG_NON_NUMBER64;
+
         env->pshtp.index -= 2;
     }
 }
@@ -131,14 +145,12 @@ static inline void ps_fill(CPUE2KState *env, bool force_fx)
     while(env->pshtp.index < 0) {
         env->pshtp.index += 2;
         int i = (E2K_NR_COUNT + env->wd.base - env->pshtp.index) % E2K_NR_COUNT;
-        // TODO: pop fx
         if (force_fx) {
-            env->xregs[i + 1] = ps_pop(env);
-            env->xregs[i] = ps_pop(env);
+            env->xregs[i + 1] = ps_pop(env, NULL);
+            env->xregs[i] = ps_pop(env, NULL);
         }
-        // TODO: restore tags
-        env->regs[i + 1] = ps_pop(env);
-        env->regs[i] = ps_pop(env);
+        env->regs[i + 1] = ps_pop(env, &env->tags[i + 1]);
+        env->regs[i] = ps_pop(env, &env->tags[i]);
     }
 }
 
