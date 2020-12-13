@@ -475,15 +475,12 @@ typedef struct {
     uint8_t tags[E2K_REG_COUNT]; /* registers tags */
     uint64_t *rptr; /* pointer to regs */
     uint8_t *tptr; /* pointer to tags */
+    uint64_t pregs; /* predicate file */
+    target_ulong ip; /* instruction address */
 
-    union {
-        uint64_t pregs; /* predicate file */
-        uint64_t cr0_lo;
-    };
-    union {
-        target_ulong ip; /* instruction address */
-        uint64_t cr0_hi;
-    };
+    /* procedure chain info */
+    uint64_t cr0_lo;
+    uint64_t cr0_hi;
     E2KCr1State cr1;
 
     /* Procedure chain info = cr0_lo, cr0_hi, cr1_lo, cr1_hi */
