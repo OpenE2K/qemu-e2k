@@ -31,11 +31,6 @@ void e2k_tcg_initialize(void);
 #define E2K_BGR_COUNT 8     /* %gN      [24, 32) */
 #define E2K_REG_COUNT (E2K_NR_COUNT + E2K_GR_COUNT)
 
-/* how many tags can be packed into a register */
-#define E2K_TAGS_PER_REG (E2K_REG_LEN * 8 / E2K_REG_TAGS_SIZE)
-/* packed tags registers count */
-#define E2K_TAGS_REG_COUNT (E2K_REG_COUNT / E2K_TAGS_PER_REG)
-
 #define E2K_PR_COUNT 32     /* %predN   [0, 32) */
 
 typedef enum {
@@ -288,6 +283,7 @@ typedef struct {
 
 typedef struct {
     target_ulong base;
+    target_ulong base_tag;
     uint32_t index;
     uint32_t size;
     bool is_readable;
@@ -476,9 +472,9 @@ typedef struct {
     /* register file */
     uint64_t regs[E2K_REG_COUNT]; /* registers */
     uint16_t xregs[E2K_REG_COUNT]; /* x part of registers */
-    uint64_t tags[E2K_TAGS_REG_COUNT]; /* registers tags */
+    uint8_t tags[E2K_REG_COUNT]; /* registers tags */
     uint64_t *rptr; /* pointer to regs */
-    uint64_t *tptr; /* pointer to tags */
+    uint8_t *tptr; /* pointer to tags */
 
     union {
         uint64_t pregs; /* predicate file */
@@ -703,14 +699,6 @@ static inline void e2k_state_cr1_hi_set(CPUE2KState *env, uint64_t hi)
     cr1->br = extract64(hi, CR1_HI_BR_OFF, CR1_HI_BR_LEN);
     cr1->wdbl = extract64(hi, CR1_HI_WDBL_OFF, 1);
     cr1->ussz = extract64(hi, CR1_HI_USSZ_OFF, CR1_HI_USSZ_LEN);
-}
-
-static inline void e2k_state_reg_tag_set_i64(CPUE2KState *env, int tag, int idx)
-{
-    int i = idx / E2K_TAGS_PER_REG, offset;
-
-    offset = (idx & (E2K_TAGS_PER_REG - 1)) * E2K_REG_TAGS_SIZE;
-    env->tags[i] = deposit64(env->tags[i], offset, E2K_REG_TAGS_SIZE, tag);
 }
 
 typedef CPUE2KState CPUArchState;
