@@ -42,7 +42,6 @@ typedef struct CPUE2KStateTCG {
     TCGv_i32 wdbl;
     TCGv_i64 lsr;
     TCGv_i64 regs[E2K_REG_COUNT];
-    TCGv_i64 tags[E2K_TAGS_REG_COUNT];
     TCGv_ptr rptr; /* pointer to wregs */
     TCGv_ptr tptr; /* pointer to wtags */
     TCGv_i32 wd_base; /* holds wbs * 2 */

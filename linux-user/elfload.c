@@ -1569,6 +1569,7 @@ static inline void init_thread(struct target_pt_regs *regs, struct image_info *i
     regs->psp.index = 0;
     regs->psp.size = TARGET_PAGE_SIZE * 8;
     regs->psp.base = e2k_mmap(regs->psp.size);
+    regs->psp.base_tag = e2k_mmap(regs->psp.size / 8);
 }
 
 static void elf_core_copy_regs(target_elf_gregset_t *regs, const CPUE2KState *env)

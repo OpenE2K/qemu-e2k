@@ -137,13 +137,6 @@ static inline void cpu_dump_state_br(CPUE2KState *env, FILE *f, int flags)
     qemu_fprintf(f, "    pcur   %d\n", bp->cur);
 }
 
-static inline int extract_tag(uint64_t *tags, int idx)
-{
-    uint64_t tmp = tags[idx / E2K_TAGS_PER_REG];
-    int offset = (idx & GEN_MASK(0, E2K_REG_TAGS_SIZE)) * E2K_REG_TAGS_SIZE;
-    return extract64(tmp, offset, E2K_REG_TAGS_SIZE);
-}
-
 void e2k_cpu_dump_state(CPUState *cs, FILE *f, int flags)
 {
     E2KCPU *cpu = E2K_CPU(cs);
@@ -165,7 +158,7 @@ void e2k_cpu_dump_state(CPUState *cs, FILE *f, int flags)
 
     for (i = 0; i < E2K_REG_COUNT; i++) {
         char name = i < E2K_NR_COUNT ? 'r' : 'g';
-        int tag = extract_tag(env->tags, i);
+        int tag = env->tags[i];
         qemu_fprintf(f, "%%%c%d\t<%d%d> 0x%lx\n", name, i, tag >> 2, tag & 3,
             env->regs[i]);
     }
