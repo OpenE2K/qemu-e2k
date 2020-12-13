@@ -1342,9 +1342,7 @@ static MemOp gen_mas(DisasContext *ctx, int chan, MemOp memop, TCGv_i64 addr)
     if ((mas & 0x7) == 7) {
         int opc = mas >> 3;
         // TODO: special mas
-//        e2k_tr_gen_exception(ctx, E2K_EXCP_ILLOPC);
-        qemu_log_mask(LOG_UNIMP, "0x%lx: mas=%#x, opc=%#x is not implemented!\n",
-            ctx->pc, mas, opc);
+        e2k_todo(ctx, "mas=%#x, opc=%#x", mas, opc);
         return 0;
     } else if (mas) {
         int mod = extract8(mas, 0, 3);
@@ -1352,9 +1350,7 @@ static MemOp gen_mas(DisasContext *ctx, int chan, MemOp memop, TCGv_i64 addr)
 
         if (mod != 0) {
             // TODO: mas modes
-//            e2k_tr_gen_exception(ctx, E2K_EXCP_ILLOPC);
-            qemu_log_mask(LOG_UNIMP, "0x%lx: mas=%#x, mod=%#x is not implemented!\n",
-                ctx->pc, mas, mod);
+            e2k_todo(ctx, "mas=%#x, mod=%#x", mas, mod);
         }
 
         memop |= GET_BIT(mas, 3) ? MO_BE : MO_LE;
