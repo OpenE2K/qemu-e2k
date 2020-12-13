@@ -75,6 +75,10 @@ static inline void sbr_pop(CPUE2KState *env)
 static void proc_chain_save(CPUE2KState *env, int wbs)
 {
     sbr_push(env);
+    pcs_push(env, env->cr0_lo);
+    pcs_push(env, env->cr0_hi);
+    pcs_push(env, e2k_state_cr1_lo(env));
+    pcs_push(env, e2k_state_cr1_hi(env));
 
     env->pshtp.index += wbs * 2;
 
@@ -85,11 +89,6 @@ static void proc_chain_save(CPUE2KState *env, int wbs)
     env->cr1.wfx = env->wd.fx;
     env->cr1.br = e2k_state_br(env);
 
-    pcs_push(env, env->cr0_lo);
-    pcs_push(env, env->cr0_hi);
-    pcs_push(env, e2k_state_cr1_lo(env));
-    pcs_push(env, e2k_state_cr1_hi(env));
-
     env->wd.fx = true;
     env->wd.base = (E2K_NR_COUNT + env->wd.base + wbs * 2) % E2K_NR_COUNT;
     env->wd.size -= wbs * 2;
@@ -99,11 +98,6 @@ static void proc_chain_save(CPUE2KState *env, int wbs)
 static inline void proc_chain_restore(CPUE2KState *env)
 {
     int wbs;
-
-    e2k_state_cr1_hi_set(env, pcs_pop(env));
-    e2k_state_cr1_lo_set(env, pcs_pop(env));
-    env->cr0_hi = pcs_pop(env); // FIXME: is it necessary to restore ip?
-    env->cr0_lo = pcs_pop(env);
 
     env->pregs = env->cr0_lo;
     env->ip = env->cr0_hi;
@@ -117,6 +111,10 @@ static inline void proc_chain_restore(CPUE2KState *env)
 
     env->pshtp.index -= wbs * 2;
 
+    e2k_state_cr1_hi_set(env, pcs_pop(env));
+    e2k_state_cr1_lo_set(env, pcs_pop(env));
+    env->cr0_hi = pcs_pop(env); // FIXME: is it necessary to restore ip?
+    env->cr0_lo = pcs_pop(env);
     sbr_pop(env);
 }
 
@@ -188,7 +186,7 @@ uint64_t helper_prep_return(CPUE2KState *env, int ipd)
         return 0;
     }
 
-    ret.base = cpu_ldq_le_data(env, env->pcsp.base + env->pcsp.index - 24);
+    ret.base = env->cr0_hi;
     ret.tag = CTPR_TAG_RETURN;
     ret.ipd = ipd;
 
@@ -241,8 +239,6 @@ void e2k_break_save_state(CPUE2KState *env)
 {
     env->is_bp = true;
     proc_chain_save(env, env->wd.size / 2);
-    env->wd.size = 0;
-    env->wd.psize = 0;
     ps_spill(env, true, true);
 }
 
