@@ -286,7 +286,6 @@ bool e2k_cpu_tlb_fill(CPUState *cs, vaddr address, int size,
 
     cs->exception_index = E2K_EXCP_MAPERR;
     cpu_loop_exit_restore(cs, retaddr);
-    return false;
 }
 
 void helper_debug(CPUE2KState *env)

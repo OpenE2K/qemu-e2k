@@ -161,20 +161,9 @@ void e2k_stubs_commit(DisasContext *ctx)
         gen_cur_dec(ctx, e2k_cs.bcur, abn, e2k_cs.bcur, 2, e2k_cs.bsize);
     }
 
-    switch(abg) {
-    case 0x00:
-        break;
-    case 0x01:
-        // TODO: abgd
-        abort();
-        break;
-    case 0x02:
-        // TODO: abgi
-        abort();
-        break;
-    default:
-        e2k_tr_gen_exception(ctx, E2K_EXCP_ILLOPC);
-        break;
+    if (abg != 0) {
+        // TODO: impl abg
+        e2k_todo_illop(ctx, "abg");
     }
 }
 
@@ -291,7 +280,7 @@ static void gen_cs0(DisasContext *dc)
            "invalid gettsd" if this turns out not to be the case . . .  */
         if (type == GETTSD) {
             // TODO: gettsd
-            abort();
+            e2k_todo_illop(dc, "gettsd");
         }
 
         if (type == PUTTSD) {
@@ -308,7 +297,7 @@ static void gen_cs0(DisasContext *dc)
                both on 32 and 64-bit hosts.  */
 //                (unsigned long long) (instr_addr + sgnd_disp));
             // TODO: puttsd
-            abort();
+            e2k_todo_illop(dc, "puttsd");
         }
 
         if (type == PREF) {
@@ -316,7 +305,7 @@ static void gen_cs0(DisasContext *dc)
 //            unsigned int ipd = (bundle->cs0 & 0x00000008) >> 3;
 //            unsigned int prefr = bundle->cs0 & 0x00000007;
             // TODO: pref
-            abort();
+            e2k_todo_illop(dc, "pref");
         }
     }
 }
@@ -345,17 +334,16 @@ static void gen_cs1(DisasContext *dc)
         if (sft) {
             if (dc->version >= 2) {
                 // TODO: setsft
-                abort();
+                e2k_todo_illop(dc, "setsft");
             } else {
                 e2k_tr_gen_exception(dc, E2K_EXCP_ILLOPC);
             }
         } else {
 //            uint8_t eir = GET_FIELD_LEN(cs1, 0, 8);
             // TODO: setei
-            abort();
+            e2k_todo_illop(dc, "setei");
         }
     } else if (opc == WAIT) {
-        // TODO: wait
 //        unsigned int ma_c = (cs1 & 0x00000020) >> 5;
 //        unsigned int fl_c = (cs1 & 0x00000010) >> 4;
         unsigned int ld_c = (cs1 & 0x00000008) >> 3;
@@ -382,8 +370,8 @@ static void gen_cs1(DisasContext *dc)
 //            unsigned int trap = (cs1 & 0x00000040) >> 6;
 //          my_printf ("trap = %d, ", trap);
         }
-
-    qemu_log_mask(LOG_UNIMP, "0x%lx: wait is not implemented!\n", dc->pc);
+        // TODO: wait
+        e2k_todo(dc, "wait");
 //      my_printf ("ma_c = %d, fl_c = %d, ld_c = %d, st_c = %d, all_e = %d, "
 //                 "all_c = %d", ma_c, fl_c, ld_c, st_c, all_e, all_c);
     } else if (opc == CALL) {
@@ -402,7 +390,7 @@ static void gen_cs1(DisasContext *dc)
                 if (cs0_opc == 0) {
 //                    unsigned int hdisp = (cs0 & 0x1e) >> 1;
                     // TODO: hcall hdisp, wbs ? cond
-                    abort();
+                    e2k_todo_illop(dc, "hcall");
                 }
             } else {
                 e2k_tr_gen_exception(dc, E2K_EXCP_ILLOPC);
@@ -416,12 +404,12 @@ static void gen_cs1(DisasContext *dc)
     } else if (opc == FLUSHR) {
         if (cs1 & 0x00000001) {
             // TODO: flushr
-            abort();
+            e2k_todo_illop(dc, "flushr");
         }
 
         if (cs1 & 0x00000002) {
             // TODO: flushc
-            abort();
+            e2k_todo_illop(dc, "flushc");
         }
     } else if (opc == BG) {
 //        unsigned int chkm4 = (cs1 & 0x00010000) >> 16;
@@ -429,7 +417,7 @@ static void gen_cs1(DisasContext *dc)
 //        unsigned int umsk = cs1 & 0x000000ff;
 
         // TODO: vfbg
-        abort();
+        e2k_todo_illop(dc, "vfbg");
     }
 }
 
@@ -528,7 +516,7 @@ static void gen_jmp(DisasContext *ctx)
         }
         default:
             // TODO
-            qemu_log_mask(LOG_UNIMP, "%#lx: ct cond %#x is not implemented!\n", ctx->pc, cond_type);
+            e2k_todo(ctx, "branch condition %#x", cond_type);
             tcg_gen_movi_i32(e2k_cs.ct_cond, 0);
             break;
         }
@@ -544,7 +532,7 @@ static void gen_jmp(DisasContext *ctx)
     //            static const int conv[] = {0, 1, 3, 4};
                 int i;
 
-                qemu_log_mask(LOG_UNIMP, "0x%lx: %%MLOCK || %%dt_alM is not implemented!\n", ctx->pc);
+                e2k_todo(ctx, "%%MLOCK || %%dt_alM");
                 // %dt_al
                 for (i = 0; i < 4; i++) {
                     if (psrc & (1 << i)) {
@@ -552,7 +540,7 @@ static void gen_jmp(DisasContext *ctx)
                     }
                 }
             } else {
-                qemu_log_mask(LOG_UNIMP, "0x%lx: %%MLOCK is not implemented!\n", ctx->pc);
+                e2k_todo(ctx, "%%MLOCK");
             }
         }
 
@@ -566,7 +554,7 @@ static void gen_jmp(DisasContext *ctx)
 
     //            my_printf ("%%MLOCK || %s%%cmp%d", neg ? "~" : "",
     //                cmp_num_to_alc[cmp_num]);
-                qemu_log_mask(LOG_UNIMP, "0x%lx: %%MLOCK || %%cmpN is not implemented!\n", ctx->pc);
+                e2k_todo(ctx, "%%MLOCK || %%cmpN");
             } else if (type == 1) {
     //            unsigned int cmp_jk = (psrc & 0x4) >> 2;
     //            unsigned int negj = (psrc & 0x2) >> 1;
@@ -575,20 +563,19 @@ static void gen_jmp(DisasContext *ctx)
     //            my_printf ("%%MLOCK || %s%%cmp%d || %s%%cmp%d",
     //                     negj ? "~" : "", cmp_jk == 0 ? 0 : 3,
     //                     negk ? "~" : "", cmp_jk == 0 ? 1 : 4);
-                qemu_log_mask(LOG_UNIMP, "0x%lx: %%MLOCK || %%cmpN || %%cmpM is not implemented!\n", ctx->pc);
+                e2k_todo(ctx, "%%MLOCK || %%cmpN || %%cmpM");
             } else if (type == 2) {
     //            unsigned int clp_num = (psrc & 0x6) >> 1;
     //            unsigned int neg = psrc & 0x1;
 
                 // "%%MLOCK || %s%%clp%d", neg ? "~" : "", clp_num
-                qemu_log_mask(LOG_UNIMP, "0x%lx: %%MLOCK || %%clpN is not implemented!\n", ctx->pc);
+                e2k_todo(ctx, "%%MLOCK || %%clpN");
             }
         }
 
         if (cond_type >= 0xa && cond_type <= 0xd) {
             // reserved condition type
-            qemu_log_mask(LOG_UNIMP, "Undefined control transfer type %#x\n", cond_type);
-            abort();
+            e2k_todo_illop(ctx, "undefined control transfer type %#x", cond_type);
         }
     }
 }
@@ -627,8 +614,7 @@ void e2k_control_window_change(DisasContext *dc)
                 seems to be the case even if no SETWD has been explicitly
                 specified.  */
 //                unsigned int rpsz = (bundle->lts[0] & 0x0001f000) >> 12;
-                qemu_log_mask(LOG_UNIMP, "0x%lx: vfrpsz is not implemented!",
-                    dc->pc);
+                e2k_todo(dc, "vfrpsz");
             }
         }
 
