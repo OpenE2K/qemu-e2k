@@ -275,6 +275,20 @@ void helper_break_restore_state(CPUE2KState *env)
     ps_fill(env, true);
 }
 
+bool e2k_cpu_tlb_fill(CPUState *cs, vaddr address, int size,
+     MMUAccessType access_type, int mmu_idx, bool probe, uintptr_t retaddr)
+{
+    E2KCPU *cpu = E2K_CPU(cs);
+    CPUE2KState *env = &cpu->env;
+
+    proc_chain_save(env, env->wd.size / 2);
+    ps_spill(env, true, true);
+
+    cs->exception_index = E2K_EXCP_MAPERR;
+    cpu_loop_exit_restore(cs, retaddr);
+    return false;
+}
+
 void helper_debug(CPUE2KState *env)
 {
     CPUState *cs = env_cpu(env);

@@ -560,6 +560,9 @@ int e2k_cpu_signal_handler(int host_signum, void *pinfo, void *puc);
 int e2k_cpu_gdb_read_register(CPUState *cs, GByteArray *mem_buf, int n);
 int e2k_cpu_gdb_write_register(CPUState *cs, uint8_t *mem_buf, int n);
 void e2k_break_save_state(CPUE2KState *env);
+bool e2k_cpu_tlb_fill(CPUState *cpu, vaddr address, int size,
+                 MMUAccessType access_type, int mmu_idx,
+                 bool probe, uintptr_t retaddr);
 
 #define cpu_signal_handler e2k_cpu_signal_handler
 #define cpu_list e2k_cpu_list
