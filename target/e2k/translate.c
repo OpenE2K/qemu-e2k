@@ -469,8 +469,7 @@ void gen_intermediate_code(CPUState *cs, TranslationBlock *tb, int max_insns)
 void restore_state_to_opc(CPUE2KState *env, TranslationBlock *tb,
                           target_ulong *data)
 {
-    // TODO: restore_state_to_opc
-    qemu_log_mask(LOG_UNIMP, "restore_state_to_opc: not implemented\n");
+    env->ip = data[0];
 }
 
 void e2k_tcg_initialize(void) {
