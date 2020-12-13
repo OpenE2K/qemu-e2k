@@ -165,7 +165,14 @@ static inline void do_call(CPUE2KState *env, int wbs, target_ulong pc_next)
 
 void helper_setwd(CPUE2KState *env, uint32_t lts)
 {
-    env->wd.size = extract32(lts, 5, 7) * 2;
+    int old_size = env->wd.size, size = extract32(lts, 5, 7) * 2;
+
+    if (size < env->wd.psize) {
+        helper_raise_exception(env, E2K_EXCP_ILLOPN);
+        return;
+    }
+
+    env->wd.size = size;
     env->wd.fx = extract32(lts, 4, 1) == 0;
 
     if (env->version >= 3) {
@@ -175,6 +182,17 @@ void helper_setwd(CPUE2KState *env, uint32_t lts)
     }
 
     ps_spill(env, false, PS_FORCE_FX);
+
+    if (old_size < size) {
+        unsigned int i, offset;
+
+        offset = env->wd.base + old_size + E2K_NR_COUNT;
+        for (i = 0; i < size - old_size; i++) {
+            unsigned int idx = (offset + i) % E2K_NR_COUNT;
+            env->regs[idx] = 0;
+            env->tags[idx] = E2K_TAG_NON_NUMBER64;
+        }
+    }
 }
 
 uint64_t helper_prep_return(CPUE2KState *env, int ipd)
