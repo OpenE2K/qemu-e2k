@@ -57,28 +57,12 @@ static inline uint64_t ps_pop(CPUE2KState *env, uint8_t *ret_tag)
     return ret;
 }
 
-/* FIXME: I don't know how exactly it should works. */
-static inline void sbr_push(CPUE2KState *env)
-{
-    cpu_stq_le_data(env, env->sbr, env->usd.lo);
-    cpu_stq_le_data(env, env->sbr + 8, env->usd.hi);
-    env->sbr += 16;
-}
-
-static inline void sbr_pop(CPUE2KState *env)
-{
-    env->sbr -= 16;
-    env->usd.hi = cpu_ldq_le_data(env, env->sbr + 8);
-    env->usd.lo = cpu_ldq_le_data(env, env->sbr);
-}
-
 static void proc_chain_save(CPUE2KState *env, int wbs)
 {
-    sbr_push(env);
     pcs_push(env, env->cr0_lo);
     pcs_push(env, env->cr0_hi);
-    pcs_push(env, e2k_state_cr1_lo(env));
-    pcs_push(env, e2k_state_cr1_hi(env));
+    pcs_push(env, env->cr1.lo);
+    pcs_push(env, env->cr1.hi);
 
     env->pshtp.index += wbs * 2;
 
@@ -88,9 +72,10 @@ static void proc_chain_save(CPUE2KState *env, int wbs)
     env->cr1.wpsz = env->wd.psize / 2;
     env->cr1.wfx = env->wd.fx;
     env->cr1.br = e2k_state_br(env);
+    env->cr1.ussz = env->usd.size >> 4;
 
     env->wd.fx = true;
-    env->wd.base = (E2K_NR_COUNT + env->wd.base + wbs * 2) % E2K_NR_COUNT;
+    env->wd.base = e2k_wrap_reg_index(env->wd.base + wbs * 2);
     env->wd.size -= wbs * 2;
     env->wd.psize = env->wd.size;
 }
@@ -105,17 +90,18 @@ static inline void proc_chain_restore(CPUE2KState *env)
     e2k_state_br_set(env, env->cr1.br);
     env->wd.size = env->wd.psize + wbs * 2;
     env->wd.psize = env->cr1.wpsz * 2;
-    env->wd.base = (E2K_NR_COUNT + env->wd.base - wbs * 2) % E2K_NR_COUNT;
+    env->wd.base = e2k_wrap_reg_index(env->wd.base - wbs * 2);
     env->wd.fx = env->cr1.wfx;
     env->wdbl = env->cr1.wdbl;
+    env->usd.size = env->cr1.ussz << 4;
+    env->usd.base = env->sbr - env->usd.size;
 
     env->pshtp.index -= wbs * 2;
 
-    e2k_state_cr1_hi_set(env, pcs_pop(env));
-    e2k_state_cr1_lo_set(env, pcs_pop(env));
+    env->cr1.hi = pcs_pop(env);
+    env->cr1.lo = pcs_pop(env);
     env->cr0_hi = pcs_pop(env);
     env->cr0_lo = pcs_pop(env);
-    sbr_pop(env);
 }
 
 static inline void ps_spill(CPUE2KState *env, bool force, bool force_fx)
@@ -123,7 +109,7 @@ static inline void ps_spill(CPUE2KState *env, bool force, bool force_fx)
     while (E2K_NR_COUNT < env->pshtp.index + env->wd.size ||
         (force && env->wd.size + env->pshtp.index))
     {
-        int i = (E2K_NR_COUNT + env->wd.base - env->pshtp.index) % E2K_NR_COUNT;
+        int i = e2k_wrap_reg_index(env->wd.base - env->pshtp.index);
         ps_push(env, env->regs[i], env->tags[i]);
         ps_push(env, env->regs[i + 1], env->tags[i + 1]);
 
@@ -146,7 +132,7 @@ static inline void ps_fill(CPUE2KState *env, bool force_fx)
 {
     while(env->pshtp.index < 0) {
         env->pshtp.index += 2;
-        int i = (E2K_NR_COUNT + env->wd.base - env->pshtp.index) % E2K_NR_COUNT;
+        int i = e2k_wrap_reg_index(env->wd.base - env->pshtp.index);
         if (force_fx) {
             env->xregs[i + 1] = ps_pop(env, NULL);
             env->xregs[i] = ps_pop(env, NULL);
@@ -184,11 +170,10 @@ void helper_setwd(CPUE2KState *env, uint32_t lts)
     ps_spill(env, false, PS_FORCE_FX);
 
     if (old_size < size) {
-        unsigned int i, offset;
+        unsigned int i, offset = env->wd.base + old_size;
 
-        offset = env->wd.base + old_size + E2K_NR_COUNT;
         for (i = 0; i < size - old_size; i++) {
-            unsigned int idx = (offset + i) % E2K_NR_COUNT;
+            int idx = e2k_wrap_reg_index(offset + i);
             env->regs[idx] = 0;
             env->tags[idx] = E2K_TAG_NON_NUMBER64;
         }
@@ -315,5 +300,5 @@ void helper_debug_i64(uint64_t x)
 
 void helper_debug_ptr(void *x)
 {
-    qemu_log_mask(LOG_UNIMP, "log %#lx\n", (uint64_t) x);
+    qemu_log_mask(LOG_UNIMP, "log %p\n", x);
 }
