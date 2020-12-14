@@ -2204,28 +2204,28 @@ static void execute_ext_00(DisasContext *ctx, Instr *instr)
         break;
     }
     case 0x30:
-        if (ctx->version >= 4 || is_chan_0134(chan)) {
-            /* faddd */
+        if (is_chan_0134(chan)) {
+            /* fadds */
             gen_alopf1_i32_env(ctx, chan, gen_helper_fadds);
             return;
         }
         break;
     case 0x31:
-        if (ctx->version >= 4 || is_chan_0134(chan)) {
+        if (is_chan_0134(chan)) {
             /* faddd */
             gen_alopf1_i64_env(ctx, chan, gen_helper_faddd);
             return;
         }
         break;
     case 0x32:
-        if (ctx->version >= 4 || is_chan_0134(chan)) {
+        if (is_chan_0134(chan)) {
             /* fsubs */
             gen_alopf1_i32_env(ctx, chan, gen_helper_fsubs);
             return;
         }
         break;
     case 0x33:
-        if (ctx->version >= 4 || is_chan_0134(chan)) {
+        if (is_chan_0134(chan)) {
             /* fsubd */
             gen_alopf1_i64_env(ctx, chan, gen_helper_fsubd);
             return;
@@ -2260,7 +2260,7 @@ static void execute_ext_00(DisasContext *ctx, Instr *instr)
         }
         break;
     case 0x38:
-        if (ctx->version >= 4 || is_chan_0134(chan)) {
+        if (is_chan_0134(chan)) {
             /* fmuls */
             gen_alopf1_i32_env(ctx, chan, gen_helper_fmuls);
             return;
@@ -2301,7 +2301,7 @@ static void execute_ext_00(DisasContext *ctx, Instr *instr)
 
             if (func) {
                 gen_alopf2_i64_env(ctx, chan, func);
-               return;
+                return;
             }
         }
         break;
@@ -2318,8 +2318,8 @@ static void execute_ext_00(DisasContext *ctx, Instr *instr)
 
             if (func) {
                 gen_alopf2_i32_i64_env(ctx, chan, func);
+                return;
             }
-            return;
         }
         break;
     case 0x3f:
@@ -2335,8 +2335,8 @@ static void execute_ext_00(DisasContext *ctx, Instr *instr)
 
             if (func) {
                 gen_alopf2_i64_i32_env(ctx, chan, func);
+                return;
             }
-            return;
         }
         break;
     case 0x40:
@@ -2370,20 +2370,6 @@ static void execute_ext_00(DisasContext *ctx, Instr *instr)
         if (chan == 5) {
             /* sdivd */
             gen_alopf1_tag_i64(ctx, chan, gen_sdivd);
-            return;
-        }
-        break;
-    case 0x48:
-        if (chan == 5) {
-            /* fdivs */
-            gen_alopf1_i32_env(ctx, chan, gen_helper_fdivs);
-            return;
-        }
-        break;
-    case 0x49:
-        if (chan == 5) {
-            /* fdivd */
-            gen_alopf1_i64_env(ctx, chan, gen_helper_fdivd);
             return;
         }
         break;
@@ -2618,6 +2604,34 @@ static void execute_ext_01(DisasContext *ctx, Instr *instr)
             return;
         }
         break;
+    case 0x30:
+        if (is_chan_25(chan) && ctx->version >= 4) {
+            /* faddd */
+            gen_alopf1_i32_env(ctx, chan, gen_helper_fadds);
+            return;
+        }
+        break;
+    case 0x31:
+        if (is_chan_25(chan) && ctx->version >= 4) {
+            /* faddd */
+            gen_alopf1_i64_env(ctx, chan, gen_helper_faddd);
+            return;
+        }
+        break;
+    case 0x32:
+        if (is_chan_25(chan) && ctx->version >= 4) {
+            /* fsubs */
+            gen_alopf1_i32_env(ctx, chan, gen_helper_fsubs);
+            return;
+        }
+        break;
+    case 0x33:
+        if (is_chan_25(chan) && ctx->version >= 4) {
+            /* fsubd */
+            gen_alopf1_i64_env(ctx, chan, gen_helper_fsubd);
+            return;
+        }
+        break;
     case 0x3f:
         if (chan == 0) {
             /* rrd */
@@ -2634,6 +2648,20 @@ static void execute_ext_01(DisasContext *ctx, Instr *instr)
                 return;
             }
             gen_staa_i64(ctx, instr);
+            return;
+        }
+        break;
+    case 0x48:
+        if (chan == 5) {
+            /* fdivs */
+            gen_alopf1_i32_env(ctx, chan, gen_helper_fdivs);
+            return;
+        }
+        break;
+    case 0x49:
+        if (chan == 5) {
+            /* fdivd */
+            gen_alopf1_i64_env(ctx, chan, gen_helper_fdivd);
             return;
         }
         break;
