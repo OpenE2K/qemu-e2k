@@ -75,8 +75,12 @@ void e2k_cpu_do_interrupt(CPUState *cs)
     cs->exception_index = -1;
 }
 
-static void cpu_e2k_disas_set_info(CPUState *cpu, disassemble_info *info)
+static void cpu_e2k_disas_set_info(CPUState *cs, disassemble_info *info)
 {
+    E2KCPU *cpu = E2K_CPU(cs);
+    CPUE2KState *env = &cpu->env;
+
+    info->mach = env->version * 3;
     info->print_insn = print_insn_e2k;
 }
 
