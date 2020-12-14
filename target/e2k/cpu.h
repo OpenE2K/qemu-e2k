@@ -268,17 +268,50 @@ typedef struct {
 } E2KBpState;
 
 typedef struct {
-    uint32_t br;
-    uint32_t cuir;
-    uint32_t ussz;
-    uint16_t tr;
-    uint8_t ein;
-    bool ss;
-    bool wfx;
-    uint8_t wpsz;
-    uint8_t wbs;
-    uint8_t psr;
-    bool wdbl;
+    union {
+        struct {
+            uint64_t tr: 15;
+            uint64_t unused1: 1;
+            uint64_t ein: 8;
+            uint64_t ss: 1;
+            uint64_t wfx: 1;
+            uint64_t wpsz: 7;
+            uint64_t wbs: 7;
+            uint64_t cuir: 17;
+            uint64_t psr: 7;
+        };
+        struct {
+            uint64_t unused2: 40;
+            uint64_t cui: 16;
+            uint64_t ic: 1;
+            uint64_t pm: 1;
+            uint64_t ie: 1;
+            uint64_t sge: 1;
+            uint64_t lw: 1;
+            uint64_t uie: 1;
+            uint64_t nmie: 1;
+            uint64_t unmie: 1;
+        };
+        uint64_t lo;
+    };
+    union {
+        struct {
+            uint64_t br: 28;
+            uint64_t unused3: 7;
+            uint64_t wdbl: 1;
+            /* user stack size */
+            uint64_t ussz: 28;
+        };
+        struct {
+            uint64_t rbs: 6;
+            uint64_t rsz: 6;
+            uint64_t rcur: 6;
+            uint64_t psz: 5;
+            uint64_t pcur: 5;
+            uint64_t unused4: 36;
+        };
+        uint64_t hi;
+    };
 } E2KCr1State;
 
 typedef struct {
@@ -567,6 +600,8 @@ bool e2k_cpu_tlb_fill(CPUState *cpu, vaddr address, int size,
 #define cpu_signal_handler e2k_cpu_signal_handler
 #define cpu_list e2k_cpu_list
 
+#define e2k_wrap_reg_index(i) (E2K_NR_COUNT + i) % E2K_NR_COUNT
+
 static inline uint64_t e2k_state_desc_lo(E2KStackState *desc)
 {
     uint64_t lo = 0;
@@ -647,58 +682,6 @@ static inline void e2k_state_br_set(CPUE2KState *env, uint32_t br)
 
     bp->size = extract32(br, BR_PSZ_OFF, BR_PSZ_LEN);
     bp->cur = extract32(br, BR_PCUR_OFF, BR_PCUR_LEN);
-}
-
-static inline uint64_t e2k_state_cr1_lo(CPUE2KState *env)
-{
-    E2KCr1State *cr1 = &env->cr1;
-    uint64_t ret = 0;
-
-    ret = deposit64(ret, CR1_LO_TR_OFF, CR1_LO_TR_LEN, cr1->tr);
-    ret = deposit64(ret, CR1_LO_EIN_OFF, CR1_LO_EIN_LEN, cr1->ein);
-    ret = deposit64(ret, CR1_LO_SS_OFF, 1, cr1->ss);
-    ret = deposit64(ret, CR1_LO_WFX_OFF, 1, cr1->wfx);
-    ret = deposit64(ret, CR1_LO_WPSZ_OFF, CR1_LO_WPSZ_LEN, cr1->wpsz);
-    ret = deposit64(ret, CR1_LO_WBS_OFF, CR1_LO_WBS_LEN, cr1->wbs);
-    ret = deposit64(ret, CR1_LO_CUIR_OFF, CR1_LO_CUIR_LEN, cr1->cuir);
-    ret = deposit64(ret, CR1_LO_PSR_OFF, CR1_LO_PSR_LEN, cr1->psr);
-
-    return ret;
-}
-
-static inline void e2k_state_cr1_lo_set(CPUE2KState *env, uint64_t lo)
-{
-    E2KCr1State *cr1 = &env->cr1;
-
-    cr1->tr = extract64(lo, CR1_LO_TR_OFF, CR1_LO_TR_LEN);
-    cr1->ein = extract64(lo, CR1_LO_EIN_OFF, CR1_LO_EIN_LEN);
-    cr1->ss = extract64(lo, CR1_LO_SS_OFF, 1);
-    cr1->wfx = extract64(lo, CR1_LO_WFX_OFF, 1);
-    cr1->wpsz = extract64(lo, CR1_LO_WPSZ_OFF, CR1_LO_WPSZ_LEN);
-    cr1->wbs = extract64(lo, CR1_LO_WBS_OFF, CR1_LO_WBS_LEN);
-    cr1->cuir = extract64(lo, CR1_LO_CUIR_OFF, CR1_LO_CUIR_LEN);
-    cr1->psr = extract64(lo, CR1_LO_PSR_OFF, CR1_LO_PSR_LEN);
-}
-
-static inline uint64_t e2k_state_cr1_hi(CPUE2KState *env)
-{
-    E2KCr1State *cr1 = &env->cr1;
-    uint64_t ret = 0;
-
-    ret = deposit64(ret, CR1_HI_BR_OFF, CR1_HI_BR_LEN, cr1->br);
-    ret = deposit64(ret, CR1_HI_WDBL_OFF, 1, cr1->wdbl);
-    ret = deposit64(ret, CR1_HI_USSZ_OFF, CR1_HI_USSZ_LEN, cr1->ussz);
-
-    return ret;
-}
-
-static inline void e2k_state_cr1_hi_set(CPUE2KState *env, uint64_t hi)
-{
-    E2KCr1State *cr1 = &env->cr1;
-
-    cr1->br = extract64(hi, CR1_HI_BR_OFF, CR1_HI_BR_LEN);
-    cr1->wdbl = extract64(hi, CR1_HI_WDBL_OFF, 1);
-    cr1->ussz = extract64(hi, CR1_HI_USSZ_OFF, CR1_HI_USSZ_LEN);
 }
 
 typedef CPUE2KState CPUArchState;
