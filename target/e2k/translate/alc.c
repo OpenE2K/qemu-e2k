@@ -1594,7 +1594,7 @@ static void gen_aad_ptr(DisasContext *ctx, TCGv ret, Instr *instr)
 
     tcg_gen_extract_i64(t0, e2k_cs.aad_lo[instr->aad], 0, 48);
     tcg_gen_trunc_i64_tl(t1, t0);
-    tcg_gen_ext_i32_tl(t2, e2k_cs.aasti[instr->aaind]);
+    tcg_gen_extu_i32_tl(t2, e2k_cs.aasti[instr->aaind]);
     if (lit != 0) {
         TCGv t3 = tcg_temp_new();
         tcg_gen_add_tl(t3, t1, t2);
@@ -1646,9 +1646,10 @@ static void gen_staa_i64(DisasContext *ctx, Instr *instr)
             TCGv_i32 t1 = tcg_temp_new_i32();
             gen_helper_probe_write_access(t1, cpu_env, t0);
             tcg_gen_brcondi_i32(TCG_COND_EQ, t1, 0, l0);
+            tcg_temp_free_i32(t1);
         }
 
-        tcg_gen_qemu_st_i64(s4.value, t0, 0, MO_Q);
+        tcg_gen_qemu_st_i64(s4.value, t0, ctx->mmuidx, MO_Q);
         gen_set_label(l0);
         tcg_temp_free(t0);
 
@@ -1694,8 +1695,7 @@ static void gen_staa_i32(DisasContext *ctx, Instr *instr, MemOp memop)
                 g_assert_not_reached();
                 break;
             }
-            qemu_log_mask(LOG_UNIMP,
-                "0x%lx: staa%c mas=%#x is not implemented\n", ctx->pc, c, mas);
+            e2k_todo(ctx, "staa%c mas=%#x", c, mas);
         }
 
         gen_aad_ptr(ctx, t0, instr);
@@ -1704,9 +1704,10 @@ static void gen_staa_i32(DisasContext *ctx, Instr *instr, MemOp memop)
             TCGv_i32 t1 = tcg_temp_new_i32();
             gen_helper_probe_write_access(t1, cpu_env, t0);
             tcg_gen_brcondi_i32(TCG_COND_EQ, t1, 0, l0);
+            tcg_temp_free_i32(t1);
         }
 
-        tcg_gen_qemu_st_i32(s4.value, t0, 0, memop);
+        tcg_gen_qemu_st_i32(s4.value, t0, ctx->mmuidx, memop);
         gen_set_label(l0);
         tcg_temp_free(t0);
 
