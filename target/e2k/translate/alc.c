@@ -2036,11 +2036,10 @@ static void execute_ext_00(DisasContext *ctx, Instr *instr)
     case 0x40:
         if (chan == 5) {
             // FIXME: temp hack
-            TCGLabel *l0 = gen_new_label();
-            Src64 s2 = get_src2_i64(ctx, chan);
-            tcg_gen_brcondi_i64(TCG_COND_NE, s2.value, 0, l0);
-            e2k_gen_exception(0);
-            gen_set_label(l0);
+            if (instr->src2 == 0xc0) {
+                e2k_tr_gen_exception_no_spill(ctx, 0);
+                return;
+            }
 
             /* udivs */
             gen_alopf1_tag_i32(ctx, chan, gen_udivs);
