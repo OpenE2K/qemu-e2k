@@ -261,6 +261,13 @@ void helper_raise_exception(CPUE2KState *env, int tt)
     cpu_loop_exit(cs);
 }
 
+void HELPER(raise_exception_no_spill)(CPUE2KState *env, int tt)
+{
+    CPUState *cs = env_cpu(env);
+    cs->exception_index = tt;
+    cpu_loop_exit(cs);
+}
+
 void e2k_break_save_state(CPUE2KState *env)
 {
     env->is_bp = true;

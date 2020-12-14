@@ -134,12 +134,11 @@ static void gen_advance_loop_counters(void)
 void e2k_stubs_commit(DisasContext *ctx)
 {
     uint32_t ss = ctx->bundle.ss;
-//    unsigned int vfdi = (ss & 0x04000000) >> 26;
-//    unsigned int abg = (ss & 0x01800000) >> 23;
-    int alc = GET_FIELD(ss, 16, 2);
-    int abp = GET_FIELD(ss, 18, 2);
-    int abn = GET_FIELD(ss, 21, 2);
-    int abg = GET_FIELD(ss, 23, 2);
+    int alc = extract32(ss, 16, 2);
+    int abp = extract32(ss, 18, 2);
+    int abn = extract32(ss, 21, 2);
+    int abg = extract32(ss, 23, 2);
+    int vfdi = extract32(ss, 26, 1);
 
     if (alc) {
         TCGLabel *l0 = gen_new_label();
@@ -164,6 +163,11 @@ void e2k_stubs_commit(DisasContext *ctx)
     if (abg != 0) {
         // TODO: impl abg
         e2k_todo_illop(ctx, "abg");
+    }
+
+    if (vfdi != 0) {
+        // TODO: impl vfdi
+        e2k_todo_illop(ctx, "vfdi");
     }
 }
 

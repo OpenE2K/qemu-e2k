@@ -200,6 +200,7 @@ typedef struct DisasContext {
 
 /* exception generated in translation time */
 void e2k_tr_gen_exception(DisasContext *dc, int which);
+void e2k_tr_gen_exception_no_spill(DisasContext *ctx, int excp);
 
 /* exception generated in runtime */
 static inline void e2k_gen_exception(int excp)
@@ -211,6 +212,7 @@ static inline void e2k_gen_exception(int excp)
 
     tcg_temp_free_i32(t0);
 }
+
 
 #define e2k_todo(ctx, fmt, ...)                         \
     do {                                                \
@@ -224,8 +226,8 @@ static inline void e2k_gen_exception(int excp)
 
 #define e2k_todo_illop(ctx, fmt, ...)                   \
     do {                                                \
-		e2k_todo(ctx, fmt, ## __VA_ARGS__);             \
-	    e2k_tr_gen_exception(ctx, E2K_EXCP_ILLOPC);     \
+        e2k_todo(ctx, fmt, ## __VA_ARGS__);             \
+        e2k_tr_gen_exception(ctx, E2K_EXCP_ILLOPC);     \
     } while (0)
 
 static inline void e2k_gen_mask_i64(TCGv_i64 ret, TCGv_i64 len)
