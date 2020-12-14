@@ -32,12 +32,6 @@ uint64_t helper_sxt(uint64_t x, uint32_t y)
 static uint64_t* state_reg_ptr(CPUE2KState *env, int idx)
 {
     switch (idx) {
-    /* FIXME: user cannot write */
-    case 0x2c: return &env->usd.hi; /* %usd.hi */
-    /* FIXME: user cannot write */
-    case 0x2d: return &env->usd.lo; /* %usd.lo */
-    case 0x51: return &env->ip; /* %cr1.hi */
-    case 0x53: return &env->pregs; /* %cr1.lo */
     case 0x80: return &env->upsr; /* %upsr */
     case 0x83: return &env->lsr; /* %lsr */
     default: return NULL;
@@ -47,24 +41,19 @@ static uint64_t* state_reg_ptr(CPUE2KState *env, int idx)
 uint64_t helper_state_reg_read_i64(CPUE2KState *env, int idx)
 {
     switch (idx) {
-    case 0x01:
-        return e2k_state_wd(env); /* %wd */
-    case 0x0f:
-        return e2k_state_pcsp_lo(env); /* %pcsp.lo */
-    case 0x0d:
-        return e2k_state_pcsp_hi(env); /* %pcsp.hi */
-    case 0x13:
-        return env->pcshtp; /* %pcshtp */
-    case 0x55:
-        return e2k_state_cr1_hi(env); /* %cr1.hi */
-    case 0x57:
-        return e2k_state_cr1_lo(env); /* %cr1.lo */
-    case 0x81: /* %ip */
-        return env->ip;
-    case 0x8a: /* %idr */
-        return env->idr;
-    case 0x90: /* %clkr */
-        return cpu_get_host_ticks();
+    case 0x01: return e2k_state_wd(env); /* %wd */
+    case 0x0f: return e2k_state_pcsp_lo(env); /* %pcsp.lo */
+    case 0x0d: return e2k_state_pcsp_hi(env); /* %pcsp.hi */
+    case 0x13: return env->pcshtp; /* %pcshtp */
+    case 0x2c: return env->usd.hi; /* %usd.hi */
+    case 0x2d: return env->usd.lo; /* %usd.lo */
+    case 0x51: return env->cr0_hi; /* %cr0.hi */
+    case 0x53: return env->cr0_lo; /* %cr0.lo */
+    case 0x55: return env->cr1.hi; /* %cr1.hi */
+    case 0x57: return env->cr1.lo; /* %cr1.lo */
+    case 0x81: return env->ip; /* %ip */
+    case 0x8a: return env->idr; /* %idr */
+    case 0x90: return cpu_get_host_ticks(); /* %clkr */
     default: {
         uint64_t *p = state_reg_ptr(env, idx);
 
@@ -110,14 +99,9 @@ void helper_state_reg_write_i32(CPUE2KState *env, int idx, uint32_t val)
 uint64_t helper_getsp(CPUE2KState *env, uint32_t src2)
 {
     int32_t s2 = src2 & ~0xf;
-    uint32_t size = s2 >= 0 ? s2 : -s2;
-
-    if (size > env->usd.size) {
-        helper_raise_exception(env, E2K_EXCP_MAPERR);
-    }
 
     env->usd.base += s2;
-    env->usd.size -= size;
+    env->usd.size -= s2;
 
     return env->usd.base;
 }

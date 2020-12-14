@@ -147,8 +147,8 @@ void e2k_cpu_dump_state(CPUState *cs, FILE *f, int flags)
     qemu_fprintf(f, "    pregs = 0x%016lx\n", env->pregs);
     qemu_fprintf(f, "   cr0_lo = 0x%016lx\n", env->cr0_lo);
     qemu_fprintf(f, "   cr0_hi = 0x%016lx\n", env->cr0_hi);
-    qemu_fprintf(f, "   cr1_lo = 0x%016lx\n", e2k_state_cr1_lo(env));
-    qemu_fprintf(f, "   cr1_hi = 0x%016lx\n", e2k_state_cr1_hi(env));
+    qemu_fprintf(f, "   cr1_lo = 0x%016lx\n", env->cr1.lo);
+    qemu_fprintf(f, "   cr1_hi = 0x%016lx\n", env->cr1.hi);
     qemu_fprintf(f, "  pcsp_lo = 0x%016lx\n", e2k_state_pcsp_lo(env));
     qemu_fprintf(f, "  pcsp_hi = 0x%016lx\n", e2k_state_pcsp_hi(env));
     qemu_fprintf(f, "   psp_lo = 0x%016lx\n", e2k_state_psp_lo(env));
