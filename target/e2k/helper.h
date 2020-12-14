@@ -1,4 +1,5 @@
 DEF_HELPER_2(raise_exception, noreturn, env, int)
+DEF_HELPER_2(raise_exception_no_spill, noreturn, env, int)
 DEF_HELPER_1(debug, void, env)
 DEF_HELPER_2(prep_return, i64, env, int)
 DEF_HELPER_1(return, void, env)

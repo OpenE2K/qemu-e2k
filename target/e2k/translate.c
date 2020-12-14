@@ -226,6 +226,17 @@ void e2k_tr_gen_exception(DisasContext *ctx, int which)
     tcg_temp_free_i32(t);
 }
 
+void e2k_tr_gen_exception_no_spill(DisasContext *ctx, int excp)
+{
+    TCGv_i32 t0 = tcg_const_i32(excp);
+
+    e2k_gen_save_cpu_state(ctx);
+    gen_helper_raise_exception_no_spill(cpu_env, t0);
+    ctx->base.is_jmp = DISAS_NORETURN;
+
+    tcg_temp_free_i32(t0);
+}
+
 static inline void gen_ctpr_tag(TCGv_i64 ret, TCGv_i64 ctpr)
 {
     tcg_gen_extract_i64(ret, ctpr, CTPR_TAG_OFF, CTPR_TAG_LEN);
