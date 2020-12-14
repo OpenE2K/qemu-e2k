@@ -2208,6 +2208,13 @@ static void execute_ext_01(DisasContext *ctx, Instr *instr)
             return;
         }
         break;
+    case 0x17:
+        if (is_chan_03(chan)) {
+            /* psubd */
+            gen_alopf1_i64(ctx, chan, tcg_gen_sub_i64);
+            return;
+        }
+        break;
     case 0x18:
         if (is_chan_03(chan)) {
             /* pcmpeqb */
