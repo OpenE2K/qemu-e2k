@@ -317,6 +317,7 @@ static inline void do_branch(DisasContext *ctx, target_ulong pc_next)
     gen_set_label(l0);
 
     if (ctx->ct.type == CT_NONE) {
+        e2k_gen_save_pc(ctx->base.pc_next);
         return;
     }
 
