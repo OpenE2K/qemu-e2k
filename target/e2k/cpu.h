@@ -551,6 +551,21 @@ typedef struct {
 } E2KUserStackDesc;
 
 typedef union {
+    struct {
+        uint64_t l1col: 2;  /* 1:0 */
+        uint64_t l1msb: 2;  /* 3:2 */
+        uint64_t word: 9;   /* 12:4 */
+        uint64_t page: 28;  /* 40:13 */
+        uint64_t mask: 8;   /* 48:41 */
+        uint64_t rg: 8;     /* 56:49 */
+        uint64_t quadro: 1; /* 57 */
+        uint64_t val: 1;    /* 58 */
+        uint64_t unused: 5; /* 63:59 */
+    };
+    uint64_t raw;
+} E2KDamEntry;
+
+typedef union {
     uint32_t u32;
     uint64_t u64;
     floatx80 f80;
@@ -574,6 +589,9 @@ typedef struct {
 
     /* temporaries for FX/SIMD ops */
     E2KReg t0, t1, t2, t3;
+
+    /* DAM */
+    E2KDamEntry dam[32];
 
     /* procedure chain info */
     uint64_t cr0_lo;

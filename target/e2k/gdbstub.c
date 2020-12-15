@@ -229,7 +229,7 @@ int e2k_cpu_gdb_read_register(CPUState *cs, GByteArray *mem_buf, int n)
     }
 
     if (440 <= n && n < 472) {
-        return gdb_get_reg64(mem_buf, 0); // dam_N
+        return gdb_get_reg64(mem_buf, env->dam[n - 440].raw); // dam_N
     }
 
     if (472 <= n && n < 504) {
@@ -241,11 +241,11 @@ int e2k_cpu_gdb_read_register(CPUState *cs, GByteArray *mem_buf, int n)
     }
 
     if (n == 552) {
-        return gdb_get_reg64(mem_buf, 0); // pcsp_base
+        return gdb_get_reg64(mem_buf, env->pcsp.base); // pcsp_base
     }
 
     if (n == 553) {
-        return gdb_get_reg64(mem_buf, 0); // psp_base
+        return gdb_get_reg64(mem_buf, env->psp.base); // psp_base
     }
 
     if (554 <= n && n < 573) {
