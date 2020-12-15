@@ -34,6 +34,8 @@ DEF_HELPER_2(pmovmskb, i64, i64, i64)
 DEF_HELPER_1(aau_load_program, void, env)
 DEF_HELPER_3(mova_ptr, tl, env, int, int)
 DEF_HELPER_3(aau_am, void, env, int, int)
+DEF_HELPER_4(dam_lock_addr, void, env, i64, int, int)
+DEF_HELPER_4(dam_unlock_addr, int, env, i64, int, int)
 
 #define DEF_HELPER_3_32_64(name) \
     DEF_HELPER_3(name##s, i32, env, i32, i32) \

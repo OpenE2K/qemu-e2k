@@ -518,20 +518,8 @@ static void gen_jmp(DisasContext *ctx)
             tcg_temp_free_i32(z);
             break;
         }
-        default:
-            // TODO
-            e2k_todo(ctx, "branch condition %#x", cond_type);
-            tcg_gen_movi_i32(e2k_cs.ct_cond, 0);
-            break;
-        }
-
-        tcg_temp_free_i32(lcond);
-        tcg_temp_free_i32(pcond);
-
-        if (cond_type == 8) {
-            // %MLOCK
-            /* It's not clearly said in C.17.1.2 of iset-vX.single if the uppermost
-               fourth bit in `psrc' has any meaning at all.  */
+        case 0x8:
+            /* %MLOCK || %dt_alM */
             if (psrc & 0xf) {
     //            static const int conv[] = {0, 1, 3, 4};
                 int i;
@@ -544,43 +532,50 @@ static void gen_jmp(DisasContext *ctx)
                     }
                 }
             } else {
-                e2k_todo(ctx, "%%MLOCK");
+                /* %MLOCK */
+                if (ctx->mlock) {
+                    tcg_gen_mov_i32(e2k_cs.ct_cond, ctx->mlock);
+                } else {
+                    tcg_gen_movi_i32(e2k_cs.ct_cond, 0);
+                }
             }
-        }
-
+            break;
+        case 0x9: {
         /* `lock_cond || pl_cond' control transfer conditions.  */
-        if (cond_type == 9) {
             unsigned int type = (psrc & 0x18) >> 3;
             if (type == 0) {
-    //            static const int cmp_num_to_alc[] = {0, 1, 3, 4};
-    //            unsigned int cmp_num = (psrc & 0x6) >> 1;
-    //            unsigned int neg = psrc & 0x1;
-
-    //            my_printf ("%%MLOCK || %s%%cmp%d", neg ? "~" : "",
-    //                cmp_num_to_alc[cmp_num]);
+//                static const int cmp_num_to_alc[] = {0, 1, 3, 4};
+//                unsigned int cmp_num = (psrc & 0x6) >> 1;
+//                unsigned int neg = psrc & 0x1;
+//
+//                my_printf ("%%MLOCK || %s%%cmp%d", neg ? "~" : "",
+//                    cmp_num_to_alc[cmp_num]);
                 e2k_todo(ctx, "%%MLOCK || %%cmpN");
             } else if (type == 1) {
-    //            unsigned int cmp_jk = (psrc & 0x4) >> 2;
-    //            unsigned int negj = (psrc & 0x2) >> 1;
-    //            unsigned int negk = psrc & 0x1;
+//                unsigned int cmp_jk = (psrc & 0x4) >> 2;
+//                unsigned int negj = (psrc & 0x2) >> 1;
+//                unsigned int negk = psrc & 0x1;
 
-    //            my_printf ("%%MLOCK || %s%%cmp%d || %s%%cmp%d",
-    //                     negj ? "~" : "", cmp_jk == 0 ? 0 : 3,
-    //                     negk ? "~" : "", cmp_jk == 0 ? 1 : 4);
+//                my_printf ("%%MLOCK || %s%%cmp%d || %s%%cmp%d",
+//                         negj ? "~" : "", cmp_jk == 0 ? 0 : 3,
+//                         negk ? "~" : "", cmp_jk == 0 ? 1 : 4);
                 e2k_todo(ctx, "%%MLOCK || %%cmpN || %%cmpM");
             } else if (type == 2) {
-    //            unsigned int clp_num = (psrc & 0x6) >> 1;
-    //            unsigned int neg = psrc & 0x1;
+//                unsigned int clp_num = (psrc & 0x6) >> 1;
+//                unsigned int neg = psrc & 0x1;
 
                 // "%%MLOCK || %s%%clp%d", neg ? "~" : "", clp_num
                 e2k_todo(ctx, "%%MLOCK || %%clpN");
             }
+            break;
+        }
+        default:
+            e2k_todo_illop(ctx, "undefined control transfer type %#x", cond_type);
+            break;
         }
 
-        if (cond_type >= 0xa && cond_type <= 0xd) {
-            // reserved condition type
-            e2k_todo_illop(ctx, "undefined control transfer type %#x", cond_type);
-        }
+        tcg_temp_free_i32(lcond);
+        tcg_temp_free_i32(pcond);
     }
 }
 
