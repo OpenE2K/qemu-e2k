@@ -189,6 +189,8 @@ typedef struct DisasContext {
     bool loop_mode;
     TCGv_i32 is_prologue;
     TCGv_i32 is_epilogue;
+    /* optional, can be NULL */
+    TCGv_i32 mlock;
 
     int version;
     /* Force ILLOP for bad instruction format for cases where real CPU

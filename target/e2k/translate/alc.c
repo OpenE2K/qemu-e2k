@@ -1545,22 +1545,70 @@ static void gen_movtd(DisasContext *ctx, int chan)
     set_al_result_reg64_tag(ctx, chan, s2.value, s2.tag, false);
 }
 
-static MemOp gen_mas(DisasContext *ctx, int chan, MemOp memop, TCGv_i64 addr)
+static inline void gen_ld_mas_mod(DisasContext *ctx, Instr *instr,
+    TCGv_i64 addr, uint8_t mod)
 {
-    uint8_t mas = ctx->mas[chan];
+    TCGv_i32 size;
+    TCGv_i32 reg = tcg_temp_new_i32();
+
+    // FIXME: %empty
+    e2k_gen_reg_index(reg, instr->dst);
+    size = tcg_const_i32(1 << (instr->opc1 - 0x64));
+
+    switch (mod) {
+    case 3:
+        if (is_chan_25(instr->chan)) {
+            /* ld,{2,5} [ addr ], dst, mas=X (mod 3) */
+            TCGv_i32 t0 = tcg_temp_new_i32();
+
+            gen_helper_dam_unlock_addr(t0, cpu_env, addr, size, reg);
+            if (ctx->mlock == NULL) {
+                ctx->mlock = e2k_get_temp_i32(ctx);
+                tcg_gen_movi_i32(ctx->mlock, 0);
+            }
+            tcg_gen_or_i32(ctx->mlock, ctx->mlock, t0);
+            tcg_temp_free_i32(t0);
+            goto ok_exit;
+        }
+        break;
+    case 4:
+        if (instr->sm && is_chan_03(instr->chan)) {
+            /* ld,{0,3},sm [ addr ], dst, mas=X (mod 4) */
+            gen_helper_dam_lock_addr(cpu_env, addr, size, reg);
+            goto ok_exit;
+        }
+        break;
+    }
+
+    e2k_todo(ctx, "opc %#x, chan %d, mod=%#x", instr->opc1, instr->chan, mod);
+
+ok_exit:
+    tcg_temp_free_i32(size);
+    tcg_temp_free_i32(reg);
+}
+
+static MemOp gen_mas(DisasContext *ctx, Instr *instr, MemOp memop, TCGv_i64 addr)
+{
+    uint8_t mas = ctx->mas[instr->chan];
 
     if ((mas & 0x7) == 7) {
         int opc = mas >> 3;
         // TODO: special mas
-        e2k_todo(ctx, "mas=%#x, opc=%#x", mas, opc);
+        e2k_todo(ctx, "opc %#x, chan %d, mas=%#x (opc %#x)", instr->opc1,
+            instr->chan, mas, opc);
         return 0;
     } else if (mas) {
         int mod = extract8(mas, 0, 3);
 //        int dc = extract8(mas, 5, 2);
 
         if (mod != 0) {
-            // TODO: mas modes
-            e2k_todo(ctx, "mas=%#x, mod=%#x", mas, mod);
+            if (0x64 <= instr->opc1 && instr->opc1 < 0x68) {
+                gen_ld_mas_mod(ctx, instr, addr, mod);
+            } else {
+                // TODO: mas modes
+                e2k_todo(ctx, "opc %#x, chan %d, mas=%#x, mod=%#x", instr->opc1,
+                    instr->chan, mas, mod);
+            }
         }
 
         memop |= GET_BIT(mas, 3) ? MO_BE : MO_LE;
@@ -1572,13 +1620,12 @@ static MemOp gen_mas(DisasContext *ctx, int chan, MemOp memop, TCGv_i64 addr)
     return memop;
 }
 
-static void gen_ld(DisasContext *ctx, int chan, MemOp memop)
+static void gen_ld(DisasContext *ctx, Instr *instr, MemOp memop)
 {
-    bool sm = GET_BIT(ctx->bundle.als[chan], 31);
     TCGLabel *l0 = gen_new_label();
     TCGLabel *l1 = gen_new_label();
-    Src64 s1 = get_src1_i64(ctx, chan);
-    Src64 s2 = get_src2_i64(ctx, chan);
+    Src64 s1 = get_src1_i64(ctx, instr->chan);
+    Src64 s2 = get_src2_i64(ctx, instr->chan);
     TCGv_i32 tag = e2k_get_temp_i32(ctx);
     TCGv_i64 dst = e2k_get_temp_i64(ctx);
     TCGv_i64 t0 = tcg_temp_local_new_i64();
@@ -1586,9 +1633,9 @@ static void gen_ld(DisasContext *ctx, int chan, MemOp memop)
 
     gen_tag2_i64(tag, s1.tag, s2.tag);
     tcg_gen_add_i64(t0, s1.value, s2.value);
-    memop = gen_mas(ctx, chan, memop, t0);
+    memop = gen_mas(ctx, instr, memop, t0);
 
-    if (sm) {
+    if (instr->sm) {
         gen_helper_probe_read_access(t1, cpu_env, t0);
         tcg_gen_brcondi_i32(TCG_COND_EQ, t1, 1, l0);
         tcg_gen_movi_i32(tag, 5);
@@ -1600,34 +1647,33 @@ static void gen_ld(DisasContext *ctx, int chan, MemOp memop)
     tcg_gen_qemu_ld_i64(dst, t0, ctx->mmuidx, memop);
 
     gen_set_label(l1);
-    gen_al_result_i64(ctx, chan, dst, tag);
+    gen_al_result_i64(ctx, instr->chan, dst, tag);
 
     tcg_temp_free_i32(t1);
     tcg_temp_free_i64(t0);
 }
 
-static void gen_st_i64(DisasContext *ctx, int chan, MemOp memop)
+static void gen_st_i64(DisasContext *ctx, Instr *instr, MemOp memop)
 {
-    bool sm = GET_BIT(ctx->bundle.als[chan], 31);
     TCGLabel *l0 = gen_new_label();
-    Src64 s1 = get_src1_i64(ctx, chan);
-    Src64 s2 = get_src2_i64(ctx, chan);
-    Src64 s4 = get_src4_i64(ctx, chan);
+    Src64 s1 = get_src1_i64(ctx, instr->chan);
+    Src64 s2 = get_src2_i64(ctx, instr->chan);
+    Src64 s4 = get_src4_i64(ctx, instr->chan);
     TCGv_i64 t0 = tcg_temp_local_new_i64();
 
     gen_loop_mode_st(ctx, l0);
-    gen_tag_check(ctx, sm, s1.tag);
-    gen_tag_check(ctx, sm, s2.tag);
-    gen_tag_check(ctx, sm, s4.tag);
+    gen_tag_check(ctx, instr->sm, s1.tag);
+    gen_tag_check(ctx, instr->sm, s2.tag);
+    gen_tag_check(ctx, instr->sm, s4.tag);
     tcg_gen_add_i64(t0, s1.value, s2.value);
-    memop = gen_mas(ctx, chan, memop, t0);
+    memop = gen_mas(ctx, instr, memop, t0);
 
     if (memop == 0) {
         // FIXME: hack
         return;
     }
 
-    if (sm) {
+    if (instr->sm) {
         TCGv_i32 t1 = tcg_temp_new_i32();
         gen_helper_probe_write_access(t1, cpu_env, t0);
         tcg_gen_brcondi_i32(TCG_COND_EQ, t1, 0, l0);
@@ -1640,28 +1686,27 @@ static void gen_st_i64(DisasContext *ctx, int chan, MemOp memop)
     tcg_temp_free_i64(t0);
 }
 
-static void gen_st_i32(DisasContext *ctx, int chan, MemOp memop)
+static void gen_st_i32(DisasContext *ctx, Instr *instr, MemOp memop)
 {
-    bool sm = GET_BIT(ctx->bundle.als[chan], 31);
     TCGLabel *l0 = gen_new_label();
-    Src64 s1 = get_src1_i64(ctx, chan);
-    Src64 s2 = get_src2_i64(ctx, chan);
-    Src32 s4 = get_src4_i32(ctx, chan);
+    Src64 s1 = get_src1_i64(ctx, instr->chan);
+    Src64 s2 = get_src2_i64(ctx, instr->chan);
+    Src32 s4 = get_src4_i32(ctx, instr->chan);
     TCGv_i64 t0 = tcg_temp_local_new_i64();
 
     gen_loop_mode_st(ctx, l0);
-    gen_tag_check(ctx, sm, s1.tag);
-    gen_tag_check(ctx, sm, s2.tag);
-    gen_tag_check(ctx, sm, s4.tag);
+    gen_tag_check(ctx, instr->sm, s1.tag);
+    gen_tag_check(ctx, instr->sm, s2.tag);
+    gen_tag_check(ctx, instr->sm, s4.tag);
     tcg_gen_add_i64(t0, s1.value, s2.value);
-    memop = gen_mas(ctx, chan, memop, t0);
+    memop = gen_mas(ctx, instr, memop, t0);
 
     if (memop == 0) {
         // FIXME: hack
         return;
     }
 
-    if (sm) {
+    if (instr->sm) {
         TCGv_i32 t1 = tcg_temp_new_i32();
         gen_helper_probe_write_access(t1, cpu_env, t0);
         tcg_gen_brcondi_i32(TCG_COND_EQ, t1, 0, l0);
@@ -2522,7 +2567,7 @@ static void execute_ext_00(DisasContext *ctx, Instr *instr)
     case 0x24: {
         if (is_chan_25(chan)) {
             /* stb */
-            gen_st_i32(ctx, chan, MO_UB);
+            gen_st_i32(ctx, instr, MO_UB);
             return;
         }
         break;
@@ -2530,7 +2575,7 @@ static void execute_ext_00(DisasContext *ctx, Instr *instr)
     case 0x25: {
         if (is_chan_25(chan)) {
             /* sth */
-            gen_st_i32(ctx, chan, MO_UW);
+            gen_st_i32(ctx, instr, MO_UW);
             return;
         }
         break;
@@ -2538,7 +2583,7 @@ static void execute_ext_00(DisasContext *ctx, Instr *instr)
     case 0x26: {
         if (is_chan_25(chan)) {
             /* stw */
-            gen_st_i32(ctx, chan, MO_UL);
+            gen_st_i32(ctx, instr, MO_UL);
             return;
         } else if(instr->opce1 == 0xc0 && ctx->version >= 2) {
             /* bitrevs */
@@ -2550,7 +2595,7 @@ static void execute_ext_00(DisasContext *ctx, Instr *instr)
     case 0x27: {
         if (is_chan_25(chan)) {
             /* std */
-            gen_st_i64(ctx, chan, MO_Q);
+            gen_st_i64(ctx, instr, MO_Q);
             return;
         } else if(instr->opce1 == 0xc0 && ctx->version >= 2) {
             /* bitrevd */
@@ -2963,7 +3008,7 @@ static void execute_ext_00(DisasContext *ctx, Instr *instr)
     case 0x64: {
         if (is_chan_0235(chan)) {
             /* ldb */
-            gen_ld(ctx, chan, MO_UB);
+            gen_ld(ctx, instr, MO_UB);
             return;
         } else if (is_chan_14(chan) && instr->opce1 == 0xc0 &&
             ctx->version >= 2)
@@ -2977,7 +3022,7 @@ static void execute_ext_00(DisasContext *ctx, Instr *instr)
     case 0x65: { 
         if (is_chan_0235(chan)) {
             /* ldh */
-            gen_ld(ctx, chan, MO_UW);
+            gen_ld(ctx, instr, MO_UW);
             return;
         } else if (is_chan_14(chan) && instr->opce1 == 0xc0 &&
             ctx->version >= 2)
@@ -2991,7 +3036,7 @@ static void execute_ext_00(DisasContext *ctx, Instr *instr)
     case 0x66: { 
         if (is_chan_0235(chan)) {
             /* ldw */
-            gen_ld(ctx, chan, MO_UL);
+            gen_ld(ctx, instr, MO_UL);
             return;
         } else if (is_chan_14(chan) && instr->opce1 == 0xc0 &&
             ctx->version >= 2)
@@ -3005,7 +3050,7 @@ static void execute_ext_00(DisasContext *ctx, Instr *instr)
     case 0x67: { 
         if (is_chan_0235(chan)) {
             /* ldd */
-            gen_ld(ctx, chan, MO_Q);
+            gen_ld(ctx, instr, MO_Q);
             return;
         } else if (is_chan_14(chan) && instr->opce1 == 0xc0 &&
             ctx->version >= 2)
