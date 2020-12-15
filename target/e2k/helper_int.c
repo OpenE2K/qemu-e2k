@@ -127,3 +127,14 @@ uint64_t helper_getsp(CPUE2KState *env, uint32_t src2)
 
     return env->usd.base;
 }
+
+void HELPER(dam_lock_addr)(CPUE2KState *env, uint64_t addr, int size, int reg)
+{
+    // TODO: helper_dam_lock_addr
+}
+
+int HELPER(dam_unlock_addr)(CPUE2KState *env, uint64_t addr, int size, int reg)
+{
+    // TODO: helper_dam_unlock_addr
+    return 1;
+}
