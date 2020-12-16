@@ -372,11 +372,11 @@ static inline void do_branch(DisasContext *ctx, target_ulong pc_next)
 
 static void e2k_tr_init_disas_context(DisasContextBase *db, CPUState *cs)
 {
-    DisasContext *dc = container_of(db, DisasContext, base);
+    DisasContext *ctx = container_of(db, DisasContext, base);
     E2KCPU *cpu = E2K_CPU(cs);
     CPUE2KState *env = &cpu->env;
 
-    dc->version = env->version;
+    ctx->version = env->version;
 }
 
 static bool e2k_tr_breakpoint_check(DisasContextBase *db, CPUState *cs,
