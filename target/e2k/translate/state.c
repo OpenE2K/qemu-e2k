@@ -110,9 +110,13 @@ void e2k_gen_store_preg(int idx, TCGv_i64 val)
 static inline void gen_reg_tag_ptr(TCGv_ptr ret, TCGv_i32 idx)
 {
     TCGv_ptr t0 = tcg_temp_new_ptr();
+    TCGv_ptr t1 = tcg_temp_new_ptr();
 
     tcg_gen_ext_i32_ptr(t0, idx);
-    tcg_gen_add_ptr(ret, e2k_cs.tptr, t0);
+    tcg_gen_addi_ptr(t1, cpu_env, offsetof(CPUE2KState, tags));
+    tcg_gen_add_ptr(ret, t1, t0);
+
+    tcg_temp_free_ptr(t1);
     tcg_temp_free_ptr(t0);
 }
 
@@ -239,11 +243,14 @@ static inline void gen_reg_ptr_from_index(TCGv_ptr ret, TCGv_i32 idx)
 {
     TCGv_i32 t0 = tcg_temp_new_i32();
     TCGv_ptr t1 = tcg_temp_new_ptr();
+    TCGv_ptr t2 = tcg_temp_new_ptr();
 
     tcg_gen_muli_i32(t0, idx, 8);
     tcg_gen_ext_i32_ptr(t1, t0);
-    tcg_gen_add_ptr(ret, e2k_cs.rptr, t1);
+    tcg_gen_addi_ptr(t2, cpu_env, offsetof(CPUE2KState, regs));
+    tcg_gen_add_ptr(ret, t2, t1);
 
+    tcg_temp_free_ptr(t2);
     tcg_temp_free_ptr(t1);
     tcg_temp_free_i32(t0);
 }

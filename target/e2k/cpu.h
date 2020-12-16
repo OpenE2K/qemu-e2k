@@ -552,11 +552,9 @@ typedef struct {
 
 typedef struct {
     /* register file */
-    uint64_t regs[E2K_REG_COUNT]; /* registers */
-    uint16_t xregs[E2K_REG_COUNT]; /* x part of registers */
     uint8_t tags[E2K_REG_COUNT]; /* registers tags */
-    uint64_t *rptr; /* pointer to regs */
-    uint8_t *tptr; /* pointer to tags */
+    uint64_t regs[E2K_REG_COUNT]; /* low parts of registers */
+    uint64_t xregs[E2K_REG_COUNT]; /* high parts of registers */
     uint64_t pregs; /* predicate file */
     target_ulong ip; /* instruction address */
 
