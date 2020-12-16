@@ -3,6 +3,20 @@
 #include "exec/log.h"
 #include "translate.h"
 
+static inline void gen_ptr_from_index(TCGv_ptr ret, TCGv_ptr ptr, TCGv_i32 idx,
+    int size)
+{
+    TCGv_i32 t0 = tcg_temp_new_i32();
+    TCGv_ptr t1 = tcg_temp_new_ptr();
+
+    tcg_gen_muli_i32(t0, idx, size);
+    tcg_gen_ext_i32_ptr(t1, t0);
+    tcg_gen_add_ptr(ret, ptr, t1);
+
+    tcg_temp_free_ptr(t1);
+    tcg_temp_free_i32(t0);
+}
+
 static inline void gen_preg_index(TCGv_i32 ret, int idx)
 {
     TCGv_i32 i = tcg_const_i32(idx);
@@ -239,62 +253,50 @@ void e2k_gen_reg_index_from_gregi(TCGv_i32 ret, int idx)
     tcg_gen_movi_i32(ret, E2K_NR_COUNT + idx);
 }
 
-static inline void gen_reg_ptr_from_index(TCGv_ptr ret, TCGv_i32 idx)
-{
-    TCGv_i32 t0 = tcg_temp_new_i32();
-    TCGv_ptr t1 = tcg_temp_new_ptr();
-    TCGv_ptr t2 = tcg_temp_new_ptr();
-
-    tcg_gen_muli_i32(t0, idx, 8);
-    tcg_gen_ext_i32_ptr(t1, t0);
-    tcg_gen_addi_ptr(t2, cpu_env, offsetof(CPUE2KState, regs));
-    tcg_gen_add_ptr(ret, t2, t1);
-
-    tcg_temp_free_ptr(t2);
-    tcg_temp_free_ptr(t1);
-    tcg_temp_free_i32(t0);
-}
-
-void e2k_gen_reg_read_i64(TCGv_i64 ret, TCGv_i32 idx)
+static inline void gen_reg_ptr(TCGv_ptr ret, TCGv_i32 idx)
 {
     TCGv_ptr t0 = tcg_temp_new_ptr();
 
-    gen_reg_ptr_from_index(t0, idx);
-    tcg_gen_ld_i64(ret, t0, 0);
+    tcg_gen_addi_ptr(t0, cpu_env, offsetof(CPUE2KState, regs));
+    gen_ptr_from_index(ret, t0, idx, 8);
     tcg_temp_free_ptr(t0);
 }
 
-void e2k_gen_reg_read_i32(TCGv_i32 ret, TCGv_i32 idx)
+static inline void gen_xreg_ptr(TCGv_ptr ret, TCGv_i32 idx)
 {
     TCGv_ptr t0 = tcg_temp_new_ptr();
 
-    gen_reg_ptr_from_index(t0, idx);
-    tcg_gen_ld_i32(ret, t0, 0);
+    tcg_gen_addi_ptr(t0, cpu_env, offsetof(CPUE2KState, xregs));
+    gen_ptr_from_index(ret, t0, idx, 8);
     tcg_temp_free_ptr(t0);
 }
 
-void e2k_gen_reg_write_i64(TCGv_i64 value, TCGv_i32 idx)
-{
-    TCGv_i64 t0 = tcg_temp_new_i64();
-    TCGv_ptr t1 = tcg_temp_new_ptr();
+#define GEN_REG_READ(name, ty, ptr_func, ld_func) \
+    void name(ty ret, TCGv_i32 idx) \
+    { \
+        TCGv_ptr t0 = tcg_temp_new_ptr(); \
+        ptr_func(t0, idx); \
+        ld_func(ret, t0, 0); \
+        tcg_temp_free_ptr(t0); \
+    }
 
-    tcg_gen_mov_i64(t0, value);
-    gen_reg_ptr_from_index(t1, idx);
-    tcg_gen_st_i64(t0, t1, 0);
+#define GEN_REG_WRITE(name, ty, ptr_func, st_func) \
+    void name(ty value, TCGv_i32 idx) \
+    { \
+        TCGv_ptr t0 = tcg_temp_new_ptr(); \
+        ptr_func(t0, idx); \
+        st_func(value, t0, 0); \
+        tcg_temp_free_ptr(t0); \
+    }
 
-    tcg_temp_free_ptr(t1);
-    tcg_temp_free_i64(t0);
-}
+GEN_REG_READ(e2k_gen_reg_read_i64, TCGv_i64, gen_reg_ptr, tcg_gen_ld_i64)
+GEN_REG_READ(e2k_gen_reg_read_i32, TCGv_i32, gen_reg_ptr, tcg_gen_ld_i32)
+GEN_REG_WRITE(e2k_gen_reg_write_i64, TCGv_i64, gen_reg_ptr, tcg_gen_st_i64)
+GEN_REG_WRITE(e2k_gen_reg_write_i32, TCGv_i32, gen_reg_ptr, tcg_gen_st_i32)
 
-void e2k_gen_reg_write_i32(TCGv_i32 value, TCGv_i32 idx)
-{
-    TCGv_i32 t0 = tcg_temp_new_i32();
-    TCGv_ptr t1 = tcg_temp_new_ptr();
-
-    tcg_gen_mov_i32(t0, value);
-    gen_reg_ptr_from_index(t1, idx);
-    tcg_gen_st_i32(t0, t1, 0);
-
-    tcg_temp_free_ptr(t1);
-    tcg_temp_free_i32(t0);
-}
+GEN_REG_READ(e2k_gen_xreg_read_i64, TCGv_i64, gen_xreg_ptr, tcg_gen_ld_i64)
+GEN_REG_READ(e2k_gen_xreg_read_i32, TCGv_i32, gen_xreg_ptr, tcg_gen_ld_i32)
+GEN_REG_READ(e2k_gen_xreg_read16u_i32, TCGv_i32, gen_xreg_ptr, tcg_gen_ld16u_i32)
+GEN_REG_WRITE(e2k_gen_xreg_write_i64, TCGv_i64, gen_xreg_ptr, tcg_gen_st_i64)
+GEN_REG_WRITE(e2k_gen_xreg_write_i32, TCGv_i32, gen_xreg_ptr, tcg_gen_st_i32)
+GEN_REG_WRITE(e2k_gen_xreg_write16u_i32, TCGv_i32, gen_xreg_ptr, tcg_gen_st16_i32)
