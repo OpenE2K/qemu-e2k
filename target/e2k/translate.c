@@ -527,11 +527,6 @@ void e2k_tcg_initialize(void) {
         *rtl[i].ptr = tcg_global_mem_new(cpu_env, rtl[i].off, rtl[i].name);
     }
 
-    e2k_cs.rptr = tcg_global_mem_new_ptr(cpu_env,
-        offsetof(CPUE2KState, rptr), "regs_ptr");
-    e2k_cs.tptr = tcg_global_mem_new_ptr(cpu_env,
-        offsetof(CPUE2KState, tptr), "tags_ptr");
-
     for (i = 0; i < 3; i++) {
         snprintf(buf, ARRAY_SIZE(buf), "%%ctpr%d", i + 1);
         e2k_cs.ctprs[i] = tcg_global_mem_new_i64(cpu_env,

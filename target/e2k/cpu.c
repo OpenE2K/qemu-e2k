@@ -42,8 +42,6 @@ static void e2k_cpu_reset(DeviceState *dev)
 
     memset(env, 0, offsetof(CPUE2KState, end_reset_fields));
 
-    env->rptr = &env->regs[0];
-    env->tptr = &env->tags[0];
     env->cr1.wpsz = 4;
     env->cr1.wbs = 4;
     env->wd.base = 0;
