@@ -475,6 +475,13 @@ void e2k_gen_reg_read_i32(TCGv_i32 ret, TCGv_i32 idx);
 void e2k_gen_reg_write_i64(TCGv_i64 value, TCGv_i32 idx);
 void e2k_gen_reg_write_i32(TCGv_i32 value, TCGv_i32 idx);
 
+void e2k_gen_xreg_read_i64(TCGv_i64 ret, TCGv_i32 idx);
+void e2k_gen_xreg_read_i32(TCGv_i32 ret, TCGv_i32 idx);
+void e2k_gen_xreg_read16u_i32(TCGv_i32 ret, TCGv_i32 idx);
+void e2k_gen_xreg_write_i64(TCGv_i64 value, TCGv_i32 idx);
+void e2k_gen_xreg_write_i32(TCGv_i32 value, TCGv_i32 idx);
+void e2k_gen_xreg_write16u_i32(TCGv_i32 value, TCGv_i32 idx);
+
 void e2k_gen_preg_i64(TCGv_i64 ret, int reg);
 void e2k_gen_preg_i32(TCGv_i32 ret, int reg);
 TCGv_i64 e2k_get_preg(DisasContext *dc, int reg);
