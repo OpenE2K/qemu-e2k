@@ -550,6 +550,20 @@ typedef struct {
     };
 } E2KUserStackDesc;
 
+typedef union {
+    uint32_t u32;
+    uint64_t u64;
+    floatx80 f80;
+    uint8_t u8v[16];
+    uint16_t u16v[8];
+    uint32_t u32v[4];
+    uint64_t u64v[2];
+    int8_t i8v[16];
+    int16_t i16v[8];
+    int32_t i32v[4];
+    int64_t i64v[2];
+} E2KReg;
+
 typedef struct {
     /* register file */
     uint8_t tags[E2K_REG_COUNT]; /* registers tags */
@@ -557,6 +571,9 @@ typedef struct {
     uint64_t xregs[E2K_REG_COUNT]; /* high parts of registers */
     uint64_t pregs; /* predicate file */
     target_ulong ip; /* instruction address */
+
+    /* temporaries for FX/SIMD ops */
+    E2KReg t0, t1, t2, t3;
 
     /* procedure chain info */
     uint64_t cr0_lo;
