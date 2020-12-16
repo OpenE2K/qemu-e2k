@@ -413,6 +413,28 @@ static inline void gen_dst_poison_i32(TCGv_i32 ret, TCGv_i32 value,
     tcg_temp_free_i32(zero);
 }
 
+static inline void set_al_result_reg80_tag(DisasContext *ctx, Instr *instr,
+    TCGv_i64 lo, TCGv_i32 hi, TCGv_i32 tag, bool poison)
+{
+    uint8_t dst = instr->dst;
+    AlResult *res = &ctx->al_results[instr->chan];
+
+    res->poison = poison;
+    if (dst == 0xdf) {
+        res->type = AL_RESULT_NONE;
+    } else {
+        res->type = AL_RESULT_REG80;
+        res->reg.tag = tag;
+        res->reg.v64 = lo;
+        res->reg.x32 = hi;
+        res->reg.index = e2k_get_temp_i32(ctx);
+        res->reg.dst = dst;
+        if (!IS_REGULAR(dst)) {
+            e2k_gen_reg_index(res->reg.index, dst);
+        }
+    }
+}
+
 static inline void set_al_result_reg64_tag(DisasContext *ctx, int chan,
     TCGv_i64 value, TCGv_i32 tag, bool poison)
 {
@@ -430,8 +452,8 @@ static inline void set_al_result_reg64_tag(DisasContext *ctx, int chan,
         // TODO: check if instruction can write to ctpr
         // TODO: check tag
         res->type = AL_RESULT_CTPR64;
-        res->ctpr64.index = (arg & 3) - 1;
-        res->ctpr64.value = value;
+        res->ctpr.index = (arg & 3) - 1;
+        res->ctpr.v64 = value;
     } else {
         res->type = AL_RESULT_REG64;
         res->reg.v64 = value;
@@ -469,8 +491,8 @@ static inline void set_al_result_reg32_tag(DisasContext *ctx, int chan,
     } else if ((arg & 0xfc) == 0xd0 && (arg & 3) != 0) {
         // TODO: check if instruction can write to ctpr
         res->type = AL_RESULT_CTPR32;
-        res->ctpr32.index = (arg & 3) - 1;
-        res->ctpr32.value = value;
+        res->ctpr.index = (arg & 3) - 1;
+        res->ctpr.v32 = value;
     } else {
         res->type = AL_RESULT_REG32;
         res->reg.v32 = value;
@@ -499,7 +521,14 @@ static inline void set_al_result_preg(DisasContext *ctx, int chan, int index,
 
     res->type = AL_RESULT_PREG;
     res->preg.index = index;
-    res->preg.value = value;
+    res->preg.v64 = value;
+}
+
+static inline void gen_al_result_i80(DisasContext *ctx, Instr *instr,
+    TCGv_i64 lo, TCGv_i32 hi, TCGv_i32 tag)
+{
+    gen_tag_check(ctx, instr->sm, tag);
+    set_al_result_reg80_tag(ctx, instr, lo, hi, tag, true);
 }
 
 static inline void gen_al_result_i64(DisasContext *ctx, int chan, TCGv_i64 dst,
@@ -1602,6 +1631,25 @@ static void gen_st_i32(DisasContext *ctx, int chan, MemOp memop)
     tcg_temp_free_i64(t0);
 }
 
+static inline void gen_movfi(DisasContext *ctx, Instr *instr)
+{
+    Src80 src2 = get_src2_i80(ctx, instr->src2);
+    TCGv_i32 tag = e2k_get_temp_i32(ctx);
+
+    gen_tag1_i32(tag, src2.tag);
+    gen_al_result_i32(ctx, instr->chan, src2.hi, tag);
+}
+
+static inline void gen_movif(DisasContext *ctx, Instr *instr)
+{
+    Src64 src1 = get_src1_i64(ctx, instr->chan);
+    Src32 src2 = get_src2_i32(ctx, instr->chan);
+    TCGv_i32 tag = e2k_get_temp_i32(ctx);
+
+    gen_tag2_i64(tag, src1.tag, src2.tag);
+    gen_al_result_i80(ctx, instr, src1.value, src2.value, tag);
+}
+
 static void gen_aad_tag(TCGv_i64 ret, TCGv_i32 tag)
 {
     TCGv_i32 t0 = tcg_temp_new_i32();
@@ -2426,6 +2474,20 @@ static void execute_ext_00(DisasContext *ctx, Instr *instr)
         if (chan == 5) {
             /* sdivd */
             gen_alopf1_tag_i64(ctx, chan, gen_sdivd);
+            return;
+        }
+        break;
+    case 0x5c:
+        if (is_chan_14(chan) || (ctx->version >= 2 && is_chan_03(chan))) {
+            /* movfi */
+            gen_movfi(ctx, instr);
+            return;
+        }
+        break;
+    case 0x5e:
+        if (is_chan_14(chan) || (ctx->version >= 2 && is_chan_03(chan))) {
+            /* movif */
+            gen_movif(ctx, instr);
             return;
         }
         break;
@@ -3341,6 +3403,120 @@ void e2k_alc_execute(DisasContext *ctx)
     }
 }
 
+static inline void gen_al_result_commit_reg32(bool poison, TCGv_i32 index,
+    TCGv_i32 tag, TCGv_i32 value)
+{
+    TCGv_i32 t0 = tcg_temp_new_i32();
+
+    e2k_gen_reg_tag_write_i32(tag, index);
+    if (poison) {
+        gen_dst_poison_i32(t0, value, tag);
+    } else {
+        tcg_gen_mov_i32(t0, value);
+    }
+    e2k_gen_reg_write_i32(t0, index);
+
+    tcg_temp_free_i32(t0);
+}
+
+static inline void gen_al_result_commit_reg64(bool poison, TCGv_i32 index,
+    TCGv_i32 tag, TCGv_i64 value)
+{
+    TCGv_i64 t0 = tcg_temp_new_i64();
+
+    e2k_gen_reg_tag_write_i64(tag, index);
+    if (poison) {
+        gen_dst_poison_i64(t0, value, tag);
+    } else {
+        tcg_gen_mov_i64(t0, value);
+    }
+    e2k_gen_reg_write_i64(t0, index);
+
+    tcg_temp_free_i64(t0);
+}
+
+static inline void gen_al_result_commit_reg(AlResult *res)
+{
+    AlResultType size = e2k_al_result_size(res->type);
+
+    switch (size) {
+    case AL_RESULT_32: {
+        TCGLabel *l0 = gen_new_label();
+        TCGLabel *l1 = gen_new_label();
+        TCGv_i32 t0 = tcg_temp_new_i32();
+        TCGv_i64 t1 = tcg_temp_new_i64();
+
+        tcg_gen_brcondi_i32(TCG_COND_NE, e2k_cs.wdbl, 0, l0);
+        /* wdbl is not set */
+        gen_al_result_commit_reg32(res->poison, res->reg.index, res->reg.tag,
+            res->reg.v32);
+        tcg_gen_br(l1);
+
+        /* wdbl is set */
+        gen_set_label(l0);
+        if (res->check_tag) {
+            gen_tag1_i64(t0, res->reg.tag);
+        } else {
+            tcg_gen_mov_i32(t0, res->reg.tag);
+        }
+        tcg_gen_extu_i32_i64(t1, res->reg.v32);
+        gen_al_result_commit_reg64(res->poison, res->reg.index, t0, t1);
+
+        /* exit */
+        gen_set_label(l1);
+
+        tcg_temp_free_i64(t1);
+        tcg_temp_free_i32(t0);
+        break;
+    }
+    case AL_RESULT_64:
+        gen_al_result_commit_reg64(res->poison, res->reg.index, res->reg.tag,
+            res->reg.v64);
+        break;
+    case AL_RESULT_80:
+        gen_al_result_commit_reg64(res->poison, res->reg.index, res->reg.tag,
+            res->reg.v64);
+        e2k_gen_xreg_write16u_i32(res->reg.x32, res->reg.index);
+        break;
+    case AL_RESULT_128:
+        gen_al_result_commit_reg64(res->poison, res->reg.index, res->reg.tag,
+            res->reg.v64);
+        e2k_gen_xreg_write_i64(res->reg.x64, res->reg.index);
+        break;
+    default:
+        g_assert_not_reached();
+        break;
+    }
+}
+
+static inline void gen_al_result_commit_ctpr(AlResult *res)
+{
+    AlResultType size = e2k_al_result_size(res->type);
+    TCGv_i64 ctpr = e2k_cs.ctprs[res->ctpr.index];
+    TCGv_i64 t0 = tcg_temp_new_i64();
+    TCGv_i64 t1 = tcg_const_i64(CTPR_TAG_DISP);
+
+    assert(res->ctpr.index < 3);
+
+    switch (size) {
+    case AL_RESULT_32:
+        tcg_gen_extu_i32_i64(t0, res->ctpr.v32);
+        break;
+    case AL_RESULT_64:
+        tcg_gen_mov_i64(t0, res->ctpr.v64);
+        break;
+    default:
+        g_assert_not_reached();
+        break;
+    }
+
+    tcg_gen_deposit_i64(ctpr, ctpr, t0, CTPR_BASE_OFF, CTPR_BASE_LEN);
+    tcg_gen_deposit_i64(ctpr, ctpr, t1, CTPR_TAG_OFF, CTPR_TAG_LEN);
+
+    tcg_temp_free_i64(t1);
+    tcg_temp_free_i64(t0);
+}
+
 void e2k_alc_commit(DisasContext *ctx)
 {
     unsigned int i;
@@ -3348,7 +3524,7 @@ void e2k_alc_commit(DisasContext *ctx)
     for (i = 0; i < 6; i++) {
         AlResult *res = &ctx->al_results[i];
 
-        if (res->type == AL_RESULT_REG32 || res->type == AL_RESULT_REG64) {
+        if (e2k_al_result_type(res->type) == AL_RESULT_REG) {
             uint8_t dst = res->reg.dst;
             if (IS_REGULAR(dst)) {
                 e2k_gen_reg_index_from_wregi(res->reg.index, GET_REGULAR(dst));
@@ -3368,87 +3544,24 @@ void e2k_alc_commit(DisasContext *ctx)
             tcg_gen_brcondi_i32(TCG_COND_EQ, ctx->al_cond[i], 0, l0);
         }
 
-        switch(res->type) {
-        case AL_RESULT_REG32: {
-            TCGLabel *l0 = gen_new_label();
-            TCGLabel *l1 = gen_new_label();
-            TCGv_i32 t0 = tcg_temp_new_i32();
-            TCGv_i64 t1 = tcg_temp_new_i64();
-
-            tcg_gen_brcondi_i32(TCG_COND_NE, e2k_cs.wdbl, 0, l0);
-
-            e2k_gen_reg_tag_write_i32(res->reg.tag, res->reg.index);
-            if (res->poison) {
-                gen_dst_poison_i32(t0, res->reg.v32, res->reg.tag);
-                e2k_gen_reg_write_i32(t0, res->reg.index);
-            } else {
-                e2k_gen_reg_write_i32(res->reg.v32, res->reg.index);
-            }
-            tcg_gen_br(l1);
-
-            gen_set_label(l0);
-            if (res->check_tag) {
-                gen_tag1_i64(t0, res->reg.tag);
-                e2k_gen_reg_tag_write_i64(t0, res->reg.index);
-            } else {
-                e2k_gen_reg_tag_write_i64(res->reg.tag, res->reg.index);
-            }
-            tcg_gen_extu_i32_i64(t1, res->reg.v32);
-            if (res->poison) {
-                TCGv_i64 t2 = tcg_temp_new_i64();
-                gen_dst_poison_i64(t2, t1, t0);
-                e2k_gen_reg_write_i64(t2, res->reg.index);
-                tcg_temp_free_i64(t2);
-            } else {
-                e2k_gen_reg_write_i64(t1, res->reg.index);
-            }
-
-            gen_set_label(l1);
-
-            tcg_temp_free_i64(t1);
-            tcg_temp_free_i32(t0);
+        switch (e2k_al_result_type(res->type)) {
+        case AL_RESULT_NONE:
+            /* %empty */
             break;
-        }
-        case AL_RESULT_REG64:
-            e2k_gen_reg_tag_write_i64(res->reg.tag, res->reg.index);
-            if (res->poison) {
-                TCGv_i64 t0 = tcg_temp_new_i64();
-                gen_dst_poison_i64(t0, res->reg.v64, res->reg.tag);
-                e2k_gen_reg_write_i64(t0, res->reg.index);
-                tcg_temp_free_i64(t0);
-            } else {
-                e2k_gen_reg_write_i64(res->reg.v64, res->reg.index);
-            }
+        case AL_RESULT_REG:
+            /* %rN, %b[N], %gN */
+            gen_al_result_commit_reg(res);
             break;
         case AL_RESULT_PREG:
-            e2k_gen_store_preg(res->preg.index, res->preg.value);
+            /* %predN */
+            e2k_gen_store_preg(res->preg.index, res->preg.v64);
             break;
-        case AL_RESULT_CTPR32: {
-            TCGv_i64 ctpr = e2k_cs.ctprs[res->ctpr32.index];
-            TCGv_i64 t0 = tcg_temp_new_i64();
-            TCGv_i64 t1 = tcg_const_i64(CTPR_TAG_DISP);
-
-            assert(res->ctpr32.index < 3);
-            tcg_gen_extu_i32_i64(t0, res->ctpr32.value);
-            tcg_gen_deposit_i64(ctpr, ctpr, t0, 0, 48);
-            tcg_gen_deposit_i64(ctpr, ctpr, t1, CTPR_TAG_OFF,
-                CTPR_TAG_LEN);
-            tcg_temp_free_i64(t1);
-            tcg_temp_free_i64(t0);
+        case AL_RESULT_CTPR:
+            /* %ctprN */
+            gen_al_result_commit_ctpr(res);
             break;
-        }
-        case AL_RESULT_CTPR64: {
-            TCGv_i64 ctpr = e2k_cs.ctprs[res->ctpr64.index];
-            TCGv_i64 t0 = tcg_const_i64(CTPR_TAG_DISP);
-
-            assert(res->ctpr64.index < 3);
-            tcg_gen_deposit_i64(ctpr, ctpr, res->ctpr64.value, 0, 48);
-            tcg_gen_deposit_i64(ctpr, ctpr, t0, CTPR_TAG_OFF,
-                CTPR_TAG_LEN);
-            tcg_temp_free_i64(t0);
-            break;
-        }
         default:
+            g_assert_not_reached();
             break;
         }
 
