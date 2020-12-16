@@ -5,6 +5,12 @@
 
 typedef struct {
     TCGv_i32 tag;
+    TCGv_i64 lo;
+    TCGv_i32 hi;
+} Src80;
+
+typedef struct {
+    TCGv_i32 tag;
     TCGv_i64 value;
 } Src64;
 
@@ -85,6 +91,20 @@ static inline bool is_chan_0235(int c)
     return is_chan_03(c) || is_chan_25(c);
 }
 
+static inline void gen_reg_i80(DisasContext *ctx, Src80 *ret, uint8_t arg)
+{
+    TCGv_i32 t0 = tcg_temp_new_i32();
+
+    e2k_gen_reg_index(t0, arg);
+    ret->tag = e2k_get_temp_i32(ctx);
+    ret->lo = e2k_get_temp_i64(ctx);
+    ret->hi = e2k_get_temp_i32(ctx);
+    e2k_gen_reg_tag_read_i64(ret->tag, t0);
+    e2k_gen_reg_read_i64(ret->lo, t0);
+    e2k_gen_xreg_read16u_i32(ret->hi, t0);
+    tcg_temp_free_i32(t0);
+}
+
 static inline void gen_reg_i64(DisasContext *ctx, Src64 *ret, uint8_t arg)
 {
     TCGv_i32 t0 = tcg_temp_new_i32();
@@ -163,6 +183,21 @@ static inline void gen_literal_i32(DisasContext *ctx, Src32 *ret, uint8_t arg)
     ret->value = e2k_get_const_i32(ctx, lit);
 }
 
+static inline Src80 get_src1_i80(DisasContext *ctx, uint8_t src1)
+{
+    Src80 ret = { 0 };
+
+    if (IS_IMM5(src1)) {
+        ret.tag = e2k_get_const_i32(ctx, 0);
+        ret.lo = e2k_get_const_i64(ctx, GET_IMM5(src1));
+        ret.hi = e2k_get_const_i32(ctx, 0);
+    } else {
+        gen_reg_i80(ctx, &ret, src1);
+    }
+
+    return ret;
+}
+
 static inline Src64 get_src1_i64(DisasContext *ctx, int chan)
 {
     uint8_t arg = extract32(ctx->bundle.als[chan], 16, 8);
@@ -188,6 +223,27 @@ static inline Src32 get_src1_i32(DisasContext *ctx, int chan)
         ret.value = e2k_get_const_i32(ctx, GET_IMM5(arg));
     } else {
         gen_reg_i32(ctx, &ret, arg);
+    }
+
+    return ret;
+}
+
+static inline Src80 get_src2_i80(DisasContext *ctx, uint8_t src2)
+{
+    Src80 ret = { 0 };
+
+    if (IS_IMM4(src2)) {
+        ret.tag = e2k_get_const_i32(ctx, 0);
+        ret.lo = e2k_get_const_i64(ctx, GET_IMM4(src2));
+        ret.hi = e2k_get_const_i32(ctx, 0);
+    } else if (IS_LIT(src2)) {
+        Src64 t = { 0 };
+        gen_literal_i64(ctx, &t, src2);
+        ret.tag = t.tag;
+        ret.lo = t.value;
+        ret.hi = e2k_get_const_i32(ctx, 0);
+    } else {
+        gen_reg_i80(ctx, &ret, src2);
     }
 
     return ret;
