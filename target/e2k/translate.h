@@ -41,8 +41,6 @@ typedef struct CPUE2KStateTCG {
     TCGv_i32 is_bp; /* breakpoint flag */
     TCGv_i32 wdbl;
     TCGv_i64 lsr;
-    TCGv_ptr rptr; /* pointer to wregs */
-    TCGv_ptr tptr; /* pointer to wtags */
     TCGv_i32 wd_base; /* holds wbs * 2 */
     TCGv_i32 wd_size; /* holds wsz * 2 */
     TCGv_i32 boff; /* holds rbs * 2 */
@@ -89,13 +87,29 @@ typedef struct UnpackedBundle {
 } UnpackedBundle;
 
 typedef enum {
-    AL_RESULT_NONE,
-    AL_RESULT_REG32,
-    AL_RESULT_REG64,
-    AL_RESULT_PREG,
-    AL_RESULT_CTPR32,
-    AL_RESULT_CTPR64,
+    AL_RESULT_NONE = 0,
+
+    AL_RESULT_SIZE_MASK = 0x3,
+    AL_RESULT_32 = 0x00,
+    AL_RESULT_64 = 0x01,
+    AL_RESULT_80 = 0x02,
+    AL_RESULT_128 = 0x03,
+
+    AL_RESULT_TYPE_MASK = 0xc,
+    AL_RESULT_REG = 0x04,
+    AL_RESULT_PREG = 0x08,
+    AL_RESULT_CTPR = 0x0c,
+
+    AL_RESULT_REG32 = AL_RESULT_REG | AL_RESULT_32,
+    AL_RESULT_REG64 = AL_RESULT_REG | AL_RESULT_64,
+    AL_RESULT_REG80 = AL_RESULT_REG | AL_RESULT_80,
+    AL_RESULT_REG128 = AL_RESULT_REG | AL_RESULT_128,
+    AL_RESULT_CTPR32 = AL_RESULT_CTPR | AL_RESULT_32,
+    AL_RESULT_CTPR64 = AL_RESULT_CTPR | AL_RESULT_64,
 } AlResultType;
+
+#define e2k_al_result_size(x) ((x) & AL_RESULT_SIZE_MASK)
+#define e2k_al_result_type(x) ((x) & AL_RESULT_TYPE_MASK)
 
 typedef struct {
     AlResultType type;
@@ -107,20 +121,23 @@ typedef struct {
         struct {
             uint8_t dst;    /* %rN, 1st phase */
             TCGv_i32 index;
+            TCGv_i32 tag;
             union {
                 TCGv_i32 v32;
                 TCGv_i64 v64;
             };
-            TCGv_i32 tag;
+            union {
+                TCGv_i32 x32; /* FX ops */
+                TCGv_i64 x64; /* SIMD ops v5+ */
+            };
         } reg;
         struct {
             int index;
-            TCGv_i64 value;
-        } preg, ctpr64;
-        struct {
-            int index;
-            TCGv_i32 value;
-        } ctpr32;
+            union {
+                TCGv_i32 v32;
+                TCGv_i64 v64;
+            };
+        } preg, ctpr;
     };
 } AlResult;
 
@@ -476,6 +493,13 @@ void e2k_gen_reg_read_i64(TCGv_i64 ret, TCGv_i32 idx);
 void e2k_gen_reg_read_i32(TCGv_i32 ret, TCGv_i32 idx);
 void e2k_gen_reg_write_i64(TCGv_i64 value, TCGv_i32 idx);
 void e2k_gen_reg_write_i32(TCGv_i32 value, TCGv_i32 idx);
+
+void e2k_gen_xreg_read_i64(TCGv_i64 ret, TCGv_i32 idx);
+void e2k_gen_xreg_read_i32(TCGv_i32 ret, TCGv_i32 idx);
+void e2k_gen_xreg_read16u_i32(TCGv_i32 ret, TCGv_i32 idx);
+void e2k_gen_xreg_write_i64(TCGv_i64 value, TCGv_i32 idx);
+void e2k_gen_xreg_write_i32(TCGv_i32 value, TCGv_i32 idx);
+void e2k_gen_xreg_write16u_i32(TCGv_i32 value, TCGv_i32 idx);
 
 void e2k_gen_preg_i64(TCGv_i64 ret, int reg);
 void e2k_gen_preg_i32(TCGv_i32 ret, int reg);

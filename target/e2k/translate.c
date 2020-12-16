@@ -372,11 +372,11 @@ static inline void do_branch(DisasContext *ctx, target_ulong pc_next)
 
 static void e2k_tr_init_disas_context(DisasContextBase *db, CPUState *cs)
 {
-    DisasContext *dc = container_of(db, DisasContext, base);
+    DisasContext *ctx = container_of(db, DisasContext, base);
     E2KCPU *cpu = E2K_CPU(cs);
     CPUE2KState *env = &cpu->env;
 
-    dc->version = env->version;
+    ctx->version = env->version;
 }
 
 static bool e2k_tr_breakpoint_check(DisasContextBase *db, CPUState *cs,
@@ -526,11 +526,6 @@ void e2k_tcg_initialize(void) {
     for (i = 0; i < ARRAY_SIZE(rtl); i++) {
         *rtl[i].ptr = tcg_global_mem_new(cpu_env, rtl[i].off, rtl[i].name);
     }
-
-    e2k_cs.rptr = tcg_global_mem_new_ptr(cpu_env,
-        offsetof(CPUE2KState, rptr), "regs_ptr");
-    e2k_cs.tptr = tcg_global_mem_new_ptr(cpu_env,
-        offsetof(CPUE2KState, tptr), "tags_ptr");
 
     for (i = 0; i < 3; i++) {
         snprintf(buf, ARRAY_SIZE(buf), "%%ctpr%d", i + 1);
