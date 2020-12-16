@@ -34,8 +34,6 @@ static uint64_t* state_reg_ptr(CPUE2KState *env, int idx)
     switch (idx) {
     case 0x80: return &env->upsr; /* %upsr */
     case 0x83: return &env->lsr; /* %lsr */
-    case 0x85: return &env->fpcr.raw; /* %fpcr */ /* TODO: fix invalid conversion! */
-    case 0x86: return &env->fpsr.raw; /* %fpsr */
     default: return NULL;
     }
 }
@@ -54,6 +52,8 @@ uint64_t helper_state_reg_read_i64(CPUE2KState *env, int idx)
     case 0x55: return env->cr1.hi; /* %cr1.hi */
     case 0x57: return env->cr1.lo; /* %cr1.lo */
     case 0x81: return env->ip; /* %ip */
+    case 0x85: return env->fpcr.raw; /* %fpcr */
+    case 0x86: return env->fpsr.raw; /* %fpsr */
     case 0x8a: return env->idr; /* %idr */
     case 0x90: return cpu_get_host_ticks(); /* %clkr */
     default: {
@@ -76,29 +76,45 @@ uint32_t helper_state_reg_read_i32(CPUE2KState *env, int idx)
 
 void helper_state_reg_write_i64(CPUE2KState *env, int idx, uint64_t val)
 {
-    uint64_t *p = state_reg_ptr(env, idx);
-    
-    if (p != NULL) {
-        *p = val;
-    } else {
-        qemu_log_mask(LOG_UNIMP, "unknown state register 0x%x\n", idx);
-        abort();
+    switch(idx) {
+    case 0x85: /* %fpcr */
+        env->fpcr.raw = val;
+        e2k_update_fp_status(env);
+        break;
+    case 0x86: env->fpsr.raw = val; break; /* %fpsr */
+    default: {
+        uint64_t *p = state_reg_ptr(env, idx);
+
+        if (p != NULL) {
+            *p = val;
+        } else {
+            qemu_log_mask(LOG_UNIMP, "unknown state register 0x%x\n", idx);
+            abort();
+        }
+        break;
+    }
     }
 }
 
 void helper_state_reg_write_i32(CPUE2KState *env, int idx, uint32_t val)
 {
-    uint32_t *p = (uint32_t*) state_reg_ptr(env, idx);
-
-    if (p != NULL) {
-        *p = val;
+    switch (idx) {
+    case 0x85: /* %fpcr */
+        env->fpcr.raw = val;
+        e2k_update_fp_status(env);
+        break;
+    case 0x86: env->fpsr.raw = val; break; /* %fpsr */
+    default: {
+        uint32_t *p = (uint32_t*) state_reg_ptr(env, idx);
         
-        if (idx == 0x85) { /* %fpcr */
-            e2k_update_fp_status(env);
+        if (p != NULL) {
+            *p = val;
+        } else {
+            qemu_log_mask(LOG_UNIMP, "unknown state register 0x%x\n", idx);
+            abort();
         }
-    } else {
-        qemu_log_mask(LOG_UNIMP, "unknown state register 0x%x\n", idx);
-        abort();
+        break;
+    }
     }
 }
 
