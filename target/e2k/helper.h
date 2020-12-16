@@ -1,3 +1,10 @@
+#define dh_alias_Reg ptr
+#define dh_alias_f80 ptr
+#define dh_ctype_Reg E2KReg *
+#define dh_ctype_f80 floatx80 *
+#define dh_is_signed_Reg dh_is_signed_ptr
+#define dh_is_signed_f80 dh_is_signed_ptr
+
 DEF_HELPER_2(raise_exception, noreturn, env, int)
 DEF_HELPER_2(raise_exception_no_spill, noreturn, env, int)
 DEF_HELPER_1(debug, void, env)
@@ -51,10 +58,12 @@ DEF_HELPER_3_32_64(fcmpod)
 DEF_HELPER_2(fstois, i32, env, i32)
 DEF_HELPER_2(istofs, i32, env, i32)
 DEF_HELPER_2(fstoistr, i32, env, i32)
+DEF_HELPER_3(fstofx, void, f80, env, i32)
 
 DEF_HELPER_2(fdtoid, i64, env, i64)
 DEF_HELPER_2(idtofd, i64, env, i64)
 DEF_HELPER_2(fdtoidtr, i64, env, i64)
+DEF_HELPER_3(fdtofx, void, f80, env, i64)
 
 DEF_HELPER_2(fstofd, i64, env, i32)
 DEF_HELPER_2(fstoid, i64, env, i32)
@@ -65,3 +74,12 @@ DEF_HELPER_2(fdtofs, i32, env, i64)
 DEF_HELPER_2(fdtois, i32, env, i64)
 DEF_HELPER_2(idtofs, i32, env, i64)
 DEF_HELPER_2(fdtoistr, i32, env, i64)
+
+DEF_HELPER_2(fxtofs, i32, env, f80)
+DEF_HELPER_2(fxtofd, i64, env, f80)
+
+DEF_HELPER_3(fxaddxx, void, env, f80, f80)
+DEF_HELPER_3(fxsubxx, void, env, f80, f80)
+DEF_HELPER_3(fxrsubxx, void, env, f80, f80)
+DEF_HELPER_3(fxmulxx, void, env, f80, f80)
+DEF_HELPER_3(fxdivxx, void, env, f80, f80)
