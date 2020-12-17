@@ -3,6 +3,30 @@
 #include "exec/log.h"
 #include "translate.h"
 
+#define NO_EXT  0x0
+#define EXT     0x1
+#define EXT1    0x2
+#define EXT2    0x3
+#define FLB     0x4
+#define FLH     0x5
+#define FLW     0x6
+#define FLD     0x7
+#define ICMB0   0x8
+#define ICMB1   0x9
+#define ICMB2   0xA
+#define ICMB3   0xB
+
+#define FCMB0   0xC
+#define FCMB1   0xD
+#define PFCMB0  0XE
+#define PFCMB1  0xF
+#define LCMBD0  0x10
+#define LCMBD1  0x11
+#define LCMBQ0  0x12
+#define LCMBQ1  0x13
+#define QPFCMB0 0x16
+#define QPFCMB1 0x17
+
 typedef struct {
     TCGv_i32 tag;
     TCGv_i64 lo;
@@ -2500,7 +2524,7 @@ static inline void gen_alopf2_dx(DisasContext *ctx, Instr *instr,
     gen_al_result_i80(ctx, instr, res.lo, res.hi, res.tag);
 }
 
-static void execute_ext_00(DisasContext *ctx, Instr *instr)
+static void gen_no_ext(DisasContext *ctx, Instr *instr)
 {
     int chan = instr->chan;
 
@@ -3068,7 +3092,7 @@ static void execute_ext_00(DisasContext *ctx, Instr *instr)
     e2k_tr_gen_exception(ctx, E2K_EXCP_ILLOPC);
 }
 
-static void execute_ext_01(DisasContext *ctx, Instr *instr)
+static void gen_ext(DisasContext *ctx, Instr *instr)
 {
     int chan = instr->chan;
     switch (instr->opc1) {
@@ -3230,34 +3254,6 @@ static void execute_ext_01(DisasContext *ctx, Instr *instr)
             return;
         }
         break;
-    case 0x30:
-        if (is_chan_25(chan) && ctx->version >= 4) {
-            /* faddd */
-            gen_alopf1_i32_env(ctx, chan, gen_helper_fadds);
-            return;
-        }
-        break;
-    case 0x31:
-        if (is_chan_25(chan) && ctx->version >= 4) {
-            /* faddd */
-            gen_alopf1_i64_env(ctx, chan, gen_helper_faddd);
-            return;
-        }
-        break;
-    case 0x32:
-        if (is_chan_25(chan) && ctx->version >= 4) {
-            /* fsubs */
-            gen_alopf1_i32_env(ctx, chan, gen_helper_fsubs);
-            return;
-        }
-        break;
-    case 0x33:
-        if (is_chan_25(chan) && ctx->version >= 4) {
-            /* fsubd */
-            gen_alopf1_i64_env(ctx, chan, gen_helper_fsubd);
-            return;
-        }
-        break;
     case 0x3f:
         if (chan == 0) {
             /* rrd */
@@ -3317,6 +3313,60 @@ static void execute_ext_01(DisasContext *ctx, Instr *instr)
     }
 
     e2k_tr_gen_exception(ctx, E2K_EXCP_ILLOPC);
+}
+
+static void gen_ext1(DisasContext *ctx, Instr *instr)
+{
+    int chan = instr->chan;
+
+    switch (instr->opc1) {
+    case 0x30:
+        if (is_chan_25(chan) && ctx->version >= 4) {
+            /* fadds */
+            gen_alopf1_i32_env(ctx, chan, gen_helper_fadds);
+            return;
+        }
+        break;
+    case 0x31:
+        if (is_chan_25(chan) && ctx->version >= 4) {
+            /* faddd */
+            gen_alopf1_i64_env(ctx, chan, gen_helper_faddd);
+            return;
+        }
+        break;
+    case 0x32:
+        if (is_chan_25(chan) && ctx->version >= 4) {
+            /* fsubs */
+            gen_alopf1_i32_env(ctx, chan, gen_helper_fsubs);
+            return;
+        }
+        break;
+    case 0x33:
+        if (is_chan_25(chan) && ctx->version >= 4) {
+            /* fsubd */
+            gen_alopf1_i64_env(ctx, chan, gen_helper_fsubd);
+            return;
+        }
+        break;
+    case 0x38:
+        if (is_chan_25(chan) && ctx->version >= 4) {
+            /* fmuls */
+            gen_alopf1_i32_env(ctx, chan, gen_helper_fmuls);
+            return;
+        }
+        break;
+    case 0x39:
+        if (is_chan_25(chan) && ctx->version >= 4) {
+            /* fmuld */
+            gen_alopf1_i64_env(ctx, chan, gen_helper_fmuld);
+            return;
+        }
+        break;
+    default:
+        e2k_todo_illop(ctx, "unknown instr %x:%x:%x\n", instr->opc1,
+            instr->opc2, instr->opce1);
+        break;
+    }
 }
 
 static void execute_icomb_i64(DisasContext *ctx, Instr *instr)
@@ -3721,7 +3771,7 @@ static void execute_icomb_i32(DisasContext *ctx, Instr *instr)
     gen_al_result_i32(ctx, instr->chan, dst, tag);
 }
 
-static void execute_icomb(DisasContext *ctx, Instr *instr)
+static void gen_icmb012(DisasContext *ctx, Instr *instr)
 {
     if (!is_chan_14(instr->chan)) {
         e2k_tr_gen_exception(ctx, E2K_EXCP_ILLOPC);
@@ -3737,7 +3787,7 @@ static void execute_icomb(DisasContext *ctx, Instr *instr)
     }
 }
 
-static void execute_ext_0b(DisasContext *ctx, Instr *instr)
+static void gen_icmb3(DisasContext *ctx, Instr *instr)
 {
     switch(instr->opc1) {
     case 0x6c:
@@ -3755,12 +3805,12 @@ static void execute_ext_0b(DisasContext *ctx, Instr *instr)
         }
         break;
     default:
-        execute_icomb(ctx, instr);
+        gen_icmb012(ctx, instr);
         break;
     }
 }
 
-static void execute_ext_0f(DisasContext *ctx, Instr *instr)
+static void gen_pfcmb1(DisasContext *ctx, Instr *instr)
 {
     switch(instr->opc1) {
     case 0x4d:
@@ -3882,13 +3932,14 @@ static void chan_execute(DisasContext *ctx, int chan)
     chan_check_preds(ctx, chan, l0);
 
     switch (instr.opc2) {
-    case 0x00: execute_ext_00(ctx, &instr); break; /* no ales */
-    case 0x01: execute_ext_01(ctx, &instr); break;
-    case 0x08:
-    case 0x09:
-    case 0x0a: execute_icomb(ctx, &instr); break;
-    case 0x0b: execute_ext_0b(ctx, &instr); break;
-    case 0x0f: execute_ext_0f(ctx, &instr); break;
+    case NO_EXT: gen_no_ext(ctx, &instr); break; /* no ales */
+    case EXT: gen_ext(ctx, &instr); break;
+    case EXT1: gen_ext1(ctx, &instr); break;
+    case ICMB0:
+    case ICMB1:
+    case ICMB2: gen_icmb012(ctx, &instr); break;
+    case ICMB3: gen_icmb3(ctx, &instr); break;
+    case PFCMB1: gen_pfcmb1(ctx, &instr); break;
     default:
         e2k_tr_gen_exception(ctx, E2K_EXCP_ILLOPC);
         break;
