@@ -2939,6 +2939,8 @@ then
 fi
 
 has_libgcrypt() {
+	return 0
+
     if ! has "libgcrypt-config"
     then
 	return 1
@@ -3008,10 +3010,7 @@ if test "$gcrypt" != "no"; then
         # Debian has removed -lgpg-error from libgcrypt-config
         # as it "spreads unnecessary dependencies" which in
         # turn breaks static builds...
-        if test "$static" = "yes"
-        then
-            gcrypt_libs="$gcrypt_libs -lgpg-error"
-        fi
+        gcrypt_libs="$gcrypt_libs -lgpg-error"
 
         # Link test to make sure the given libraries work (e.g for static).
         write_c_skeleton
@@ -4083,6 +4082,7 @@ EOF
 if compile_prog "" "" ; then
   signalfd=yes
 fi
+signalfd=no
 
 # check if optreset global is declared by <getopt.h>
 optreset="no"
@@ -5947,6 +5947,7 @@ fi
 if test "$darwin" = "yes" ; then
   echo "CONFIG_DARWIN=y" >> $config_host_mak
 fi
+ivshmem=no
 
 if test "$solaris" = "yes" ; then
   echo "CONFIG_SOLARIS=y" >> $config_host_mak
@@ -6062,9 +6063,9 @@ fi
 if test "$posix_fallocate" = "yes" ; then
   echo "CONFIG_POSIX_FALLOCATE=y" >> $config_host_mak
 fi
-if test "$sync_file_range" = "yes" ; then
-  echo "CONFIG_SYNC_FILE_RANGE=y" >> $config_host_mak
-fi
+#if test "$sync_file_range" = "yes" ; then
+#  echo "CONFIG_SYNC_FILE_RANGE=y" >> $config_host_mak
+#fi
 if test "$fiemap" = "yes" ; then
   echo "CONFIG_FIEMAP=y" >> $config_host_mak
 fi

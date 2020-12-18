@@ -36,6 +36,7 @@
 #include <sys/resource.h>
 #include <sys/swap.h>
 #include <linux/capability.h>
+#include <linux/mman.h>
 #include <sched.h>
 #include <sys/timex.h>
 #include <sys/socket.h>
@@ -45,7 +46,7 @@
 #include <poll.h>
 #include <sys/times.h>
 #include <sys/shm.h>
-#include <sys/sem.h>
+#include <linux/sem.h>
 #include <sys/statfs.h>
 #include <utime.h>
 #include <sys/sysinfo.h>
@@ -78,11 +79,16 @@
 #endif
 
 #define termios host_termios
+#define termios2 host_termios2
+#define ktermios host_ktermios
 #define winsize host_winsize
 #define termio host_termio
 #define sgttyb host_sgttyb /* same as target */
 #define tchars host_tchars /* same as target */
 #define ltchars host_ltchars /* same as target */
+
+#undef __ASM_GENERIC_TERMBITS_H
+#include <asm/termbits.h>
 
 #include <linux/termios.h>
 #include <linux/unistd.h>
@@ -266,6 +272,59 @@ static type name (type1 arg1,type2 arg2,type3 arg3,type4 arg4,type5 arg5,	\
 
 #if defined(__alpha__) || defined(__x86_64__) || defined(__s390x__)
 #define __NR__llseek __NR_lseek
+#endif
+
+_syscall0(int, vhangup)
+#ifdef __NR_msgctl
+_syscall3(int, msgctl, int, msqid, int, cmd, struct msqid_ds *, buf)
+#else
+static int
+msgctl (int msqid, int cmd, struct msqid_ds *buf)
+{
+    return syscall (__NR_ipc, IPCOP_msgctl, msqid, cmd | 0x100, 0, buf);
+}
+#endif
+
+#ifdef __NR_semget
+_syscall3(int, semget, key_t, key, int, nsems, int, semflg)
+#else
+static int
+semget (key_t key, int nsems, int semflg)
+{
+    return syscall (__NR_ipc, IPCOP_semget, key, nsems, semflg, NULL);
+}
+#endif
+
+_syscall2(int, setdomainname, const char *, name, size_t, len)
+#ifdef __NR_msgget
+_syscall2(int, msgget, key_t, key, int, msgflg)
+#else
+static int
+msgget (key_t key, int msgflg)
+{
+    return syscall(__NR_ipc, 5, IPCOP_msgget, key, msgflg, 0, NULL);
+}
+#endif
+
+#ifdef _NSIG_WORDS
+static int sigorset(sigset_t *dest, const sigset_t *a, const sigset_t *b)
+{
+    int i;
+    if (!dest || !a || !b)
+        return -1;
+    for (i = 0; i < _NSIG_WORDS; i++)
+        dest->sig[i] = a->sig[i] | b->sig[i];
+    return 0;
+}
+#else
+static int sigorset(sigset_t *dest, const sigset_t *a, const sigset_t *b)
+{
+    int i;
+    if (!dest || !a || !b)
+        return -1;
+    *dest = *a | *b;
+    return 0;
+}
 #endif
 
 /* Newer kernel ports have llseek() instead of _llseek() */
@@ -812,6 +871,9 @@ safe_syscall5(int, mq_timedsend, int, mqdes, const char *, msg_ptr,
     defined(TARGET_NR_mq_timedreceive_time64)
 safe_syscall5(int, mq_timedreceive, int, mqdes, char *, msg_ptr,
               size_t, len, unsigned *, prio, const struct timespec *, timeout)
+_syscall1(int, mq_unlink, const char *, name)
+_syscall4(__kernel_mqd_t, mq_open, const char *, name, int, oflag, mode_t, mode,
+          struct mq_attr *, attr)
 #endif
 /* We do ioctl like this rather than via safe_syscall3 to preserve the
  * "third argument might be integer or pointer or not present" behaviour of
@@ -1336,7 +1398,7 @@ static inline abi_long copy_from_user_timezone(struct timezone *tz,
 #endif
 
 #if defined(TARGET_NR_mq_open) && defined(__NR_mq_open)
-#include <mqueue.h>
+#include <linux/mqueue.h>
 
 static inline abi_long copy_from_user_mq_attr(struct mq_attr *attr,
                                               abi_ulong target_mq_attr_addr)
@@ -3871,6 +3933,8 @@ static inline abi_long host_to_target_ipc_perm(abi_ulong target_addr,
     return 0;
 }
 
+#define semid_ds __kernel_legacy_semid_ds
+
 static inline abi_long target_to_host_semid_ds(struct semid_ds *host_sd,
                                                abi_ulong target_addr)
 {
@@ -3949,6 +4013,16 @@ union target_semun {
 	abi_ulong array;
 	abi_ulong __buf;
 };
+
+#ifdef __NR_semctl
+_syscall4(int, semctl, int, semid, int, semnum, int, cmd, union semun, arg4)
+#else
+static int semctl(int semid, int semnum, int cmd, union semun arg4)
+{
+    return syscall(__NR_ipc, IPCOP_semctl, semid, semnum, cmd | 0x100,
+          arg4.__buf);
+}
+#endif
 
 static inline abi_long target_to_host_semarray(int semid, unsigned short **host_array,
                                                abi_ulong target_addr)
@@ -4080,7 +4154,7 @@ static inline abi_long do_semctl(int semid, int semnum, int cmd,
 	case GETPID:
 	case GETNCNT:
 	case GETZCNT:
-            ret = get_errno(semctl(semid, semnum, cmd, NULL));
+            ret = get_errno(semctl(semid, semnum, cmd, (union semun) {.buf = NULL}));
             break;
     }
 
@@ -4215,7 +4289,7 @@ static inline abi_long target_to_host_msqid_ds(struct msqid_ds *host_md,
     host_md->msg_stime = tswapal(target_md->msg_stime);
     host_md->msg_rtime = tswapal(target_md->msg_rtime);
     host_md->msg_ctime = tswapal(target_md->msg_ctime);
-    host_md->__msg_cbytes = tswapal(target_md->__msg_cbytes);
+    host_md->msg_cbytes = tswapal(target_md->__msg_cbytes);
     host_md->msg_qnum = tswapal(target_md->msg_qnum);
     host_md->msg_qbytes = tswapal(target_md->msg_qbytes);
     host_md->msg_lspid = tswapal(target_md->msg_lspid);
@@ -4236,7 +4310,7 @@ static inline abi_long host_to_target_msqid_ds(abi_ulong target_addr,
     target_md->msg_stime = tswapal(host_md->msg_stime);
     target_md->msg_rtime = tswapal(host_md->msg_rtime);
     target_md->msg_ctime = tswapal(host_md->msg_ctime);
-    target_md->__msg_cbytes = tswapal(host_md->__msg_cbytes);
+    target_md->__msg_cbytes = tswapal(host_md->msg_cbytes);
     target_md->msg_qnum = tswapal(host_md->msg_qnum);
     target_md->msg_qbytes = tswapal(host_md->msg_qbytes);
     target_md->msg_lspid = tswapal(host_md->msg_lspid);
@@ -4602,7 +4676,7 @@ static inline abi_ulong do_shmat(CPUArchState *cpu_env,
         abi_ulong mmap_start;
 
         /* In order to use the host shmat, we need to honor host SHMLBA.  */
-        mmap_start = mmap_find_vma(0, shm_info.shm_segsz, MAX(SHMLBA, shmlba));
+        mmap_start = mmap_find_vma(0, shm_info.shm_segsz, MAX(/* SHMLBA */ getpagesize(), shmlba));
 
         if (mmap_start == -1) {
             errno = ENOMEM;
@@ -5702,6 +5776,9 @@ static abi_long do_ioctl_drm_i915(const IOCTLEntry *ie, uint8_t *buf_temp,
 }
 
 #endif
+
+#undef winsize
+#undef termio
 
 IOCTLEntry ioctl_entries[] = {
 #define IOCTL(cmd, access, ...) \
@@ -8045,7 +8122,7 @@ static int do_openat(void *cpu_env, int dirfd, const char *pathname, int flags, 
         /* create temporary file to map stat to */
         tmpdir = getenv("TMPDIR");
         if (!tmpdir)
-            tmpdir = "/tmp";
+            tmpdir = "@TERMUX_PREFIX@/tmp";
         snprintf(filename, sizeof(filename), "%s/qemu-open.XXXXXX", tmpdir);
         fd = mkstemp(filename);
         if (fd < 0) {
@@ -8599,7 +8676,7 @@ static abi_long do_syscall1(void *cpu_env, int num, abi_long arg1,
         unlock_user(p, arg1, 0);
         return ret;
 #endif
-#ifdef TARGET_NR_stime /* not on alpha */
+#if 0 //def TARGET_NR_stime /* not on alpha */
     case TARGET_NR_stime:
         {
             struct timespec ts;
@@ -8663,7 +8740,7 @@ static abi_long do_syscall1(void *cpu_env, int num, abi_long arg1,
         }
         return ret;
 #endif
-#if defined(TARGET_NR_futimesat)
+#if 0 && defined(TARGET_NR_futimesat)
     case TARGET_NR_futimesat:
         {
             struct timeval *tvp, tv[2];
@@ -12424,7 +12501,7 @@ static abi_long do_syscall1(void *cpu_env, int num, abi_long arg1,
     /* Not implemented for now... */
 /*     case TARGET_NR_mq_notify: */
 /*         break; */
-
+#if 0
     case TARGET_NR_mq_getsetattr:
         {
             struct mq_attr posix_mq_attr_in, posix_mq_attr_out;
@@ -12441,6 +12518,7 @@ static abi_long do_syscall1(void *cpu_env, int num, abi_long arg1,
             }
         }
         return ret;
+#endif
 #endif
 
 #ifdef CONFIG_SPLICE

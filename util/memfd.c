@@ -32,6 +32,7 @@
 #include "qemu/host-utils.h"
 
 #if defined CONFIG_LINUX && !defined CONFIG_MEMFD
+#include <linux/mman.h>
 #include <sys/syscall.h>
 #include <asm/unistd.h>
 

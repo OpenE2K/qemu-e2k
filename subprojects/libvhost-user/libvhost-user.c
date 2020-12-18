@@ -29,6 +29,7 @@
 #include <endian.h>
 
 #if defined(__linux__)
+#include <linux/mman.h>
 #include <sys/syscall.h>
 #include <fcntl.h>
 #include <sys/ioctl.h>

@@ -675,9 +675,23 @@ static void proxy_rewinddir(FsContext *ctx, V9fsFidOpenState *fs)
     rewinddir(fs->dir.stream);
 }
 
+struct DIR {
+    int fd_;
+};
+
+static long android_telldir(struct DIR *dirp)
+{
+    return (long) lseek(dirp->fd_, 0, SEEK_CUR);
+}
+
+static void android_seekdir(DIR *dirp, long loc)
+{
+    (void) lseek(dirp->fd_, loc, SEEK_SET);
+}
+
 static off_t proxy_telldir(FsContext *ctx, V9fsFidOpenState *fs)
 {
-    return telldir(fs->dir.stream);
+    return android_telldir(fs->dir.stream);
 }
 
 static struct dirent *proxy_readdir(FsContext *ctx, V9fsFidOpenState *fs)
@@ -687,7 +701,7 @@ static struct dirent *proxy_readdir(FsContext *ctx, V9fsFidOpenState *fs)
 
 static void proxy_seekdir(FsContext *ctx, V9fsFidOpenState *fs, off_t off)
 {
-    seekdir(fs->dir.stream, off);
+    android_seekdir(fs->dir.stream, off);
 }
 
 static ssize_t proxy_preadv(FsContext *ctx, V9fsFidOpenState *fs,

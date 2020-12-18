@@ -285,5 +285,4 @@ if not get_option('tcg').disabled()
 endif
 
 subdir('qapi-schema')
-subdir('qtest')
 subdir('migration')

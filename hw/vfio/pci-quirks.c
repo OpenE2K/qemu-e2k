@@ -27,6 +27,8 @@
 #include "pci.h"
 #include "trace.h"
 
+#include <linux/mman.h>
+
 /*
  * List of device ids/vendor ids for which to disable
  * option rom loading. This avoids the guest hangs during rom

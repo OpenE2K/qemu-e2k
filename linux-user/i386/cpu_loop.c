@@ -22,6 +22,8 @@
 #include "qemu.h"
 #include "cpu_loop-common.h"
 
+#include <linux/mman.h>
+
 /***********************************************************/
 /* CPUX86 core interface */
 

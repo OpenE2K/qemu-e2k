@@ -533,7 +533,7 @@ static int net_bridge_run_helper(const char *helper, const char *bridge,
             *parg++ = helper_cmd;
             *parg++ = NULL;
 
-            execv("/bin/sh", args);
+            execv("@TERMUX_PREFIX@/bin/sh", args);
             g_free(helper_cmd);
         } else {
             /* assume helper is just the executable path name */

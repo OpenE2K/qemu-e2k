@@ -101,19 +101,19 @@ static FWCfgState *create_fw_cfg(MachineState *ms)
     fw_cfg_add_i64(fw_cfg, FW_CFG_RAM_SIZE, ms->ram_size);
 
     val = cpu_to_le64(MIN_SEABIOS_HPPA_VERSION);
-    fw_cfg_add_file(fw_cfg, "/etc/firmware-min-version",
+    fw_cfg_add_file(fw_cfg, "@TERMUX_PREFIX@/etc/firmware-min-version",
                     g_memdup(&val, sizeof(val)), sizeof(val));
 
     val = cpu_to_le64(HPPA_TLB_ENTRIES);
-    fw_cfg_add_file(fw_cfg, "/etc/cpu/tlb_entries",
+    fw_cfg_add_file(fw_cfg, "@TERMUX_PREFIX@/etc/cpu/tlb_entries",
                     g_memdup(&val, sizeof(val)), sizeof(val));
 
     val = cpu_to_le64(HPPA_BTLB_ENTRIES);
-    fw_cfg_add_file(fw_cfg, "/etc/cpu/btlb_entries",
+    fw_cfg_add_file(fw_cfg, "@TERMUX_PREFIX@/etc/cpu/btlb_entries",
                     g_memdup(&val, sizeof(val)), sizeof(val));
 
     val = cpu_to_le64(HPA_POWER_BUTTON);
-    fw_cfg_add_file(fw_cfg, "/etc/power-button-addr",
+    fw_cfg_add_file(fw_cfg, "@TERMUX_PREFIX@/etc/power-button-addr",
                     g_memdup(&val, sizeof(val)), sizeof(val));
 
     fw_cfg_add_i16(fw_cfg, FW_CFG_BOOT_DEVICE, ms->boot_order[0]);

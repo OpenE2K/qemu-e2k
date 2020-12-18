@@ -28,7 +28,7 @@
 void exec_start_outgoing_migration(MigrationState *s, const char *command, Error **errp)
 {
     QIOChannel *ioc;
-    const char *argv[] = { "/bin/sh", "-c", command, NULL };
+    const char *argv[] = { "@TERMUX_PREFIX@/bin/sh", "-c", command, NULL };
 
     trace_migration_exec_outgoing(command);
     ioc = QIO_CHANNEL(qio_channel_command_new_spawn(argv,
@@ -55,7 +55,7 @@ static gboolean exec_accept_incoming_migration(QIOChannel *ioc,
 void exec_start_incoming_migration(const char *command, Error **errp)
 {
     QIOChannel *ioc;
-    const char *argv[] = { "/bin/sh", "-c", command, NULL };
+    const char *argv[] = { "@TERMUX_PREFIX@/bin/sh", "-c", command, NULL };
 
     trace_migration_exec_incoming(command);
     ioc = QIO_CHANNEL(qio_channel_command_new_spawn(argv,

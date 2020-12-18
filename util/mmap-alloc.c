@@ -10,7 +10,7 @@
  * later.  See the COPYING file in the top-level directory.
  */
 
-#ifdef CONFIG_LINUX
+#ifdef __linux__
 #include <linux/mman.h>
 #else  /* !CONFIG_LINUX */
 #define MAP_SYNC              0x0

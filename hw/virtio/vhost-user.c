@@ -32,6 +32,7 @@
 #include "standard-headers/linux/vhost_types.h"
 
 #ifdef CONFIG_LINUX
+#include <linux/mman.h>
 #include <linux/userfaultfd.h>
 #endif
 

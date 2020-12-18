@@ -31,6 +31,8 @@
 #include "trace.h"
 #include "hw/boards.h"
 
+#include <linux/mman.h>
+
 /* Arbitrary limit on size of each discard command,
  * keeps them around ~200 bytes
  */

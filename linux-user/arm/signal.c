@@ -59,7 +59,7 @@ struct target_ucontext_v2 {
     target_stack_t tuc_stack;
     struct target_sigcontext tuc_mcontext;
     target_sigset_t  tuc_sigmask;       /* mask last for extensibility */
-    char __unused[128 - sizeof(target_sigset_t)];
+    char __qemu_unused[128 - sizeof(target_sigset_t)];
     abi_ulong tuc_regspace[128] __attribute__((__aligned__(8)));
 };
 

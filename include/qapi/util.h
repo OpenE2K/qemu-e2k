@@ -11,6 +11,10 @@
 #ifndef QAPI_UTIL_H
 #define QAPI_UTIL_H
 
+#include <glib.h>
+
+typedef struct Error Error;
+
 typedef struct QEnumLookup {
     const char *const *array;
     int size;

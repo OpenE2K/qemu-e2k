@@ -417,7 +417,7 @@ static void clean_event_notifier(EmulatedState *card)
     event_notifier_cleanup(&card->notifier);
 }
 
-#define CERTIFICATES_DEFAULT_DB "/etc/pki/nssdb"
+#define CERTIFICATES_DEFAULT_DB "@TERMUX_PREFIX@/etc/pki/nssdb"
 #define CERTIFICATES_ARGS_TEMPLATE\
     "db=\"%s\" use_hw=no soft=(,Virtual Reader,CAC,,%s,%s,%s)"
 

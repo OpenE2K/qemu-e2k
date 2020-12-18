@@ -246,7 +246,7 @@ bool module_load_one(const char *prefix, const char *lib_name, bool mayfail)
     version_dir = g_strcanon(g_strdup(QEMU_PKGVERSION),
                              G_CSET_A_2_Z G_CSET_a_2_z G_CSET_DIGITS "+-.~",
                              '_');
-    dirs[n_dirs++] = g_strdup_printf("/var/run/qemu/%s", version_dir);
+    dirs[n_dirs++] = g_strdup_printf("@TERMUX_PREFIX@/var/run/qemu/%s", version_dir);
 #endif
 
     assert(n_dirs <= ARRAY_SIZE(dirs));

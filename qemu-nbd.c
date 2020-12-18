@@ -52,7 +52,6 @@
 #define HAVE_NBD_DEVICE 0
 #endif
 
-#define SOCKET_PATH                "/var/lock/qemu-nbd-%s"
 #define QEMU_NBD_OPT_CACHE         256
 #define QEMU_NBD_OPT_AIO           257
 #define QEMU_NBD_OPT_DISCARD       258
@@ -91,7 +90,7 @@ static void usage(const char *name)
 "  -p, --port=PORT           port to listen on (default `%d')\n"
 "  -b, --bind=IFACE          interface to bind to (default `0.0.0.0')\n"
 "  -k, --socket=PATH         path to the unix socket\n"
-"                            (default '"SOCKET_PATH"')\n"
+"                            (default '@TERMUX_PREFIX@/tmp/nbd-%s')\n"
 "  -e, --shared=NUM          device can be shared by NUM clients (default '1')\n"
 "  -t, --persistent          don't exit on the last connection\n"
 "  -v, --verbose             display extra debugging information\n"
@@ -964,7 +963,7 @@ int main(int argc, char **argv)
 
     if (device != NULL && sockpath == NULL) {
         sockpath = g_malloc(128);
-        snprintf(sockpath, 128, SOCKET_PATH, basename(device));
+        snprintf(sockpath, 128, "@TERMUX_PREFIX@/tmp/nbd-%s", basename(device));
     }
 
     server = qio_net_listener_new();

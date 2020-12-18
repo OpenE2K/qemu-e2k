@@ -1957,7 +1957,12 @@ static int32_t x86_guest_base_offset;
 # if defined(__x86_64__) && defined(__linux__)
 #  include <asm/prctl.h>
 #  include <sys/prctl.h>
-int arch_prctl(int code, unsigned long addr);
+#  include <linux/unistd.h>
+static int arch_prctl(int code, unsigned long addr)
+{
+    return syscall(__NR_arch_prctl, code, addr);
+}
+
 static inline int setup_guest_base_seg(void)
 {
     if (arch_prctl(ARCH_SET_GS, guest_base) == 0) {

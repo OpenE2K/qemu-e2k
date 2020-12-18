@@ -29,6 +29,8 @@
 
 #define _FILE_OFFSET_BITS 64
 
+#include <linux/mman.h>
+
 #include "qemu/osdep.h"
 #include "qemu/atomic.h"
 #include "qemu/ctype.h"

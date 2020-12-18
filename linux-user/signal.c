@@ -198,6 +198,27 @@ int block_signals(void)
     return qatomic_xchg(&ts->signal_pending, 1);
 }
 
+#ifdef _NSIG_WORDS
+static int sigorset(sigset_t *dest, const sigset_t *a, const sigset_t *b)
+{
+    int i;
+    if (!dest || !a || !b)
+        return -1;
+    for (i = 0; i < _NSIG_WORDS; i++)
+        dest->sig[i] = a->sig[i] | b->sig[i];
+    return 0;
+}
+#else
+static int sigorset(sigset_t *dest, const sigset_t *a, const sigset_t *b)
+{
+    int i;
+    if (!dest || !a || !b)
+        return -1;
+    *dest = *a | *b;
+    return 0;
+}
+#endif
+
 /* Wrapper for sigprocmask function
  * Emulates a sigprocmask in a safe way for the guest. Note that set and oldset
  * are host signal set, not guest ones. Returns -TARGET_ERESTARTSYS if

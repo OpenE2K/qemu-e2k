@@ -4628,7 +4628,8 @@ static void tcg_register_jit_int(void *buf_ptr, size_t buf_size,
     /* Enable this block to be able to debug the ELF image file creation.
        One can use readelf, objdump, or other inspection utilities.  */
     {
-        FILE *f = fopen("/tmp/qemu.jit", "w+b");
+        FILE *f = fopen("@TERMUX_PREFIX@/tmp/qemu.jit", "w+b");
+
         if (f) {
             if (fwrite(img, img_size, 1, f) != img_size) {
                 /* Avoid stupid unused return value warning for fwrite.  */

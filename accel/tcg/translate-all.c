@@ -47,6 +47,8 @@
 #include "exec/ram_addr.h"
 #endif
 
+#include <linux/mman.h>
+
 #include "exec/cputlb.h"
 #include "exec/tb-hash.h"
 #include "translate-all.h"

@@ -900,7 +900,7 @@ static int unix_listen_saddr(UnixSocketAddress *saddr,
         path = saddr->path;
     } else {
         const char *tmpdir = getenv("TMPDIR");
-        tmpdir = tmpdir ? tmpdir : "/tmp";
+        tmpdir = tmpdir ? tmpdir : "@TERMUX_PREFIX@/tmp";
         path = pathbuf = g_strdup_printf("%s/qemu-socket-XXXXXX", tmpdir);
     }
 

@@ -44,6 +44,18 @@ typedef struct V9fsIattr {
     int64_t mtime_nsec;
 } V9fsIattr;
 
+#ifdef st_atime_nsec
+# undef st_atime_nsec
+#endif
+
+#ifdef st_mtime_nsec
+# undef st_mtime_nsec
+#endif
+
+#ifdef st_ctime_nsec
+# undef st_ctime_nsec
+#endif
+
 typedef struct V9fsStatDotl {
     uint64_t st_result_mask;
     V9fsQID qid;

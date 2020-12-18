@@ -24,12 +24,14 @@
 
 #include "qemu/osdep.h"
 #include <sys/ioctl.h>
-#include <sys/soundcard.h>
+#include <linux/soundcard.h>
 #include "qemu/main-loop.h"
 #include "qemu/module.h"
 #include "qemu/host-utils.h"
 #include "audio.h"
 #include "trace.h"
+
+#include <linux/mman.h>
 
 #define AUDIO_CAP "oss"
 #include "audio_int.h"

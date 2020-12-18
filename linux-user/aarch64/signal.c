@@ -38,7 +38,7 @@ struct target_ucontext {
     target_stack_t tuc_stack;
     target_sigset_t tuc_sigmask;
     /* glibc uses a 1024-bit sigset_t */
-    char __unused[1024 / 8 - sizeof(target_sigset_t)];
+    char __qemu_unused[1024 / 8 - sizeof(target_sigset_t)];
     /* last for future expansion */
     struct target_sigcontext tuc_mcontext;
 };

@@ -35,6 +35,8 @@
 
 #include "qemu/osdep.h"
 
+#include <linux/mman.h>
+
 #include "qemu.h"
 #include "flat.h"
 #include "target_flat.h"

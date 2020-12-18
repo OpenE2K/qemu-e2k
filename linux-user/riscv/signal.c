@@ -41,7 +41,7 @@ struct target_ucontext {
     struct target_ucontext *uc_link;
     target_stack_t uc_stack;
     target_sigset_t uc_sigmask;
-    uint8_t   __unused[1024 / 8 - sizeof(target_sigset_t)];
+    uint8_t   __qemu_unused[1024 / 8 - sizeof(target_sigset_t)];
     struct target_sigcontext uc_mcontext QEMU_ALIGNED(16);
 };
 

@@ -21,6 +21,8 @@
 #include "exec/log.h"
 #include "qemu.h"
 
+#include <linux/mman.h>
+
 static pthread_mutex_t mmap_mutex = PTHREAD_MUTEX_INITIALIZER;
 static __thread int mmap_lock_count;
 

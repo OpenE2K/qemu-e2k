@@ -41,6 +41,7 @@
 #include "qemu/cutils.h"
 
 #ifdef CONFIG_LINUX
+#include <linux/mman.h>
 #include <sys/syscall.h>
 #endif
 

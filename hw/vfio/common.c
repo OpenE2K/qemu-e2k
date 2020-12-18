@@ -24,6 +24,7 @@
 #include <linux/kvm.h>
 #endif
 #include <linux/vfio.h>
+#include <linux/mman.h>
 
 #include "hw/vfio/vfio-common.h"
 #include "hw/vfio/vfio.h"

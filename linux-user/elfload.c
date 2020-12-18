@@ -2,6 +2,8 @@
 #include "qemu/osdep.h"
 #include <sys/param.h>
 
+#include <linux/mman.h>
+
 #include <sys/resource.h>
 #include <sys/shm.h>
 
@@ -2446,7 +2448,7 @@ void probe_guest_base(const char *image_name, abi_ulong guest_loaddr,
                       abi_ulong guest_hiaddr)
 {
     /* In order to use host shmat, we must be able to honor SHMLBA.  */
-    uintptr_t align = MAX(SHMLBA, qemu_host_page_size);
+    uintptr_t align = MAX(/* SHMLBA */ getpagesize(), qemu_host_page_size);
 
     if (have_guest_base) {
         pgb_have_guest_base(image_name, guest_loaddr, guest_hiaddr, align);
