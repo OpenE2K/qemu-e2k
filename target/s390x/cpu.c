@@ -313,6 +313,11 @@ static void s390_cpu_finalize(Object *obj)
 #if !defined(CONFIG_USER_ONLY)
     S390CPU *cpu = S390_CPU(obj);
 
+    timer_del(cpu->env.tod_timer);
+    timer_free(cpu->env.tod_timer);
+    timer_del(cpu->env.cpu_timer);
+    timer_free(cpu->env.cpu_timer);
+
     qemu_unregister_reset(s390_cpu_machine_reset_cb, cpu);
     g_free(cpu->irqstate);
 #endif
@@ -445,6 +450,13 @@ void s390_enable_css_support(S390CPU *cpu)
 {
     if (kvm_enabled()) {
         kvm_s390_enable_css_support(cpu);
+    }
+}
+
+void s390_do_cpu_set_diag318(CPUState *cs, run_on_cpu_data arg)
+{
+    if (kvm_enabled()) {
+        kvm_s390_set_diag318(cs, arg.host_ulong);
     }
 }
 #endif

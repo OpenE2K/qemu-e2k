@@ -70,6 +70,12 @@ enum BdrvTrackedRequestType {
     BDRV_TRACKED_TRUNCATE,
 };
 
+/*
+ * That is not quite good that BdrvTrackedRequest structure is public,
+ * as block/io.c is very careful about incoming offset/bytes being
+ * correct. Be sure to assert bdrv_check_request() succeeded after any
+ * modification of BdrvTrackedRequest object out of block/io.c
+ */
 typedef struct BdrvTrackedRequest {
     BlockDriverState *bs;
     int64_t offset;
@@ -86,6 +92,8 @@ typedef struct BdrvTrackedRequest {
 
     struct BdrvTrackedRequest *waiting_for;
 } BdrvTrackedRequest;
+
+int bdrv_check_request(int64_t offset, int64_t bytes);
 
 struct BlockDriver {
     const char *format_name;
@@ -1406,5 +1414,14 @@ static inline BlockDriverState *bdrv_primary_bs(BlockDriverState *bs)
 {
     return child_bs(bdrv_primary_child(bs));
 }
+
+/**
+ * End all quiescent sections started by bdrv_drain_all_begin(). This is
+ * needed when deleting a BDS before bdrv_drain_all_end() is called.
+ *
+ * NOTE: this is an internal helper for bdrv_close() *only*. No one else
+ * should call it.
+ */
+void bdrv_drain_all_end_quiesce(BlockDriverState *bs);
 
 #endif /* BLOCK_INT_H */

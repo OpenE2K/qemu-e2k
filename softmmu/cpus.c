@@ -26,6 +26,7 @@
 #include "qemu-common.h"
 #include "monitor/monitor.h"
 #include "qapi/error.h"
+#include "qapi/qapi-commands-machine.h"
 #include "qapi/qapi-commands-misc.h"
 #include "qapi/qapi-events-run-state.h"
 #include "qapi/qmp/qerror.h"
@@ -40,6 +41,7 @@
 #include "sysemu/replay.h"
 #include "sysemu/runstate.h"
 #include "sysemu/cpu-timers.h"
+#include "sysemu/whpx.h"
 #include "hw/boards.h"
 #include "hw/hw.h"
 
@@ -87,7 +89,7 @@ bool cpu_thread_is_idle(CPUState *cpu)
         return true;
     }
     if (!cpu->halted || cpu_has_work(cpu) ||
-        kvm_halt_in_kernel()) {
+        kvm_halt_in_kernel() || whpx_apic_in_platform()) {
         return false;
     }
     return true;

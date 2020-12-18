@@ -856,7 +856,7 @@ static int quorum_valid_threshold(int threshold, int num_children, Error **errp)
 
     if (threshold < 1) {
         error_setg(errp, QERR_INVALID_PARAMETER_VALUE,
-                   "vote-threshold", "value >= 1");
+                   "vote-threshold", "a value >= 1");
         return -ERANGE;
     }
 
@@ -1163,7 +1163,12 @@ static void quorum_child_perm(BlockDriverState *bs, BdrvChild *c,
                               uint64_t perm, uint64_t shared,
                               uint64_t *nperm, uint64_t *nshared)
 {
+    BDRVQuorumState *s = bs->opaque;
+
     *nperm = perm & DEFAULT_PERM_PASSTHROUGH;
+    if (s->rewrite_corrupted) {
+        *nperm |= BLK_PERM_WRITE;
+    }
 
     /*
      * We cannot share RESIZE or WRITE, as this would make the

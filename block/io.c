@@ -135,10 +135,10 @@ static void bdrv_merge_limits(BlockLimits *dst, const BlockLimits *src)
 
 void bdrv_refresh_limits(BlockDriverState *bs, Error **errp)
 {
+    ERRP_GUARD();
     BlockDriver *drv = bs->drv;
     BdrvChild *c;
     bool have_limits;
-    Error *local_err = NULL;
 
     memset(&bs->bl, 0, sizeof(bs->bl));
 
@@ -156,9 +156,8 @@ void bdrv_refresh_limits(BlockDriverState *bs, Error **errp)
     QLIST_FOREACH(c, &bs->children, next) {
         if (c->role & (BDRV_CHILD_DATA | BDRV_CHILD_FILTERED | BDRV_CHILD_COW))
         {
-            bdrv_refresh_limits(c->bs, &local_err);
-            if (local_err) {
-                error_propagate(errp, local_err);
+            bdrv_refresh_limits(c->bs, errp);
+            if (*errp) {
                 return;
             }
             bdrv_merge_limits(&bs->bl, &c->bs->bl);
@@ -177,6 +176,13 @@ void bdrv_refresh_limits(BlockDriverState *bs, Error **errp)
     /* Then let the driver override it */
     if (drv->bdrv_refresh_limits) {
         drv->bdrv_refresh_limits(bs, errp);
+        if (*errp) {
+            return;
+        }
+    }
+
+    if (bs->bl.request_alignment > BDRV_MAX_ALIGNMENT) {
+        error_setg(errp, "Driver requires too large request alignment");
     }
 }
 
@@ -306,17 +312,7 @@ static void bdrv_co_drain_bh_cb(void *opaque)
 
     if (bs) {
         AioContext *ctx = bdrv_get_aio_context(bs);
-        AioContext *co_ctx = qemu_coroutine_get_aio_context(co);
-
-        /*
-         * When the coroutine yielded, the lock for its home context was
-         * released, so we need to re-acquire it here. If it explicitly
-         * acquired a different context, the lock is still held and we don't
-         * want to lock it a second time (or AIO_WAIT_WHILE() would hang).
-         */
-        if (ctx == co_ctx) {
-            aio_context_acquire(ctx);
-        }
+        aio_context_acquire(ctx);
         bdrv_dec_in_flight(bs);
         if (data->begin) {
             assert(!data->drained_end_counter);
@@ -328,9 +324,7 @@ static void bdrv_co_drain_bh_cb(void *opaque)
                                 data->ignore_bds_parents,
                                 data->drained_end_counter);
         }
-        if (ctx == co_ctx) {
-            aio_context_release(ctx);
-        }
+        aio_context_release(ctx);
     } else {
         assert(data->begin);
         bdrv_drain_all_begin();
@@ -348,13 +342,16 @@ static void coroutine_fn bdrv_co_yield_to_drain(BlockDriverState *bs,
                                                 int *drained_end_counter)
 {
     BdrvCoDrainData data;
+    Coroutine *self = qemu_coroutine_self();
+    AioContext *ctx = bdrv_get_aio_context(bs);
+    AioContext *co_ctx = qemu_coroutine_get_aio_context(self);
 
     /* Calling bdrv_drain() from a BH ensures the current coroutine yields and
      * other coroutines run if they were queued by aio_co_enter(). */
 
     assert(qemu_in_coroutine());
     data = (BdrvCoDrainData) {
-        .co = qemu_coroutine_self(),
+        .co = self,
         .bs = bs,
         .done = false,
         .begin = begin,
@@ -368,13 +365,29 @@ static void coroutine_fn bdrv_co_yield_to_drain(BlockDriverState *bs,
     if (bs) {
         bdrv_inc_in_flight(bs);
     }
-    replay_bh_schedule_oneshot_event(bdrv_get_aio_context(bs),
-                                     bdrv_co_drain_bh_cb, &data);
+
+    /*
+     * Temporarily drop the lock across yield or we would get deadlocks.
+     * bdrv_co_drain_bh_cb() reaquires the lock as needed.
+     *
+     * When we yield below, the lock for the current context will be
+     * released, so if this is actually the lock that protects bs, don't drop
+     * it a second time.
+     */
+    if (ctx != co_ctx) {
+        aio_context_release(ctx);
+    }
+    replay_bh_schedule_oneshot_event(ctx, bdrv_co_drain_bh_cb, &data);
 
     qemu_coroutine_yield();
     /* If we are resumed from some other event (such as an aio completion or a
      * timer callback), it is a bug in the caller that should be fixed. */
     assert(data.done);
+
+    /* Reaquire the AioContext of bs if we dropped it */
+    if (ctx != co_ctx) {
+        aio_context_acquire(ctx);
+    }
 }
 
 void bdrv_do_drained_begin_quiesce(BlockDriverState *bs,
@@ -633,6 +646,19 @@ void bdrv_drain_all_begin(void)
     }
 }
 
+void bdrv_drain_all_end_quiesce(BlockDriverState *bs)
+{
+    int drained_end_counter = 0;
+
+    g_assert(bs->quiesce_counter > 0);
+    g_assert(!bs->refcnt);
+
+    while (bs->quiesce_counter) {
+        bdrv_do_drained_end(bs, false, NULL, true, &drained_end_counter);
+    }
+    BDRV_POLL_WHILE(bs, qatomic_read(&drained_end_counter) > 0);
+}
+
 void bdrv_drain_all_end(void)
 {
     BlockDriverState *bs = NULL;
@@ -872,18 +898,31 @@ static bool coroutine_fn bdrv_wait_serialising_requests(BdrvTrackedRequest *self
     return waited;
 }
 
-static int bdrv_check_byte_request(BlockDriverState *bs, int64_t offset,
-                                   size_t size)
+int bdrv_check_request(int64_t offset, int64_t bytes)
 {
-    if (size > BDRV_REQUEST_MAX_BYTES) {
+    if (offset < 0 || bytes < 0) {
         return -EIO;
     }
 
-    if (!bdrv_is_inserted(bs)) {
-        return -ENOMEDIUM;
+    if (bytes > BDRV_MAX_LENGTH) {
+        return -EIO;
     }
 
-    if (offset < 0) {
+    if (offset > BDRV_MAX_LENGTH - bytes) {
+        return -EIO;
+    }
+
+    return 0;
+}
+
+static int bdrv_check_request32(int64_t offset, int64_t bytes)
+{
+    int ret = bdrv_check_request(offset, bytes);
+    if (ret < 0) {
+        return ret;
+    }
+
+    if (bytes > BDRV_REQUEST_MAX_BYTES) {
         return -EIO;
     }
 
@@ -1630,7 +1669,11 @@ int coroutine_fn bdrv_co_preadv_part(BdrvChild *child,
 
     trace_bdrv_co_preadv(bs, offset, bytes, flags);
 
-    ret = bdrv_check_byte_request(bs, offset, bytes);
+    if (!bdrv_is_inserted(bs)) {
+        return -ENOMEDIUM;
+    }
+
+    ret = bdrv_check_request32(offset, bytes);
     if (ret < 0) {
         return ret;
     }
@@ -2042,11 +2085,11 @@ int coroutine_fn bdrv_co_pwritev_part(BdrvChild *child,
 
     trace_bdrv_co_pwritev(child->bs, offset, bytes, flags);
 
-    if (!bs->drv) {
+    if (!bdrv_is_inserted(bs)) {
         return -ENOMEDIUM;
     }
 
-    ret = bdrv_check_byte_request(bs, offset, bytes);
+    ret = bdrv_check_request32(offset, bytes);
     if (ret < 0) {
         return ret;
     }
@@ -2282,17 +2325,17 @@ static int coroutine_fn bdrv_co_block_status(BlockDriverState *bs,
 
     if (ret & (BDRV_BLOCK_DATA | BDRV_BLOCK_ZERO)) {
         ret |= BDRV_BLOCK_ALLOCATED;
-    } else if (want_zero && bs->drv->supports_backing) {
+    } else if (bs->drv->supports_backing) {
         BlockDriverState *cow_bs = bdrv_cow_bs(bs);
 
-        if (cow_bs) {
+        if (!cow_bs) {
+            ret |= BDRV_BLOCK_ZERO;
+        } else if (want_zero) {
             int64_t size2 = bdrv_getlength(cow_bs);
 
             if (size2 >= 0 && offset >= size2) {
                 ret |= BDRV_BLOCK_ZERO;
             }
-        } else {
-            ret |= BDRV_BLOCK_ZERO;
         }
     }
 
@@ -2343,41 +2386,101 @@ early_out:
 int coroutine_fn
 bdrv_co_common_block_status_above(BlockDriverState *bs,
                                   BlockDriverState *base,
+                                  bool include_base,
                                   bool want_zero,
                                   int64_t offset,
                                   int64_t bytes,
                                   int64_t *pnum,
                                   int64_t *map,
-                                  BlockDriverState **file)
+                                  BlockDriverState **file,
+                                  int *depth)
 {
+    int ret;
     BlockDriverState *p;
-    int ret = 0;
-    bool first = true;
+    int64_t eof = 0;
+    int dummy;
 
-    assert(bs != base);
-    for (p = bs; p != base; p = bdrv_filter_or_cow_bs(p)) {
+    assert(!include_base || base); /* Can't include NULL base */
+
+    if (!depth) {
+        depth = &dummy;
+    }
+    *depth = 0;
+
+    if (!include_base && bs == base) {
+        *pnum = bytes;
+        return 0;
+    }
+
+    ret = bdrv_co_block_status(bs, want_zero, offset, bytes, pnum, map, file);
+    ++*depth;
+    if (ret < 0 || *pnum == 0 || ret & BDRV_BLOCK_ALLOCATED || bs == base) {
+        return ret;
+    }
+
+    if (ret & BDRV_BLOCK_EOF) {
+        eof = offset + *pnum;
+    }
+
+    assert(*pnum <= bytes);
+    bytes = *pnum;
+
+    for (p = bdrv_filter_or_cow_bs(bs); include_base || p != base;
+         p = bdrv_filter_or_cow_bs(p))
+    {
         ret = bdrv_co_block_status(p, want_zero, offset, bytes, pnum, map,
                                    file);
+        ++*depth;
         if (ret < 0) {
-            break;
+            return ret;
         }
-        if (ret & BDRV_BLOCK_ZERO && ret & BDRV_BLOCK_EOF && !first) {
+        if (*pnum == 0) {
             /*
-             * Reading beyond the end of the file continues to read
-             * zeroes, but we can only widen the result to the
-             * unallocated length we learned from an earlier
-             * iteration.
+             * The top layer deferred to this layer, and because this layer is
+             * short, any zeroes that we synthesize beyond EOF behave as if they
+             * were allocated at this layer.
+             *
+             * We don't include BDRV_BLOCK_EOF into ret, as upper layer may be
+             * larger. We'll add BDRV_BLOCK_EOF if needed at function end, see
+             * below.
              */
+            assert(ret & BDRV_BLOCK_EOF);
             *pnum = bytes;
-        }
-        if (ret & (BDRV_BLOCK_ZERO | BDRV_BLOCK_DATA)) {
+            if (file) {
+                *file = p;
+            }
+            ret = BDRV_BLOCK_ZERO | BDRV_BLOCK_ALLOCATED;
             break;
         }
-        /* [offset, pnum] unallocated on this layer, which could be only
-         * the first part of [offset, bytes].  */
-        bytes = MIN(bytes, *pnum);
-        first = false;
+        if (ret & BDRV_BLOCK_ALLOCATED) {
+            /*
+             * We've found the node and the status, we must break.
+             *
+             * Drop BDRV_BLOCK_EOF, as it's not for upper layer, which may be
+             * larger. We'll add BDRV_BLOCK_EOF if needed at function end, see
+             * below.
+             */
+            ret &= ~BDRV_BLOCK_EOF;
+            break;
+        }
+
+        if (p == base) {
+            assert(include_base);
+            break;
+        }
+
+        /*
+         * OK, [offset, offset + *pnum) region is unallocated on this layer,
+         * let's continue the diving.
+         */
+        assert(*pnum <= bytes);
+        bytes = *pnum;
     }
+
+    if (offset + *pnum == eof) {
+        ret |= BDRV_BLOCK_EOF;
+    }
+
     return ret;
 }
 
@@ -2385,8 +2488,8 @@ int bdrv_block_status_above(BlockDriverState *bs, BlockDriverState *base,
                             int64_t offset, int64_t bytes, int64_t *pnum,
                             int64_t *map, BlockDriverState **file)
 {
-    return bdrv_common_block_status_above(bs, base, true, offset, bytes,
-                                          pnum, map, file);
+    return bdrv_common_block_status_above(bs, base, false, true, offset, bytes,
+                                          pnum, map, file, NULL);
 }
 
 int bdrv_block_status(BlockDriverState *bs, int64_t offset, int64_t bytes,
@@ -2396,14 +2499,41 @@ int bdrv_block_status(BlockDriverState *bs, int64_t offset, int64_t bytes,
                                    offset, bytes, pnum, map, file);
 }
 
+/*
+ * Check @bs (and its backing chain) to see if the range defined
+ * by @offset and @bytes is known to read as zeroes.
+ * Return 1 if that is the case, 0 otherwise and -errno on error.
+ * This test is meant to be fast rather than accurate so returning 0
+ * does not guarantee non-zero data.
+ */
+int coroutine_fn bdrv_co_is_zero_fast(BlockDriverState *bs, int64_t offset,
+                                      int64_t bytes)
+{
+    int ret;
+    int64_t pnum = bytes;
+
+    if (!bytes) {
+        return 1;
+    }
+
+    ret = bdrv_common_block_status_above(bs, NULL, false, false, offset,
+                                         bytes, &pnum, NULL, NULL, NULL);
+
+    if (ret < 0) {
+        return ret;
+    }
+
+    return (pnum == bytes) && (ret & BDRV_BLOCK_ZERO);
+}
+
 int coroutine_fn bdrv_is_allocated(BlockDriverState *bs, int64_t offset,
                                    int64_t bytes, int64_t *pnum)
 {
     int ret;
     int64_t dummy;
 
-    ret = bdrv_common_block_status_above(bs, bdrv_filter_or_cow_bs(bs), false,
-                                         offset, bytes, pnum ? pnum : &dummy,
+    ret = bdrv_common_block_status_above(bs, bs, true, false, offset,
+                                         bytes, pnum ? pnum : &dummy, NULL,
                                          NULL, NULL);
     if (ret < 0) {
         return ret;
@@ -2414,8 +2544,9 @@ int coroutine_fn bdrv_is_allocated(BlockDriverState *bs, int64_t offset,
 /*
  * Given an image chain: ... -> [BASE] -> [INTER1] -> [INTER2] -> [TOP]
  *
- * Return 1 if (a prefix of) the given range is allocated in any image
- * between BASE and TOP (BASE is only included if include_base is set).
+ * Return a positive depth if (a prefix of) the given range is allocated
+ * in any image between BASE and TOP (BASE is only included if include_base
+ * is set).  Depth 1 is TOP, 2 is the first backing layer, and so forth.
  * BASE can be NULL to check if the given offset is allocated in any
  * image of the chain.  Return 0 otherwise, or negative errno on
  * failure.
@@ -2426,51 +2557,23 @@ int coroutine_fn bdrv_is_allocated(BlockDriverState *bs, int64_t offset,
  * at 'offset + *pnum' may return the same allocation status (in other
  * words, the result is not necessarily the maximum possible range);
  * but 'pnum' will only be 0 when end of file is reached.
- *
  */
 int bdrv_is_allocated_above(BlockDriverState *top,
                             BlockDriverState *base,
                             bool include_base, int64_t offset,
                             int64_t bytes, int64_t *pnum)
 {
-    BlockDriverState *intermediate;
-    int ret;
-    int64_t n = bytes;
-
-    assert(base || !include_base);
-
-    intermediate = top;
-    while (include_base || intermediate != base) {
-        int64_t pnum_inter;
-        int64_t size_inter;
-
-        assert(intermediate);
-        ret = bdrv_is_allocated(intermediate, offset, bytes, &pnum_inter);
-        if (ret < 0) {
-            return ret;
-        }
-        if (ret) {
-            *pnum = pnum_inter;
-            return 1;
-        }
-
-        size_inter = bdrv_getlength(intermediate);
-        if (size_inter < 0) {
-            return size_inter;
-        }
-        if (n > pnum_inter &&
-            (intermediate == top || offset + pnum_inter < size_inter)) {
-            n = pnum_inter;
-        }
-
-        if (intermediate == base) {
-            break;
-        }
-
-        intermediate = bdrv_filter_or_cow_bs(intermediate);
+    int depth;
+    int ret = bdrv_common_block_status_above(top, base, include_base, false,
+                                             offset, bytes, pnum, NULL, NULL,
+                                             &depth);
+    if (ret < 0) {
+        return ret;
     }
 
-    *pnum = n;
+    if (ret & BDRV_BLOCK_ALLOCATED) {
+        return depth;
+    }
     return 0;
 }
 
@@ -2716,8 +2819,9 @@ int coroutine_fn bdrv_co_pdiscard(BdrvChild *child, int64_t offset,
         return -EPERM;
     }
 
-    if (offset < 0 || bytes < 0 || bytes > INT64_MAX - offset) {
-        return -EIO;
+    ret = bdrv_check_request(offset, bytes);
+    if (ret < 0) {
+        return ret;
     }
 
     /* Do nothing if disabled.  */
@@ -2973,10 +3077,10 @@ static int coroutine_fn bdrv_co_copy_range_internal(
     assert(!(read_flags & BDRV_REQ_NO_FALLBACK));
     assert(!(write_flags & BDRV_REQ_NO_FALLBACK));
 
-    if (!dst || !dst->bs) {
+    if (!dst || !dst->bs || !bdrv_is_inserted(dst->bs)) {
         return -ENOMEDIUM;
     }
-    ret = bdrv_check_byte_request(dst->bs, dst_offset, bytes);
+    ret = bdrv_check_request32(dst_offset, bytes);
     if (ret) {
         return ret;
     }
@@ -2984,10 +3088,10 @@ static int coroutine_fn bdrv_co_copy_range_internal(
         return bdrv_co_pwrite_zeroes(dst, dst_offset, bytes, write_flags);
     }
 
-    if (!src || !src->bs) {
+    if (!src || !src->bs || !bdrv_is_inserted(src->bs)) {
         return -ENOMEDIUM;
     }
-    ret = bdrv_check_byte_request(src->bs, src_offset, bytes);
+    ret = bdrv_check_request32(src_offset, bytes);
     if (ret) {
         return ret;
     }
@@ -3115,6 +3219,13 @@ int coroutine_fn bdrv_co_truncate(BdrvChild *child, int64_t offset, bool exact,
     if (offset < 0) {
         error_setg(errp, "Image size cannot be negative");
         return -EINVAL;
+    }
+
+    ret = bdrv_check_request(offset, 0);
+    if (ret < 0) {
+        error_setg(errp, "Required too big image size, it must be not greater "
+                   "than %" PRId64, BDRV_MAX_LENGTH);
+        return ret;
     }
 
     old_size = bdrv_getlength(bs);

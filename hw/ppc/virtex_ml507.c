@@ -24,6 +24,7 @@
 
 #include "qemu/osdep.h"
 #include "qemu-common.h"
+#include "qemu/datadir.h"
 #include "qemu/units.h"
 #include "cpu.h"
 #include "hw/sysbus.h"
@@ -151,7 +152,7 @@ static int xilinx_load_device_tree(hwaddr addr,
     int r;
     const char *dtb_filename;
 
-    dtb_filename = qemu_opt_get(qemu_get_machine_opts(), "dtb");
+    dtb_filename = current_machine->dtb;
     if (dtb_filename) {
         fdt = load_device_tree(dtb_filename, &fdt_size);
         if (!fdt) {

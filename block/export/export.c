@@ -15,15 +15,26 @@
 
 #include "block/block.h"
 #include "sysemu/block-backend.h"
+#include "sysemu/iothread.h"
 #include "block/export.h"
+#include "block/fuse.h"
 #include "block/nbd.h"
 #include "qapi/error.h"
 #include "qapi/qapi-commands-block-export.h"
 #include "qapi/qapi-events-block-export.h"
 #include "qemu/id.h"
+#ifdef CONFIG_VHOST_USER_BLK_SERVER
+#include "vhost-user-blk-server.h"
+#endif
 
 static const BlockExportDriver *blk_exp_drivers[] = {
     &blk_exp_nbd,
+#ifdef CONFIG_VHOST_USER_BLK_SERVER
+    &blk_exp_vhost_user_blk,
+#endif
+#ifdef CONFIG_FUSE
+    &blk_exp_fuse,
+#endif
 };
 
 /* Only accessed from the main thread */
@@ -57,10 +68,11 @@ static const BlockExportDriver *blk_exp_find_driver(BlockExportType type)
 
 BlockExport *blk_exp_add(BlockExportOptions *export, Error **errp)
 {
+    bool fixed_iothread = export->has_fixed_iothread && export->fixed_iothread;
     const BlockExportDriver *drv;
     BlockExport *exp = NULL;
     BlockDriverState *bs;
-    BlockBackend *blk;
+    BlockBackend *blk = NULL;
     AioContext *ctx;
     uint64_t perm;
     int ret;
@@ -96,6 +108,28 @@ BlockExport *blk_exp_add(BlockExportOptions *export, Error **errp)
     ctx = bdrv_get_aio_context(bs);
     aio_context_acquire(ctx);
 
+    if (export->has_iothread) {
+        IOThread *iothread;
+        AioContext *new_ctx;
+
+        iothread = iothread_by_id(export->iothread);
+        if (!iothread) {
+            error_setg(errp, "iothread \"%s\" not found", export->iothread);
+            goto fail;
+        }
+
+        new_ctx = iothread_get_aio_context(iothread);
+
+        ret = bdrv_try_set_aio_context(bs, new_ctx, errp);
+        if (ret == 0) {
+            aio_context_release(ctx);
+            aio_context_acquire(new_ctx);
+            ctx = new_ctx;
+        } else if (fixed_iothread) {
+            goto fail;
+        }
+    }
+
     /*
      * Block exports are used for non-shared storage migration. Make sure
      * that BDRV_O_INACTIVE is cleared and the image is ready for write
@@ -110,6 +144,11 @@ BlockExport *blk_exp_add(BlockExportOptions *export, Error **errp)
     }
 
     blk = blk_new(ctx, perm, BLK_PERM_ALL);
+
+    if (!fixed_iothread) {
+        blk_set_allow_aio_context_change(blk, true);
+    }
+
     ret = blk_insert_bs(blk, bs, errp);
     if (ret < 0) {
         goto fail;

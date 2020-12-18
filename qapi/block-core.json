@@ -244,17 +244,25 @@
 #
 # Mapping information from a virtual block range to a host file range
 #
-# @start: the start byte of the mapped virtual range
+# @start: virtual (guest) offset of the first byte described by this
+#         entry
 #
 # @length: the number of bytes of the mapped virtual range
 #
-# @data: whether the mapped range has data
+# @data: reading the image will actually read data from a file (in
+#        particular, if @offset is present this means that the sectors
+#        are not simply preallocated, but contain actual data in raw
+#        format)
 #
-# @zero: whether the virtual blocks are zeroed
+# @zero: whether the virtual blocks read as zeroes
 #
-# @depth: the depth of the mapping
+# @depth: number of layers (0 = top image, 1 = top image's backing
+#         file, ..., n - 1 = bottom image (where n is the number of
+#         images in the chain)) before reaching one for which the
+#         range is allocated
 #
-# @offset: the offset in file that the virtual sectors are mapped to
+# @offset: if present, the image file stores the data for this range
+#          in raw format at the given (host) offset
 #
 # @filename: filename that is referred to by @offset
 #
@@ -294,7 +302,7 @@
 # @ro: true if the backing device was open read-only
 #
 # @drv: the name of the block format used to open the backing device. As of
-#       0.14.0 this can be: 'blkdebug', 'bochs', 'cloop', 'cow', 'dmg',
+#       0.14 this can be: 'blkdebug', 'bochs', 'cloop', 'cow', 'dmg',
 #       'file', 'file', 'ftp', 'ftps', 'host_cdrom', 'host_device',
 #       'http', 'https', 'luks', 'nbd', 'parallels', 'qcow',
 #       'qcow2', 'raw', 'vdi', 'vmdk', 'vpc', 'vvfat'
@@ -381,7 +389,7 @@
 # @deprecated: Member @encryption_key_missing is deprecated.  It is
 #              always false.
 #
-# Since: 0.14.0
+# Since: 0.14
 #
 ##
 { 'struct': 'BlockDeviceInfo',
@@ -417,35 +425,6 @@
 # Since: 1.0
 ##
 { 'enum': 'BlockDeviceIoStatus', 'data': [ 'ok', 'failed', 'nospace' ] }
-
-##
-# @BlockDeviceMapEntry:
-#
-# Entry in the metadata map of the device (returned by "qemu-img map")
-#
-# @start: Offset in the image of the first byte described by this entry
-#         (in bytes)
-#
-# @length: Length of the range described by this entry (in bytes)
-#
-# @depth: Number of layers (0 = top image, 1 = top image's backing file, etc.)
-#         before reaching one for which the range is allocated.  The value is
-#         in the range 0 to the depth of the image chain - 1.
-#
-# @zero: the sectors in this range read as zeros
-#
-# @data: reading the image will actually read data from a file (in particular,
-#        if @offset is present this means that the sectors are not simply
-#        preallocated, but contain actual data in raw format)
-#
-# @offset: if present, the image file stores the data for this range in
-#          raw format at the given offset.
-#
-# Since: 1.7
-##
-{ 'struct': 'BlockDeviceMapEntry',
-  'data': { 'start': 'int', 'length': 'int', 'depth': 'int', 'zero': 'bool',
-            'data': 'bool', '*offset': 'int' } }
 
 ##
 # @DirtyBitmapStatus:
@@ -628,7 +607,7 @@
 # @deprecated: Member @dirty-bitmaps is deprecated.  Use @inserted
 #              member @dirty-bitmaps instead.
 #
-# Since:  0.14.0
+# Since:  0.14
 ##
 { 'struct': 'BlockInfo',
   'data': {'device': 'str', '*qdev': 'str', 'type': 'str', 'removable': 'bool',
@@ -676,7 +655,7 @@
 # Returns: a list of @BlockInfo describing each virtual block device. Filter
 #          nodes that were created implicitly are skipped over.
 #
-# Since: 0.14.0
+# Since: 0.14
 #
 # Example:
 #
@@ -833,17 +812,17 @@
 # @wr_operations: The number of write operations performed by the device.
 #
 # @flush_operations: The number of cache flush operations performed by the
-#                    device (since 0.15.0)
+#                    device (since 0.15)
 #
 # @unmap_operations: The number of unmap operations performed by the device
 #                    (Since 4.2)
 #
-# @rd_total_time_ns: Total time spent on reads in nanoseconds (since 0.15.0).
+# @rd_total_time_ns: Total time spent on reads in nanoseconds (since 0.15).
 #
-# @wr_total_time_ns: Total time spent on writes in nanoseconds (since 0.15.0).
+# @wr_total_time_ns: Total time spent on writes in nanoseconds (since 0.15).
 #
 # @flush_total_time_ns: Total time spent on cache flushes in nanoseconds
-#                       (since 0.15.0).
+#                       (since 0.15).
 #
 # @unmap_total_time_ns: Total time spent on unmap operations in nanoseconds
 #                       (Since 4.2)
@@ -905,7 +884,7 @@
 #
 # @flush_latency_histogram: @BlockLatencyHistogramInfo. (Since 4.0)
 #
-# Since: 0.14.0
+# Since: 0.14
 ##
 { 'struct': 'BlockDeviceStats',
   'data': {'rd_bytes': 'int', 'wr_bytes': 'int', 'unmap_bytes' : 'int',
@@ -948,6 +927,27 @@
       'discard-bytes-ok': 'uint64' } }
 
 ##
+# @BlockStatsSpecificNvme:
+#
+# NVMe driver statistics
+#
+# @completion-errors: The number of completion errors.
+#
+# @aligned-accesses: The number of aligned accesses performed by
+#                    the driver.
+#
+# @unaligned-accesses: The number of unaligned accesses performed by
+#                      the driver.
+#
+# Since: 5.2
+##
+{ 'struct': 'BlockStatsSpecificNvme',
+  'data': {
+      'completion-errors': 'uint64',
+      'aligned-accesses': 'uint64',
+      'unaligned-accesses': 'uint64' } }
+
+##
 # @BlockStatsSpecific:
 #
 # Block driver specific statistics
@@ -959,7 +959,8 @@
   'discriminator': 'driver',
   'data': {
       'file': 'BlockStatsSpecificFile',
-      'host_device': 'BlockStatsSpecificFile' } }
+      'host_device': 'BlockStatsSpecificFile',
+      'nvme': 'BlockStatsSpecificNvme' } }
 
 ##
 # @BlockStats:
@@ -986,7 +987,7 @@
 # @backing: This describes the backing block device if it has one.
 #           (Since 2.0)
 #
-# Since: 0.14.0
+# Since: 0.14
 ##
 { 'struct': 'BlockStats',
   'data': {'*device': 'str', '*qdev': 'str', '*node-name': 'str',
@@ -1010,7 +1011,7 @@
 #
 # Returns: A list of @BlockStats for each virtual block devices.
 #
-# Since: 0.14.0
+# Since: 0.14
 #
 # Example:
 #
@@ -1298,7 +1299,7 @@
 # Returns: - nothing on success
 #          - If @device is not a valid block device, DeviceNotFound
 #
-# Since: 0.14.0
+# Since: 0.14
 #
 # Example:
 #
@@ -1483,7 +1484,7 @@
 # Returns: - nothing on success
 #          - If @device is not a valid block device, DeviceNotFound
 #
-# Since: 0.14.0
+# Since: 0.14
 #
 # Example:
 #
@@ -3883,9 +3884,12 @@
 #
 # @tls-creds: TLS credentials ID
 #
-# @x-dirty-bitmap: A "qemu:dirty-bitmap:NAME" string to query in place of
+# @x-dirty-bitmap: A metadata context name such as "qemu:dirty-bitmap:NAME"
+#                  or "qemu:allocation-depth" to query in place of the
 #                  traditional "base:allocation" block status (see
-#                  NBD_OPT_LIST_META_CONTEXT in the NBD protocol) (since 3.0)
+#                  NBD_OPT_LIST_META_CONTEXT in the NBD protocol; and
+#                  yes, naming this option x-context would have made
+#                  more sense) (since 3.0)
 #
 # @reconnect-delay: On an unexpected disconnect, the nbd client tries to
 #                   connect again until succeeding or encountering a serious
@@ -4848,7 +4852,7 @@
 # Note: If action is "stop", a STOP event will eventually follow the
 #       BLOCK_IO_ERROR event
 #
-# Since: 0.13.0
+# Since: 0.13
 #
 # Example:
 #

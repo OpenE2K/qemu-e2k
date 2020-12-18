@@ -369,14 +369,11 @@ static void prop_get_fdt(Object *obj, Visitor *v, const char *name,
     } while (fdt_depth != 0);
 }
 
-bool spapr_drc_attach(SpaprDrc *drc, DeviceState *d, Error **errp)
+void spapr_drc_attach(SpaprDrc *drc, DeviceState *d)
 {
     trace_spapr_drc_attach(spapr_drc_index(drc));
 
-    if (drc->dev) {
-        error_setg(errp, "an attached device is still awaiting release");
-        return false;
-    }
+    g_assert(!drc->dev);
     g_assert((drc->state == SPAPR_DRC_STATE_LOGICAL_UNUSABLE)
              || (drc->state == SPAPR_DRC_STATE_PHYSICAL_POWERON));
 
@@ -386,7 +383,6 @@ bool spapr_drc_attach(SpaprDrc *drc, DeviceState *d, Error **errp)
                              object_get_typename(OBJECT(drc->dev)),
                              (Object **)(&drc->dev),
                              NULL, 0);
-    return true;
 }
 
 static void spapr_drc_release(SpaprDrc *drc)
@@ -586,7 +582,8 @@ static void spapr_dr_connector_class_init(ObjectClass *k, void *data)
     dk->realize = realize;
     dk->unrealize = unrealize;
     /*
-     * Reason: it crashes FIXME find and document the real reason
+     * Reason: DR connector needs to be wired to either the machine or to a
+     * PHB in spapr_dr_connector_new().
      */
     dk->user_creatable = false;
 }

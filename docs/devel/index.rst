@@ -21,6 +21,8 @@ Contents:
    atomics
    stable-process
    testing
+   qtest
+   fuzzing
    decodetree
    secure-coding-practices
    tcg

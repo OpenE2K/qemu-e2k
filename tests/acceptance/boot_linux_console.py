@@ -13,6 +13,7 @@ import lzma
 import gzip
 import shutil
 
+from avocado import skip
 from avocado import skipUnless
 from avocado_qemu import Test
 from avocado_qemu import exec_command_and_wait_for_pattern
@@ -780,6 +781,8 @@ class BootLinuxConsole(LinuxKernelTest):
         # Wait for VM to shut down gracefully
         self.vm.wait()
 
+    @skipUnless(os.getenv('ARMBIAN_ARTIFACTS_CACHED'),
+                'Test artifacts fetched from unreliable dl.armbian.com')
     @skipUnless(os.getenv('AVOCADO_ALLOW_LARGE_STORAGE'), 'storage limited')
     @skipUnless(P7ZIP_AVAILABLE, '7z not installed')
     def test_arm_orangepi_bionic(self):
@@ -888,6 +891,28 @@ class BootLinuxConsole(LinuxKernelTest):
         wait_for_console_pattern(self, 'NetBSD 9.0 (GENERIC)')
         # Wait for user-space
         wait_for_console_pattern(self, 'Starting root file system check')
+
+    def test_aarch64_raspi3_atf(self):
+        """
+        :avocado: tags=arch:aarch64
+        :avocado: tags=machine:raspi3
+        :avocado: tags=cpu:cortex-a53
+        :avocado: tags=device:pl011
+        :avocado: tags=atf
+        """
+        zip_url = ('https://github.com/pbatard/RPi3/releases/download/'
+                   'v1.15/RPi3_UEFI_Firmware_v1.15.zip')
+        zip_hash = '74b3bd0de92683cadb14e008a7575e1d0c3cafb9'
+        zip_path = self.fetch_asset(zip_url, asset_hash=zip_hash)
+
+        archive.extract(zip_path, self.workdir)
+        efi_fd = os.path.join(self.workdir, 'RPI_EFI.fd')
+
+        self.vm.set_console(console_index=1)
+        self.vm.add_args('-nodefaults',
+                         '-device', 'loader,file=%s,force-raw=true' % efi_fd)
+        self.vm.launch()
+        self.wait_for_console_pattern('version UEFI Firmware v1.15')
 
     def test_s390x_s390_ccw_virtio(self):
         """
@@ -1001,6 +1026,7 @@ class BootLinuxConsole(LinuxKernelTest):
         tar_hash = 'ac688fd00561a2b6ce1359f9ff6aa2b98c9a570c'
         self.do_test_advcal_2018('07', tar_hash, 'sanity-clause.elf')
 
+    @skip("Test currently broken") # Console stuck as of 5.2-rc1
     def test_microblaze_s3adsp1800(self):
         """
         :avocado: tags=arch:microblaze

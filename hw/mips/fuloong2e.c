@@ -20,9 +20,11 @@
 
 #include "qemu/osdep.h"
 #include "qemu-common.h"
+#include "qemu/datadir.h"
 #include "qemu/units.h"
 #include "qapi/error.h"
 #include "cpu.h"
+#include "hw/clock.h"
 #include "hw/intc/i8259.h"
 #include "hw/dma/i8257.h"
 #include "hw/isa/superio.h"
@@ -132,16 +134,15 @@ static int64_t load_kernel(CPUMIPSState *env)
     if (loaderparams.initrd_filename) {
         initrd_size = get_image_size(loaderparams.initrd_filename);
         if (initrd_size > 0) {
-            initrd_offset = (kernel_high + ~INITRD_PAGE_MASK) &
-                            INITRD_PAGE_MASK;
-            if (initrd_offset + initrd_size > ram_size) {
+            initrd_offset = ROUND_UP(kernel_high, INITRD_PAGE_SIZE);
+            if (initrd_offset + initrd_size > loaderparams.ram_size) {
                 error_report("memory too small for initial ram disk '%s'",
                              loaderparams.initrd_filename);
                 exit(1);
             }
             initrd_size = load_image_targphys(loaderparams.initrd_filename,
                                               initrd_offset,
-                                              ram_size - initrd_offset);
+                                              loaderparams.ram_size - initrd_offset);
         }
         if (initrd_size == (target_ulong) -1) {
             error_report("could not load initial ram disk '%s'",
@@ -298,12 +299,16 @@ static void mips_fuloong2e_init(MachineState *machine)
     PCIBus *pci_bus;
     ISABus *isa_bus;
     I2CBus *smbus;
+    Clock *cpuclk;
     MIPSCPU *cpu;
     CPUMIPSState *env;
     DeviceState *dev;
 
+    cpuclk = clock_new(OBJECT(machine), "cpu-refclk");
+    clock_set_hz(cpuclk, 533080000); /* ~533 MHz */
+
     /* init CPUs */
-    cpu = MIPS_CPU(cpu_create(machine->cpu_type));
+    cpu = mips_cpu_create_with_clock(machine->cpu_type, cpuclk);
     env = &cpu->env;
 
     qemu_register_reset(main_cpu_reset, cpu);
@@ -333,10 +338,8 @@ static void mips_fuloong2e_init(MachineState *machine)
         kernel_entry = load_kernel(env);
         write_bootloader(env, memory_region_get_ram_ptr(bios), kernel_entry);
     } else {
-        if (bios_name == NULL) {
-                bios_name = FULOONG_BIOSNAME;
-        }
-        filename = qemu_find_file(QEMU_FILE_TYPE_BIOS, bios_name);
+        filename = qemu_find_file(QEMU_FILE_TYPE_BIOS,
+                                  machine->firmware ?: FULOONG_BIOSNAME);
         if (filename) {
             bios_size = load_image_targphys(filename, 0x1fc00000LL,
                                             BIOS_SIZE);
@@ -346,8 +349,8 @@ static void mips_fuloong2e_init(MachineState *machine)
         }
 
         if ((bios_size < 0 || bios_size > BIOS_SIZE) &&
-            !kernel_filename && !qtest_enabled()) {
-            error_report("Could not load MIPS bios '%s'", bios_name);
+            machine->firmware && !qtest_enabled()) {
+            error_report("Could not load MIPS bios '%s'", machine->firmware);
             exit(1);
         }
     }

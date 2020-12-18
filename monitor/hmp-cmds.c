@@ -24,6 +24,7 @@
 #include "qemu/option.h"
 #include "qemu/timer.h"
 #include "qemu/sockets.h"
+#include "qemu/help_option.h"
 #include "monitor/monitor-internal.h"
 #include "qapi/error.h"
 #include "qapi/clone-visitor.h"
@@ -357,6 +358,12 @@ void hmp_info_migrate(Monitor *mon, const QDict *qdict)
         }
         monitor_printf(mon, "]\n");
     }
+
+    if (info->has_vfio) {
+        monitor_printf(mon, "vfio device transferred: %" PRIu64 " kbytes\n",
+                       info->vfio->transferred >> 10);
+    }
+
     qapi_free_MigrationInfo(info);
 }
 
@@ -1625,7 +1632,12 @@ void hmp_netdev_add(Monitor *mon, const QDict *qdict)
 {
     Error *err = NULL;
     QemuOpts *opts;
+    const char *type = qdict_get_try_str(qdict, "type");
 
+    if (type && is_help_option(type)) {
+        show_netdevs();
+        return;
+    }
     opts = qemu_opts_from_qdict(qemu_find_opts("netdev"), qdict, &err);
     if (err) {
         goto out;
@@ -1756,7 +1768,8 @@ err_out:
     goto out;
 }
 
-void hmp_screendump(Monitor *mon, const QDict *qdict)
+void coroutine_fn
+hmp_screendump(Monitor *mon, const QDict *qdict)
 {
     const char *filename = qdict_get_str(qdict, "filename");
     const char *id = qdict_get_try_str(qdict, "device");

@@ -521,7 +521,7 @@ static const ChardevClass *char_get_class(const char *driver, Error **errp)
 
     if (object_class_is_abstract(oc)) {
         error_setg(errp, QERR_INVALID_PARAMETER_VALUE, "driver",
-                   "abstract device type");
+                   "an abstract device type");
         return NULL;
     }
 
@@ -928,6 +928,7 @@ QemuOptsList qemu_chardev_opts = {
         },{
             .name = "logappend",
             .type = QEMU_OPT_BOOL,
+#ifdef CONFIG_LINUX
         },{
             .name = "tight",
             .type = QEMU_OPT_BOOL,
@@ -935,6 +936,7 @@ QemuOptsList qemu_chardev_opts = {
         },{
             .name = "abstract",
             .type = QEMU_OPT_BOOL,
+#endif
         },
         { /* end of list */ }
     },

@@ -140,7 +140,7 @@ struct SpaprMachineClass {
     bool pre_5_1_assoc_refpoints;
     bool pre_5_2_numa_associativity;
 
-    void (*phb_placement)(SpaprMachineState *spapr, uint32_t index,
+    bool (*phb_placement)(SpaprMachineState *spapr, uint32_t index,
                           uint64_t *buid, hwaddr *pio, 
                           hwaddr *mmio32, hwaddr *mmio64,
                           unsigned n_dma, uint32_t *liobns, hwaddr *nv2gpa,
@@ -834,7 +834,7 @@ int spapr_dma_dt(void *fdt, int node_off, const char *propname,
                  uint32_t liobn, uint64_t window, uint32_t size);
 int spapr_tcet_dma_dt(void *fdt, int node_off, const char *propname,
                       SpaprTceTable *tcet);
-void spapr_pci_switch_vga(bool big_endian);
+void spapr_pci_switch_vga(SpaprMachineState *spapr, bool big_endian);
 void spapr_hotplug_req_add_by_index(SpaprDrc *drc);
 void spapr_hotplug_req_remove_by_index(SpaprDrc *drc);
 void spapr_hotplug_req_add_by_count(SpaprDrcType drc_type,
@@ -846,8 +846,7 @@ void spapr_hotplug_req_add_by_count_indexed(SpaprDrcType drc_type,
 void spapr_hotplug_req_remove_by_count_indexed(SpaprDrcType drc_type,
                                                uint32_t count, uint32_t index);
 int spapr_hpt_shift_for_ramsize(uint64_t ramsize);
-void spapr_reallocate_hpt(SpaprMachineState *spapr, int shift,
-                          Error **errp);
+int spapr_reallocate_hpt(SpaprMachineState *spapr, int shift, Error **errp);
 void spapr_clear_pending_events(SpaprMachineState *spapr);
 void spapr_clear_pending_hotplug_events(SpaprMachineState *spapr);
 int spapr_max_server_number(SpaprMachineState *spapr);

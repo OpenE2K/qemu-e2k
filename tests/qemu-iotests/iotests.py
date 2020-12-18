@@ -392,6 +392,16 @@ def filter_qmp_testfiles(qmsg):
         return value
     return filter_qmp(qmsg, _filter)
 
+def filter_virtio_scsi(output: str) -> str:
+    return re.sub(r'(virtio-scsi)-(ccw|pci)', r'\1', output)
+
+def filter_qmp_virtio_scsi(qmsg):
+    def _filter(_key, value):
+        if is_str(value):
+            return filter_virtio_scsi(value)
+        return value
+    return filter_qmp(qmsg, _filter)
+
 def filter_generated_node_ids(msg):
     return re.sub("#block[0-9]+", "NODE_NAME", msg)
 
@@ -543,10 +553,10 @@ class VM(qtest.QEMUQtestMachine):
 
     def __init__(self, path_suffix=''):
         name = "qemu%s-%d" % (path_suffix, os.getpid())
-        super(VM, self).__init__(qemu_prog, qemu_opts, name=name,
-                                 test_dir=test_dir,
-                                 socket_scm_helper=socket_scm_helper,
-                                 sock_dir=sock_dir)
+        super().__init__(qemu_prog, qemu_opts, name=name,
+                         test_dir=test_dir,
+                         socket_scm_helper=socket_scm_helper,
+                         sock_dir=sock_dir)
         self._num_drives = 0
 
     def add_object(self, opts):
@@ -605,7 +615,7 @@ class VM(qtest.QEMUQtestMachine):
 
     def hmp(self, command_line: str, use_log: bool = False) -> QMPMessage:
         cmd = 'human-monitor-command'
-        kwargs = {'command-line': command_line}
+        kwargs: Dict[str, Any] = {'command-line': command_line}
         if use_log:
             return self.qmp_log(cmd, **kwargs)
         else:
@@ -747,6 +757,10 @@ class VM(qtest.QEMUQtestMachine):
     def wait_migration(self, expect_runstate: Optional[str]) -> bool:
         while True:
             event = self.event_wait('MIGRATION')
+            # We use the default timeout, and with a timeout, event_wait()
+            # never returns None
+            assert event
+
             log(event, filters=[filter_qmp_event])
             if event['data']['status'] in ('completed', 'failed'):
                 break

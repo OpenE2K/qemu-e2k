@@ -381,6 +381,8 @@ static void colo_rewriter_cleanup(NetFilterState *nf)
         filter_rewriter_flush(nf);
         g_free(s->incoming_queue);
     }
+
+    g_hash_table_destroy(s->connection_track_table);
 }
 
 static void colo_rewriter_setup(NetFilterState *nf, Error **errp)
@@ -416,14 +418,15 @@ static void filter_rewriter_init(Object *obj)
 
     s->vnet_hdr = false;
     s->failover_mode = FAILOVER_MODE_OFF;
-    object_property_add_bool(obj, "vnet_hdr_support",
-                             filter_rewriter_get_vnet_hdr,
-                             filter_rewriter_set_vnet_hdr);
 }
 
 static void colo_rewriter_class_init(ObjectClass *oc, void *data)
 {
     NetFilterClass *nfc = NETFILTER_CLASS(oc);
+
+    object_class_property_add_bool(oc, "vnet_hdr_support",
+                                   filter_rewriter_get_vnet_hdr,
+                                   filter_rewriter_set_vnet_hdr);
 
     nfc->setup = colo_rewriter_setup;
     nfc->cleanup = colo_rewriter_cleanup;

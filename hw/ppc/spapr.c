@@ -26,6 +26,7 @@
 
 #include "qemu/osdep.h"
 #include "qemu-common.h"
+#include "qemu/datadir.h"
 #include "qapi/error.h"
 #include "qapi/visitor.h"
 #include "sysemu/sysemu.h"
@@ -1483,9 +1484,9 @@ void spapr_free_hpt(SpaprMachineState *spapr)
     close_htab_fd(spapr);
 }
 
-void spapr_reallocate_hpt(SpaprMachineState *spapr, int shift,
-                          Error **errp)
+int spapr_reallocate_hpt(SpaprMachineState *spapr, int shift, Error **errp)
 {
+    ERRP_GUARD();
     long rc;
 
     /* Clean up any HPT info from a previous boot */
@@ -1495,22 +1496,23 @@ void spapr_reallocate_hpt(SpaprMachineState *spapr, int shift,
 
     if (rc == -EOPNOTSUPP) {
         error_setg(errp, "HPT not supported in nested guests");
-        return;
+        return -EOPNOTSUPP;
     }
 
     if (rc < 0) {
         /* kernel-side HPT needed, but couldn't allocate one */
-        error_setg_errno(errp, errno,
-                         "Failed to allocate KVM HPT of order %d (try smaller maxmem?)",
+        error_setg_errno(errp, errno, "Failed to allocate KVM HPT of order %d",
                          shift);
-        /* This is almost certainly fatal, but if the caller really
-         * wants to carry on with shift == 0, it's welcome to try */
+        error_append_hint(errp, "Try smaller maxmem?\n");
+        return -errno;
     } else if (rc > 0) {
         /* kernel-side HPT allocated */
         if (rc != shift) {
             error_setg(errp,
-                       "Requested order %d HPT, but kernel allocated order %ld (try smaller maxmem?)",
+                       "Requested order %d HPT, but kernel allocated order %ld",
                        shift, rc);
+            error_append_hint(errp, "Try smaller maxmem?\n");
+            return -ENOSPC;
         }
 
         spapr->htab_shift = shift;
@@ -1521,12 +1523,6 @@ void spapr_reallocate_hpt(SpaprMachineState *spapr, int shift,
         int i;
 
         spapr->htab = qemu_memalign(size, size);
-        if (!spapr->htab) {
-            error_setg_errno(errp, errno,
-                             "Could not allocate HPT of order %d", shift);
-            return;
-        }
-
         memset(spapr->htab, 0, size);
         spapr->htab_shift = shift;
 
@@ -1537,6 +1533,7 @@ void spapr_reallocate_hpt(SpaprMachineState *spapr, int shift,
     /* We're setting up a hash table, so that means we're not radix */
     spapr->patb_entry = 0;
     spapr_set_all_lpcrs(0, LPCR_HR | LPCR_UPRT);
+    return 0;
 }
 
 void spapr_setup_hpt(SpaprMachineState *spapr)
@@ -2290,11 +2287,13 @@ static int htab_load(QEMUFile *f, void *opaque, int version_id)
     }
 
     if (section_hdr) {
+        int ret;
+
         /* First section gives the htab size */
-        spapr_reallocate_hpt(spapr, section_hdr, &local_err);
-        if (local_err) {
+        ret = spapr_reallocate_hpt(spapr, section_hdr, &local_err);
+        if (ret < 0) {
             error_report_err(local_err);
-            return -EINVAL;
+            return ret;
         }
         return 0;
     }
@@ -2345,8 +2344,10 @@ static int htab_load(QEMUFile *f, void *opaque, int version_id)
 
             assert(fd >= 0);
 
-            rc = kvmppc_load_htab_chunk(f, fd, index, n_valid, n_invalid);
+            rc = kvmppc_load_htab_chunk(f, fd, index, n_valid, n_invalid,
+                                        &local_err);
             if (rc < 0) {
+                error_report_err(local_err);
                 return rc;
             }
         }
@@ -2641,12 +2642,23 @@ static hwaddr spapr_rma_size(SpaprMachineState *spapr, Error **errp)
     return rma_size;
 }
 
+static void spapr_create_nvdimm_dr_connectors(SpaprMachineState *spapr)
+{
+    MachineState *machine = MACHINE(spapr);
+    int i;
+
+    for (i = 0; i < machine->ram_slots; i++) {
+        spapr_dr_connector_new(OBJECT(spapr), TYPE_SPAPR_DRC_PMEM, i);
+    }
+}
+
 /* pSeries LPAR / sPAPR hardware init */
 static void spapr_machine_init(MachineState *machine)
 {
     SpaprMachineState *spapr = SPAPR_MACHINE(machine);
     SpaprMachineClass *smc = SPAPR_MACHINE_GET_CLASS(machine);
     MachineClass *mc = MACHINE_GET_CLASS(machine);
+    const char *bios_name = machine->firmware ?: FW_FILE_NAME;
     const char *kernel_filename = machine->kernel_filename;
     const char *initrd_filename = machine->initrd_filename;
     PCIHostState *phb;
@@ -2866,10 +2878,8 @@ static void spapr_machine_init(MachineState *machine)
     /* Set up VIO bus */
     spapr->vio_bus = spapr_vio_bus_init();
 
-    for (i = 0; i < serial_max_hds(); i++) {
-        if (serial_hd(i)) {
-            spapr_vty_create(spapr->vio_bus, serial_hd(i));
-        }
+    for (i = 0; serial_hd(i); i++) {
+        spapr_vty_create(spapr->vio_bus, serial_hd(i));
     }
 
     /* We always have at least the nvram device on VIO */
@@ -2970,9 +2980,6 @@ static void spapr_machine_init(MachineState *machine)
         }
     }
 
-    if (bios_name == NULL) {
-        bios_name = FW_FILE_NAME;
-    }
     filename = qemu_find_file(QEMU_FILE_TYPE_BIOS, bios_name);
     if (!filename) {
         error_report("Could not find LPAR firmware '%s'", bios_name);
@@ -3014,17 +3021,25 @@ static void spapr_machine_init(MachineState *machine)
     qemu_cond_init(&spapr->fwnmi_machine_check_interlock_cond);
 }
 
+#define DEFAULT_KVM_TYPE "auto"
 static int spapr_kvm_type(MachineState *machine, const char *vm_type)
 {
-    if (!vm_type) {
+    /*
+     * The use of g_ascii_strcasecmp() for 'hv' and 'pr' is to
+     * accomodate the 'HV' and 'PV' formats that exists in the
+     * wild. The 'auto' mode is being introduced already as
+     * lower-case, thus we don't need to bother checking for
+     * "AUTO".
+     */
+    if (!vm_type || !strcmp(vm_type, DEFAULT_KVM_TYPE)) {
         return 0;
     }
 
-    if (!strcmp(vm_type, "HV")) {
+    if (!g_ascii_strcasecmp(vm_type, "hv")) {
         return 1;
     }
 
-    if (!strcmp(vm_type, "PR")) {
+    if (!g_ascii_strcasecmp(vm_type, "pr")) {
         return 2;
     }
 
@@ -3260,13 +3275,31 @@ static void spapr_instance_init(Object *obj)
 {
     SpaprMachineState *spapr = SPAPR_MACHINE(obj);
     SpaprMachineClass *smc = SPAPR_MACHINE_GET_CLASS(spapr);
+    MachineState *ms = MACHINE(spapr);
+    MachineClass *mc = MACHINE_GET_CLASS(ms);
+
+    /*
+     * NVDIMM support went live in 5.1 without considering that, in
+     * other archs, the user needs to enable NVDIMM support with the
+     * 'nvdimm' machine option and the default behavior is NVDIMM
+     * support disabled. It is too late to roll back to the standard
+     * behavior without breaking 5.1 guests.
+     */
+    if (mc->nvdimm_supported) {
+        ms->nvdimms_state->is_enabled = true;
+    }
 
     spapr->htab_fd = -1;
     spapr->use_hotplug_event_source = true;
+    spapr->kvm_type = g_strdup(DEFAULT_KVM_TYPE);
     object_property_add_str(obj, "kvm-type",
                             spapr_get_kvm_type, spapr_set_kvm_type);
     object_property_set_description(obj, "kvm-type",
-                                    "Specifies the KVM virtualization mode (HV, PR)");
+                                    "Specifies the KVM virtualization mode (auto,"
+                                    " hv, pr). Defaults to 'auto'. This mode will use"
+                                    " any available KVM module loaded in the host,"
+                                    " where kvm_hv takes precedence if both kvm_hv and"
+                                    " kvm_pr are loaded.");
     object_property_add_bool(obj, "modern-hotplug-events",
                             spapr_get_modern_hotplug_events,
                             spapr_set_modern_hotplug_events);
@@ -3373,7 +3406,7 @@ int spapr_lmb_dt_populate(SpaprDrc *drc, SpaprMachineState *spapr,
 }
 
 static void spapr_add_lmbs(DeviceState *dev, uint64_t addr_start, uint64_t size,
-                           bool dedicated_hp_event_source, Error **errp)
+                           bool dedicated_hp_event_source)
 {
     SpaprDrc *drc;
     uint32_t nr_lmbs = size/SPAPR_MEMORY_BLOCK_SIZE;
@@ -3386,15 +3419,12 @@ static void spapr_add_lmbs(DeviceState *dev, uint64_t addr_start, uint64_t size,
                               addr / SPAPR_MEMORY_BLOCK_SIZE);
         g_assert(drc);
 
-        if (!spapr_drc_attach(drc, dev, errp)) {
-            while (addr > addr_start) {
-                addr -= SPAPR_MEMORY_BLOCK_SIZE;
-                drc = spapr_drc_by_id(TYPE_SPAPR_DRC_LMB,
-                                      addr / SPAPR_MEMORY_BLOCK_SIZE);
-                spapr_drc_detach(drc);
-            }
-            return;
-        }
+        /*
+         * memory_device_get_free_addr() provided a range of free addresses
+         * that doesn't overlap with any existing mapping at pre-plug. The
+         * corresponding LMB DRCs are thus assumed to be all attachable.
+         */
+        spapr_drc_attach(drc, dev);
         if (!hotplugged) {
             spapr_drc_reset(drc);
         }
@@ -3417,50 +3447,30 @@ static void spapr_add_lmbs(DeviceState *dev, uint64_t addr_start, uint64_t size,
     }
 }
 
-static void spapr_memory_plug(HotplugHandler *hotplug_dev, DeviceState *dev,
-                              Error **errp)
+static void spapr_memory_plug(HotplugHandler *hotplug_dev, DeviceState *dev)
 {
-    Error *local_err = NULL;
     SpaprMachineState *ms = SPAPR_MACHINE(hotplug_dev);
     PCDIMMDevice *dimm = PC_DIMM(dev);
-    uint64_t size, addr, slot;
+    uint64_t size, addr;
+    int64_t slot;
     bool is_nvdimm = object_dynamic_cast(OBJECT(dev), TYPE_NVDIMM);
 
     size = memory_device_get_region_size(MEMORY_DEVICE(dev), &error_abort);
 
-    pc_dimm_plug(dimm, MACHINE(ms), &local_err);
-    if (local_err) {
-        goto out;
-    }
+    pc_dimm_plug(dimm, MACHINE(ms));
 
     if (!is_nvdimm) {
         addr = object_property_get_uint(OBJECT(dimm),
-                                        PC_DIMM_ADDR_PROP, &local_err);
-        if (local_err) {
-            goto out_unplug;
-        }
+                                        PC_DIMM_ADDR_PROP, &error_abort);
         spapr_add_lmbs(dev, addr, size,
-                       spapr_ovec_test(ms->ov5_cas, OV5_HP_EVT),
-                       &local_err);
+                       spapr_ovec_test(ms->ov5_cas, OV5_HP_EVT));
     } else {
-        slot = object_property_get_uint(OBJECT(dimm),
-                                        PC_DIMM_SLOT_PROP, &local_err);
-        if (local_err) {
-            goto out_unplug;
-        }
-        spapr_add_nvdimm(dev, slot, &local_err);
+        slot = object_property_get_int(OBJECT(dimm),
+                                       PC_DIMM_SLOT_PROP, &error_abort);
+        /* We should have valid slot number at this point */
+        g_assert(slot >= 0);
+        spapr_add_nvdimm(dev, slot);
     }
-
-    if (local_err) {
-        goto out_unplug;
-    }
-
-    return;
-
-out_unplug:
-    pc_dimm_unplug(dimm, MACHINE(ms));
-out:
-    error_propagate(errp, local_err);
 }
 
 static void spapr_memory_pre_plug(HotplugHandler *hotplug_dev, DeviceState *dev,
@@ -3565,8 +3575,8 @@ static SpaprDimmState *spapr_recover_pending_dimm_state(SpaprMachineState *ms,
     uint64_t addr_start, addr;
     int i;
 
-    addr_start = object_property_get_int(OBJECT(dimm), PC_DIMM_ADDR_PROP,
-                                         &error_abort);
+    addr_start = object_property_get_uint(OBJECT(dimm), PC_DIMM_ADDR_PROP,
+                                          &error_abort);
 
     addr = addr_start;
     for (i = 0; i < nr_lmbs; i++) {
@@ -3624,7 +3634,6 @@ static void spapr_memory_unplug_request(HotplugHandler *hotplug_dev,
                                         DeviceState *dev, Error **errp)
 {
     SpaprMachineState *spapr = SPAPR_MACHINE(hotplug_dev);
-    Error *local_err = NULL;
     PCDIMMDevice *dimm = PC_DIMM(dev);
     uint32_t nr_lmbs;
     uint64_t size, addr_start, addr;
@@ -3640,11 +3649,7 @@ static void spapr_memory_unplug_request(HotplugHandler *hotplug_dev,
     nr_lmbs = size / SPAPR_MEMORY_BLOCK_SIZE;
 
     addr_start = object_property_get_uint(OBJECT(dimm), PC_DIMM_ADDR_PROP,
-                                         &local_err);
-    if (local_err) {
-        error_propagate(errp, local_err);
-        return;
-    }
+                                          &error_abort);
 
     /*
      * An existing pending dimm state for this DIMM means that there is an
@@ -3759,8 +3764,7 @@ int spapr_core_dt_populate(SpaprDrc *drc, SpaprMachineState *spapr,
     return 0;
 }
 
-static void spapr_core_plug(HotplugHandler *hotplug_dev, DeviceState *dev,
-                            Error **errp)
+static void spapr_core_plug(HotplugHandler *hotplug_dev, DeviceState *dev)
 {
     SpaprMachineState *spapr = SPAPR_MACHINE(OBJECT(hotplug_dev));
     MachineClass *mc = MACHINE_GET_CLASS(spapr);
@@ -3775,20 +3779,20 @@ static void spapr_core_plug(HotplugHandler *hotplug_dev, DeviceState *dev,
     int i;
 
     core_slot = spapr_find_cpu_slot(MACHINE(hotplug_dev), cc->core_id, &index);
-    if (!core_slot) {
-        error_setg(errp, "Unable to find CPU core with core-id: %d",
-                   cc->core_id);
-        return;
-    }
+    g_assert(core_slot); /* Already checked in spapr_core_pre_plug() */
+
     drc = spapr_drc_by_id(TYPE_SPAPR_DRC_CPU,
                           spapr_vcpu_id(spapr, cc->core_id));
 
     g_assert(drc || !mc->has_hotpluggable_cpus);
 
     if (drc) {
-        if (!spapr_drc_attach(drc, dev, errp)) {
-            return;
-        }
+        /*
+         * spapr_core_pre_plug() already buys us this is a brand new
+         * core being plugged into a free slot. Nothing should already
+         * be attached to the corresponding DRC.
+         */
+        spapr_drc_attach(drc, dev);
 
         if (hotplugged) {
             /*
@@ -3803,24 +3807,22 @@ static void spapr_core_plug(HotplugHandler *hotplug_dev, DeviceState *dev,
 
     core_slot->cpu = OBJECT(dev);
 
+    /*
+     * Set compatibility mode to match the boot CPU, which was either set
+     * by the machine reset code or by CAS. This really shouldn't fail at
+     * this point.
+     */
+    if (hotplugged) {
+        for (i = 0; i < cc->nr_threads; i++) {
+            ppc_set_compat(core->threads[i], POWERPC_CPU(first_cpu)->compat_pvr,
+                           &error_abort);
+        }
+    }
+
     if (smc->pre_2_10_has_unused_icps) {
         for (i = 0; i < cc->nr_threads; i++) {
             cs = CPU(core->threads[i]);
             pre_2_10_vmstate_unregister_dummy_icp(cs->cpu_index);
-        }
-    }
-
-    /*
-     * Set compatibility mode to match the boot CPU, which was either set
-     * by the machine reset code or by CAS.
-     */
-    if (hotplugged) {
-        for (i = 0; i < cc->nr_threads; i++) {
-            if (ppc_set_compat(core->threads[i],
-                               POWERPC_CPU(first_cpu)->compat_pvr,
-                               errp) < 0) {
-                return;
-            }
         }
     }
 }
@@ -3900,38 +3902,45 @@ int spapr_phb_dt_populate(SpaprDrc *drc, SpaprMachineState *spapr,
     return 0;
 }
 
-static void spapr_phb_pre_plug(HotplugHandler *hotplug_dev, DeviceState *dev,
+static bool spapr_phb_pre_plug(HotplugHandler *hotplug_dev, DeviceState *dev,
                                Error **errp)
 {
     SpaprMachineState *spapr = SPAPR_MACHINE(OBJECT(hotplug_dev));
     SpaprPhbState *sphb = SPAPR_PCI_HOST_BRIDGE(dev);
     SpaprMachineClass *smc = SPAPR_MACHINE_GET_CLASS(spapr);
     const unsigned windows_supported = spapr_phb_windows_supported(sphb);
+    SpaprDrc *drc;
 
     if (dev->hotplugged && !smc->dr_phb_enabled) {
         error_setg(errp, "PHB hotplug not supported for this machine");
-        return;
+        return false;
     }
 
     if (sphb->index == (uint32_t)-1) {
         error_setg(errp, "\"index\" for PAPR PHB is mandatory");
-        return;
+        return false;
+    }
+
+    drc = spapr_drc_by_id(TYPE_SPAPR_DRC_PHB, sphb->index);
+    if (drc && drc->dev) {
+        error_setg(errp, "PHB %d already attached", sphb->index);
+        return false;
     }
 
     /*
      * This will check that sphb->index doesn't exceed the maximum number of
      * PHBs for the current machine type.
      */
-    smc->phb_placement(spapr, sphb->index,
-                       &sphb->buid, &sphb->io_win_addr,
-                       &sphb->mem_win_addr, &sphb->mem64_win_addr,
-                       windows_supported, sphb->dma_liobn,
-                       &sphb->nv2_gpa_win_addr, &sphb->nv2_atsd_win_addr,
-                       errp);
+    return
+        smc->phb_placement(spapr, sphb->index,
+                           &sphb->buid, &sphb->io_win_addr,
+                           &sphb->mem_win_addr, &sphb->mem64_win_addr,
+                           windows_supported, sphb->dma_liobn,
+                           &sphb->nv2_gpa_win_addr, &sphb->nv2_atsd_win_addr,
+                           errp);
 }
 
-static void spapr_phb_plug(HotplugHandler *hotplug_dev, DeviceState *dev,
-                           Error **errp)
+static void spapr_phb_plug(HotplugHandler *hotplug_dev, DeviceState *dev)
 {
     SpaprMachineState *spapr = SPAPR_MACHINE(OBJECT(hotplug_dev));
     SpaprMachineClass *smc = SPAPR_MACHINE_GET_CLASS(spapr);
@@ -3947,9 +3956,8 @@ static void spapr_phb_plug(HotplugHandler *hotplug_dev, DeviceState *dev,
     /* hotplug hooks should check it's enabled before getting this far */
     assert(drc);
 
-    if (!spapr_drc_attach(drc, dev, errp)) {
-        return;
-    }
+    /* spapr_phb_pre_plug() already checked the DRC is attachable */
+    spapr_drc_attach(drc, dev);
 
     if (hotplugged) {
         spapr_hotplug_req_add_by_index(drc);
@@ -3986,16 +3994,27 @@ static void spapr_phb_unplug_request(HotplugHandler *hotplug_dev,
     }
 }
 
-static void spapr_tpm_proxy_plug(HotplugHandler *hotplug_dev, DeviceState *dev,
-                                 Error **errp)
+static
+bool spapr_tpm_proxy_pre_plug(HotplugHandler *hotplug_dev, DeviceState *dev,
+                              Error **errp)
+{
+    SpaprMachineState *spapr = SPAPR_MACHINE(OBJECT(hotplug_dev));
+
+    if (spapr->tpm_proxy != NULL) {
+        error_setg(errp, "Only one TPM proxy can be specified for this machine");
+        return false;
+    }
+
+    return true;
+}
+
+static void spapr_tpm_proxy_plug(HotplugHandler *hotplug_dev, DeviceState *dev)
 {
     SpaprMachineState *spapr = SPAPR_MACHINE(OBJECT(hotplug_dev));
     SpaprTpmProxy *tpm_proxy = SPAPR_TPM_PROXY(dev);
 
-    if (spapr->tpm_proxy != NULL) {
-        error_setg(errp, "Only one TPM proxy can be specified for this machine");
-        return;
-    }
+    /* Already checked in spapr_tpm_proxy_pre_plug() */
+    g_assert(spapr->tpm_proxy == NULL);
 
     spapr->tpm_proxy = tpm_proxy;
 }
@@ -4013,13 +4032,13 @@ static void spapr_machine_device_plug(HotplugHandler *hotplug_dev,
                                       DeviceState *dev, Error **errp)
 {
     if (object_dynamic_cast(OBJECT(dev), TYPE_PC_DIMM)) {
-        spapr_memory_plug(hotplug_dev, dev, errp);
+        spapr_memory_plug(hotplug_dev, dev);
     } else if (object_dynamic_cast(OBJECT(dev), TYPE_SPAPR_CPU_CORE)) {
-        spapr_core_plug(hotplug_dev, dev, errp);
+        spapr_core_plug(hotplug_dev, dev);
     } else if (object_dynamic_cast(OBJECT(dev), TYPE_SPAPR_PCI_HOST_BRIDGE)) {
-        spapr_phb_plug(hotplug_dev, dev, errp);
+        spapr_phb_plug(hotplug_dev, dev);
     } else if (object_dynamic_cast(OBJECT(dev), TYPE_SPAPR_TPM_PROXY)) {
-        spapr_tpm_proxy_plug(hotplug_dev, dev, errp);
+        spapr_tpm_proxy_plug(hotplug_dev, dev);
     }
 }
 
@@ -4082,6 +4101,8 @@ static void spapr_machine_device_pre_plug(HotplugHandler *hotplug_dev,
         spapr_core_pre_plug(hotplug_dev, dev, errp);
     } else if (object_dynamic_cast(OBJECT(dev), TYPE_SPAPR_PCI_HOST_BRIDGE)) {
         spapr_phb_pre_plug(hotplug_dev, dev, errp);
+    } else if (object_dynamic_cast(OBJECT(dev), TYPE_SPAPR_TPM_PROXY)) {
+        spapr_tpm_proxy_pre_plug(hotplug_dev, dev, errp);
     }
 }
 
@@ -4165,7 +4186,7 @@ static const CPUArchIdList *spapr_possible_cpu_arch_ids(MachineState *machine)
     return machine->possible_cpus;
 }
 
-static void spapr_phb_placement(SpaprMachineState *spapr, uint32_t index,
+static bool spapr_phb_placement(SpaprMachineState *spapr, uint32_t index,
                                 uint64_t *buid, hwaddr *pio,
                                 hwaddr *mmio32, hwaddr *mmio64,
                                 unsigned n_dma, uint32_t *liobns,
@@ -4203,7 +4224,7 @@ static void spapr_phb_placement(SpaprMachineState *spapr, uint32_t index,
     if (index >= SPAPR_MAX_PHBS) {
         error_setg(errp, "\"index\" for PAPR PHB is too large (max %llu)",
                    SPAPR_MAX_PHBS - 1);
-        return;
+        return false;
     }
 
     *buid = base_buid + index;
@@ -4217,6 +4238,7 @@ static void spapr_phb_placement(SpaprMachineState *spapr, uint32_t index,
 
     *nv2gpa = SPAPR_PCI_NV2RAM64_WIN_BASE + index * SPAPR_PCI_NV2RAM64_WIN_SIZE;
     *nv2atsd = SPAPR_PCI_NV2ATSD_WIN_BASE + index * SPAPR_PCI_NV2ATSD_WIN_SIZE;
+    return true;
 }
 
 static ICSState *spapr_ics_get(XICSFabric *dev, int irq)
@@ -4514,14 +4536,25 @@ static void spapr_machine_latest_class_options(MachineClass *mc)
     type_init(spapr_machine_register_##suffix)
 
 /*
- * pseries-5.2
+ * pseries-6.0
  */
-static void spapr_machine_5_2_class_options(MachineClass *mc)
+static void spapr_machine_6_0_class_options(MachineClass *mc)
 {
     /* Defaults for the latest behaviour inherited from the base class */
 }
 
-DEFINE_SPAPR_MACHINE(5_2, "5.2", true);
+DEFINE_SPAPR_MACHINE(6_0, "6.0", true);
+
+/*
+ * pseries-5.2
+ */
+static void spapr_machine_5_2_class_options(MachineClass *mc)
+{
+    spapr_machine_6_0_class_options(mc);
+    compat_props_add(mc->compat_props, hw_compat_5_2, hw_compat_5_2_len);
+}
+
+DEFINE_SPAPR_MACHINE(5_2, "5.2", false);
 
 /*
  * pseries-5.1
@@ -4596,18 +4629,21 @@ DEFINE_SPAPR_MACHINE(4_1, "4.1", false);
 /*
  * pseries-4.0
  */
-static void phb_placement_4_0(SpaprMachineState *spapr, uint32_t index,
+static bool phb_placement_4_0(SpaprMachineState *spapr, uint32_t index,
                               uint64_t *buid, hwaddr *pio,
                               hwaddr *mmio32, hwaddr *mmio64,
                               unsigned n_dma, uint32_t *liobns,
                               hwaddr *nv2gpa, hwaddr *nv2atsd, Error **errp)
 {
-    spapr_phb_placement(spapr, index, buid, pio, mmio32, mmio64, n_dma, liobns,
-                        nv2gpa, nv2atsd, errp);
+    if (!spapr_phb_placement(spapr, index, buid, pio, mmio32, mmio64, n_dma,
+                             liobns, nv2gpa, nv2atsd, errp)) {
+        return false;
+    }
+
     *nv2gpa = 0;
     *nv2atsd = 0;
+    return true;
 }
-
 static void spapr_machine_4_0_class_options(MachineClass *mc)
 {
     SpaprMachineClass *smc = SPAPR_MACHINE_CLASS(mc);
@@ -4767,7 +4803,7 @@ DEFINE_SPAPR_MACHINE(2_8, "2.8", false);
  * pseries-2.7
  */
 
-static void phb_placement_2_7(SpaprMachineState *spapr, uint32_t index,
+static bool phb_placement_2_7(SpaprMachineState *spapr, uint32_t index,
                               uint64_t *buid, hwaddr *pio,
                               hwaddr *mmio32, hwaddr *mmio64,
                               unsigned n_dma, uint32_t *liobns,
@@ -4799,7 +4835,7 @@ static void phb_placement_2_7(SpaprMachineState *spapr, uint32_t index,
     if (index > max_index) {
         error_setg(errp, "\"index\" for PAPR PHB is too large (max %u)",
                    max_index);
-        return;
+        return false;
     }
 
     *buid = base_buid + index;
@@ -4818,6 +4854,7 @@ static void phb_placement_2_7(SpaprMachineState *spapr, uint32_t index,
 
     *nv2gpa = 0;
     *nv2atsd = 0;
+    return true;
 }
 
 static void spapr_machine_2_7_class_options(MachineClass *mc)

@@ -236,9 +236,26 @@ static void cpu_exec_nocache(CPUState *cpu, int max_cycles,
 }
 #endif
 
-void cpu_exec_step_atomic(CPUState *cpu)
+static void cpu_exec_enter(CPUState *cpu)
 {
     CPUClass *cc = CPU_GET_CLASS(cpu);
+
+    if (cc->cpu_exec_enter) {
+        cc->cpu_exec_enter(cpu);
+    }
+}
+
+static void cpu_exec_exit(CPUState *cpu)
+{
+    CPUClass *cc = CPU_GET_CLASS(cpu);
+
+    if (cc->cpu_exec_exit) {
+        cc->cpu_exec_exit(cpu);
+    }
+}
+
+void cpu_exec_step_atomic(CPUState *cpu)
+{
     TranslationBlock *tb;
     target_ulong cs_base, pc;
     uint32_t flags;
@@ -257,11 +274,11 @@ void cpu_exec_step_atomic(CPUState *cpu)
 
         /* Since we got here, we know that parallel_cpus must be true.  */
         parallel_cpus = false;
-        cc->cpu_exec_enter(cpu);
+        cpu_exec_enter(cpu);
         /* execute the generated code */
         trace_exec_tb(tb, pc);
         cpu_tb_exec(cpu, tb);
-        cc->cpu_exec_exit(cpu);
+        cpu_exec_exit(cpu);
     } else {
         /*
          * The mmap_lock is dropped by tb_gen_code if it runs out of
@@ -465,7 +482,9 @@ static inline void cpu_handle_debug_exception(CPUState *cpu)
         }
     }
 
-    cc->debug_excp_handler(cpu);
+    if (cc->debug_excp_handler) {
+        cc->debug_excp_handler(cpu);
+    }
 }
 
 static inline bool cpu_handle_exception(CPUState *cpu, int *ret)
@@ -606,7 +625,8 @@ static inline bool cpu_handle_interrupt(CPUState *cpu,
            True when it is, and we should restart on a new TB,
            and via longjmp via cpu_loop_exit.  */
         else {
-            if (cc->cpu_exec_interrupt(cpu, interrupt_request)) {
+            if (cc->cpu_exec_interrupt &&
+                cc->cpu_exec_interrupt(cpu, interrupt_request)) {
                 if (need_replay_interrupt(interrupt_request)) {
                     replay_interrupt();
                 }
@@ -685,7 +705,7 @@ static inline void cpu_loop_exec_tb(CPUState *cpu, TranslationBlock *tb,
     insns_left = MIN(0xffff, cpu->icount_budget);
     cpu_neg(cpu)->icount_decr.u16.low = insns_left;
     cpu->icount_extra = cpu->icount_budget - insns_left;
-    if (!cpu->icount_extra) {
+    if (!cpu->icount_extra && insns_left < tb->icount) {
         /* Execute any remaining instructions, then let the main loop
          * handle the next event.
          */
@@ -713,7 +733,7 @@ int cpu_exec(CPUState *cpu)
 
     rcu_read_lock();
 
-    cc->cpu_exec_enter(cpu);
+    cpu_exec_enter(cpu);
 
     /* Calculate difference between guest clock and host clock.
      * This delay includes the delay of the last cycle, so
@@ -724,7 +744,7 @@ int cpu_exec(CPUState *cpu)
 
     /* prepare setjmp context for exception handling */
     if (sigsetjmp(cpu->jmp_env, 0) != 0) {
-#if defined(__clang__) || !QEMU_GNUC_PREREQ(4, 6)
+#if defined(__clang__)
         /* Some compilers wrongly smash all local variables after
          * siglongjmp. There were bug reports for gcc 4.5.0 and clang.
          * Reload essential local variables here for those compilers.
@@ -775,7 +795,7 @@ int cpu_exec(CPUState *cpu)
         }
     }
 
-    cc->cpu_exec_exit(cpu);
+    cpu_exec_exit(cpu);
     rcu_read_unlock();
 
     return ret;

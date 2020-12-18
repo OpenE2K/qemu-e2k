@@ -2267,6 +2267,10 @@ void cpu_io_recompile(CPUState *cpu, uintptr_t retaddr)
         tb_destroy(tb);
     }
 
+    qemu_log_mask_and_addr(CPU_LOG_EXEC, tb->pc,
+                           "cpu_io_recompile: rewound execution of TB to "
+                           TARGET_FMT_lx "\n", tb->pc);
+
     /* TODO: If env->pc != tb->pc (i.e. the faulting instruction was not
      * the first in the TB) then we end up generating a whole new TB and
      *  repeating the fault, which is horribly inefficient.
@@ -2375,7 +2379,7 @@ void dump_exec_info(void)
     qemu_printf("Translation buffer state:\n");
     /*
      * Report total code size including the padding and TB structs;
-     * otherwise users might think "-tb-size" is not honoured.
+     * otherwise users might think "-accel tcg,tb-size" is not honoured.
      * For avg host size we use the precise numbers from tb_tree_stats though.
      */
     qemu_printf("gen code size       %zu/%zu\n",

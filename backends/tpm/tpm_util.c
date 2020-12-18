@@ -8,7 +8,7 @@
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
  * License as published by the Free Software Foundation; either
- * version 2 of the License, or (at your option) any later version.
+ * version 2.1 of the License, or (at your option) any later version.
  *
  * This library is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -35,8 +35,7 @@
 static void get_tpm(Object *obj, Visitor *v, const char *name, void *opaque,
                     Error **errp)
 {
-    DeviceState *dev = DEVICE(obj);
-    TPMBackend **be = qdev_get_prop_ptr(dev, opaque);
+    TPMBackend **be = qdev_get_prop_ptr(obj, opaque);
     char *p;
 
     p = g_strdup(*be ? (*be)->id : "");
@@ -49,7 +48,7 @@ static void set_tpm(Object *obj, Visitor *v, const char *name, void *opaque,
 {
     DeviceState *dev = DEVICE(obj);
     Property *prop = opaque;
-    TPMBackend *s, **be = qdev_get_prop_ptr(dev, prop);
+    TPMBackend *s, **be = qdev_get_prop_ptr(obj, prop);
     char *str;
 
     if (dev->realized) {
@@ -73,9 +72,8 @@ static void set_tpm(Object *obj, Visitor *v, const char *name, void *opaque,
 
 static void release_tpm(Object *obj, const char *name, void *opaque)
 {
-    DeviceState *dev = DEVICE(obj);
     Property *prop = opaque;
-    TPMBackend **be = qdev_get_prop_ptr(dev, prop);
+    TPMBackend **be = qdev_get_prop_ptr(obj, prop);
 
     if (*be) {
         tpm_backend_reset(*be);

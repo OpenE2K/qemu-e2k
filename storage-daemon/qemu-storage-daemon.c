@@ -180,12 +180,9 @@ static void process_options(int argc, char *argv[])
             help();
             exit(EXIT_SUCCESS);
         case 'T':
-            {
-                char *trace_file = trace_opt_parse(optarg);
-                trace_init_file(trace_file);
-                g_free(trace_file);
-                break;
-            }
+            trace_opt_parse(optarg);
+            trace_init_file();
+            break;
         case 'V':
             printf("qemu-storage-daemon version "
                    QEMU_FULL_VERSION "\n" QEMU_COPYRIGHT "\n");
@@ -264,21 +261,14 @@ static void process_options(int argc, char *argv[])
             }
         case OPTION_OBJECT:
             {
-                QemuOpts *opts;
-                const char *type;
                 QDict *args;
+                bool help;
 
-                /* FIXME The keyval parser rejects 'help' arguments, so we must
-                 * unconditionall try QemuOpts first. */
-                opts = qemu_opts_parse(&qemu_object_opts,
-                                       optarg, true, &error_fatal);
-                type = qemu_opt_get(opts, "qom-type");
-                if (type && user_creatable_print_help(type, opts)) {
+                args = keyval_parse(optarg, "qom-type", &help, &error_fatal);
+                if (help) {
+                    user_creatable_print_help_from_qdict(args);
                     exit(EXIT_SUCCESS);
                 }
-                qemu_opts_del(opts);
-
-                args = keyval_parse(optarg, "qom-type", &error_fatal);
                 user_creatable_add_dict(args, true, &error_fatal);
                 qobject_unref(args);
                 break;
@@ -323,6 +313,9 @@ int main(int argc, char *argv[])
     while (!exit_requested) {
         main_loop_wait(false);
     }
+
+    bdrv_drain_all_begin();
+    bdrv_close_all();
 
     monitor_cleanup();
     qemu_chr_cleanup();

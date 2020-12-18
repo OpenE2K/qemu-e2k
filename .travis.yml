@@ -49,6 +49,7 @@ addons:
       - libvdeplug-dev
       - libvte-2.91-dev
       - libzstd-dev
+      - ninja-build
       - sparse
       - uuid-dev
       - gcovr
@@ -94,7 +95,7 @@ before_install:
 # Configure step - may be overridden
 before_script:
   - mkdir -p ${BUILD_DIR} && cd ${BUILD_DIR}
-  - ${SRC_DIR}/configure ${BASE_CONFIG} ${CONFIG} || { cat config.log && exit 1; }
+  - ${SRC_DIR}/configure ${BASE_CONFIG} ${CONFIG} || { cat config.log meson-logs/meson-log.txt && exit 1; }
 
 # Main build & test - rarely overridden - controlled by TEST_CMD
 script:
@@ -118,11 +119,6 @@ after_script:
 
 jobs:
   include:
-    - name: "GCC static (user)"
-      env:
-        - CONFIG="--disable-system --static"
-        - CACHE_NAME="${TRAVIS_BRANCH}-linux-gcc-default"
-
     # Just build tools and run minimal unit and softfloat checks
     - name: "GCC check-unit and check-softfloat"
       env:
@@ -152,20 +148,6 @@ jobs:
         - CACHE_NAME="${TRAVIS_BRANCH}-linux-gcc-default"
 
 
-    # Alternate coroutines implementations are only really of interest to KVM users
-    # However we can't test against KVM on Travis so we can only run unit tests
-    - name: "check-unit coroutine=ucontext"
-      env:
-        - CONFIG="--with-coroutine=ucontext --disable-tcg"
-        - TEST_CMD="make check-unit -j${JOBS} V=1"
-
-
-    - name: "check-unit coroutine=sigaltstack"
-      env:
-        - CONFIG="--with-coroutine=sigaltstack --disable-tcg"
-        - TEST_CMD="make check-unit -j${JOBS} V=1"
-
-
     # Check we can build docs and tools (out of tree)
     - name: "tools and docs (bionic)"
       dist: bionic
@@ -177,6 +159,7 @@ jobs:
       addons:
         apt:
           packages:
+            - ninja-build
             - python3-sphinx
             - perl
 
@@ -197,7 +180,7 @@ jobs:
       compiler: clang
       before_script:
         - mkdir -p ${BUILD_DIR} && cd ${BUILD_DIR}
-        - ${SRC_DIR}/configure ${CONFIG} --extra-cflags="-fsanitize=undefined -Werror" || { cat config.log && exit 1; }
+        - ${SRC_DIR}/configure ${CONFIG} --extra-cflags="-fsanitize=undefined -Werror" || { cat config.log meson-logs/meson-log.txt && exit 1; }
 
 
     - name: "Clang (other-softmmu)"
@@ -211,6 +194,10 @@ jobs:
     # gprof/gcov are GCC features
     - name: "GCC gprof/gcov"
       dist: bionic
+      addons:
+        apt:
+          packages:
+            - ninja-build
       env:
         - CONFIG="--enable-gprof --enable-gcov --disable-libssh
                   --target-list=${MAIN_SOFTMMU_TARGETS}"
@@ -223,25 +210,6 @@ jobs:
       env:
         - CONFIG="--without-default-devices --disable-user"
         - CACHE_NAME="${TRAVIS_BRANCH}-linux-gcc-default"
-        - TEST_CMD=""
-
-
-    # We don't need to exercise every backend with every front-end
-    - name: "GCC trace log,simple,syslog (user)"
-      env:
-        - CONFIG="--enable-trace-backends=log,simple,syslog --disable-system"
-        - TEST_CMD=""
-
-
-    - name: "GCC trace ftrace (x86_64-softmmu)"
-      env:
-        - CONFIG="--enable-trace-backends=ftrace --target-list=x86_64-softmmu"
-        - TEST_CMD=""
-
-
-    - name: "GCC trace ust (x86_64-softmmu)"
-      env:
-        - CONFIG="--enable-trace-backends=ust --target-list=x86_64-softmmu"
         - TEST_CMD=""
 
 
@@ -281,6 +249,7 @@ jobs:
             - liburcu-dev
             - libusb-1.0-0-dev
             - libvte-2.91-dev
+            - ninja-build
             - sparse
             - uuid-dev
       language: generic
@@ -291,34 +260,8 @@ jobs:
         - TEST_CMD=""
       before_script:
         - mkdir -p ${BUILD_DIR} && cd ${BUILD_DIR}
-        - ${SRC_DIR}/configure ${CONFIG} --extra-cflags="-g3 -O0 -fsanitize=thread" || { cat config.log && exit 1; }
+        - ${SRC_DIR}/configure ${CONFIG} --extra-cflags="-g3 -O0 -fsanitize=thread" || { cat config.log meson-logs/meson-log.txt && exit 1; }
 
-
-    # Run check-tcg against linux-user
-    - name: "GCC check-tcg (user)"
-      env:
-        - CONFIG="--disable-system --enable-debug-tcg"
-        - TEST_BUILD_CMD="make build-tcg"
-        - TEST_CMD="make check-tcg"
-        - CACHE_NAME="${TRAVIS_BRANCH}-linux-gcc-debug-tcg"
-
-
-    # Run check-tcg against softmmu targets
-    - name: "GCC check-tcg (some-softmmu)"
-      env:
-        - CONFIG="--enable-debug-tcg --target-list=xtensa-softmmu,arm-softmmu,aarch64-softmmu,alpha-softmmu"
-        - TEST_BUILD_CMD="make build-tcg"
-        - TEST_CMD="make check-tcg"
-        - CACHE_NAME="${TRAVIS_BRANCH}-linux-gcc-debug-tcg"
-
-
-    # Run check-tcg against softmmu targets (with plugins)
-    - name: "GCC plugins check-tcg (some-softmmu)"
-      env:
-        - CONFIG="--enable-plugins --enable-debug-tcg --target-list=xtensa-softmmu,arm-softmmu,aarch64-softmmu,alpha-softmmu"
-        - TEST_BUILD_CMD="make build-tcg"
-        - TEST_CMD="make check-tcg"
-        - CACHE_NAME="${TRAVIS_BRANCH}-linux-gcc-debug-tcg"
 
     - name: "[aarch64] GCC check-tcg"
       arch: arm64
@@ -346,6 +289,7 @@ jobs:
           - libusb-1.0-0-dev
           - libvdeplug-dev
           - libvte-2.91-dev
+          - ninja-build
           # Tests dependencies
           - genisoimage
       env:
@@ -379,6 +323,7 @@ jobs:
           - libusb-1.0-0-dev
           - libvdeplug-dev
           - libvte-2.91-dev
+          - ninja-build
           # Tests dependencies
           - genisoimage
       env:
@@ -411,6 +356,7 @@ jobs:
           - libusb-1.0-0-dev
           - libvdeplug-dev
           - libvte-2.91-dev
+          - ninja-build
           # Tests dependencies
           - genisoimage
       env:
@@ -450,6 +396,7 @@ jobs:
           - libzstd-dev
           - nettle-dev
           - xfslibs-dev
+          - ninja-build
           # Tests dependencies
           - genisoimage
       env:
@@ -463,6 +410,7 @@ jobs:
         apt_packages:
           - libgcrypt20-dev
           - libgnutls28-dev
+          - ninja-build
       env:
         - CONFIG="--disable-containers --disable-system"
 
@@ -493,6 +441,7 @@ jobs:
           - libusb-1.0-0-dev
           - libvdeplug-dev
           - libvte-2.91-dev
+          - ninja-build
       env:
         - TEST_CMD="make check-unit"
         - CONFIG="--disable-containers --disable-tcg --enable-kvm
@@ -517,7 +466,7 @@ jobs:
         - ls -l ${SRC_DIR}/qemu-${QEMU_VERSION}.tar.bz2
         - tar -xf ${SRC_DIR}/qemu-${QEMU_VERSION}.tar.bz2 && cd qemu-${QEMU_VERSION}
         - mkdir -p release-build && cd release-build
-        - ../configure ${BASE_CONFIG} ${CONFIG} || { cat config.log && exit 1; }
+        - ../configure ${BASE_CONFIG} ${CONFIG} || { cat config.log meson-logs/meson-log.txt && exit 1; }
         - make install
   allow_failures:
     - env: UNRELIABLE=true

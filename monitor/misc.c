@@ -289,14 +289,14 @@ static CPUState *mon_get_cpu_sync(Monitor *mon, bool synchronize)
     return cpu;
 }
 
-CPUState *mon_get_cpu(void)
+CPUState *mon_get_cpu(Monitor *mon)
 {
-    return mon_get_cpu_sync(monitor_cur(), true);
+    return mon_get_cpu_sync(mon, true);
 }
 
-CPUArchState *mon_get_cpu_env(void)
+CPUArchState *mon_get_cpu_env(Monitor *mon)
 {
-    CPUState *cs = mon_get_cpu();
+    CPUState *cs = mon_get_cpu(mon);
 
     return cs ? cs->env_ptr : NULL;
 }
@@ -319,7 +319,7 @@ static void hmp_info_registers(Monitor *mon, const QDict *qdict)
             cpu_dump_state(cs, NULL, CPU_DUMP_FPU);
         }
     } else {
-        cs = mon_get_cpu();
+        cs = mon_get_cpu(mon);
 
         if (!cs) {
             monitor_printf(mon, "No CPU available\n");
@@ -381,7 +381,7 @@ static void hmp_info_history(Monitor *mon, const QDict *qdict)
 
 static void hmp_info_cpustats(Monitor *mon, const QDict *qdict)
 {
-    CPUState *cs = mon_get_cpu();
+    CPUState *cs = mon_get_cpu(mon);
 
     if (!cs) {
         monitor_printf(mon, "No CPU available\n");
@@ -437,17 +437,17 @@ void qmp_client_migrate_info(const char *protocol, const char *hostname,
             return;
         }
 
-        if (qemu_spice_migrate_info(hostname,
+        if (qemu_spice.migrate_info(hostname,
                                     has_port ? port : -1,
                                     has_tls_port ? tls_port : -1,
                                     cert_subject)) {
-            error_setg(errp, QERR_UNDEFINED_ERROR);
+            error_setg(errp, "Could not set up display for migration");
             return;
         }
         return;
     }
 
-    error_setg(errp, QERR_INVALID_PARAMETER_VALUE, "protocol", "spice");
+    error_setg(errp, QERR_INVALID_PARAMETER_VALUE, "protocol", "'spice'");
 }
 
 static void hmp_logfile(Monitor *mon, const QDict *qdict)
@@ -546,7 +546,7 @@ static void memory_dump(Monitor *mon, int count, int format, int wsize,
     int l, line_size, i, max_digits, len;
     uint8_t buf[16];
     uint64_t v;
-    CPUState *cs = mon_get_cpu();
+    CPUState *cs = mon_get_cpu(mon);
 
     if (!cs && (format == 'i' || !is_physical)) {
         monitor_printf(mon, "Can not dump without CPU\n");
@@ -667,10 +667,11 @@ static void hmp_physical_memory_dump(Monitor *mon, const QDict *qdict)
     memory_dump(mon, count, format, size, addr, 1);
 }
 
-static void *gpa2hva(MemoryRegion **p_mr, hwaddr addr, Error **errp)
+void *gpa2hva(MemoryRegion **p_mr, hwaddr addr, uint64_t size, Error **errp)
 {
+    Int128 gpa_region_size;
     MemoryRegionSection mrs = memory_region_find(get_system_memory(),
-                                                 addr, 1);
+                                                 addr, size);
 
     if (!mrs.mr) {
         error_setg(errp, "No memory is mapped at address 0x%" HWADDR_PRIx, addr);
@@ -679,6 +680,14 @@ static void *gpa2hva(MemoryRegion **p_mr, hwaddr addr, Error **errp)
 
     if (!memory_region_is_ram(mrs.mr) && !memory_region_is_romd(mrs.mr)) {
         error_setg(errp, "Memory at address 0x%" HWADDR_PRIx "is not RAM", addr);
+        memory_region_unref(mrs.mr);
+        return NULL;
+    }
+
+    gpa_region_size = int128_make64(size);
+    if (int128_lt(mrs.size, gpa_region_size)) {
+        error_setg(errp, "Size of memory region at 0x%" HWADDR_PRIx
+                   " exceeded.", addr);
         memory_region_unref(mrs.mr);
         return NULL;
     }
@@ -694,7 +703,7 @@ static void hmp_gpa2hva(Monitor *mon, const QDict *qdict)
     MemoryRegion *mr = NULL;
     void *ptr;
 
-    ptr = gpa2hva(&mr, addr, &local_err);
+    ptr = gpa2hva(&mr, addr, 1, &local_err);
     if (local_err) {
         error_report_err(local_err);
         return;
@@ -711,7 +720,7 @@ static void hmp_gva2gpa(Monitor *mon, const QDict *qdict)
 {
     target_ulong addr = qdict_get_int(qdict, "addr");
     MemTxAttrs attrs;
-    CPUState *cs = mon_get_cpu();
+    CPUState *cs = mon_get_cpu(mon);
     hwaddr gpa;
 
     if (!cs) {
@@ -770,7 +779,7 @@ static void hmp_gpa2hpa(Monitor *mon, const QDict *qdict)
     void *ptr;
     uint64_t physaddr;
 
-    ptr = gpa2hva(&mr, addr, &local_err);
+    ptr = gpa2hva(&mr, addr, 1, &local_err);
     if (local_err) {
         error_report_err(local_err);
         return;
@@ -1232,7 +1241,7 @@ void qmp_getfd(const char *fdname, Error **errp)
 
     fd = qemu_chr_fe_get_msgfd(&cur_mon->chr);
     if (fd == -1) {
-        error_setg(errp, QERR_FD_NOT_SUPPLIED);
+        error_setg(errp, "No file descriptor supplied via SCM_RIGHTS");
         return;
     }
 
@@ -1286,7 +1295,7 @@ void qmp_closefd(const char *fdname, Error **errp)
     }
 
     qemu_mutex_unlock(&cur_mon->mon_lock);
-    error_setg(errp, QERR_FD_NOT_FOUND, fdname);
+    error_setg(errp, "File descriptor named '%s' not found", fdname);
 }
 
 int monitor_get_fd(Monitor *mon, const char *fdname, Error **errp)
@@ -1357,7 +1366,7 @@ AddfdInfo *qmp_add_fd(bool has_fdset_id, int64_t fdset_id, bool has_opaque,
 
     fd = qemu_chr_fe_get_msgfd(&mon->chr);
     if (fd == -1) {
-        error_setg(errp, QERR_FD_NOT_SUPPLIED);
+        error_setg(errp, "No file descriptor supplied via SCM_RIGHTS");
         goto error;
     }
 
@@ -1410,7 +1419,7 @@ error:
     } else {
         snprintf(fd_str, sizeof(fd_str), "fdset-id:%" PRId64, fdset_id);
     }
-    error_setg(errp, QERR_FD_NOT_FOUND, fd_str);
+    error_setg(errp, "File descriptor named '%s' not found", fd_str);
 }
 
 FdsetInfoList *qmp_query_fdsets(Error **errp)
@@ -1663,10 +1672,10 @@ HMPCommand hmp_cmds[] = {
  * Set @pval to the value in the register identified by @name.
  * return 0 if OK, -1 if not found
  */
-int get_monitor_def(int64_t *pval, const char *name)
+int get_monitor_def(Monitor *mon, int64_t *pval, const char *name)
 {
     const MonitorDef *md = target_monitor_defs();
-    CPUState *cs = mon_get_cpu();
+    CPUState *cs = mon_get_cpu(mon);
     void *ptr;
     uint64_t tmp = 0;
     int ret;
@@ -1678,9 +1687,9 @@ int get_monitor_def(int64_t *pval, const char *name)
     for(; md->name != NULL; md++) {
         if (hmp_compare_cmd(name, md->name)) {
             if (md->get_value) {
-                *pval = md->get_value(md, md->offset);
+                *pval = md->get_value(mon, md, md->offset);
             } else {
-                CPUArchState *env = mon_get_cpu_env();
+                CPUArchState *env = mon_get_cpu_env(mon);
                 ptr = (uint8_t *)env + md->offset;
                 switch(md->type) {
                 case MD_I32:

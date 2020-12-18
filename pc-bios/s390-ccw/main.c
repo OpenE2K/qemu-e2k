@@ -43,7 +43,9 @@ void write_subsystem_identification(void)
 
 void write_iplb_location(void)
 {
-    lowcore->ptr_iplb = ptr2u32(&iplb);
+    if (cutype == CU_TYPE_VIRTIO && virtio_get_device_type() != VIRTIO_ID_NET) {
+        lowcore->ptr_iplb = ptr2u32(&iplb);
+    }
 }
 
 unsigned int get_loadparm_index(void)
@@ -175,6 +177,12 @@ static void boot_setup(void)
     sclp_get_loadparm_ascii(loadparm_str);
     memcpy(lpmsg + 10, loadparm_str, 8);
     sclp_print(lpmsg);
+
+    /*
+     * Clear out any potential S390EP magic (see jump_to_low_kernel()),
+     * so we don't taint our decision-making process during a reboot.
+     */
+    memset((char *)S390EP, 0, 6);
 
     have_iplb = store_iplb(&iplb);
 }
