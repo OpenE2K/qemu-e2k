@@ -6,7 +6,9 @@
 #include "exec/helper-proto.h"
 
 #define glue3(x, y, z) glue(glue(x, y), z)
+#define glue4(x, y, z, w) glue(glue3(x, y, z), w)
 #define deref(x) *(x)
+#define no_cvt(x) (x) /* when in correct type */
 
 static inline void fpu_set_exception(CPUE2KState *env, int mask)
 {
@@ -84,16 +86,23 @@ void e2k_update_fp_status(CPUE2KState *env)
         return float##size##_val(z); \
     }
     
-#define GENERATE_CMP_FLOAT2_OP(name, function, expr, size) \
-    uint##size##_t HELPER(name)(CPUE2KState *env, uint##size##_t x, uint##size##_t y) \
+#define GENERATE_SIMPLE_FLOAT2_OPS_32_64(name, function) \
+    GENERATE_SIMPLE_FLOAT2_OP(glue(name, s), function, 32) \
+    GENERATE_SIMPLE_FLOAT2_OP(glue(name, d), function, 64)
+    
+#define GENERATE_CMP_FLOAT2_OP(ret_type, name, expr, op, in_type, cvt_macro) \
+    ret_type HELPER(name)(CPUE2KState *env, in_type x, in_type y) \
     { \
         uint8_t old_flags = save_exception_flags(env); \
-        uint##size##_t z = expr float##size##_##function (make_float##size (x), make_float##size (y), &env->fp_status); \
+        ret_type z = expr op(cvt_macro(x), cvt_macro(y), &env->fp_status); \
         merge_exception_flags(env, old_flags); \
         return z; \
     }
 
-#define no_cvt(x) (x) // when function already returns in correct type
+#define GENERATE_CMP_FLOAT2_OPS_32_64_80(name, expr, op) \
+    GENERATE_CMP_FLOAT2_OP(uint32_t, glue3(f, name, s), expr, glue(float32_, op), uint32_t, make_float32) \
+    GENERATE_CMP_FLOAT2_OP(uint64_t, glue3(f, name, d), expr, glue(float64_, op), uint64_t, make_float32) \
+    GENERATE_CMP_FLOAT2_OP(uint64_t, glue3(fx, name, x), expr, glue(floatx80_, op), floatx80*, deref)
 
 #define GENERATE_CVT_FLOAT1_OP(name, from_t, to_t, size_from, size_to, func_from, func_to) \
     size_to HELPER(name)(CPUE2KState *env, size_from x) \
@@ -104,28 +113,20 @@ void e2k_update_fp_status(CPUE2KState *env)
         return z; \
     }
 
-#define GENERATE_SIMPLE_FLOAT2_OPS_32_64(name, function) \
-    GENERATE_SIMPLE_FLOAT2_OP(glue(name, s), function, 32) \
-    GENERATE_SIMPLE_FLOAT2_OP(glue(name, d), function, 64)
-
-#define GENERATE_CMP_FLOAT2_OPS_32_64(name, function, expr) \
-    GENERATE_CMP_FLOAT2_OP(glue(name, s), function, expr, 32) \
-    GENERATE_CMP_FLOAT2_OP(glue(name, d), function, expr, 64)
-        
 GENERATE_SIMPLE_FLOAT2_OPS_32_64(fadd, add)
 GENERATE_SIMPLE_FLOAT2_OPS_32_64(fsub, sub)
 GENERATE_SIMPLE_FLOAT2_OPS_32_64(fmin, min)
 GENERATE_SIMPLE_FLOAT2_OPS_32_64(fmax, max)
 GENERATE_SIMPLE_FLOAT2_OPS_32_64(fmul, mul)
 GENERATE_SIMPLE_FLOAT2_OPS_32_64(fdiv, div)
-GENERATE_CMP_FLOAT2_OPS_32_64(fcmpeq,  eq,  )
-GENERATE_CMP_FLOAT2_OPS_32_64(fcmpneq, eq, !)
-GENERATE_CMP_FLOAT2_OPS_32_64(fcmple,  le,  )
-GENERATE_CMP_FLOAT2_OPS_32_64(fcmpnle, le, !)
-GENERATE_CMP_FLOAT2_OPS_32_64(fcmplt,  lt,  )
-GENERATE_CMP_FLOAT2_OPS_32_64(fcmpnlt, lt, !)
-GENERATE_CMP_FLOAT2_OPS_32_64(fcmpuod, unordered,  )
-GENERATE_CMP_FLOAT2_OPS_32_64(fcmpod,  unordered, !)
+GENERATE_CMP_FLOAT2_OPS_32_64_80(cmpeq,   , eq)
+GENERATE_CMP_FLOAT2_OPS_32_64_80(cmpneq, !, eq)
+GENERATE_CMP_FLOAT2_OPS_32_64_80(cmple,   , le)
+GENERATE_CMP_FLOAT2_OPS_32_64_80(cmpnle, !, le)
+GENERATE_CMP_FLOAT2_OPS_32_64_80(cmplt,   , lt)
+GENERATE_CMP_FLOAT2_OPS_32_64_80(cmpnlt, !, lt)
+GENERATE_CMP_FLOAT2_OPS_32_64_80(cmpuod,  , unordered)
+GENERATE_CMP_FLOAT2_OPS_32_64_80(cmpod,  !, unordered)
 
 GENERATE_CVT_FLOAT1_OP(fstois,   float32, int32,   uint32_t, uint32_t, make_float32, no_cvt)
 GENERATE_CVT_FLOAT1_OP(istofs,   int32,   float32, uint32_t, uint32_t, no_cvt, float32_val)
@@ -165,9 +166,9 @@ void HELPER(fdtofx)(floatx80 *ret, CPUE2KState *env, uint64_t x)
 #define GEN_OP2_XX(name, op) \
     void HELPER(name)(CPUE2KState *env, floatx80 *x, floatx80 *y) \
     { \
-	    uint8_t old_flags = save_exception_flags(env); \
-	    *x = glue(floatx80_, op)(*x, *y, &env->fp_status); \
-	    merge_exception_flags(env, old_flags); \
+        uint8_t old_flags = save_exception_flags(env); \
+        *x = glue(floatx80_, op)(*x, *y, &env->fp_status); \
+        merge_exception_flags(env, old_flags); \
     }
 
 GEN_OP2_XX(fxaddxx, add)

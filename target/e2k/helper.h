@@ -41,20 +41,25 @@ DEF_HELPER_4(dam_unlock_addr, int, env, i64, int, int)
     DEF_HELPER_3(name##s, i32, env, i32, i32) \
     DEF_HELPER_3(name##d, i64, env, i64, i64)
 
+#define DEF_HELPER_3_32_64_80(name) \
+    DEF_HELPER_3_32_64(f##name) \
+    DEF_HELPER_3(fx##name##x, i64, env, f80, f80)
+
 DEF_HELPER_3_32_64(fadd)
 DEF_HELPER_3_32_64(fsub)
 DEF_HELPER_3_32_64(fmin)
 DEF_HELPER_3_32_64(fmax)
 DEF_HELPER_3_32_64(fmul)
 DEF_HELPER_3_32_64(fdiv)
-DEF_HELPER_3_32_64(fcmpeq)
-DEF_HELPER_3_32_64(fcmpneq)
-DEF_HELPER_3_32_64(fcmple)
-DEF_HELPER_3_32_64(fcmpnle)
-DEF_HELPER_3_32_64(fcmplt)
-DEF_HELPER_3_32_64(fcmpnlt)
-DEF_HELPER_3_32_64(fcmpuod)
-DEF_HELPER_3_32_64(fcmpod)
+DEF_HELPER_3_32_64_80(cmpeq)
+DEF_HELPER_3_32_64_80(cmpneq)
+DEF_HELPER_3_32_64_80(cmple)
+DEF_HELPER_3_32_64_80(cmpnle)
+DEF_HELPER_3_32_64_80(cmplt)
+DEF_HELPER_3_32_64_80(cmpnlt)
+DEF_HELPER_3_32_64_80(cmpuod)
+DEF_HELPER_3_32_64_80(cmpod)
+#undef DEF_HELPER_3_32_64_80
 #undef DEF_HELPER_3_32_64
 
 DEF_HELPER_2(fstois, i32, env, i32)

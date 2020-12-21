@@ -1220,6 +1220,58 @@ static void gen_fcmp_i64(TCGv_i64 ret, int opc, TCGv_i64 src1, TCGv_i64 src2)
     tcg_temp_free_i64(dst);
 }
 
+static void gen_fcmp_f80(TCGv_i64 ret, int opc, Src80 src1, Src80 src2)
+{
+    void (*f)(TCGv_i64, TCGv_env, TCGv_ptr, TCGv_ptr) = 0;
+    TCGv_i64 dst = tcg_temp_new_i64();
+    TCGv_ptr t0 = tcg_temp_new_ptr();
+    TCGv_ptr t1 = tcg_temp_new_ptr();
+
+    tcg_gen_addi_ptr(t0, cpu_env, offsetof(CPUE2KState, t0.f80));
+    tcg_gen_addi_ptr(t1, cpu_env, offsetof(CPUE2KState, t1.f80));
+
+    gen_temp_reg_write_i64_i32(src1.lo, src1.hi, t0);
+    gen_temp_reg_write_i64_i32(src2.lo, src2.hi, t1);
+
+    switch(opc) {
+    case 0: /* eq */
+        f = gen_helper_fxcmpeqx;
+        break;
+    case 1: /* lt */
+        f = gen_helper_fxcmpltx;
+        break;
+    case 2: /* le */
+        f = gen_helper_fxcmplex;
+        break;
+    case 3: /* uod */
+        f = gen_helper_fxcmpuodx;
+        break;
+    case 4: /* neq */
+        f = gen_helper_fxcmpneqx;
+        break;
+    case 5: /* nlt */
+        f = gen_helper_fxcmpnltx;
+        break;
+    case 6: /* nle */
+        f = gen_helper_fxcmpnlex;
+        break;
+    case 7: /* od */
+        f = gen_helper_fxcmpodx;
+        break;
+    default:
+        e2k_gen_exception(E2K_EXCP_ILLOPC);
+        break;
+    }
+
+    (*f)(dst, cpu_env, t0, t1);
+    
+    tcg_gen_setcondi_i64(TCG_COND_NE, ret, dst, 0);
+
+    tcg_temp_free_ptr(t1);
+    tcg_temp_free_ptr(t0);
+    tcg_temp_free_i64(dst);
+}
+
 /*
  * ret[31:0] = x[31:0]
  * ret[63:32] = y[63:32]
@@ -2206,6 +2258,55 @@ static void gen_alopf1_cmp_i32(DisasContext *ctx, Instr *instr,
     tcg_temp_free_i32(t0);
 }
 
+static void gen_alopf1_cmp_f80(DisasContext *ctx, Instr *instr, Src80 s2, TCGv_i32 s2tag)
+{
+    int chan = instr->chan;
+    TCGLabel *l0 = gen_new_label();
+    TCGLabel *l1 = gen_new_label();
+    Src80 s1 = get_src1_i80(ctx, instr->src1);
+    TCGv_i64 dst = e2k_get_temp_i64(ctx);
+    TCGv_i32 t0 = tcg_temp_new_i32();
+
+    gen_tag2_i64(t0, s1.tag, s2tag);
+    gen_tag_check(ctx, instr->sm, t0);
+    tcg_gen_brcondi_i32(TCG_COND_NE, t0, 0, l0);
+    gen_fcmp_f80(dst, instr->opc_cmp, s1, s2);
+    tcg_gen_br(l1);
+    gen_set_label(l0);
+    tcg_gen_movi_i64(dst, 2);
+    gen_set_label(l1);
+    set_al_result_preg(ctx, chan, instr->dst_preg, dst);
+    tcg_temp_free_i32(t0);
+}
+
+static void gen_alopf1_cmp_xx(DisasContext *ctx, Instr *instr)
+{
+    Src80 s2 = get_src2_i80(ctx, instr->src2);
+    gen_alopf1_cmp_f80(ctx, instr, s2, s2.tag);
+}
+
+static void gen_alopf1_cmp_xd(DisasContext *ctx, Instr *instr)
+{
+    Src64 s2 = get_src2_i64(ctx, instr->chan);
+    Src80 t2 = temp_new_src80();
+
+    gen_fdtofx(&t2, s2.value);
+    gen_alopf1_cmp_f80(ctx, instr, t2, s2.tag);
+
+    temp_free_src80(&t2);
+}
+
+static void gen_alopf1_cmp_xs(DisasContext *ctx, Instr *instr)
+{
+    Src32 s2 = get_src2_i32(ctx, instr->chan);
+    Src80 t2 = temp_new_src80();
+
+    gen_fstofx(&t2, s2.value);
+    gen_alopf1_cmp_f80(ctx, instr, t2, s2.tag);
+
+    temp_free_src80(&t2);
+}
+
 static void gen_alopf1_mrgc_i32(DisasContext *ctx, Instr *instr)
 {
     Src32 s1 = get_src1_i32(ctx, instr->chan);
@@ -2627,6 +2728,25 @@ static void gen_no_ext(DisasContext *ctx, Instr *instr)
             return;
         }
         break;
+    }
+    case 0x28:
+        if (is_chan_0134(chan)) {
+            /* fxcmp{op}sb */
+            gen_alopf1_cmp_xs(ctx, instr);
+            return;
+        }
+    case 0x29:
+        if (is_chan_0134(chan)) {
+            /* fxcmp{op}db */
+            gen_alopf1_cmp_xd(ctx, instr);
+            return;
+        }
+    case 0x2b: {
+        if (is_chan_0134(chan)) {
+            /* fxcmp{op}xb */
+            gen_alopf1_cmp_xx(ctx, instr);
+            return;
+        }
     }
     case 0x2e: {
         if (is_chan_0134(chan)) {
