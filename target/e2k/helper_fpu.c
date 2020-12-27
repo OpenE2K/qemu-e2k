@@ -19,17 +19,17 @@ static inline void fpu_set_exception(CPUE2KState *env, int mask)
     }
 }
 
-static inline uint8_t save_exception_flags(CPUE2KState *env)
+static inline int save_exception_flags(CPUE2KState *env)
 {
-    uint8_t old_flags = get_float_exception_flags(&env->fp_status);
+    int old_flags = get_float_exception_flags(&env->fp_status);
     set_float_exception_flags(0, &env->fp_status);
     return old_flags;
 }
 
-static inline void merge_exception_flags(CPUE2KState *env, uint8_t old_flags)
+static inline void merge_exception_flags(CPUE2KState *env, int old_flags)
 {
-    uint8_t new_flags = get_float_exception_flags(&env->fp_status);
-    float_raise(old_flags, &env->fp_status);
+    int new_flags = get_float_exception_flags(&env->fp_status);
+    float_raise((uint8_t)old_flags, &env->fp_status);
     fpu_set_exception(env,
                       ((new_flags & float_flag_invalid ? FPSR_IE : 0) |
                        (new_flags & float_flag_divbyzero ? FPSR_ZE : 0) |
@@ -41,27 +41,28 @@ static inline void merge_exception_flags(CPUE2KState *env, uint8_t old_flags)
 
 void e2k_update_fp_status(CPUE2KState *env)
 {
+    FloatRoundMode rm;
     int x;
     
     switch(env->fpcr.rc) {
         case FPCR_RC_UP:
-            x = float_round_up;
+            rm = float_round_up;
             break;
         case FPCR_RC_DOWN:
-            x = float_round_down;
+            rm = float_round_down;
             break;
         case FPCR_RC_CHOP:
-            x = float_round_to_zero;
+            rm = float_round_to_zero;
             break;
         case FPCR_RC_NEAR:
-            x = float_round_nearest_even;
+            rm = float_round_nearest_even;
             break;
         default:
+            qemu_log_mask(LOG_UNIMP, "unknown rounding mode 0x%x\n", env->fpcr.rc);
             abort();
-            break;
     }
     
-    set_float_rounding_mode(x, &env->fp_status);
+    set_float_rounding_mode(rm, &env->fp_status);
         
     switch(env->fpcr.pc) {
         case FPCR_PC_XP: x = 80; break;
@@ -69,8 +70,8 @@ void e2k_update_fp_status(CPUE2KState *env)
         case FPCR_PC_SP: x = 32; break;
         case FPCR_PC_RESERVED:
         default:
-            abort(); 
-            break;
+            qemu_log_mask(LOG_UNIMP, "unknown precision mode 0x%x\n", env->fpcr.pc);
+            abort();
     }
     
     set_floatx80_rounding_precision(x, &env->fp_status);
@@ -80,7 +81,7 @@ void e2k_update_fp_status(CPUE2KState *env)
 #define GENERATE_SIMPLE_FLOAT2_OP(name, function, size) \
     uint##size##_t HELPER(name)(CPUE2KState *env, uint##size##_t x, uint##size##_t y) \
     { \
-        uint8_t old_flags = save_exception_flags(env); \
+        int old_flags = save_exception_flags(env); \
         float##size z = float##size##_##function (make_float##size (x), make_float##size (y), &env->fp_status); \
         merge_exception_flags(env, old_flags); \
         return float##size##_val(z); \
@@ -93,7 +94,7 @@ void e2k_update_fp_status(CPUE2KState *env)
 #define GENERATE_CMP_FLOAT2_OP(ret_type, name, expr, op, in_type, cvt_macro) \
     ret_type HELPER(name)(CPUE2KState *env, in_type x, in_type y) \
     { \
-        uint8_t old_flags = save_exception_flags(env); \
+        int old_flags = save_exception_flags(env); \
         ret_type z = expr op(cvt_macro(x), cvt_macro(y), &env->fp_status); \
         merge_exception_flags(env, old_flags); \
         return z; \
@@ -107,7 +108,7 @@ void e2k_update_fp_status(CPUE2KState *env)
 #define GENERATE_CVT_FLOAT1_OP(name, from_t, to_t, size_from, size_to, func_from, func_to) \
     size_to HELPER(name)(CPUE2KState *env, size_from x) \
     {\
-        uint8_t old_flags = save_exception_flags(env); \
+        int old_flags = save_exception_flags(env); \
         size_to z = func_to( glue3(from_t, _to_, to_t) (func_from(x), &env->fp_status) );\
         merge_exception_flags(env, old_flags); \
         return z; \
@@ -151,14 +152,14 @@ GENERATE_CVT_FLOAT1_OP(fxtofd,   floatx80, float64, floatx80*, uint64_t, deref, 
 
 void HELPER(fstofx)(floatx80 *ret, CPUE2KState *env, uint32_t x)
 {
-    uint8_t old_flags = save_exception_flags(env);
+    int old_flags = save_exception_flags(env);
     *ret = float32_to_floatx80(make_float32(x), &env->fp_status);
     merge_exception_flags(env, old_flags);
 }
 
 void HELPER(fdtofx)(floatx80 *ret, CPUE2KState *env, uint64_t x)
 {
-    uint8_t old_flags = save_exception_flags(env);
+    int old_flags = save_exception_flags(env);
     *ret = float64_to_floatx80(make_float64(x), &env->fp_status);
     merge_exception_flags(env, old_flags);
 }
@@ -166,7 +167,7 @@ void HELPER(fdtofx)(floatx80 *ret, CPUE2KState *env, uint64_t x)
 #define GEN_OP2_XX(name, op) \
     void HELPER(name)(CPUE2KState *env, floatx80 *x, floatx80 *y) \
     { \
-        uint8_t old_flags = save_exception_flags(env); \
+        int old_flags = save_exception_flags(env); \
         *x = glue(floatx80_, op)(*x, *y, &env->fp_status); \
         merge_exception_flags(env, old_flags); \
     }
@@ -178,7 +179,7 @@ GEN_OP2_XX(fxdivxx, div)
 
 void HELPER(fxrsubxx)(CPUE2KState *env, floatx80 *x, floatx80 *y)
 {
-    uint8_t old_flags = save_exception_flags(env);
+    int old_flags = save_exception_flags(env);
     *x = floatx80_sub(*y, *x, &env->fp_status);
     merge_exception_flags(env, old_flags);
 }
