@@ -2373,6 +2373,38 @@ static void gen_alopf21_i32(DisasContext *ctx, Instr *instr,
     gen_al_result_i32(ctx, instr->chan, dst, tag);
 }
 
+static void gen_alopf21_comb_i64_env(DisasContext *ctx, Instr *instr,
+    void (*op1)(TCGv_i64, TCGv_ptr, TCGv_i64, TCGv_i64),
+    void (*op2)(TCGv_i64, TCGv_ptr, TCGv_i64, TCGv_i64))
+{
+    Src64 s1 = get_src1_i64(ctx, instr->chan);
+    Src64 s2 = get_src2_i64(ctx, instr->chan);
+    Src64 s3 = get_src3_i64(ctx, instr->chan);
+    TCGv_i32 tag = e2k_get_temp_i32(ctx);
+    TCGv_i64 dst = e2k_get_temp_i64(ctx);
+
+    gen_tag3_i64(tag, s1.tag, s2.tag, s3.tag);
+    (*op1)(dst, cpu_env, s1.value, s2.value);
+    (*op2)(dst, cpu_env, dst, s3.value);
+    gen_al_result_i64(ctx, instr->chan, dst, tag);
+}
+
+static void gen_alopf21_comb_i32_env(DisasContext *ctx, Instr *instr,
+    void (*op1)(TCGv_i32, TCGv_ptr, TCGv_i32, TCGv_i32),
+    void (*op2)(TCGv_i32, TCGv_ptr, TCGv_i32, TCGv_i32))
+{
+    Src32 s1 = get_src1_i32(ctx, instr->chan);
+    Src32 s2 = get_src2_i32(ctx, instr->chan);
+    Src32 s3 = get_src3_i32(ctx, instr->chan);
+    TCGv_i32 tag = e2k_get_temp_i32(ctx);
+    TCGv_i32 dst = e2k_get_temp_i32(ctx);
+
+    gen_tag3_i32(tag, s1.tag, s2.tag, s3.tag);
+    (*op1)(dst, cpu_env, s1.value, s2.value);
+    (*op2)(dst, cpu_env, dst, s3.value);
+    gen_al_result_i32(ctx, instr->chan, dst, tag);
+}
+
 static void gen_alopf2_i32(DisasContext *ctx, int chan, void (*op)(TCGv_i32, TCGv_i32))
 {
     Src32 s2 = get_src2_i32(ctx, chan);
@@ -3930,6 +3962,159 @@ static void gen_icmb3(DisasContext *ctx, Instr *instr)
     }
 }
 
+static void execute_fcomb_i64(DisasContext *ctx, Instr *instr)
+{
+    int opc1 = instr->opc1 & 0x1f;
+    int opc2 = instr->opc1 & 0x20;
+    Src64 s1 = get_src1_i64(ctx, instr->chan);
+    Src64 s2 = get_src2_i64(ctx, instr->chan);
+    Src64 s3 = get_src3_i64(ctx, instr->chan);
+    TCGv_i32 tag = e2k_get_temp_i32(ctx);
+    TCGv_i64 dst = e2k_get_temp_i64(ctx);
+
+    gen_tag3_i64(tag, s1.tag, s2.tag, s3.tag);
+
+    switch(opc1) {
+    case 0x0:
+        /* fadd_{op}d */
+        if ((ctx->version >= 2 && is_chan_0134(instr->chan)) || ctx->version >= 4) {
+            gen_helper_faddd(dst, cpu_env, s1.value, s2.value);
+            break;
+        }
+        goto gen_illopc;
+    case 0x2:
+        /* fsub_{op}d */
+        if ((ctx->version >= 2 && is_chan_0134(instr->chan)) || ctx->version >= 4) {
+            gen_helper_fsubd(dst, cpu_env, s1.value, s2.value);
+            break;
+        }
+        goto gen_illopc;
+    case 0x8:
+        /* fmul_{op}d */
+        if(is_chan_0134(instr->chan) || ctx->version >= 4) {
+            gen_helper_fmuld(dst, cpu_env, s1.value, s2.value);
+            break;
+        }
+        goto gen_illopc;
+    default:
+        goto gen_illopc;
+    }
+
+    switch(opc2) {
+    case 0x00:
+        if (instr->opc2 == FCMB0) {
+            /* f{op}_addd */
+            gen_helper_faddd(dst, cpu_env, dst, s3.value);
+            break;
+        } else if (ctx->version == 1 && instr->opc2 == FCMB1) {
+            /* f{op}_muld */
+            gen_helper_fmuld(dst, cpu_env, dst, s3.value);
+            break;
+        }
+        goto gen_illopc;
+    case 0x20:
+        if (instr->opc2 == FCMB0) {
+            /* f{op}_subd */
+            gen_helper_fsubd(dst, cpu_env, dst, s3.value);
+            break;
+        } else if (instr->opc2 == FCMB1) {
+            /* f{op}_rsubd */
+            gen_helper_fsubd(dst, cpu_env, s3.value, dst);
+            break;
+        }
+        goto gen_illopc;
+    default:
+        goto gen_illopc;
+    }
+
+    gen_al_result_i64(ctx, instr->chan, dst, tag);
+    return;
+
+gen_illopc:
+    e2k_tr_gen_exception(ctx, E2K_EXCP_ILLOPC);
+}
+
+static void execute_fcomb_i32(DisasContext *ctx, Instr *instr)
+{
+    int opc1 = instr->opc1 & 0x1f;
+    int opc2 = instr->opc1 & 0x20;
+    Src32 s1 = get_src1_i32(ctx, instr->chan);
+    Src32 s2 = get_src2_i32(ctx, instr->chan);
+    Src32 s3 = get_src3_i32(ctx, instr->chan);
+    TCGv_i32 tag = e2k_get_temp_i32(ctx);
+    TCGv_i32 dst = e2k_get_temp_i32(ctx);
+
+    gen_tag3_i32(tag, s1.tag, s2.tag, s3.tag);
+
+    switch(opc1) {
+    case 0x0:
+        /* fadd_{op}s */
+        if ((ctx->version >= 2 && is_chan_0134(instr->chan)) || ctx->version >= 4) {
+            gen_helper_fadds(dst, cpu_env, s1.value, s2.value);
+            break;
+        }
+        goto gen_illopc;
+    case 0x2:
+        /* fsub_{op}s */
+        if ((ctx->version >= 2 && is_chan_0134(instr->chan)) || ctx->version >= 4) {
+            gen_helper_fsubs(dst, cpu_env, s1.value, s2.value);
+            break;
+        }
+        goto gen_illopc;
+    case 0x8:
+        /* fmul_{op}s */
+        if(is_chan_0134(instr->chan) || ctx->version >= 4) {
+            gen_helper_fmuls(dst, cpu_env, s1.value, s2.value);
+            break;
+        }
+        goto gen_illopc;
+    default:
+        goto gen_illopc;
+    }
+
+    switch(opc2) {
+    case 0x00:
+        if (instr->opc2 == FCMB0) {
+            /* f{op}_adds */
+            gen_helper_fadds(dst, cpu_env, dst, s3.value);
+            break;
+        } else if (ctx->version == 1 && instr->opc2 == FCMB1) {
+            /* f{op}_muls */
+            gen_helper_fmuls(dst, cpu_env, dst, s3.value);
+            break;
+        }
+        goto gen_illopc;
+    case 0x20:
+        if (instr->opc2 == FCMB0) {
+            /* f{op}_subs */
+            gen_helper_fsubs(dst, cpu_env, dst, s3.value);
+            break;
+        } else if (instr->opc2 == FCMB1) {
+            /* f{op}_rsubs */
+            gen_helper_fsubs(dst, cpu_env, s3.value, dst);
+            break;
+        }
+        goto gen_illopc;
+    default:
+        goto gen_illopc;
+    }
+
+    gen_al_result_i32(ctx, instr->chan, dst, tag);
+    return;
+
+gen_illopc:
+    e2k_tr_gen_exception(ctx, E2K_EXCP_ILLOPC);
+}
+
+static void gen_fcmb(DisasContext *ctx, Instr *instr)
+{
+    if (instr->opc1 & 1) {
+        execute_fcomb_i64(ctx, instr);
+    } else {
+        execute_fcomb_i32(ctx, instr);
+    }
+}
+
 static void gen_pfcmb1(DisasContext *ctx, Instr *instr)
 {
     switch(instr->opc1) {
@@ -4059,6 +4244,8 @@ static void chan_execute(DisasContext *ctx, int chan)
     case ICMB1:
     case ICMB2: gen_icmb012(ctx, &instr); break;
     case ICMB3: gen_icmb3(ctx, &instr); break;
+    case FCMB0:
+    case FCMB1: gen_fcmb(ctx, &instr); break;
     case PFCMB1: gen_pfcmb1(ctx, &instr); break;
     default:
         e2k_tr_gen_exception(ctx, E2K_EXCP_ILLOPC);
