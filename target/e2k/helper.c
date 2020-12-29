@@ -71,6 +71,7 @@ static void proc_chain_save(CPUE2KState *env, int wbs)
     env->cr1.wbs = wbs;
     env->cr1.wpsz = env->wd.psize / 2;
     env->cr1.wfx = env->wd.fx;
+    env->cr1.wdbl = env->wdbl;
     env->cr1.br = e2k_state_br(env);
     env->cr1.ussz = env->usd.size >> 4;
 
@@ -163,7 +164,6 @@ void helper_setwd(CPUE2KState *env, uint32_t lts)
 
     if (env->version >= 3) {
         bool dbl = extract32(lts, 3, 1);
-        env->cr1.wdbl = dbl;
         env->wdbl = dbl;
     }
 
