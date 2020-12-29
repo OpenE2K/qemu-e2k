@@ -1670,9 +1670,18 @@ static MemOp gen_mas(DisasContext *ctx, Instr *instr, MemOp memop, TCGv_i64 addr
     if ((mas & 0x7) == 7) {
         int opc = mas >> 3;
         // TODO: special mas
-        e2k_todo(ctx, "opc %#x, chan %d, mas=%#x (opc %#x)", instr->opc1,
-            instr->chan, mas, opc);
-        return 0;
+        switch (opc) {
+        case 0:
+            /* flush cache */
+            memop |= MO_LE;
+            e2k_todo(ctx, "opc %#x, chan %d, flush cache", instr->opc1,
+                instr->chan);
+            break;
+        default:
+            e2k_todo(ctx, "opc %#x, chan %d, mas=%#x (opc %#x)", instr->opc1,
+                instr->chan, mas, opc);
+            return 0;
+        }
     } else if (mas) {
         int mod = extract8(mas, 0, 3);
 //        int dc = extract8(mas, 5, 2);
@@ -1710,6 +1719,11 @@ static void gen_ld(DisasContext *ctx, Instr *instr, MemOp memop)
     gen_tag2_i64(tag, s1.tag, s2.tag);
     tcg_gen_add_i64(t0, s1.value, s2.value);
     memop = gen_mas(ctx, instr, memop, t0);
+
+    if (memop == 0) {
+        // FIXME: hack
+        return;
+    }
 
     if (instr->sm) {
         gen_helper_probe_read_access(t1, cpu_env, t0);
