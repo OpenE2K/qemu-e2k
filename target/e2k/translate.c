@@ -377,6 +377,7 @@ static void e2k_tr_init_disas_context(DisasContextBase *db, CPUState *cs)
     CPUE2KState *env = &cpu->env;
 
     ctx->version = env->version;
+    e2k_alc_init(ctx);
 }
 
 static bool e2k_tr_breakpoint_check(DisasContextBase *db, CPUState *cs,
