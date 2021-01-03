@@ -86,18 +86,18 @@ void e2k_update_fp_status(CPUE2KState *env)
         merge_exception_flags(env, old_flags); \
         return float##size##_val(z); \
     }
-    
+
 #define GENERATE_SIMPLE_FLOAT2_OPS_32_64(name, function) \
     GENERATE_SIMPLE_FLOAT2_OP(glue(name, s), function, 32) \
     GENERATE_SIMPLE_FLOAT2_OP(glue(name, d), function, 64)
-    
+
 #define GENERATE_CMP_FLOAT2_OP(ret_type, name, expr, op, in_type, cvt_macro) \
     ret_type HELPER(name)(CPUE2KState *env, in_type x, in_type y) \
     { \
         int old_flags = save_exception_flags(env); \
         ret_type z = expr op(cvt_macro(x), cvt_macro(y), &env->fp_status); \
         merge_exception_flags(env, old_flags); \
-        return z; \
+        return z ? -1 : 0; \
     }
 
 #define GENERATE_CMP_FLOAT2_OPS_32_64_80(name, expr, op) \
