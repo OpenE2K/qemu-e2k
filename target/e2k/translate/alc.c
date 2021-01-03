@@ -1138,40 +1138,66 @@ static inline void gen_cmpand_i32(TCGv_i32 ret, int opc, TCGv_i32 src1,
     tcg_temp_free_i32(t0);
 }
 
+#define WRAP_FCMP_HELPER_(helper, type) \
+    static void glue(gen_, helper)(type ret, type src1, type src2) \
+    { \
+        glue(gen_helper_, helper)(ret, cpu_env, src1, src2); \
+    }
+#define WRAP_FCMP_HELPER(op) \
+    WRAP_FCMP_HELPER_(glue(op, s), TCGv_i32) \
+    WRAP_FCMP_HELPER_(glue(op, d), TCGv_i64)
+
+WRAP_FCMP_HELPER(fcmpeq)
+WRAP_FCMP_HELPER(fcmplt)
+WRAP_FCMP_HELPER(fcmple)
+WRAP_FCMP_HELPER(fcmpuod)
+WRAP_FCMP_HELPER(fcmpneq)
+WRAP_FCMP_HELPER(fcmpnlt)
+WRAP_FCMP_HELPER(fcmpnle)
+WRAP_FCMP_HELPER(fcmpod)
+
+#undef WRAP_FCMP_HELPER
+#undef WRAP_FCMP_HELPER_
+
+#define glue4(a, b, c, d) glue(glue(a, b), glue(c, d))
+
+#define GENERATE_FCMP_SWITCH_TABLE(f, opc, b, pre, suf, post) \
+    switch((opc)) { \
+    case b + 0: /* eq */ \
+        f = glue4(pre, suf, cmpeq, post); \
+        break; \
+    case b + 1: /* lt */ \
+        f = glue4(pre, suf, cmplt, post); \
+        break; \
+    case b + 2: /* le */ \
+        f = glue4(pre, suf, cmple, post); \
+        break; \
+    case b + 3: /* uod */ \
+        f = glue4(pre, suf, cmpuod, post); \
+        break; \
+    case b + 4: /* neq */ \
+        f = glue4(pre, suf, cmpneq, post); \
+        break; \
+    case b + 5: /* nlt */ \
+        f = glue4(pre, suf, cmpnlt, post); \
+        break; \
+    case b + 6: /* nle */ \
+        f = glue4(pre, suf, cmpnle, post); \
+        break; \
+    case b + 7: /* od */ \
+        f = glue4(pre, suf, cmpod, post); \
+        break; \
+    default: \
+        e2k_gen_exception(E2K_EXCP_ILLOPC); \
+        break; \
+    }
+
 static void gen_fcmp_i32(TCGv_i32 ret, int opc, TCGv_i32 src1, TCGv_i32 src2)
 {
     void (*f)(TCGv_i32, TCGv_env, TCGv_i32, TCGv_i32) = 0;
     TCGv_i32 dst = tcg_temp_new_i32();
 
-    switch(opc) {
-    case 0: /* eq */
-        f = gen_helper_fcmpeqs;
-        break;
-    case 1: /* lt */
-        f = gen_helper_fcmplts;
-        break;
-    case 2: /* le */
-        f = gen_helper_fcmples;
-        break;
-    case 3: /* uod */
-        f = gen_helper_fcmpuods;
-        break;
-    case 4: /* neq */
-        f = gen_helper_fcmpneqs;
-        break;
-    case 5: /* nlt */
-        f = gen_helper_fcmpnlts;
-        break;
-    case 6: /* nle */
-        f = gen_helper_fcmpnles;
-        break;
-    case 7: /* od */
-        f = gen_helper_fcmpods;
-        break;
-    default:
-        e2k_gen_exception(E2K_EXCP_ILLOPC);
-        break;
-    }
+    GENERATE_FCMP_SWITCH_TABLE(f, opc, 0, gen_helper_, f, s)
 
     (*f)(dst, cpu_env, src1, src2);
     tcg_gen_setcondi_i32(TCG_COND_NE, ret, dst, 0);
@@ -1184,35 +1210,7 @@ static void gen_fcmp_i64(TCGv_i64 ret, int opc, TCGv_i64 src1, TCGv_i64 src2)
     void (*f)(TCGv_i64, TCGv_env, TCGv_i64, TCGv_i64) = 0;
     TCGv_i64 dst = tcg_temp_new_i64();
 
-    switch(opc) {
-    case 0: /* eq */
-        f = gen_helper_fcmpeqd;
-        break;
-    case 1: /* lt */
-        f = gen_helper_fcmpltd;
-        break;
-    case 2: /* le */
-        f = gen_helper_fcmpled;
-        break;
-    case 3: /* uod */
-        f = gen_helper_fcmpuodd;
-        break;
-    case 4: /* neq */
-        f = gen_helper_fcmpneqd;
-        break;
-    case 5: /* nlt */
-        f = gen_helper_fcmpnltd;
-        break;
-    case 6: /* nle */
-        f = gen_helper_fcmpnled;
-        break;
-    case 7: /* od */
-        f = gen_helper_fcmpodd;
-        break;
-    default:
-        e2k_gen_exception(E2K_EXCP_ILLOPC);
-        break;
-    }
+    GENERATE_FCMP_SWITCH_TABLE(f, opc, 0, gen_helper_, f, d)
 
     (*f)(dst, cpu_env, src1, src2);
     tcg_gen_setcondi_i64(TCG_COND_NE, ret, dst, 0);
@@ -1233,38 +1231,10 @@ static void gen_fcmp_f80(TCGv_i64 ret, int opc, Src80 src1, Src80 src2)
     gen_temp_reg_write_i64_i32(src1.lo, src1.hi, t0);
     gen_temp_reg_write_i64_i32(src2.lo, src2.hi, t1);
 
-    switch(opc) {
-    case 0: /* eq */
-        f = gen_helper_fxcmpeqx;
-        break;
-    case 1: /* lt */
-        f = gen_helper_fxcmpltx;
-        break;
-    case 2: /* le */
-        f = gen_helper_fxcmplex;
-        break;
-    case 3: /* uod */
-        f = gen_helper_fxcmpuodx;
-        break;
-    case 4: /* neq */
-        f = gen_helper_fxcmpneqx;
-        break;
-    case 5: /* nlt */
-        f = gen_helper_fxcmpnltx;
-        break;
-    case 6: /* nle */
-        f = gen_helper_fxcmpnlex;
-        break;
-    case 7: /* od */
-        f = gen_helper_fxcmpodx;
-        break;
-    default:
-        e2k_gen_exception(E2K_EXCP_ILLOPC);
-        break;
-    }
+    GENERATE_FCMP_SWITCH_TABLE(f, opc, 0, gen_helper_, fx, x)
 
     (*f)(dst, cpu_env, t0, t1);
-    
+
     tcg_gen_setcondi_i64(TCG_COND_NE, ret, dst, 0);
 
     tcg_temp_free_ptr(t1);
@@ -2387,38 +2357,6 @@ static void gen_alopf21_i32(DisasContext *ctx, Instr *instr,
     gen_al_result_i32(ctx, instr->chan, dst, tag);
 }
 
-static void gen_alopf21_comb_i64_env(DisasContext *ctx, Instr *instr,
-    void (*op1)(TCGv_i64, TCGv_ptr, TCGv_i64, TCGv_i64),
-    void (*op2)(TCGv_i64, TCGv_ptr, TCGv_i64, TCGv_i64))
-{
-    Src64 s1 = get_src1_i64(ctx, instr->chan);
-    Src64 s2 = get_src2_i64(ctx, instr->chan);
-    Src64 s3 = get_src3_i64(ctx, instr->chan);
-    TCGv_i32 tag = e2k_get_temp_i32(ctx);
-    TCGv_i64 dst = e2k_get_temp_i64(ctx);
-
-    gen_tag3_i64(tag, s1.tag, s2.tag, s3.tag);
-    (*op1)(dst, cpu_env, s1.value, s2.value);
-    (*op2)(dst, cpu_env, dst, s3.value);
-    gen_al_result_i64(ctx, instr->chan, dst, tag);
-}
-
-static void gen_alopf21_comb_i32_env(DisasContext *ctx, Instr *instr,
-    void (*op1)(TCGv_i32, TCGv_ptr, TCGv_i32, TCGv_i32),
-    void (*op2)(TCGv_i32, TCGv_ptr, TCGv_i32, TCGv_i32))
-{
-    Src32 s1 = get_src1_i32(ctx, instr->chan);
-    Src32 s2 = get_src2_i32(ctx, instr->chan);
-    Src32 s3 = get_src3_i32(ctx, instr->chan);
-    TCGv_i32 tag = e2k_get_temp_i32(ctx);
-    TCGv_i32 dst = e2k_get_temp_i32(ctx);
-
-    gen_tag3_i32(tag, s1.tag, s2.tag, s3.tag);
-    (*op1)(dst, cpu_env, s1.value, s2.value);
-    (*op2)(dst, cpu_env, dst, s3.value);
-    gen_al_result_i32(ctx, instr->chan, dst, tag);
-}
-
 static void gen_alopf2_i32(DisasContext *ctx, int chan, void (*op)(TCGv_i32, TCGv_i32))
 {
     Src32 s2 = get_src2_i32(ctx, chan);
@@ -3397,6 +3335,32 @@ static void gen_ext(DisasContext *ctx, Instr *instr)
             /* smulx */
             gen_alopf1_i32_i64(ctx, chan, gen_smulx);
             return;
+        }
+        break;
+    case 0x2c:
+        if (is_chan_0134(chan)) {
+            /* fcmp{op}s */
+            void (*f)(TCGv_i32, TCGv_i32, TCGv_i32) = 0;
+
+            GENERATE_FCMP_SWITCH_TABLE(f, instr->opce3, 0xc0, gen_, f, s);
+
+            if(f) {
+                gen_alopf1_i32(ctx, chan, f);
+                return;
+            }
+        }
+        break;
+    case 0x2d:
+        if (is_chan_0134(chan)) {
+            /* fcmp{op}d */
+            void (*f)(TCGv_i64, TCGv_i64, TCGv_i64) = 0;
+
+            GENERATE_FCMP_SWITCH_TABLE(f, instr->opce3, 0xc0, gen_, f, d);
+
+            if(f) {
+                gen_alopf1_i64(ctx, chan, f);
+                return;
+            }
         }
         break;
     case 0x3c:
