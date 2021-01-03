@@ -3,29 +3,9 @@
 #include "exec/log.h"
 #include "translate.h"
 
-#define NO_EXT  0x0
-#define EXT     0x1
-#define EXT1    0x2
-#define EXT2    0x3
-#define FLB     0x4
-#define FLH     0x5
-#define FLW     0x6
-#define FLD     0x7
-#define ICMB0   0x8
-#define ICMB1   0x9
-#define ICMB2   0xA
-#define ICMB3   0xB
+#include "alops.inc"
 
-#define FCMB0   0xC
-#define FCMB1   0xD
-#define PFCMB0  0XE
-#define PFCMB1  0xF
-#define LCMBD0  0x10
-#define LCMBD1  0x11
-#define LCMBQ0  0x12
-#define LCMBQ1  0x13
-#define QPFCMB0 0x16
-#define QPFCMB1 0x17
+static int16_t alops_map[4][128][6] = { { { -1 } } };
 
 typedef struct {
     TCGv_i32 tag;
@@ -1713,7 +1693,7 @@ static void gen_ld(DisasContext *ctx, Instr *instr, MemOp memop)
     tcg_temp_free_i64(t0);
 }
 
-static void gen_st_i64(DisasContext *ctx, Instr *instr, MemOp memop)
+static void gen_st_ddd(DisasContext *ctx, Instr *instr, MemOp memop)
 {
     TCGLabel *l0 = gen_new_label();
     Src64 s1 = get_src1_i64(ctx, instr->chan);
@@ -1746,7 +1726,7 @@ static void gen_st_i64(DisasContext *ctx, Instr *instr, MemOp memop)
     tcg_temp_free_i64(t0);
 }
 
-static void gen_st_i32(DisasContext *ctx, Instr *instr, MemOp memop)
+static void gen_st_dds(DisasContext *ctx, Instr *instr, MemOp memop)
 {
     TCGLabel *l0 = gen_new_label();
     Src64 s1 = get_src1_i64(ctx, instr->chan);
@@ -2102,7 +2082,7 @@ static void gen_staa_i32(DisasContext *ctx, Instr *instr, MemOp memop)
     gen_set_label(l0);
 }
 
-static void gen_alopf1_i64(DisasContext *ctx, int chan,
+static void gen_alopf1_ddd(DisasContext *ctx, int chan,
     void (*op)(TCGv_i64, TCGv_i64, TCGv_i64))
 {
     Src64 s1 = get_src1_i64(ctx, chan);
@@ -2115,7 +2095,7 @@ static void gen_alopf1_i64(DisasContext *ctx, int chan,
     gen_al_result_i64(ctx, chan, dst, tag);
 }
 
-static void gen_alopf1_i64_env(DisasContext *ctx, int chan,
+static void gen_alopf1_dedd(DisasContext *ctx, int chan,
     void (*op)(TCGv_i64, TCGv_env, TCGv_i64, TCGv_i64))
 {
     Src64 s1 = get_src1_i64(ctx, chan);
@@ -2128,7 +2108,7 @@ static void gen_alopf1_i64_env(DisasContext *ctx, int chan,
     gen_al_result_i64(ctx, chan, dst, tag);
 }
 
-static void gen_alopf1_i32(DisasContext *ctx, int chan,
+static void gen_alopf1_sss(DisasContext *ctx, int chan,
     void (*op)(TCGv_i32, TCGv_i32, TCGv_i32))
 {
     Src32 s1 = get_src1_i32(ctx, chan);
@@ -2141,7 +2121,7 @@ static void gen_alopf1_i32(DisasContext *ctx, int chan,
     gen_al_result_i32(ctx, chan, dst, tag);
 }
 
-static void gen_alopf1_i32_env(DisasContext *ctx, int chan,
+static void gen_alopf1_sess(DisasContext *ctx, int chan,
     void (*op)(TCGv_i32, TCGv_env, TCGv_i32, TCGv_i32))
 {
     Src32 s1 = get_src1_i32(ctx, chan);
@@ -2154,7 +2134,7 @@ static void gen_alopf1_i32_env(DisasContext *ctx, int chan,
     gen_al_result_i32(ctx, chan, dst, tag);
 }
 
-static void gen_alopf1_i32_i64(DisasContext *ctx, int chan,
+static void gen_alopf1_dss(DisasContext *ctx, int chan,
     void (*op)(TCGv_i64, TCGv_i32, TCGv_i32))
 {
     Src32 s1 = get_src1_i32(ctx, chan);
@@ -2167,7 +2147,7 @@ static void gen_alopf1_i32_i64(DisasContext *ctx, int chan,
     gen_al_result_i64(ctx, chan, dst, tag);
 }
 
-static void gen_alopf1_tag_i64(DisasContext *ctx, int chan,
+static void gen_alopf1_dttdd(DisasContext *ctx, int chan,
     void (*op)(TCGv_i64, TCGv_i32, TCGv_i32, TCGv_i64, TCGv_i64))
 {
     Src64 s1 = get_src1_i64(ctx, chan);
@@ -2180,7 +2160,7 @@ static void gen_alopf1_tag_i64(DisasContext *ctx, int chan,
     gen_al_result_i64(ctx, chan, dst, tag);
 }
 
-static void gen_alopf1_tag_i32(DisasContext *ctx, int chan,
+static void gen_alopf1_sttss(DisasContext *ctx, int chan,
     void (*op)(TCGv_i32, TCGv_i32, TCGv_i32, TCGv_i32, TCGv_i32))
 {
     Src32 s1 = get_src1_i32(ctx, chan);
@@ -2193,7 +2173,7 @@ static void gen_alopf1_tag_i32(DisasContext *ctx, int chan,
     gen_al_result_i32(ctx, chan, dst, tag);
 }
 
-static void gen_alopf1_cmp_i64(DisasContext *ctx, Instr *instr,
+static void gen_alopf1_cmp_ddb(DisasContext *ctx, Instr *instr,
     void (*op)(TCGv_i64, int, TCGv_i64, TCGv_i64))
 {
     int chan = instr->chan;
@@ -2216,7 +2196,7 @@ static void gen_alopf1_cmp_i64(DisasContext *ctx, Instr *instr,
     tcg_temp_free_i32(t0);
 }
 
-static void gen_alopf1_cmp_i32(DisasContext *ctx, Instr *instr,
+static void gen_alopf1_cmp_ssb(DisasContext *ctx, Instr *instr,
     void (*op)(TCGv_i32, int, TCGv_i32, TCGv_i32))
 {
     int chan = instr->chan;
@@ -2291,7 +2271,7 @@ static void gen_alopf1_cmp_xs(DisasContext *ctx, Instr *instr)
     temp_free_src80(&t2);
 }
 
-static void gen_alopf1_mrgc_i32(DisasContext *ctx, Instr *instr)
+static void gen_alopf1_mrgc_sss(DisasContext *ctx, Instr *instr)
 {
     Src32 s1 = get_src1_i32(ctx, instr->chan);
     Src32 s2 = get_src2_i32(ctx, instr->chan);
@@ -2310,7 +2290,7 @@ static void gen_alopf1_mrgc_i32(DisasContext *ctx, Instr *instr)
     tcg_temp_free_i32(t0);
 }
 
-static void gen_alopf1_mrgc_i64(DisasContext *ctx, Instr *instr)
+static void gen_alopf1_mrgc_ddd(DisasContext *ctx, Instr *instr)
 {
     Src64 s1 = get_src1_i64(ctx, instr->chan);
     Src64 s2 = get_src2_i64(ctx, instr->chan);
@@ -2357,7 +2337,7 @@ static void gen_alopf21_i32(DisasContext *ctx, Instr *instr,
     gen_al_result_i32(ctx, instr->chan, dst, tag);
 }
 
-static void gen_alopf2_i32(DisasContext *ctx, int chan, void (*op)(TCGv_i32, TCGv_i32))
+static void gen_alopf2_ss(DisasContext *ctx, int chan, void (*op)(TCGv_i32, TCGv_i32))
 {
     Src32 s2 = get_src2_i32(ctx, chan);
     TCGv_i32 dst = e2k_get_temp_i32(ctx);
@@ -2368,7 +2348,7 @@ static void gen_alopf2_i32(DisasContext *ctx, int chan, void (*op)(TCGv_i32, TCG
     gen_al_result_i32(ctx, chan, dst, tag);
 }
 
-static void gen_alopf2_i64(DisasContext *ctx, int chan, void (*op)(TCGv_i64, TCGv_i64))
+static void gen_alopf2_dd(DisasContext *ctx, int chan, void (*op)(TCGv_i64, TCGv_i64))
 {
     Src64 s2 = get_src2_i64(ctx, chan);
     TCGv_i64 dst = e2k_get_temp_i64(ctx);
@@ -2379,7 +2359,7 @@ static void gen_alopf2_i64(DisasContext *ctx, int chan, void (*op)(TCGv_i64, TCG
     gen_al_result_i64(ctx, chan, dst, tag);
 }
 
-static void gen_alopf2_i32_env(DisasContext *ctx, int chan, void (*op)(TCGv_i32, TCGv_env, TCGv_i32))
+static void gen_alopf2_ses(DisasContext *ctx, int chan, void (*op)(TCGv_i32, TCGv_env, TCGv_i32))
 {
     Src32 s2 = get_src2_i32(ctx, chan);
     TCGv_i32 dst = e2k_get_temp_i32(ctx);
@@ -2390,7 +2370,7 @@ static void gen_alopf2_i32_env(DisasContext *ctx, int chan, void (*op)(TCGv_i32,
     gen_al_result_i32(ctx, chan, dst, tag);
 }
 
-static void gen_alopf2_i64_env(DisasContext *ctx, int chan, void (*op)(TCGv_i64, TCGv_env, TCGv_i64))
+static void gen_alopf2_ded(DisasContext *ctx, int chan, void (*op)(TCGv_i64, TCGv_env, TCGv_i64))
 {
     Src64 s2 = get_src2_i64(ctx, chan);
     TCGv_i64 dst = e2k_get_temp_i64(ctx);
@@ -2401,7 +2381,7 @@ static void gen_alopf2_i64_env(DisasContext *ctx, int chan, void (*op)(TCGv_i64,
     gen_al_result_i64(ctx, chan, dst, tag);
 }
 
-static void gen_alopf2_i64_i32_env(DisasContext *ctx, int chan, void (*op)(TCGv_i32, TCGv_env, TCGv_i64))
+static void gen_alopf2_sed(DisasContext *ctx, int chan, void (*op)(TCGv_i32, TCGv_env, TCGv_i64))
 {
     Src64 s2 = get_src2_i64(ctx, chan);
     TCGv_i32 dst = e2k_get_temp_i32(ctx);
@@ -2412,7 +2392,7 @@ static void gen_alopf2_i64_i32_env(DisasContext *ctx, int chan, void (*op)(TCGv_
     gen_al_result_i32(ctx, chan, dst, tag);
 }
 
-static void gen_alopf2_i32_i64_env(DisasContext *ctx, int chan, void (*op)(TCGv_i64, TCGv_env, TCGv_i32))
+static void gen_alopf2_des(DisasContext *ctx, int chan, void (*op)(TCGv_i64, TCGv_env, TCGv_i32))
 {
     Src32 s2 = get_src2_i32(ctx, chan);
     TCGv_i64 dst = e2k_get_temp_i64(ctx);
@@ -2609,893 +2589,908 @@ static inline void gen_alopf2_dx(DisasContext *ctx, Instr *instr,
     gen_al_result_i80(ctx, instr, res.lo, res.hi, res.tag);
 }
 
-static void gen_no_ext(DisasContext *ctx, Instr *instr)
+static Alop find_op(Instr *instr)
+{
+    int16_t index = alops_map[instr->opc2][instr->opc1][instr->chan];
+    while (index != -1) {
+        bool is_match = false;
+        AlopDesc *desc = &alops[index];
+        switch(desc->alopf) {
+        case ALOPF1:
+        case ALOPF1_MERGE:
+        case ALOPF3:
+        case ALOPF10:
+        case ALOPF11_LIT8:
+        case ALOPF12_PSHUFH:
+        case ALOPF21:
+            is_match = true;
+            break;
+        case ALOPF2:
+        case ALOPF15:
+            is_match = desc->extra1 == instr->opce1;
+            break;
+        case ALOPF7:
+            is_match = desc->extra1 == instr->opc_cmp;
+            break;
+        case ALOPF8:
+            is_match = desc->extra1 == instr->opc_cmp && instr->opce1 == 0xc0;
+            break;
+        case ALOPF11:
+        case ALOPF11_MERGE:
+        case ALOPF13:
+        case ALOPF17:
+            is_match = desc->extra1 == instr->opce3;
+            break;
+        case ALOPF12:
+        case ALOPF12_IBRANCHD:
+        case ALOPF12_ICALLD:
+        case ALOPF22:
+            is_match = desc->extra1 == instr->opce1 && desc->extra2 == instr->opce3;
+            break;
+        case ALOPF16:
+            is_match = desc->extra1 == instr->opce2;
+            break;
+        }
+
+        if (is_match) {
+            return desc->op;
+        }
+
+        index = desc->next[instr->chan];
+    }
+
+    return OP_NONE;
+}
+
+static void gen_op(DisasContext *ctx, Instr *instr)
 {
     int chan = instr->chan;
+    Alop op = find_op(instr);
 
-    switch(instr->opc1) {
-    case 0x00: /* ands */ gen_alopf1_i32(ctx, chan, tcg_gen_and_i32); return;
-    case 0x01: /* andd */ gen_alopf1_i64(ctx, chan, tcg_gen_and_i64); return;
-    case 0x02: /* andns */ gen_alopf1_i32(ctx, chan, gen_andn_i32); return;
-    case 0x03: /* andnd */ gen_alopf1_i64(ctx, chan, gen_andn_i64); return;
-    case 0x04: /* ors */ gen_alopf1_i32(ctx, chan, tcg_gen_or_i32); return;
-    case 0x05: /* ord */ gen_alopf1_i64(ctx, chan, tcg_gen_or_i64); return;
-    case 0x06: /* orns */ gen_alopf1_i32(ctx, chan, gen_orn_i32); return;
-    case 0x07: /* ornd */ gen_alopf1_i64(ctx, chan, gen_orn_i64); return;
-    case 0x08: /* xors */ gen_alopf1_i32(ctx, chan, tcg_gen_xor_i32); return;
-    case 0x09: /* xord */ gen_alopf1_i64(ctx, chan, tcg_gen_xor_i64); return;
-    case 0x0a: /* xorns */ gen_alopf1_i32(ctx, chan, gen_xorn_i32); return;
-    case 0x0b: /* xornd */ gen_alopf1_i64(ctx, chan, gen_xorn_i64); return;
-    case 0x0c: /* sxt */ gen_sxt(ctx, chan); return;
-    case 0x0e: /* merges */ gen_alopf1_mrgc_i32(ctx, instr); return;
-    case 0x0f: /* merged */ gen_alopf1_mrgc_i64(ctx, instr); return;
-    case 0x10: /* adds */ gen_alopf1_i32(ctx, chan, tcg_gen_add_i32); return;
-    case 0x11: /* addd */ gen_alopf1_i64(ctx, chan, tcg_gen_add_i64); return;
-    case 0x12: /* subs */ gen_alopf1_i32(ctx, chan, tcg_gen_sub_i32); return;
-    case 0x13: /* subd */ gen_alopf1_i64(ctx, chan, tcg_gen_sub_i64); return;
-    case 0x14: /* scls */ gen_alopf1_i32(ctx, chan, tcg_gen_rotl_i32); return;
-    case 0x15: /* scld */ gen_alopf1_i64(ctx, chan, tcg_gen_rotl_i64); return;
-    case 0x16: /* scrs */ gen_alopf1_i32(ctx, chan, tcg_gen_rotr_i32); return;
-    case 0x17: /* scrd */ gen_alopf1_i64(ctx, chan, tcg_gen_rotr_i64); return;
-    case 0x18: /* shls */ gen_alopf1_i32(ctx, chan, tcg_gen_shl_i32); return;
-    case 0x19: /* shld */ gen_alopf1_i64(ctx, chan, tcg_gen_shl_i64); return;
-    case 0x1a: /* shrs */ gen_alopf1_i32(ctx, chan, tcg_gen_shr_i32); return;
-    case 0x1b: /* shrd */ gen_alopf1_i64(ctx, chan, tcg_gen_shr_i64); return;
-    case 0x1c: /* sars */ gen_alopf1_i32(ctx, chan, tcg_gen_sar_i32); return;
-    case 0x1d: /* sard */ gen_alopf1_i64(ctx, chan, tcg_gen_sar_i64); return;
-    case 0x1e: /* getfs */ gen_alopf1_i32(ctx, chan, gen_getfs); return;
-    case 0x1f: /* getfd */ gen_alopf1_i64(ctx, chan, gen_getfd); return;
-    case 0x20:
-        if (is_chan_0134(chan)) {
-            /* cmp{op}sb */
-            gen_alopf1_cmp_i32(ctx, instr, gen_cmp_i32);
-            return;
-        }
+    switch(op) {
+    case OP_NONE: e2k_tr_gen_exception(ctx, E2K_EXCP_ILLOPC); break;
+    case OP_ANDS: gen_alopf1_sss(ctx, chan, tcg_gen_and_i32); break;
+    case OP_ANDD: gen_alopf1_ddd(ctx, chan, tcg_gen_and_i64); break;
+    case OP_ANDNS: gen_alopf1_sss(ctx, chan, gen_andn_i32); break;
+    case OP_ANDND: gen_alopf1_ddd(ctx, chan, gen_andn_i64); break;
+    case OP_ORS: gen_alopf1_sss(ctx, chan, tcg_gen_or_i32); break;
+    case OP_ORD: gen_alopf1_ddd(ctx, chan, tcg_gen_or_i64); break;
+    case OP_ORNS: gen_alopf1_sss(ctx, chan, gen_orn_i32); break;
+    case OP_ORND: gen_alopf1_ddd(ctx, chan, gen_orn_i64); break;
+    case OP_XORS: gen_alopf1_sss(ctx, chan, tcg_gen_xor_i32); break;
+    case OP_XORD: gen_alopf1_ddd(ctx, chan, tcg_gen_xor_i64); break;
+    case OP_XORNS: gen_alopf1_sss(ctx, chan, gen_xorn_i32); break;
+    case OP_XORND: gen_alopf1_ddd(ctx, chan, gen_xorn_i64); break;
+    case OP_SXT: gen_sxt(ctx, chan); break;
+    case OP_ADDS: gen_alopf1_sss(ctx, chan, tcg_gen_add_i32); break;
+    case OP_ADDD: gen_alopf1_ddd(ctx, chan, tcg_gen_add_i64); break;
+    case OP_SUBS: gen_alopf1_sss(ctx, chan, tcg_gen_sub_i32); break;
+    case OP_SUBD: gen_alopf1_ddd(ctx, chan, tcg_gen_sub_i64); break;
+    case OP_SCLS: gen_alopf1_sss(ctx, chan, tcg_gen_rotl_i32); break;
+    case OP_SCLD: gen_alopf1_ddd(ctx, chan, tcg_gen_rotl_i64); break;
+    case OP_SCRS: gen_alopf1_sss(ctx, chan, tcg_gen_rotr_i32); break;
+    case OP_SCRD: gen_alopf1_ddd(ctx, chan, tcg_gen_rotr_i64); break;
+    case OP_SHLS: gen_alopf1_sss(ctx, chan, tcg_gen_shl_i32); break;
+    case OP_SHLD: gen_alopf1_ddd(ctx, chan, tcg_gen_shl_i64); break;
+    case OP_SHRS: gen_alopf1_sss(ctx, chan, tcg_gen_shr_i32); break;
+    case OP_SHRD: gen_alopf1_ddd(ctx, chan, tcg_gen_shr_i64); break;
+    case OP_SARS: gen_alopf1_sss(ctx, chan, tcg_gen_sar_i32); break;
+    case OP_SARD: gen_alopf1_ddd(ctx, chan, tcg_gen_sar_i64); break;
+    case OP_GETFS: gen_alopf1_sss(ctx, chan, gen_getfs); break;
+    case OP_GETFD: gen_alopf1_ddd(ctx, chan, gen_getfd); break;
+    case OP_MERGES: gen_alopf1_mrgc_sss(ctx, instr); break;
+    case OP_MERGED: gen_alopf1_mrgc_ddd(ctx, instr); break;
+    case OP_CMPOSB:
+    case OP_CMPBSB:
+    case OP_CMPESB:
+    case OP_CMPBESB:
+    case OP_CMPSSB:
+    case OP_CMPPSB:
+    case OP_CMPLSB:
+    case OP_CMPLESB:
+        gen_alopf1_cmp_ssb(ctx, instr, gen_cmp_i32);
         break;
-    case 0x21:
-        if (is_chan_0134(chan)) {
-            /* cmp{op}db */
-            gen_alopf1_cmp_i64(ctx, instr, gen_cmp_i64);
-            return;
-        }
+    case OP_CMPODB:
+    case OP_CMPBDB:
+    case OP_CMPEDB:
+    case OP_CMPBEDB:
+    case OP_CMPSDB:
+    case OP_CMPPDB:
+    case OP_CMPLDB:
+    case OP_CMPLEDB:
+        gen_alopf1_cmp_ddb(ctx, instr, gen_cmp_i64);
         break;
-    case 0x22:
-        if (is_chan_0134(chan)) {
-            /* cmpand{op}sb */
-            gen_alopf1_cmp_i32(ctx, instr, gen_cmpand_i32);
-            return;
-        }
+    case OP_CMPANDESB:
+    case OP_CMPANDSSB:
+    case OP_CMPANDPSB:
+    case OP_CMPANDLESB:
+        gen_alopf1_cmp_ssb(ctx, instr, gen_cmpand_i32);
         break;
-    case 0x23:
-        if (is_chan_0134(chan)) {
-            /* cmpand{op}db */
-            gen_alopf1_cmp_i64(ctx, instr, gen_cmpand_i64);
-            return;
-        }
+    case OP_CMPANDEDB:
+    case OP_CMPANDSDB:
+    case OP_CMPANDPDB:
+    case OP_CMPANDLEDB:
+        gen_alopf1_cmp_ddb(ctx, instr, gen_cmpand_i64);
         break;
-    case 0x24: {
-        if (is_chan_25(chan)) {
-            /* stb */
-            gen_st_i32(ctx, instr, MO_UB);
+    case OP_FCMPEQSB:
+    case OP_FCMPLTSB:
+    case OP_FCMPLESB:
+    case OP_FCMPUODSB:
+    case OP_FCMPNEQSB:
+    case OP_FCMPNLTSB:
+    case OP_FCMPNLESB:
+    case OP_FCMPODSB: {
+        void (*f)(TCGv_i32, TCGv_i32, TCGv_i32) = 0;
+
+        GENERATE_FCMP_SWITCH_TABLE(f, instr->opce3, 0xc0, gen_, f, s);
+
+        if(f) {
+            gen_alopf1_sss(ctx, chan, f);
             return;
         }
         break;
     }
-    case 0x25: {
-        if (is_chan_25(chan)) {
-            /* sth */
-            gen_st_i32(ctx, instr, MO_UW);
+    case OP_FCMPEQDB:
+    case OP_FCMPLTDB:
+    case OP_FCMPLEDB:
+    case OP_FCMPUODDB:
+    case OP_FCMPNEQDB:
+    case OP_FCMPNLTDB:
+    case OP_FCMPNLEDB:
+    case OP_FCMPODDB: {
+        void (*f)(TCGv_i64, TCGv_i64, TCGv_i64) = 0;
+
+        GENERATE_FCMP_SWITCH_TABLE(f, instr->opce3, 0xc0, gen_, f, d);
+
+        if(f) {
+            gen_alopf1_ddd(ctx, chan, f);
             return;
         }
         break;
     }
-    case 0x26: {
-        if (is_chan_25(chan)) {
-            /* stw */
-            gen_st_i32(ctx, instr, MO_UL);
-            return;
-        } else if(instr->opce1 == 0xc0 && ctx->version >= 2) {
-            /* bitrevs */
-            gen_alopf2_i32(ctx, chan, gen_bitrevs);
-            return;
-        }
+    case OP_FXCMPEQSB:
+    case OP_FXCMPLTSB:
+    case OP_FXCMPLESB:
+    case OP_FXCMPUODSB:
+    case OP_FXCMPNEQSB:
+    case OP_FXCMPNLTSB:
+    case OP_FXCMPNLESB:
+    case OP_FXCMPODSB:
+        gen_alopf1_cmp_xs(ctx, instr);
         break;
-    }
-    case 0x27: {
-        if (is_chan_25(chan)) {
-            /* std */
-            gen_st_i64(ctx, instr, MO_Q);
-            return;
-        } else if(instr->opce1 == 0xc0 && ctx->version >= 2) {
-            /* bitrevd */
-            gen_alopf2_i64(ctx, chan, gen_bitrevd);
-            return;
-        }
+    case OP_FXCMPEQDB:
+    case OP_FXCMPLTDB:
+    case OP_FXCMPLEDB:
+    case OP_FXCMPUODDB:
+    case OP_FXCMPNEQDB:
+    case OP_FXCMPNLTDB:
+    case OP_FXCMPNLEDB:
+    case OP_FXCMPODDB:
+        gen_alopf1_cmp_xd(ctx, instr);
         break;
-    }
-    case 0x28:
-        if (is_chan_0134(chan)) {
-            /* fxcmp{op}sb */
-            gen_alopf1_cmp_xs(ctx, instr);
-            return;
-        }
-    case 0x29:
-        if (is_chan_0134(chan)) {
-            /* fxcmp{op}db */
-            gen_alopf1_cmp_xd(ctx, instr);
-            return;
-        }
-    case 0x2b: {
-        if (is_chan_0134(chan)) {
-            /* fxcmp{op}xb */
-            gen_alopf1_cmp_xx(ctx, instr);
-            return;
-        }
-    }
-    case 0x2e: {
-        if (is_chan_0134(chan)) {
-            /* fcmp{op}sb */
-            gen_alopf1_cmp_i32(ctx, instr, gen_fcmp_i32);
-            return;
-        }
+    case OP_FXCMPEQXB:
+    case OP_FXCMPLTXB:
+    case OP_FXCMPLEXB:
+    case OP_FXCMPUODXB:
+    case OP_FXCMPNEQXB:
+    case OP_FXCMPNLTXB:
+    case OP_FXCMPNLEXB:
+    case OP_FXCMPODXB:
+        gen_alopf1_cmp_xx(ctx, instr);
         break;
-    }
-    case 0x2f: {
-        if (is_chan_0134(chan)) {
-            /* fcmp{op}db */
-            gen_alopf1_cmp_i64(ctx, instr, gen_fcmp_i64);
-            return;
-        }
-        break;
-    }
-    case 0x30:
-        if (is_chan_0134(chan)) {
-            /* fadds */
-            gen_alopf1_i32_env(ctx, chan, gen_helper_fadds);
-            return;
-        }
-        break;
-    case 0x31:
-        if (is_chan_0134(chan)) {
-            /* faddd */
-            gen_alopf1_i64_env(ctx, chan, gen_helper_faddd);
-            return;
-        }
-        break;
-    case 0x32:
-        if (is_chan_0134(chan)) {
-            /* fsubs */
-            gen_alopf1_i32_env(ctx, chan, gen_helper_fsubs);
-            return;
-        }
-        break;
-    case 0x33:
-        if (is_chan_0134(chan)) {
-            /* fsubd */
-            gen_alopf1_i64_env(ctx, chan, gen_helper_fsubd);
-            return;
-        }
-        break;
-    case 0x34:
-        if (is_chan_0134(chan)) {
-            /* fmins */
-            gen_alopf1_i32_env(ctx, chan, gen_helper_fmins);
-            return;
-        }
-        break;
-    case 0x35:
-        if (is_chan_0134(chan)) {
-            /* fmind */
-            gen_alopf1_i64_env(ctx, chan, gen_helper_fmind);
-            return;
-        }
-        break;
-    case 0x36:
-        if (is_chan_0134(chan)) {
-            /* fmaxs */
-            gen_alopf1_i32_env(ctx, chan, gen_helper_fmaxs);
-            return;
-        }
-        break;
-    case 0x37:
-        if (is_chan_0134(chan)) {
-            /* fmaxd */
-            gen_alopf1_i64_env(ctx, chan, gen_helper_fmaxd);
-            return;
-        }
-        break;
-    case 0x38:
-        if (is_chan_0134(chan)) {
-            /* fmuls */
-            gen_alopf1_i32_env(ctx, chan, gen_helper_fmuls);
-            return;
-        }
-        break;
-    case 0x39:
-        if (is_chan_0134(chan)) {
-            /* fmuld */
-            gen_alopf1_i64_env(ctx, chan, gen_helper_fmuld);
-            return;
-        }
-        break;
-    case 0x3c:
-        if (is_chan_0134(chan)) {
-            void (*func)(TCGv_i32, TCGv_env, TCGv_i32) = 0;
-
-            switch(instr->opce1) {
-            case 0xc0: func = gen_helper_fstois; break;
-            case 0xc2: func = gen_helper_fstoistr; break;
-            case 0xc4: func = gen_helper_istofs; break;
-            }
-
-            if (func) {
-                gen_alopf2_i32_env(ctx, chan, func);
-                return;
-            }
-        }
-        break;
-    case 0x3d:
-        if (is_chan_0134(chan)) {
-            void (*func)(TCGv_i64, TCGv_env, TCGv_i64) = 0;
-
-            switch(instr->opce1) {
-            case 0xc0: func = gen_helper_fdtoid; break;
-            case 0xc2: func = ctx->version >= 2 ? gen_helper_fdtoidtr : 0; break;
-            case 0xc4: func = gen_helper_idtofd; break;
-            case 0xc6: gen_alopf2_xd(ctx, instr, gen_fxtofd); return;
-            case 0xc7: gen_alopf2_dx(ctx, instr, gen_fdtofx); return;
-            }
-
-            if (func) {
-                gen_alopf2_i64_env(ctx, chan, func);
-                return;
-            }
-        }
-        break;
-    case 0x3e:
-        if (is_chan_0134(chan)) {
-            void (*func)(TCGv_i64, TCGv_env, TCGv_i32) = 0;
-
-            switch(instr->opce1) {
-            case 0xc0: func = gen_helper_fstoid; break;
-            case 0xc2: func = ctx->version >= 2 ? gen_helper_fstoidtr : 0; break;
-            case 0xc4: func = gen_helper_istofd; break;
-            case 0xc6: func = gen_helper_fstofd; break;
-            case 0xc7: gen_alopf2_sx(ctx, instr, gen_fstofx); return;
-            }
-
-            if (func) {
-                gen_alopf2_i32_i64_env(ctx, chan, func);
-                return;
-            }
-        }
-        break;
-    case 0x3f:
-        if (is_chan_0134(chan)) {
-            void (*func)(TCGv_i32, TCGv_env, TCGv_i64) = 0;
-
-            switch(instr->opce1) {
-            case 0xc0: func = gen_helper_fdtois; break;
-            case 0xc2: func = gen_helper_fdtoistr; break;
-            case 0xc4: func = gen_helper_idtofs; break;
-            case 0xc6: func = gen_helper_fdtofs; break;
-            case 0xc7: gen_alopf2_xs(ctx, instr, gen_fxtofs); return;
-            }
-
-            if (func) {
-                gen_alopf2_i64_i32_env(ctx, chan, func);
-                return;
-            }
-        }
-        break;
-    case 0x40:
-        if (is_chan_0134(chan)) {
-            /* fxaddss */
-            gen_alopf1_xss(ctx, instr, gen_helper_fxaddxx);
-            return;
-        } else if (chan == 5) {
+    case OP_STB: gen_st_dds(ctx, instr, MO_UB); break;
+    case OP_STH: gen_st_dds(ctx, instr, MO_UW); break;
+    case OP_STW: gen_st_dds(ctx, instr, MO_UL); break;
+    case OP_STD: gen_st_ddd(ctx, instr, MO_Q); break;
+    case OP_LDB: gen_ld(ctx, instr, MO_UB); break;
+    case OP_LDH: gen_ld(ctx, instr, MO_UW); break;
+    case OP_LDW: gen_ld(ctx, instr, MO_UL); break;
+    case OP_LDD: gen_ld(ctx, instr, MO_Q); break;
+    case OP_BITREVS: gen_alopf2_ss(ctx, chan, gen_bitrevs); break;
+    case OP_BITREVD: gen_alopf2_dd(ctx, chan, gen_bitrevd); break;
+    case OP_LZCNTS: gen_alopf2_ss(ctx, chan, gen_lzcnts); break;
+    case OP_LZCNTD: gen_alopf2_dd(ctx, chan, gen_lzcntd); break;
+    case OP_POPCNTS: gen_alopf2_ss(ctx, chan, tcg_gen_ctpop_i32); break;
+    case OP_POPCNTD: gen_alopf2_dd(ctx, chan, tcg_gen_ctpop_i64); break;
+    case OP_FADDS: gen_alopf1_sess(ctx, chan, gen_helper_fadds); break;
+    case OP_FADDD: gen_alopf1_dedd(ctx, chan, gen_helper_faddd); break;
+    case OP_FSUBS: gen_alopf1_sess(ctx, chan, gen_helper_fsubs); break;
+    case OP_FSUBD: gen_alopf1_dedd(ctx, chan, gen_helper_fsubd); break;
+    case OP_FMINS: gen_alopf1_sess(ctx, chan, gen_helper_fmins); break;
+    case OP_FMIND: gen_alopf1_dedd(ctx, chan, gen_helper_fmind); break;
+    case OP_FMAXS: gen_alopf1_sess(ctx, chan, gen_helper_fmaxs); break;
+    case OP_FMAXD: gen_alopf1_dedd(ctx, chan, gen_helper_fmaxd); break;
+    case OP_FMULS: gen_alopf1_sess(ctx, chan, gen_helper_fmuls); break;
+    case OP_FMULD: gen_alopf1_dedd(ctx, chan, gen_helper_fmuld); break;
+    case OP_FSTOIS: gen_alopf2_ses(ctx, chan, gen_helper_fstois); break;
+    case OP_FSTOISTR: gen_alopf2_ses(ctx, chan, gen_helper_fstoistr); break;
+    case OP_ISTOFS: gen_alopf2_ses(ctx, chan, gen_helper_istofs); break;
+    case OP_FDTOID: gen_alopf2_ded(ctx, chan, gen_helper_fdtoid); break;
+    case OP_IDTOFD: gen_alopf2_ded(ctx, chan, gen_helper_idtofd); break;
+    case OP_FXTOFD: gen_alopf2_xd(ctx, instr, gen_fxtofd); break;
+    case OP_FDTOFX: gen_alopf2_dx(ctx, instr, gen_fdtofx); break;
+    case OP_FSTOID: gen_alopf2_des(ctx, chan, gen_helper_fstoid); break;
+    case OP_FSTOIDTR: gen_alopf2_des(ctx, chan, gen_helper_fstoidtr); break;
+    case OP_FDTOIDTR: gen_alopf2_ded(ctx, chan, gen_helper_fdtoidtr); break;
+    case OP_ISTOFD: gen_alopf2_des(ctx, chan, gen_helper_istofd); break;
+    case OP_FSTOFD: gen_alopf2_des(ctx, chan, gen_helper_fstofd); break;
+    case OP_FSTOFX: gen_alopf2_sx(ctx, instr, gen_fstofx); break;
+    case OP_FDTOISTR: gen_alopf2_sed(ctx, chan, gen_helper_fdtoistr); break;
+    case OP_FDTOIS: gen_alopf2_sed(ctx, chan, gen_helper_fdtois); break;
+    case OP_IDTOFS: gen_alopf2_sed(ctx, chan, gen_helper_idtofs); break;
+    case OP_FDTOFS: gen_alopf2_sed(ctx, chan, gen_helper_fdtofs); break;
+    case OP_FXTOFS: gen_alopf2_xs(ctx, instr, gen_fxtofs); break;
+    case OP_UDIVS:
+        if (instr->src2 == 0xc0) {
             // FIXME: temp hack
-            if (instr->src2 == 0xc0) {
-                e2k_tr_gen_exception_no_spill(ctx, 0);
-                return;
-            }
-
-            /* udivs */
-            gen_alopf1_tag_i32(ctx, chan, gen_udivs);
+            e2k_tr_gen_exception_no_spill(ctx, 0);
             return;
         }
+        gen_alopf1_sttss(ctx, chan, gen_udivs);
         break;
-    case 0x41:
-        if (is_chan_0134(chan)) {
-            /* fxadddd */
-            gen_alopf1_xdd(ctx, instr, gen_helper_fxaddxx);
-            return;
-        } else if (chan == 5) {
-            /* udivd */
-            gen_alopf1_tag_i64(ctx, chan, gen_udivd);
-            return;
-        }
-        break;
-    case 0x42:
-        if (is_chan_0134(chan)) {
-            /* fxaddsx */
-            gen_alopf1_xsx(ctx, instr, gen_helper_fxaddxx);
-            return;
-        } else if (chan == 5) {
-            /* sdivs */
-            gen_alopf1_tag_i32(ctx, chan, gen_sdivs);
-            return;
-        }
-        break;
-    case 0x43:
-        if (is_chan_0134(chan)) {
-            /* fxadddx */
-            gen_alopf1_xdx(ctx, instr, gen_helper_fxaddxx);
-            return;
-        } else if (chan == 5) {
-            /* sdivd */
-            gen_alopf1_tag_i64(ctx, chan, gen_sdivd);
-            return;
-        }
-        break;
-    case 0x44:
-        if (is_chan_0134(chan)) {
-            /* fxaddxs */
-            gen_alopf1_xxs(ctx, instr, gen_helper_fxaddxx);
-            return;
-        }
-        break;
-    case 0x45:
-        if (is_chan_0134(chan)) {
-            /* fxaddxd */
-            gen_alopf1_xxd(ctx, instr, gen_helper_fxaddxx);
-            return;
-        }
-        break;
-    case 0x47:
-        if (is_chan_0134(chan)) {
-            /* fxaddxx */
-            gen_alopf1_xxx(ctx, instr, gen_helper_fxaddxx);
-            return;
-        }
-        break;
-    case 0x48:
-        if (is_chan_0134(chan)) {
-            /* fxsubss */
-            gen_alopf1_xss(ctx, instr, gen_helper_fxsubxx);
-            return;
-        } else if (chan == 5) {
-            /* fxdivss */
-            gen_alopf1_xss(ctx, instr, gen_helper_fxdivxx);
-            return;
-        }
-        break;
-    case 0x49:
-        if (is_chan_0134(chan)) {
-            /* fxsubdd */
-            gen_alopf1_xdd(ctx, instr, gen_helper_fxsubxx);
-            return;
-        } else if (chan == 5) {
-            /* fxdivdd */
-            gen_alopf1_xdd(ctx, instr, gen_helper_fxdivxx);
-            return;
-        }
-        break;
-    case 0x4a:
-        if (is_chan_0134(chan)) {
-            /* fxsubsx */
-            gen_alopf1_xsx(ctx, instr, gen_helper_fxsubxx);
-            return;
-        } else if (chan == 5) {
-            /* fxdivsx */
-            gen_alopf1_xsx(ctx, instr, gen_helper_fxdivxx);
-            return;
-        }
-        break;
-    case 0x4b:
-        if (is_chan_0134(chan)) {
-            /* fxsubdx */
-            gen_alopf1_xdx(ctx, instr, gen_helper_fxsubxx);
-            return;
-        } else if (chan == 5) {
-            /* fxdivdx */
-            gen_alopf1_xdx(ctx, instr, gen_helper_fxdivxx);
-            return;
-        }
-        break;
-    case 0x4c:
-        if (is_chan_0134(chan)) {
-            /* fxsubxs */
-            gen_alopf1_xxs(ctx, instr, gen_helper_fxsubxx);
-            return;
-        } else if (chan == 5) {
-            /* fxdivxs */
-            gen_alopf1_xxs(ctx, instr, gen_helper_fxdivxx);
-            return;
-        }
-        break;
-    case 0x4d:
-        if (is_chan_0134(chan)) {
-            /* fxsubxd */
-            gen_alopf1_xxd(ctx, instr, gen_helper_fxsubxx);
-            return;
-        } else if (chan == 5) {
-            /* fxdivxd */
-            gen_alopf1_xxd(ctx, instr, gen_helper_fxdivxx);
-            return;
-        }
-        break;
-    case 0x4f:
-        if (is_chan_0134(chan)) {
-            /* fxsubxx */
-            gen_alopf1_xxx(ctx, instr, gen_helper_fxsubxx);
-            return;
-        } else if (chan == 5) {
-            /* fxdivxx */
-            gen_alopf1_xxx(ctx, instr, gen_helper_fxdivxx);
-            return;
-        }
-        break;
-    case 0x50:
-        if (is_chan_0134(chan)) {
-            /* fxmulss */
-            gen_alopf1_xss(ctx, instr, gen_helper_fxmulxx);
-            return;
-        }
-        break;
-    case 0x51:
-        if (is_chan_0134(chan)) {
-            /* fxmuldd */
-            gen_alopf1_xdd(ctx, instr, gen_helper_fxmulxx);
-            return;
-        }
-        break;
-    case 0x52:
-        if (is_chan_0134(chan)) {
-            /* fxmulsx */
-            gen_alopf1_xsx(ctx, instr, gen_helper_fxmulxx);
-            return;
-        }
-        break;
-    case 0x53:
-        if (is_chan_0134(chan)) {
-            /* fxmuldx */
-            gen_alopf1_xdx(ctx, instr, gen_helper_fxmulxx);
-            return;
-        }
-        break;
-    case 0x54:
-        if (is_chan_0134(chan)) {
-            /* fxmulxs */
-            gen_alopf1_xxs(ctx, instr, gen_helper_fxmulxx);
-            return;
-        }
-        break;
-    case 0x55:
-        if (is_chan_0134(chan)) {
-            /* fxmulxd */
-            gen_alopf1_xxd(ctx, instr, gen_helper_fxmulxx);
-            return;
-        }
-        break;
-    case 0x57:
-        if (is_chan_0134(chan)) {
-            /* fxmulxx */
-            gen_alopf1_xxx(ctx, instr, gen_helper_fxmulxx);
-            return;
-        }
-        break;
-    case 0x58:
-        if (is_chan_0134(chan)) {
-            /* fxrsubss */
-            gen_alopf1_xss(ctx, instr, gen_helper_fxrsubxx);
-            return;
-        }
-        break;
-    case 0x59:
-        if (is_chan_0134(chan)) {
-            /* fxrsubdd */
-            gen_alopf1_xdd(ctx, instr, gen_helper_fxrsubxx);
-            return;
-        }
-        break;
-    case 0x5a:
-        if (is_chan_0134(chan)) {
-            /* fxrsubsx */
-            gen_alopf1_xsx(ctx, instr, gen_helper_fxrsubxx);
-            return;
-        }
-        break;
-    case 0x5b:
-        if (is_chan_0134(chan)) {
-            /* fxrsubdx */
-            gen_alopf1_xdx(ctx, instr, gen_helper_fxrsubxx);
-            return;
-        }
-        break;
-    case 0x5c:
-        if (is_chan_14(chan) || (ctx->version >= 2 && is_chan_03(chan))) {
-            /* movfi */
-            gen_movfi(ctx, instr);
-            return;
-        }
-        break;
-    case 0x5e:
-        if (is_chan_14(chan) || (ctx->version >= 2 && is_chan_03(chan))) {
-            /* movif */
-            gen_movif(ctx, instr);
-            return;
-        }
-        break;
-    case 0x61:
-        if (is_chan_0134(chan)) {
-            gen_movtd(ctx, chan);
-            return;
-        }
-        break;
-    case 0x64: {
-        if (is_chan_0235(chan)) {
-            /* ldb */
-            gen_ld(ctx, instr, MO_UB);
-            return;
-        } else if (is_chan_14(chan) && instr->opce1 == 0xc0 &&
-            ctx->version >= 2)
+    case OP_UDIVD: gen_alopf1_dttdd(ctx, chan, gen_udivd); break;
+    case OP_SDIVS: gen_alopf1_sttss(ctx, chan, gen_sdivs); break;
+    case OP_SDIVD: gen_alopf1_dttdd(ctx, chan, gen_sdivd); break;
+    case OP_FXADDSS: gen_alopf1_xss(ctx, instr, gen_helper_fxaddxx); break;
+    case OP_FXADDDD: gen_alopf1_xdd(ctx, instr, gen_helper_fxaddxx); break;
+    case OP_FXADDSX: gen_alopf1_xsx(ctx, instr, gen_helper_fxaddxx); break;
+    case OP_FXADDDX: gen_alopf1_xdx(ctx, instr, gen_helper_fxaddxx); break;
+    case OP_FXADDXX: gen_alopf1_xxx(ctx, instr, gen_helper_fxaddxx); break;
+    case OP_FXADDXD: gen_alopf1_xxd(ctx, instr, gen_helper_fxaddxx); break;
+    case OP_FXADDXS: gen_alopf1_xxs(ctx, instr, gen_helper_fxaddxx); break;
+    case OP_FXSUBSS: gen_alopf1_xss(ctx, instr, gen_helper_fxsubxx); break;
+    case OP_FXSUBDD: gen_alopf1_xdd(ctx, instr, gen_helper_fxsubxx); break;
+    case OP_FXSUBSX: gen_alopf1_xsx(ctx, instr, gen_helper_fxsubxx); break;
+    case OP_FXSUBDX: gen_alopf1_xdx(ctx, instr, gen_helper_fxsubxx); break;
+    case OP_FXSUBXX: gen_alopf1_xxx(ctx, instr, gen_helper_fxsubxx); break;
+    case OP_FXSUBXD: gen_alopf1_xxd(ctx, instr, gen_helper_fxsubxx); break;
+    case OP_FXSUBXS: gen_alopf1_xxs(ctx, instr, gen_helper_fxsubxx); break;
+    case OP_FXRSUBSS: gen_alopf1_xss(ctx, instr, gen_helper_fxrsubxx); break;
+    case OP_FXRSUBDD: gen_alopf1_xdd(ctx, instr, gen_helper_fxrsubxx); break;
+    case OP_FXRSUBSX: gen_alopf1_xsx(ctx, instr, gen_helper_fxrsubxx); break;
+    case OP_FXRSUBDX: gen_alopf1_xdx(ctx, instr, gen_helper_fxrsubxx); break;
+    case OP_FXMULSS: gen_alopf1_xss(ctx, instr, gen_helper_fxmulxx); break;
+    case OP_FXMULDD: gen_alopf1_xdd(ctx, instr, gen_helper_fxmulxx); break;
+    case OP_FXMULSX: gen_alopf1_xsx(ctx, instr, gen_helper_fxmulxx); break;
+    case OP_FXMULDX: gen_alopf1_xdx(ctx, instr, gen_helper_fxmulxx); break;
+    case OP_FXMULXX: gen_alopf1_xxx(ctx, instr, gen_helper_fxmulxx); break;
+    case OP_FXMULXD: gen_alopf1_xxd(ctx, instr, gen_helper_fxmulxx); break;
+    case OP_FXMULXS: gen_alopf1_xxs(ctx, instr, gen_helper_fxmulxx); break;
+    case OP_FXDIVSS: gen_alopf1_xss(ctx, instr, gen_helper_fxdivxx); break;
+    case OP_FXDIVDD: gen_alopf1_xdd(ctx, instr, gen_helper_fxdivxx); break;
+    case OP_FXDIVSX: gen_alopf1_xsx(ctx, instr, gen_helper_fxdivxx); break;
+    case OP_FXDIVDX: gen_alopf1_xdx(ctx, instr, gen_helper_fxdivxx); break;
+    case OP_FXDIVXX: gen_alopf1_xxx(ctx, instr, gen_helper_fxdivxx); break;
+    case OP_FXDIVXD: gen_alopf1_xxd(ctx, instr, gen_helper_fxdivxx); break;
+    case OP_FXDIVXS: gen_alopf1_xxs(ctx, instr, gen_helper_fxdivxx); break;
+    case OP_MOVFI: gen_movfi(ctx, instr); break;
+    case OP_MOVIF: gen_movif(ctx, instr); break;
+    case OP_MOVTD: gen_movtd(ctx, chan); break;
+    case OP_PMAXSH: gen_alopf1_ddd(ctx, chan, gen_helper_pmaxsh); break;
+    case OP_PMAXUB: gen_alopf1_ddd(ctx, chan, gen_helper_pmaxub); break;
+    case OP_PMINSH: gen_alopf1_ddd(ctx, chan, gen_helper_pminsh); break;
+    case OP_PMINUB: gen_alopf1_ddd(ctx, chan, gen_helper_pminub); break;
+    case OP_GETTAGS: gen_gettag_i32(ctx, chan); break;
+    case OP_GETTAGD: gen_gettag_i64(ctx, chan); break;
+    case OP_PUTTAGS: gen_puttag_i32(ctx, chan); break;
+    case OP_PUTTAGD: gen_puttag_i64(ctx, chan); break;
+    case OP_PMOVMSKB: gen_alopf1_ddd(ctx, chan, gen_helper_pmovmskb); break;
+    case OP_PADDD: gen_alopf1_ddd(ctx, chan, tcg_gen_add_i64); break;
+    case OP_PSUBD: gen_alopf1_ddd(ctx, chan, tcg_gen_sub_i64); break;
+    case OP_PCMPEQB: gen_alopf1_ddd(ctx, chan, gen_helper_pcmpeqb); break;
+    case OP_STAAB: gen_staa_i32(ctx, instr, MO_8); break;
+    case OP_STAAH: gen_staa_i32(ctx, instr, MO_16); break;
+    case OP_STAAW: gen_staa_i32(ctx, instr, MO_32); break;
+    case OP_STAAD: gen_staa_i64(ctx, instr); break;
+    case OP_STAAQ: {
+        int pair_chan = chan == 2 ? 5 : 2;
+        if (!ctx->bundle.als_present[pair_chan] ||
+            extract32(ctx->bundle.als[pair_chan], 24, 7) != 0x3f ||
+            (instr->dst & 1) != (chan == 2 ? 0 : 1))
         {
-            /* lzcnts */
-            gen_alopf2_i32(ctx, chan, gen_lzcnts);
+            e2k_tr_gen_exception(ctx, E2K_EXCP_ILLOPC);
             return;
         }
+        gen_staa_i64(ctx, instr);
         break;
     }
-    case 0x65: { 
-        if (is_chan_0235(chan)) {
-            /* ldh */
-            gen_ld(ctx, instr, MO_UW);
-            return;
-        } else if (is_chan_14(chan) && instr->opce1 == 0xc0 &&
-            ctx->version >= 2)
-        {
-            /* lzcntd */
-            gen_alopf2_i64(ctx, chan, gen_lzcntd);
-            return;
-        }
-        break;
-    }
-    case 0x66: { 
-        if (is_chan_0235(chan)) {
-            /* ldw */
-            gen_ld(ctx, instr, MO_UL);
-            return;
-        } else if (is_chan_14(chan) && instr->opce1 == 0xc0 &&
-            ctx->version >= 2)
-        {
-            /* popcnts */
-            gen_alopf2_i32(ctx, chan, tcg_gen_ctpop_i32);
-            return;
-        }
-        break;
-    }
-    case 0x67: { 
-        if (is_chan_0235(chan)) {
-            /* ldd */
-            gen_ld(ctx, instr, MO_Q);
-            return;
-        } else if (is_chan_14(chan) && instr->opce1 == 0xc0 &&
-            ctx->version >= 2)
-        {
-            /* popcntd */
-            gen_alopf2_i64(ctx, chan, tcg_gen_ctpop_i64);
-            return;
-        }
-        break;
-    }
-    default:
-        break;
-    }
-
-    e2k_tr_gen_exception(ctx, E2K_EXCP_ILLOPC);
-}
-
-static void gen_ext(DisasContext *ctx, Instr *instr)
-{
-    int chan = instr->chan;
-    switch (instr->opc1) {
-    case 0x00:
-        if (is_chan_03(chan)) {
-            /* pminub */
-            gen_alopf1_i64(ctx, chan, gen_helper_pminub);
-            return;
-        }
-        break;
-    case 0x01:
-        if (is_chan_03(chan)) {
-            /* pminsh */
-            gen_alopf1_i64(ctx, chan, gen_helper_pminsh);
-            return;
-        }
-        break;
-    case 0x02:
-        if (is_chan_03(chan)) {
-            /* pmaxub */
-            gen_alopf1_i64(ctx, chan, gen_helper_pmaxub);
-            return;
-        }
-        break;
-    case 0x03:
-        if (is_chan_03(chan)) {
-            /* pmaxsh */
-            gen_alopf1_i64(ctx, chan, gen_helper_pmaxsh);
-            return;
-        }
-        break;
-    case 0x08:
-        if (is_chan_25(chan)) {
-            /* gettags */
-            gen_gettag_i32(ctx, chan);
-            return;
-        }
-        break;
-    case 0x09:
-        if (is_chan_25(chan)) {
-            /* gettagd */
-            gen_gettag_i64(ctx, chan);
-            return;
-        }
-        break;
-    case 0x0a:
-        if (is_chan_25(chan)) {
-            /* puttags */
-            gen_puttag_i32(ctx, chan);
-            return;
-        }
-        break;
-    case 0x0b:
-        if (is_chan_14(chan)) {
-            /* pmovmskb */
-            gen_alopf1_i64(ctx, chan, gen_helper_pmovmskb);
-            return;
-        } else if (is_chan_25(chan)) {
-            /* puttagd */
-            gen_puttag_i64(ctx, chan);
-            return;
-        }
-        break;
-    case 0x0f:
-        if (is_chan_03(chan)) {
-            /* paddd */
-            gen_alopf1_i64(ctx, chan, tcg_gen_add_i64);
-            return;
-        }
-        break;
-    case 0x17:
-        if (is_chan_03(chan)) {
-            /* psubd */
-            gen_alopf1_i64(ctx, chan, tcg_gen_sub_i64);
-            return;
-        }
-        break;
-    case 0x18:
-        if (is_chan_03(chan)) {
-            /* pcmpeqb */
-            gen_alopf1_i64(ctx, chan, gen_helper_pcmpeqb);
-            return;
-        }
-        break;
-    case 0x1c:
-        if (is_chan_25(chan)) {
-            /* staab */
-            gen_staa_i32(ctx, instr, MO_8);
-            return;
-        }
-        break;
-    case 0x1d:
-        if (is_chan_25(chan)) {
-            /* staah */
-            gen_staa_i32(ctx, instr, MO_16);
-            return;
-        }
-        break;
-    case 0x1e:
-        if (is_chan_25(chan)) {
-            /* staaw */
-            gen_staa_i32(ctx, instr, MO_32);
-            return;
-        }
-        break;
-    case 0x1f:
-        if (is_chan_25(chan)) {
-            /* staad */
-            gen_staa_i64(ctx, instr);
-            return;
-        }
-        break;
-    case 0x20:
-        if (is_chan_0134(chan)) {
-            /* muls */
-            gen_alopf1_i32(ctx, chan, tcg_gen_mul_i32);
-            return;
-        }
-        break;
-    case 0x21:
-        if (is_chan_0134(chan)) {
-            /* muld */
-            gen_alopf1_i64(ctx, chan, tcg_gen_mul_i64);
-            return;
-        }
-        break;
-    case 0x22:
-        if (is_chan_0134(chan)) {
-            /* umulx */
-            gen_alopf1_i32_i64(ctx, chan, gen_umulx);
-            return;
-        }
-        break;
-    case 0x23:
-        if (is_chan_0134(chan)) {
-            /* smulx */
-            gen_alopf1_i32_i64(ctx, chan, gen_smulx);
-            return;
-        }
-        break;
-    case 0x2c:
-        if (is_chan_0134(chan)) {
-            /* fcmp{op}s */
-            void (*f)(TCGv_i32, TCGv_i32, TCGv_i32) = 0;
-
-            GENERATE_FCMP_SWITCH_TABLE(f, instr->opce3, 0xc0, gen_, f, s);
-
-            if(f) {
-                gen_alopf1_i32(ctx, chan, f);
-                return;
-            }
-        }
-        break;
-    case 0x2d:
-        if (is_chan_0134(chan)) {
-            /* fcmp{op}d */
-            void (*f)(TCGv_i64, TCGv_i64, TCGv_i64) = 0;
-
-            GENERATE_FCMP_SWITCH_TABLE(f, instr->opce3, 0xc0, gen_, f, d);
-
-            if(f) {
-                gen_alopf1_i64(ctx, chan, f);
-                return;
-            }
-        }
-        break;
-    case 0x3c:
-        if (chan == 0) {
-            /* rws */
-            gen_rw_i32(ctx, instr);
-            return;
-        }
-        break;
-    case 0x3d:
-        if (chan == 0) {
-            /* rwd */
-            gen_rw_i64(ctx, instr);
-            return;
-        }
-        break;
-    case 0x3e:
-        if (chan == 0) {
-            /* rrs */
-            gen_rr_i32(ctx, instr);
-            return;
-        }
-        break;
-    case 0x3f:
-        if (chan == 0) {
-            /* rrd */
-            gen_rr_i64(ctx, instr);
-            return;
-        } else if (is_chan_25(chan)) {
-            /* staaq */
-            int pair_chan = chan == 2 ? 5 : 2;
-            if (!ctx->bundle.als_present[pair_chan] ||
-                extract32(ctx->bundle.als[pair_chan], 24, 7) != 0x3f ||
-                (instr->dst & 1) != (chan == 2 ? 0 : 1))
-            {
-                e2k_tr_gen_exception(ctx, E2K_EXCP_ILLOPC);
-                return;
-            }
-            gen_staa_i64(ctx, instr);
-            return;
-        }
-        break;
-    case 0x48:
-        if (chan == 5) {
-            /* fdivs */
-            gen_alopf1_i32_env(ctx, chan, gen_helper_fdivs);
-            return;
-        }
-        break;
-    case 0x49:
-        if (chan == 5) {
-            /* fdivd */
-            gen_alopf1_i64_env(ctx, chan, gen_helper_fdivd);
-            return;
-        }
-        break;
-    case 0x58:
-        if (is_chan_03(chan)) {
-            /* getsp */
-            gen_getsp(ctx, chan);
-            return;
-        }
-        break;
-    case 0x70:
-        if (is_chan_0134(chan)) {
-            /* umulhd */
-            gen_alopf1_i64(ctx, chan, gen_umulhd);
-            return;
-        }
-        break;
-    case 0x71:
-        if (is_chan_0134(chan)) {
-            /* smulhd */
-            gen_alopf1_i64(ctx, chan, gen_smulhd);
-            return;
-        }
-        break;
-    default:
-        break;
-    }
-
-    e2k_tr_gen_exception(ctx, E2K_EXCP_ILLOPC);
-}
-
-static void gen_ext1(DisasContext *ctx, Instr *instr)
-{
-    int chan = instr->chan;
-
-    switch (instr->opc1) {
-    case 0x30:
-        if (is_chan_25(chan) && ctx->version >= 4) {
-            /* fadds */
-            gen_alopf1_i32_env(ctx, chan, gen_helper_fadds);
-            return;
-        }
-        break;
-    case 0x31:
-        if (is_chan_25(chan) && ctx->version >= 4) {
-            /* faddd */
-            gen_alopf1_i64_env(ctx, chan, gen_helper_faddd);
-            return;
-        }
-        break;
-    case 0x32:
-        if (is_chan_25(chan) && ctx->version >= 4) {
-            /* fsubs */
-            gen_alopf1_i32_env(ctx, chan, gen_helper_fsubs);
-            return;
-        }
-        break;
-    case 0x33:
-        if (is_chan_25(chan) && ctx->version >= 4) {
-            /* fsubd */
-            gen_alopf1_i64_env(ctx, chan, gen_helper_fsubd);
-            return;
-        }
-        break;
-    case 0x38:
-        if (is_chan_25(chan) && ctx->version >= 4) {
-            /* fmuls */
-            gen_alopf1_i32_env(ctx, chan, gen_helper_fmuls);
-            return;
-        }
-        break;
-    case 0x39:
-        if (is_chan_25(chan) && ctx->version >= 4) {
-            /* fmuld */
-            gen_alopf1_i64_env(ctx, chan, gen_helper_fmuld);
-            return;
-        }
-        break;
-    default:
-        e2k_todo_illop(ctx, "unknown instr %x:%x:%x\n", instr->opc1,
-            instr->opc2, instr->opce1);
-        break;
+    case OP_MULS: gen_alopf1_sss(ctx, chan, tcg_gen_mul_i32); break;
+    case OP_MULD: gen_alopf1_ddd(ctx, chan, tcg_gen_mul_i64); break;
+    case OP_UMULX: gen_alopf1_dss(ctx, chan, gen_umulx); break;
+    case OP_SMULX: gen_alopf1_dss(ctx, chan, gen_smulx); break;
+    case OP_RWS: gen_rw_i32(ctx, instr); break;
+    case OP_RWD: gen_rw_i64(ctx, instr); break;
+    case OP_RRS: gen_rr_i32(ctx, instr); break;
+    case OP_RRD: gen_rr_i64(ctx, instr); break;
+    case OP_FDIVS: gen_alopf1_sess(ctx, chan, gen_helper_fdivs); break;
+    case OP_FDIVD: gen_alopf1_dedd(ctx, chan, gen_helper_fdivd); break;
+    case OP_GETSP: gen_getsp(ctx, chan); break;
+    case OP_UMULHD: gen_alopf1_ddd(ctx, chan, gen_umulhd); break;
+    case OP_SMULHD: gen_alopf1_ddd(ctx, chan, gen_smulhd); break;
+    case OP_UDIVX:
+    case OP_UMODX:
+    case OP_SDIVX:
+    case OP_SMODX:
+    case OP_FXDIVTSS:
+    case OP_FXDIVTDD:
+    case OP_FXDIVTSX:
+    case OP_FXDIVTDX:
+    case OP_FXSQRTUSX:
+    case OP_FXSQRTUDX:
+    case OP_FXSQRTUXX:
+    case OP_FXSQRTTSX:
+    case OP_FXSQRTTDX:
+    case OP_FXSQRTTXX:
+    case OP_VFSI:
+    case OP_LDCSB:
+    case OP_LDDSB:
+    case OP_LDESB:
+    case OP_LDFSB:
+    case OP_LDGSB:
+    case OP_LDSSB:
+    case OP_LDCSH:
+    case OP_LDDSH:
+    case OP_LDESH:
+    case OP_LDFSH:
+    case OP_LDGSH:
+    case OP_LDSSH:
+    case OP_LDCSW:
+    case OP_LDDSW:
+    case OP_LDESW:
+    case OP_LDFSW:
+    case OP_LDGSW:
+    case OP_LDSSW:
+    case OP_LDCSD:
+    case OP_LDDSD:
+    case OP_LDESD:
+    case OP_LDFSD:
+    case OP_LDGSD:
+    case OP_LDSSD:
+    case OP_FXSQRTISX:
+    case OP_FXSQRTIDX:
+    case OP_FXSQRTIXX:
+    case OP_MOVTS:
+    case OP_MOVTCS:
+    case OP_MOVTRS:
+    case OP_MOVTRCS:
+    case OP_MOVTCD:
+    case OP_MOVTRD:
+    case OP_MOVTRCD:
+    case OP_FXTOIS:
+    case OP_FXTOID:
+    case OP_ISTOFX:
+    case OP_IDTOFX:
+    case OP_PFDTOIS:
+    case OP_PFSTOIS:
+    case OP_PFDTOISTR:
+    case OP_PFSTOISTR:
+    case OP_PISTOFS:
+    case OP_PFSTOFD:
+    case OP_PFDTOFS:
+    case OP_GETPL:
+    case OP_GETSAP:
+    case OP_CUDTOAP:
+    case OP_GDTOAP:
+    case OP_STCSB:
+    case OP_STDSB:
+    case OP_STESB:
+    case OP_STFSB:
+    case OP_STGSB:
+    case OP_STSSB:
+    case OP_STCSH:
+    case OP_STDSH:
+    case OP_STESH:
+    case OP_STFSH:
+    case OP_STGSH:
+    case OP_STSSH:
+    case OP_STCSW:
+    case OP_STDSW:
+    case OP_STESW:
+    case OP_STFSW:
+    case OP_STGSW:
+    case OP_STSSW:
+    case OP_STCSD:
+    case OP_STDSD:
+    case OP_STESD:
+    case OP_STFSD:
+    case OP_STGSD:
+    case OP_STSSD:
+    case OP_CCTOPO:
+    case OP_CCTOPB:
+    case OP_CCTOPE:
+    case OP_CCTOPBE:
+    case OP_CCTOPS:
+    case OP_CCTOPP:
+    case OP_CCTOPL:
+    case OP_CCTOPLE:
+    /*
+    case OP_AAURW:
+    case OP_AAURWS:
+    case OP_AAURWD:
+    case OP_AAURWQ:
+    case OP_AAURR:
+    case OP_AAURRD:
+    case OP_AAURRQ:
+    */
+    case OP_FSQRTTD:
+    case OP_PFMULS:
+    case OP_PFMULD:
+    case OP_PADDB:
+    case OP_PADDH:
+    case OP_PADDW:
+    case OP_PADDSB:
+    case OP_PADDSH:
+    case OP_PADDUSB:
+    case OP_PADDUSH:
+    case OP_PSUBB:
+    case OP_PSUBH:
+    case OP_PSUBW:
+    case OP_PSUBSB:
+    case OP_PSUBSH:
+    case OP_PSUBUSB:
+    case OP_PSUBUSH:
+    case OP_PSADBW:
+    case OP_PMULHUH:
+    case OP_PMULHH:
+    case OP_PMULLH:
+    case OP_PMADDH:
+    case OP_PSLLD:
+    case OP_PSLLW:
+    case OP_PSLLH:
+    case OP_PSRLD:
+    case OP_PSRLW:
+    case OP_PSRLH:
+    case OP_PSRAW:
+    case OP_PSRAH:
+    case OP_PFADDS:
+    case OP_PFADDD:
+    case OP_PFSUBS:
+    case OP_PFSUBD:
+    case OP_APTOAP:
+    case OP_APTOAPB:
+    case OP_GETVA:
+    case OP_PANDD:
+    case OP_PANDND:
+    case OP_PORD:
+    case OP_PXORD:
+    case OP_LDRD:
+    case OP_PUTTC:
+    case OP_PAVGUSB:
+    case OP_PAVGUSH:
+    case OP_PFDIVS:
+    case OP_PFDIVD:
+    case OP_PFMINS:
+    case OP_PFMIND:
+    case OP_PFMAXS:
+    case OP_PFMAXD:
+    case OP_PFSQRTTD:
+    case OP_PEXTRH:
+    case OP_PINSH:
+    case OP_PSLLQH:
+    case OP_PSLLQL:
+    case OP_PSRLQH:
+    case OP_PSRLQL:
+    case OP_CAST:
+    case OP_TDTOMP:
+    case OP_ODTOAP:
+    case OP_FCMPEQS:
+    case OP_FCMPLTS:
+    case OP_FCMPLES:
+    case OP_FCMPUODS:
+    case OP_FCMPNEQS:
+    case OP_FCMPNLTS:
+    case OP_FCMPNLES:
+    case OP_FCMPODS:
+    case OP_FCMPEQD:
+    case OP_FCMPLTD:
+    case OP_FCMPLED:
+    case OP_FCMPUODD:
+    case OP_FCMPNEQD:
+    case OP_FCMPNLTD:
+    case OP_FCMPNLED:
+    case OP_FCMPODD:
+    case OP_PFCMPEQS:
+    case OP_PFCMPLTS:
+    case OP_PFCMPLES:
+    case OP_PFCMPUODS:
+    case OP_PFCMPNEQS:
+    case OP_PFCMPNLTS:
+    case OP_PFCMPNLES:
+    case OP_PFCMPODS:
+    case OP_PFCMPEQD:
+    case OP_PFCMPLTD:
+    case OP_PFCMPLED:
+    case OP_PFCMPUODD:
+    case OP_PFCMPNEQD:
+    case OP_PFCMPNLTD:
+    case OP_PFCMPNLED:
+    case OP_PFCMPODD:
+    case OP_FCMPODSF:
+    case OP_FCMPUDSF:
+    case OP_FCMPODDF:
+    case OP_FCMPUDDF:
+    case OP_FXCMPODSF:
+    case OP_FXCMPUDSF:
+    case OP_FXCMPODDF:
+    case OP_FXCMPUDDF:
+    case OP_FXCMPODXF:
+    case OP_FXCMPUDXF:
+    case OP_PCMPEQH:
+    case OP_PCMPEQW:
+    case OP_PCMPGTB:
+    case OP_PCMPGTH:
+    case OP_PCMPGTW:
+    case OP_PMOVMSKPS:
+    case OP_PMOVMSKPD:
+    case OP_PACKSSHB:
+    case OP_PACKUSHB:
+    case OP_PSHUFW:
+    case OP_PACKSSWH:
+    case OP_PUNPCKHBH:
+    case OP_PUNPCKHHW:
+    case OP_PUNPCKHWD:
+    case OP_PUNPCKLBH:
+    case OP_PUNPCKLHW:
+    case OP_PUNPCKLWD:
+    case OP_LDGDB:
+    case OP_LDGDH:
+    case OP_LDGDW:
+    case OP_LDGDD:
+    case OP_LDGDQ:
+    case OP_LDCUDB:
+    case OP_LDCUDH:
+    case OP_LDCUDW:
+    case OP_LDCUDD:
+    case OP_LDCUDQ:
+    case OP_LDAPB:
+    case OP_LDAPH:
+    case OP_LDAPW:
+    case OP_LDAPD:
+    case OP_LDAPQ:
+    case OP_LDODWB:
+    case OP_LDODWD:
+    case OP_LDODWH:
+    case OP_LDODWQ:
+    case OP_LDODWW:
+    case OP_LDODPB:
+    case OP_LDODPD:
+    case OP_LDODPH:
+    case OP_LDODPQ:
+    case OP_LDODPW:
+    case OP_LDODRB:
+    case OP_LDODRD:
+    case OP_LDODRH:
+    case OP_LDODRQ:
+    case OP_LDODRW:
+    case OP_LDCSQ:
+    case OP_LDDSQ:
+    case OP_LDESQ:
+    case OP_LDFSQ:
+    case OP_LDGSQ:
+    case OP_LDSSQ:
+    case OP_FRCPS:
+    case OP_FSQRTS:
+    case OP_FSQRTID:
+    case OP_FRSQRTS:
+    case OP_PFSQRTS:
+    case OP_GETTD:
+    case OP_GETTC:
+    case OP_INVTC:
+    case OP_GETSOD:
+    case OP_PSHUFH:
+    case OP_STCSQ:
+    case OP_STDSQ:
+    case OP_STESQ:
+    case OP_STFSQ:
+    case OP_STGSQ:
+    case OP_STSSQ:
+    case OP_STRD:
+    case OP_STGDB:
+    case OP_STGDH:
+    case OP_STGDW:
+    case OP_STGDD:
+    case OP_STGDQ:
+    case OP_STAPB:
+    case OP_STAPH:
+    case OP_STAPW:
+    case OP_STAPD:
+    case OP_STAPQ:
+    case OP_STODPB:
+    case OP_STODPD:
+    case OP_STODPH:
+    case OP_STODPQ:
+    case OP_STODPW:
+    case OP_STODRB:
+    case OP_STODRD:
+    case OP_STODRH:
+    case OP_STODRQ:
+    case OP_STODRW:
+    case OP_STODWB:
+    case OP_STODWD:
+    case OP_STODWH:
+    case OP_STODWQ:
+    case OP_STODWW:
+    case OP_MOVTQ:
+    case OP_MOVTCQ:
+    case OP_MOVTRQ:
+    case OP_MOVTRCQ:
+    case OP_FXTOISTR:
+    case OP_FXTOIDTR:
+    case OP_MOVX:
+    case OP_MOVXA:
+    case OP_MOVXC:
+    case OP_PMULUBHH:
+    case OP_FSTOIFS:
+    case OP_FDTOIFD:
+    case OP_PMINUW:
+    case OP_PMINSW:
+    case OP_PMAXUW:
+    case OP_PMAXSW:
+    case OP_MPSADBH:
+    case OP_PACKUSWH:
+    case OP_PCMPEQD:
+    case OP_PCMPGTD:
+    case OP_PFHADDS:
+    case OP_PFHSUBS:
+    case OP_PFADDSUBS:
+    case OP_PMINSB:
+    case OP_PMINUH:
+    case OP_PMAXSB:
+    case OP_PMAXUH:
+    case OP_PFSTOIFS:
+    case OP_PFDTOIFD:
+    case OP_PHADDH:
+    case OP_PHADDW:
+    case OP_PHADDSH:
+    case OP_PHSUBH:
+    case OP_PHSUBW:
+    case OP_PHSUBSH:
+    case OP_PSIGNB:
+    case OP_PSIGNH:
+    case OP_PSIGNW:
+    case OP_PMADDUBSH:
+    case OP_PMULHRSH:
+    case OP_PHMINPOSUH:
+    case OP_PUTTST:
+    case OP_FSCALES:
+    case OP_FSCALED:
+    case OP_FXSCALESX:
+    case OP_STAAQP:
+    case OP_QPAND:
+    case OP_QPANDN:
+    case OP_QPOR:
+    case OP_QPXOR:
+    case OP_QPADDB:
+    case OP_QPADDH:
+    case OP_QPADDSB:
+    case OP_QPADDSH:
+    case OP_QPADDUSB:
+    case OP_QPADDUSH:
+    case OP_QPADDW:
+    case OP_QPADDD:
+    case OP_QPSUBB:
+    case OP_QPSUBH:
+    case OP_QPSUBSB:
+    case OP_QPSUBSH:
+    case OP_QPSUBUSB:
+    case OP_QPSUBUSH:
+    case OP_QPSUBW:
+    case OP_QPSUBD:
+    case OP_QPFADDS:
+    case OP_QPFADDD:
+    case OP_QPFHADDS:
+    case OP_QPFHSUBS:
+    case OP_QPFADDSUBS:
+    case OP_QPFADDSUBD:
+    case OP_QPFSTOIFS:
+    case OP_QPFDTOIFD:
+    case OP_QPFMINS:
+    case OP_QPFMIND:
+    case OP_QPFMAXS:
+    case OP_QPFMAXD:
+    case OP_QPFMULS:
+    case OP_QPFMULD:
+    case OP_QPFSUBS:
+    case OP_QPFSUBD:
+    case OP_QPMSK2SGNB:
+    case OP_QPPACKDL:
+    case OP_QPSLLH:
+    case OP_QPSLLW:
+    case OP_QPSLLD:
+    case OP_QPSRLH:
+    case OP_QPSRLW:
+    case OP_QPSRLD:
+    case OP_QPSRAH:
+    case OP_QPSRAW:
+    case OP_QPACKSSHB:
+    case OP_QPACKSSWH:
+    case OP_QPACKUSHB:
+    case OP_QPACKUSWH:
+    case OP_QPAVGUSB:
+    case OP_QPAVGUSH:
+    case OP_QPCMPEQB:
+    case OP_QPCMPEQD:
+    case OP_QPCMPEQH:
+    case OP_QPCMPEQW:
+    case OP_QPCMPGTB:
+    case OP_QPCMPGTD:
+    case OP_QPCMPGTH:
+    case OP_QPCMPGTW:
+    case OP_QPHADDH:
+    case OP_QPHADDSH:
+    case OP_QPHADDW:
+    case OP_QPHSUBH:
+    case OP_QPHSUBSH:
+    case OP_QPHSUBW:
+    case OP_QPMAXSB:
+    case OP_QPMAXSH:
+    case OP_QPMAXSW:
+    case OP_QPMAXUB:
+    case OP_QPMAXUH:
+    case OP_QPMAXUW:
+    case OP_QPMINSB:
+    case OP_QPMINSH:
+    case OP_QPMINSW:
+    case OP_QPMINUB:
+    case OP_QPMINUH:
+    case OP_QPMINUW:
+    case OP_QPMULHH:
+    case OP_QPMULHRSH:
+    case OP_QPMULHUH:
+    case OP_QPMULLH:
+    case OP_QPMULUBHH:
+    case OP_QPSIGNB:
+    case OP_QPSIGNH:
+    case OP_QPSIGNW:
+    case OP_QPHMINPOSUH:
+    case OP_QPMADDH:
+    case OP_QPMADDUBSH:
+    case OP_QPMPSADBH:
+    case OP_QPSADBW:
+    case OP_QPSRCD:
+    case OP_QPSRCW:
+    case OP_PSRCD:
+    case OP_PSRCW:
+    case OP_GETFZS:
+    case OP_GETFZD:
+    case OP_PUTTAGQP:
+    case OP_PMULLW:
+    case OP_QPMULLW:
+    case OP_QPFCMPEQS:
+    case OP_QPFCMPLTS:
+    case OP_QPFCMPLES:
+    case OP_QPFCMPUODS:
+    case OP_QPFCMPNEQS:
+    case OP_QPFCMPNLTS:
+    case OP_QPFCMPNLES:
+    case OP_QPFCMPODS:
+    case OP_QPFCMPEQD:
+    case OP_QPFCMPLTD:
+    case OP_QPFCMPLED:
+    case OP_QPFCMPUODD:
+    case OP_QPFCMPNEQD:
+    case OP_QPFCMPNLTD:
+    case OP_QPFCMPNLED:
+    case OP_QPFCMPODD:
+    case OP_LDQ:
+    case OP_LDQP:
+    case OP_LDGDQP:
+    case OP_LDCUDQP:
+    case OP_LDCSQP:
+    case OP_LDDSQP:
+    case OP_LDESQP:
+    case OP_LDFSQP:
+    case OP_LDGSQP:
+    case OP_LDSSQP:
+    case OP_LDAPQP:
+    case OP_LDRQP:
+    case OP_QPSGN2MSKB:
+    case OP_QPSWITCHW:
+    case OP_QPSWITCHD:
+    case OP_QPFSTOIS:
+    case OP_QPFSTOISTR:
+    case OP_QPISTOFS:
+    case OP_QPFSTOID:
+    case OP_QPFSTOIDTR:
+    case OP_QPISTOFD:
+    case OP_QPFSTOFD:
+    case OP_QPFDTOIS:
+    case OP_QPFDTOISTR:
+    case OP_QPIDTOFS:
+    case OP_QPFDTOFS:
+    case OP_QPFDTOID:
+    case OP_QPFDTOIDTR:
+    case OP_QPIDTOFD:
+    case OP_STQ:
+    case OP_STGDMQP:
+    case OP_STGDQP:
+    case OP_STAPQP:
+    case OP_STAPMQP:
+    case OP_STMQP:
+    case OP_STQP:
+    case OP_STCSMQP:
+    case OP_STCSQP:
+    case OP_STDSMQP:
+    case OP_STDSQP:
+    case OP_STESMQP:
+    case OP_STESQP:
+    case OP_STFSMQP:
+    case OP_STFSQP:
+    case OP_STGSMQP:
+    case OP_STGSQP:
+    case OP_STSSMQP:
+    case OP_STSSQP:
+    case OP_STRQP:
+    case OP_ADDCD:
+    case OP_ADDCD_C:
+    case OP_SUBCD:
+    case OP_SUBCD_C:
+    case OP_VFBGV:
+    case OP_MKFSW:
+    case OP_MODBGV:
+    case OP_PCMPEQBOP:
+    case OP_PCMPEQHOP:
+    case OP_PCMPEQWOP:
+    case OP_PCMPEQDOP:
+    case OP_PCMPGTBOP:
+    case OP_PCMPGTHOP:
+    case OP_PCMPGTWOP:
+    case OP_PCMPGTDOP:
+    case OP_PCMPEQBAP:
+    case OP_PCMPEQHAP:
+    case OP_PCMPEQWAP:
+    case OP_PCMPEQDAP:
+    case OP_PCMPGTBAP:
+    case OP_PCMPGTHAP:
+    case OP_PCMPGTWAP:
+    case OP_PCMPGTDAP:
+    case OP_QPCMPEQBOP:
+    case OP_QPCMPEQHOP:
+    case OP_QPCMPEQWOP:
+    case OP_QPCMPEQDOP:
+    case OP_QPCMPGTBOP:
+    case OP_QPCMPGTHOP:
+    case OP_QPCMPGTWOP:
+    case OP_QPCMPGTDOP:
+    case OP_QPCMPEQBAP:
+    case OP_QPCMPEQHAP:
+    case OP_QPCMPEQWAP:
+    case OP_QPCMPEQDAP:
+    case OP_QPCMPGTBAP:
+    case OP_QPCMPGTHAP:
+    case OP_QPCMPGTWAP:
+    case OP_QPCMPGTDAP:
+    case OP_PMRGP:
+    case OP_QPMRGP:
+    case OP_CLMULH:
+    case OP_CLMULL:
+    case OP_IBRANCHD:
+    case OP_ICALLD:
+    case OP_QPCEXT_0X00:
+    case OP_QPCEXT_0X7F:
+    case OP_QPCEXT_0X80:
+    case OP_QPCEXT_0XFF:
+    case OP_FMAS:
+    case OP_FMSS:
+    case OP_FNMAS:
+    case OP_FNMSS:
+    case OP_FMAD:
+    case OP_FMSD:
+    case OP_FNMAD:
+    case OP_FNMSD:
+    case OP_QPFMAS:
+    case OP_QPFMSS:
+    case OP_QPFNMAS:
+    case OP_QPFNMSS:
+    case OP_QPFMAD:
+    case OP_QPFMSD:
+    case OP_QPFNMAD:
+    case OP_QPFNMSD:
+    case OP_QPFMASS:
+    case OP_QPFMSAS:
+    case OP_QPFMASD:
+    case OP_QPFMSAD:
+        e2k_todo_illop(ctx, "unimplemented %d\n", op); break;
     }
 }
 
@@ -4215,9 +4210,10 @@ static void chan_execute(DisasContext *ctx, int chan)
     chan_check_preds(ctx, chan, l0);
 
     switch (instr.opc2) {
-    case NO_EXT: gen_no_ext(ctx, &instr); break; /* no ales */
-    case EXT: gen_ext(ctx, &instr); break;
-    case EXT1: gen_ext1(ctx, &instr); break;
+    case SHORT:
+    case EXT:
+    case EXT1:
+    case EXT2: gen_op(ctx, &instr); break;
     case ICMB0:
     case ICMB1:
     case ICMB2: gen_icmb012(ctx, &instr); break;
@@ -4410,5 +4406,25 @@ void e2k_alc_commit(DisasContext *ctx)
         }
 
         gen_set_label(l0);
+    }
+}
+
+void e2k_alc_init(DisasContext *ctx)
+{
+    int i, j;
+
+    // TODO: symmetric alops table
+    /* Most alops are symmetric and can be stored in a half table. */
+    for (i = 0; i < ARRAY_SIZE(alops); i++) {
+        AlopDesc *desc = &alops[i];
+        if (desc->min_version <= ctx->version && ctx->version <= desc->max_version) {
+            for (j = 0; j < 6; j++) {
+                if (desc->channels & (1 << j)) {
+                    int16_t *p = &alops_map[desc->opc2][desc->opc1][j];
+                    desc->next[j] = *p;
+                    *p = i;
+                }
+            }
+        }
     }
 }

@@ -363,6 +363,7 @@ static void e2k_tr_init_disas_context(DisasContextBase *db, CPUState *cs)
     CPUE2KState *env = &cpu->env;
 
     ctx->version = env->version;
+    e2k_alc_init(ctx);
 }
 
 static void e2k_tr_tb_start(DisasContextBase *db, CPUState *cs)
