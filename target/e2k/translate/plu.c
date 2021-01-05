@@ -197,17 +197,9 @@ void e2k_plu_commit(DisasContext *ctx)
     unsigned int i;
 
     for (i = 0; i < 3; i++) {
-        TCGv_i64 t0;
-
         if (ctx->pl_results[i].reg < 0) {
             continue;
         }
-
-        t0 = tcg_temp_new_i64();
-
-        tcg_gen_extu_i32_i64(t0, ctx->pl_results[i].value);
-        e2k_gen_store_preg(ctx->pl_results[i].reg, t0);
-
-        tcg_temp_free_i64(t0);
+        e2k_gen_store_preg(ctx->pl_results[i].reg, ctx->pl_results[i].value);
     }
 }

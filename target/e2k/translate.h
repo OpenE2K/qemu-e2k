@@ -137,7 +137,11 @@ typedef struct {
                 TCGv_i32 v32;
                 TCGv_i64 v64;
             };
-        } preg, ctpr;
+        } ctpr;
+        struct {
+            int index;
+            TCGv_i32 val;
+        } preg;
     };
 } AlResult;
 
@@ -441,7 +445,7 @@ static inline void e2k_gen_lcntex(TCGv_i32 ret)
     tcg_temp_free_i32(t0);
 }
 
-void e2k_gen_store_preg(int idx, TCGv_i64 val);
+void e2k_gen_store_preg(int idx, TCGv_i32 val);
 
 void e2k_gen_reg_tag_read_i64(TCGv_i32 ret, TCGv_i32 idx);
 void e2k_gen_reg_tag_read_i32(TCGv_i32 ret, TCGv_i32 idx);
