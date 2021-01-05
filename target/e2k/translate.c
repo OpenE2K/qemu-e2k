@@ -429,6 +429,7 @@ static void e2k_tr_translate_insn(DisasContextBase *db, CPUState *cs)
     do_commit(ctx);
     do_branch(ctx, pc_next);
 
+    ctx->mlock = NULL;
     ctx->base.pc_next = pc_next;
 
     /* Free temporary values */
