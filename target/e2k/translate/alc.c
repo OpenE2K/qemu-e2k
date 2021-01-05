@@ -1126,7 +1126,7 @@ static inline void gen_cmpand_i32(TCGv_i32 ret, int opc, TCGv_i32 src1,
 #define WRAP_FCMP_HELPER(op) \
     WRAP_FCMP_HELPER_(glue(op, s), TCGv_i32) \
     WRAP_FCMP_HELPER_(glue(op, d), TCGv_i64)
-
+/* FIXME: currently unused but will be
 WRAP_FCMP_HELPER(fcmpeq)
 WRAP_FCMP_HELPER(fcmplt)
 WRAP_FCMP_HELPER(fcmple)
@@ -1135,7 +1135,7 @@ WRAP_FCMP_HELPER(fcmpneq)
 WRAP_FCMP_HELPER(fcmpnlt)
 WRAP_FCMP_HELPER(fcmpnle)
 WRAP_FCMP_HELPER(fcmpod)
-
+*/
 #undef WRAP_FCMP_HELPER
 #undef WRAP_FCMP_HELPER_
 
@@ -2722,17 +2722,9 @@ static void gen_op(DisasContext *ctx, Instr *instr)
     case OP_FCMPNEQSB:
     case OP_FCMPNLTSB:
     case OP_FCMPNLESB:
-    case OP_FCMPODSB: {
-        void (*f)(TCGv_i32, TCGv_i32, TCGv_i32) = 0;
-
-        GENERATE_FCMP_SWITCH_TABLE(f, instr->opce3, 0xc0, gen_, f, s);
-
-        if(f) {
-            gen_alopf1_sss(ctx, chan, f);
-            return;
-        }
+    case OP_FCMPODSB:
+        gen_alopf1_cmp_ssb(ctx, instr, gen_fcmp_i32);
         break;
-    }
     case OP_FCMPEQDB:
     case OP_FCMPLTDB:
     case OP_FCMPLEDB:
@@ -2740,17 +2732,9 @@ static void gen_op(DisasContext *ctx, Instr *instr)
     case OP_FCMPNEQDB:
     case OP_FCMPNLTDB:
     case OP_FCMPNLEDB:
-    case OP_FCMPODDB: {
-        void (*f)(TCGv_i64, TCGv_i64, TCGv_i64) = 0;
-
-        GENERATE_FCMP_SWITCH_TABLE(f, instr->opce3, 0xc0, gen_, f, d);
-
-        if(f) {
-            gen_alopf1_ddd(ctx, chan, f);
-            return;
-        }
+    case OP_FCMPODDB:
+        gen_alopf1_cmp_ddb(ctx, instr, gen_fcmp_i64);
         break;
-    }
     case OP_FXCMPEQSB:
     case OP_FXCMPLTSB:
     case OP_FXCMPLESB:
