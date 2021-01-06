@@ -52,7 +52,7 @@ target_ulong HELPER(mova_ptr)(CPUE2KState *env, int chan, int area)
     E2KAauPrefInstr instr = as->pi;
     E2KAad aad = env->aau.ds[instr.aad];
 
-    return aad.base + as->cdi;
+    return aad.base + as->cdi + instr.disp;
 }
 
 void HELPER(aau_am)(CPUE2KState *env, int chan, int area)
