@@ -75,7 +75,7 @@
     || defined(TARGET_S390X) \
     || defined(TARGET_OPENRISC) || defined(TARGET_TILEGX) \
     || defined(TARGET_NIOS2) || defined(TARGET_RISCV) \
-    || defined(TARGET_XTENSA)
+    || defined(TARGET_XTENSA) || defined(TARGET_E2K)
 
 #define TARGET_IOC_SIZEBITS	14
 #define TARGET_IOC_DIRBITS	2
@@ -86,7 +86,7 @@
 
 #elif defined(TARGET_PPC) || defined(TARGET_ALPHA) || \
       defined(TARGET_SPARC) || defined(TARGET_MICROBLAZE) || \
-      defined(TARGET_MIPS) || defined(TARGET_E2K)
+      defined(TARGET_MIPS)
 
 #define TARGET_IOC_SIZEBITS	13
 #define TARGET_IOC_DIRBITS	3
@@ -1383,6 +1383,25 @@ struct target_winsize {
 #define TARGET_MAP_NONBLOCK	0x20000		/* do not block on IO */
 #define TARGET_MAP_STACK	0x40000
 #define TARGET_MAP_HUGETLB  0x80000         /* create a huge page mapping */
+#elif defined(TARGET_E2K)
+#define TARGET_MAP_ANONYMOUS           0x000010 /* don't use a file */
+#define TARGET_MAP_FIXED               0x000100 /* Interpret addr exactly */
+#define TARGET_MAP_DENYWRITE           0x000800 /* ETXTBSY */
+#define TARGET_MAP_GROWSDOWN           0x001000 /* stack-like segment */
+#define TARGET_MAP_GROWSUP             0x002000 /* register stack-like segment */
+#define TARGET_MAP_EXECUTABLE          0x004000 /* mark it as an executable */
+#define TARGET_MAP_LOCKED              0x008000 /* pages are locked */
+#define TARGET_MAP_NORESERVE           0x010000 /* don't check for reservations */
+#define TARGET_MAP_POPULATE            0x020000 /* populate (prefault) pagetables */
+#define TARGET_MAP_NONBLOCK            0x040000 /* do not block on IO */
+#define TARGET_MAP_FIRST32             0x080000 /* in protected mode map in  */
+                                         /* first 2 ** 32 area */
+#define TARGET_MAP_WRITECOMBINED       0x100000 /* Write combine */
+#define TARGET_MAP_HUGETLB             0x200000 /* create a huge page mapping */
+#define TARGET_MAP_FIXED_NOREPLACE     0x400000 /* MAP_FIXED which doesn't unmap */
+                                         /* underlying mapping */
+#define TARGET_MAP_STACK TARGET_MAP_GROWSDOWN
+
 #else
 #define TARGET_MAP_FIXED	0x10		/* Interpret addr exactly */
 #define TARGET_MAP_ANONYMOUS	0x20		/* don't use a file */
