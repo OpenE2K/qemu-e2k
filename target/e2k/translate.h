@@ -559,6 +559,7 @@ static inline void e2k_gen_is_loop_end_i32(TCGv_i32 ret)
     tcg_temp_free_i32(t0);
 }
 
+void e2k_decode_jmp(DisasContext *ctx);
 void e2k_control_execute(DisasContext *ctx);
 void e2k_control_window_change(DisasContext *ctx);
 void e2k_stubs_commit(DisasContext *ctx);
