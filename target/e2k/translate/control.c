@@ -222,14 +222,8 @@ static void gen_cs0(DisasContext *dc)
               /* CS1.param.ctopc == HCALL  */
               && (bundle->cs1 & 0x380) >> 7 == 2))
         {
-            if (type == IBRANCH && dc->ct.type == CT_NONE) {
-                /* C0F2 has `disp' field. In `C0F1' it's called `param'. Is this
-                   the only difference between these two formats?  Funnily enough,
-                   DONE is also C0F2 and thus has `disp', though it obviously
-                   makes no sense for it.  */
-                uint32_t disp = (cs0 & 0x0fffffff);
-                /* Calculate a signed displacement in bytes. */
-                int32_t sdisp = ((int32_t) (disp << 4)) >> 1;
+            if (type == IBRANCH) {
+                int32_t sdisp = sextract32(cs0, 0, 28) << 3;
                 dc->ct.type = CT_IBRANCH;
                 dc->ct.u.target = dc->pc + sdisp;
             } else {
@@ -244,9 +238,7 @@ static void gen_cs0(DisasContext *dc)
         }
         int ipd = bundle->ss_present ? GET_FIELD(bundle->ss, 30, 2) : 3;
         if (type == DISP || type == LDISP) {
-            unsigned int disp = GET_FIELD(cs0, 0, 28);
-            /* Calculate a signed displacement in bytes. */
-            int sdisp = ((int) (disp << 4)) >> 1;
+            int32_t sdisp = sextract32(cs0, 0, 28) << 3;
             uint64_t reg = (dc->pc + sdisp) |
                 ((uint64_t) CTPR_TAG_DISP << CTPR_TAG_OFF) |
                 ((uint64_t) ipd << CTPR_IPD_OFF);
@@ -386,8 +378,7 @@ static void gen_cs1(DisasContext *dc)
         } else {
             unsigned int cs1_ctopc = (cs1 & 0x380) >> 7;
             /* CS1.param.ctpopc == HCALL. CS0 is required to encode HCALL.  */
-            if (cs1_ctopc == 2 && bundle->cs0_present &&
-                dc->ct.type == CT_NONE)
+            if (cs1_ctopc == 2 && bundle->cs0_present)
             {
                 unsigned int cs0 = bundle->cs0;
                 unsigned int cs0_opc = (cs0 & 0xf0000000) >> 28;
@@ -425,13 +416,15 @@ static void gen_cs1(DisasContext *dc)
     }
 }
 
-static void gen_jmp(DisasContext *ctx)
+void e2k_decode_jmp(DisasContext *ctx)
 {
     int cond_type = extract32(ctx->bundle.ss, 5, 4);
     int ctpr = extract32(ctx->bundle.ss, 10, 2);
 
     if (ctpr != 0) {
-        ctx->ct.type = CT_JUMP;
+        if (ctx->ct.type == CT_NONE) {
+            ctx->ct.type = CT_JUMP;
+        }
         ctx->ct.u.ctpr = e2k_cs.ctprs[ctpr - 1];
     }
 
@@ -668,10 +661,6 @@ void e2k_control_execute(DisasContext *ctx)
     ctx->loop_mode = (ctx->bundle.hs & (1 << 10)) != 0;
 
     gen_prologue_epilogue(ctx);
-
-    if (ctx->bundle.ss_present) {
-        gen_jmp(ctx);
-    }
 
     if (ctx->bundle.cs0_present) {
         gen_cs0(ctx);

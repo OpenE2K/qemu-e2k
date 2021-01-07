@@ -287,6 +287,9 @@ static inline void do_execute(DisasContext *ctx)
 {
     e2k_control_execute(ctx);
     e2k_alc_execute(ctx);
+    if (ctx->bundle.ss_present) {
+        e2k_decode_jmp(ctx);
+    }
     e2k_aau_execute(ctx);
     e2k_plu_execute(ctx);
 }
