@@ -75,7 +75,6 @@ void e2k_update_fp_status(CPUE2KState *env)
     }
     
     set_floatx80_rounding_precision(x, &env->fp_status);
-    
 }
 
 #define GENERATE_SIMPLE_FLOAT2_OP(name, function, size) \
@@ -183,3 +182,84 @@ void HELPER(fxrsubxx)(CPUE2KState *env, floatx80 *x, floatx80 *y)
     *x = floatx80_sub(*y, *x, &env->fp_status);
     merge_exception_flags(env, old_flags);
 }
+
+#define GENERATE_FCMPODF(op, IN, F, cvt_macro) \
+    uint32_t HELPER(op)(CPUE2KState *env, IN _x, IN _y) \
+    { \
+        int old_flags = save_exception_flags(env); \
+        uint32_t ret; \
+        F x = cvt_macro(_x); \
+        F y = cvt_macro(_y); \
+        if (glue(F, _is_any_nan)(x) || glue(F, _is_any_nan)(y)) { \
+            ret = 0x45; \
+        } else { \
+            FloatRelation relation = glue(F, _compare_quiet)(x, y, &env->fp_status); \
+            switch(relation) \
+            { \
+            case float_relation_less: \
+                ret = 0x01; \
+                break; \
+            case float_relation_greater: \
+                ret = 0x00; \
+                break; \
+            case float_relation_equal: \
+                ret = 0x40; \
+                break; \
+            case float_relation_unordered: \
+            default: \
+                ret = 0x45; \
+                break; \
+            } \
+        } \
+        merge_exception_flags(env, old_flags); \
+        return ret; \
+    }
+GENERATE_FCMPODF(fcmpodsf,  uint32_t, float32, make_float32)
+GENERATE_FCMPODF(fcmpoddf,  uint64_t, float64, make_float64)
+GENERATE_FCMPODF(fxcmpodxf, floatx80 *, floatx80, deref)
+
+/* didn't found any difference between these instruction
+   so keep it that way for now */
+uint32_t HELPER(fcmpudsf)(CPUE2KState *env, float32 x, float32 y)
+{
+    return HELPER(fcmpodsf)(env, x, y);
+}
+
+uint32_t HELPER(fcmpuddf)(CPUE2KState *env, float64 x, float64 y)
+{
+    return HELPER(fcmpoddf)(env, x, y);
+}
+
+uint32_t HELPER(fxcmpudxf)(CPUE2KState *env, floatx80 *x, floatx80 *y)
+{
+    return HELPER(fxcmpodxf)(env, x, y);
+}
+
+/* TODO: test if valid, test exception flags */
+#if 0
+uint32_t HELPER(frcps)(CPUE2KState *env, uint32_t x)
+{
+    int old_flags = save_exception_flags(env);
+    uint32_t y = float32_div(float32_one, make_float32(x), &env->fp_status);
+    merge_exception_flags(env, old_flags);
+    return float32_val(y);
+}
+
+uint32_t HELPER(fsqrts)(CPUE2KState *env, uint32_t x)
+{
+    int old_flags = save_exception_flags(env);
+    uint32_t y = float32_sqrt(make_float32(x), &env->fp_status);
+    merge_exception_flags(env, old_flags);
+    return float32_val(y);
+}
+
+uint32_t HELPER(frsqrts)(CPUE2KState *env, uint32_t x)
+{
+    int old_flags = save_exception_flags(env);
+    uint32_t y = float32_div(float32_one,
+                             float32_sqrt(make_float32(x), &env->fp_status),
+                             &env->fp_status);
+    merge_exception_flags(env, old_flags);
+    return float32_val(z);
+}
+#endif
