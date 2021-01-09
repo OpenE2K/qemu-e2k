@@ -126,6 +126,10 @@
 #ifdef TARGET_NR_dup3
 { TARGET_NR_dup3, "dup3" , "%s(%d,%d,%d)", NULL, NULL },
 #endif
+#ifdef TARGET_NR_e2k_longjmp2
+{ TARGET_NR_e2k_longjmp2, "e2k_longjmp2", "%s(%p, %d)",
+	print_e2k_jmp_info, NULL },
+#endif
 #ifdef TARGET_NR_epoll_create
 { TARGET_NR_epoll_create, "epoll_create", "%s(%d)", NULL, NULL },
 #endif
