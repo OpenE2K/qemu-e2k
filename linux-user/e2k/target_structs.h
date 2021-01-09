@@ -25,4 +25,17 @@ struct target_shmid_ds {
     void            *shm_unused3;
 };
 
+struct target_jmp_info {
+   abi_ullong   sigmask;
+   abi_ullong   cr0hi;
+   abi_ullong   cr1lo;
+   abi_ullong   pcsplo;
+   abi_ullong   pcsphi;
+   abi_uint     pcshtp;
+   abi_uint     br;
+   abi_ullong   usdlo;
+   abi_ullong   wd;
+   abi_ullong   reserv1;
+};
+
 #endif

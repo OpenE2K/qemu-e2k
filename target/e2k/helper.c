@@ -59,21 +59,21 @@ static inline uint64_t ps_pop(CPUE2KState *env, uint8_t *ret_tag)
 
 static void proc_chain_save(CPUE2KState *env, int wbs)
 {
-    pcs_push(env, env->cr0_lo);
-    pcs_push(env, env->cr0_hi);
-    pcs_push(env, env->cr1.lo);
-    pcs_push(env, env->cr1.hi);
+    pcs_push(env, env->crs.cr0_lo);
+    pcs_push(env, env->crs.cr0_hi);
+    pcs_push(env, env->crs.cr1.lo);
+    pcs_push(env, env->crs.cr1.hi);
 
     env->pshtp.index += wbs * 2;
 
-    env->cr0_lo = env->pregs;
-    env->cr0_hi = env->ip;
-    env->cr1.wbs = wbs;
-    env->cr1.wpsz = env->wd.psize / 2;
-    env->cr1.wfx = env->wd.fx;
-    env->cr1.wdbl = env->wdbl;
-    env->cr1.br = e2k_state_br(env);
-    env->cr1.ussz = env->usd.size >> 4;
+    env->crs.cr0_lo = env->pregs;
+    env->crs.cr0_hi = env->ip;
+    env->crs.cr1.wbs = wbs;
+    env->crs.cr1.wpsz = env->wd.psize / 2;
+    env->crs.cr1.wfx = env->wd.fx;
+    env->crs.cr1.wdbl = env->wdbl;
+    env->crs.cr1.br = e2k_state_br(env);
+    env->crs.cr1.ussz = env->usd.size >> 4;
 
     env->wd.fx = true;
     env->wd.base = e2k_wrap_reg_index(env->wd.base + wbs * 2);
@@ -85,47 +85,64 @@ static inline void proc_chain_restore(CPUE2KState *env)
 {
     int wbs;
 
-    env->pregs = env->cr0_lo;
-    env->ip = env->cr0_hi;
-    wbs = env->cr1.wbs;
-    e2k_state_br_set(env, env->cr1.br);
+    env->pregs = env->crs.cr0_lo;
+    env->ip = env->crs.cr0_hi;
+    wbs = env->crs.cr1.wbs;
+    e2k_state_br_set(env, env->crs.cr1.br);
     env->wd.size = env->wd.psize + wbs * 2;
-    env->wd.psize = env->cr1.wpsz * 2;
+    env->wd.psize = env->crs.cr1.wpsz * 2;
     env->wd.base = e2k_wrap_reg_index(env->wd.base - wbs * 2);
-    env->wd.fx = env->cr1.wfx;
-    env->wdbl = env->cr1.wdbl;
-    env->usd.size = env->cr1.ussz << 4;
+    env->wd.fx = env->crs.cr1.wfx;
+    env->wdbl = env->crs.cr1.wdbl;
+    env->usd.size = env->crs.cr1.ussz << 4;
     env->usd.base = env->sbr - env->usd.size;
 
     env->pshtp.index -= wbs * 2;
 
-    env->cr1.hi = pcs_pop(env);
-    env->cr1.lo = pcs_pop(env);
-    env->cr0_hi = pcs_pop(env);
-    env->cr0_lo = pcs_pop(env);
+    env->crs.cr1.hi = pcs_pop(env);
+    env->crs.cr1.lo = pcs_pop(env);
+    env->crs.cr0_hi = pcs_pop(env);
+    env->crs.cr0_lo = pcs_pop(env);
 }
 
-static inline void ps_spill(CPUE2KState *env, bool force, bool force_fx)
+static inline void ps_spill_round(CPUE2KState *env, bool force_fx)
 {
-    while (E2K_NR_COUNT < env->pshtp.index + env->wd.size ||
-        (force && env->wd.size + env->pshtp.index))
-    {
-        int i = e2k_wrap_reg_index(env->wd.base - env->pshtp.index);
-        ps_push(env, env->regs[i], env->tags[i]);
-        ps_push(env, env->regs[i + 1], env->tags[i + 1]);
+    int i = e2k_wrap_reg_index(env->wd.base - env->pshtp.index);
+    ps_push(env, env->regs[i], env->tags[i]);
+    ps_push(env, env->regs[i + 1], env->tags[i + 1]);
 
-        // TODO: push fx
-        if (force_fx) {
-            ps_push(env, env->xregs[i], 0);
-            ps_push(env, env->xregs[i + 1], 0);
-        }
+    // TODO: push fx
+    if (force_fx) {
+        ps_push(env, env->xregs[i], 0);
+        ps_push(env, env->xregs[i + 1], 0);
+    }
 
-        env->regs[i] = 0;
-        env->tags[i] = E2K_TAG_NON_NUMBER64;
-        env->regs[i + 1] = 0;
-        env->tags[i + 1] = E2K_TAG_NON_NUMBER64;
+    env->regs[i] = 0;
+    env->tags[i] = E2K_TAG_NON_NUMBER64;
+    env->regs[i + 1] = 0;
+    env->tags[i + 1] = E2K_TAG_NON_NUMBER64;
 
-        env->pshtp.index -= 2;
+    env->pshtp.index -= 2;
+}
+
+static inline void ps_spill_all(CPUE2KState *env, bool force_fx)
+{
+    while (env->pshtp.index > 0) {
+        ps_spill_round(env, force_fx);
+    }
+}
+
+static inline void ps_spill_debug(CPUE2KState *env, bool force_fx)
+{
+    while (env->wd.size + env->pshtp.index) {
+        ps_spill_round(env, force_fx);
+    }
+}
+
+static inline void ps_spill(CPUE2KState *env, bool force_fx)
+{
+    while (E2K_NR_COUNT < env->pshtp.index + env->wd.size) {
+        ps_spill_round(env, force_fx);
     }
 }
 
@@ -167,7 +184,7 @@ void helper_setwd(CPUE2KState *env, uint32_t lts)
         env->wdbl = dbl;
     }
 
-    ps_spill(env, false, PS_FORCE_FX);
+    ps_spill(env, PS_FORCE_FX);
 
     if (old_size < size) {
         unsigned int i, offset = env->wd.base + old_size;
@@ -189,7 +206,7 @@ uint64_t helper_prep_return(CPUE2KState *env, int ipd)
         return 0;
     }
 
-    ret.base = env->cr0_hi;
+    ret.base = env->crs.cr0_hi;
     ret.tag = CTPR_TAG_RETURN;
     ret.ipd = ipd;
 
@@ -207,11 +224,10 @@ static inline void do_syscall(CPUE2KState *env, int call_wbs,
     target_ulong pc_next)
 {
     CPUState *cs = env_cpu(env);
-
     env->ip = pc_next;
-    env->syscall_wbs = call_wbs;
+    proc_chain_save(env, call_wbs);
+    ps_spill_all(env, PS_FORCE_FX);
     reset_ctprs(env);
-
     cs->exception_index = E2K_EXCP_SYSCALL;
     cpu_loop_exit(cs);
 }
@@ -241,7 +257,7 @@ void helper_raise_exception(CPUE2KState *env, int tt)
     cs->exception_index = tt;
 
     proc_chain_save(env, env->wd.size / 2);
-    ps_spill(env, true, true);
+    ps_spill_debug(env, PS_FORCE_FX);
 
     cpu_loop_exit(cs);
 }
@@ -257,7 +273,7 @@ void e2k_break_save_state(CPUE2KState *env)
 {
     env->is_bp = true;
     proc_chain_save(env, env->wd.size / 2);
-    ps_spill(env, true, true);
+    ps_spill(env, PS_FORCE_FX);
 }
 
 void helper_break_restore_state(CPUE2KState *env)
@@ -274,7 +290,7 @@ bool e2k_cpu_tlb_fill(CPUState *cs, vaddr address, int size,
     CPUE2KState *env = &cpu->env;
 
     proc_chain_save(env, env->wd.size / 2);
-    ps_spill(env, true, true);
+    ps_spill(env, PS_FORCE_FX);
 
     cs->exception_index = E2K_EXCP_MAPERR;
     cpu_loop_exit_restore(cs, retaddr);
