@@ -6837,6 +6837,86 @@ static inline abi_long copy_to_user_flock64(abi_ulong target_flock_addr,
     return 0;
 }
 
+#ifdef TARGET_E2K
+static inline abi_long copy_from_user_jmp_info(struct target_jmp_info *ji,
+    abi_ulong target_jmp_info_addr)
+{
+    struct target_jmp_info *target_ji;
+
+    if (!lock_user_struct(VERIFY_READ, target_ji, target_jmp_info_addr, 1)) {
+        return -TARGET_EFAULT;
+    }
+    __get_user(ji->sigmask, &target_ji->sigmask);
+    __get_user(ji->cr0hi, &target_ji->cr0hi);
+    __get_user(ji->cr1lo, &target_ji->cr1lo);
+    __get_user(ji->pcsplo, &target_ji->pcsplo);
+    __get_user(ji->pcsphi, &target_ji->pcsphi);
+    __get_user(ji->pcshtp, &target_ji->pcshtp);
+    __get_user(ji->br, &target_ji->br);
+    __get_user(ji->usdlo, &target_ji->usdlo);
+    __get_user(ji->wd, &target_ji->wd);
+    __get_user(ji->reserv1, &target_ji->reserv1);
+    unlock_user_struct(target_ji, target_jmp_info_addr, 0);
+    if (ji->cr0hi > TARGET_TASK_SIZE) {
+        return -TARGET_EFAULT;
+    }
+    return 0;
+}
+
+static inline abi_long copy_from_user_crs(E2KCrs *crs,
+    abi_ulong target_crs_addr)
+{
+    E2KCrs *target_crs;
+
+    if (!lock_user_struct(VERIFY_READ, target_crs, target_crs_addr, 1)) {
+        return -TARGET_EFAULT;
+    }
+    __get_user(crs->cr0_lo, &target_crs->cr0_lo);
+    __get_user(crs->cr0_hi, &target_crs->cr0_hi);
+    __get_user(crs->cr1.lo, &target_crs->cr1.lo);
+    __get_user(crs->cr1.hi, &target_crs->cr1.hi);
+    unlock_user_struct(target_crs, target_crs_addr, 0);
+    return 0;
+}
+
+static abi_long do_e2k_longjmp2(CPUE2KState *env, struct target_jmp_info *jmp_info)
+{
+    E2KPcsState jmp_pcsp;
+    E2KCrs crs = env->crs;
+    int level; /* how many CRs need to restore */
+    int pcs_index = env->pcsp.index;
+    int ps_index = env->psp.index;
+    int psize = env->wd.psize;
+    int ret, i;
+
+    jmp_pcsp.lo = jmp_info->pcsplo;
+    jmp_pcsp.hi = jmp_info->pcsphi;
+
+    level = (env->pcsp.index - jmp_pcsp.index) / CRS_SIZE;
+    for (i = 0; i < level; i++) {
+        // FIXME: nfx
+        psize = crs.cr1.wpsz * 2;
+        ps_index -= crs.cr1.wbs * E2K_REG_LEN * 4;
+        pcs_index -= CRS_SIZE;
+        ret = copy_from_user_crs(&crs, env->pcsp.base + pcs_index);
+        if (ret) {
+            return ret;
+        }
+    }
+
+    env->crs.cr0_hi = jmp_info->cr0hi;
+    env->crs.cr1.lo = jmp_info->cr1lo;
+    env->crs.cr1.br = jmp_info->br;
+    env->crs.cr1.ussz = (env->sbr - extract64(jmp_info->usdlo, 0, 48)) >> 4;
+    env->pcsp.index = pcs_index;
+    env->psp.index = ps_index;
+    env->wd.base = 0;
+    env->wd.psize = psize;
+
+    return 0;
+}
+#endif /* end of TARGET_E2K */
+
 static abi_long do_fcntl(int fd, int cmd, abi_ulong arg)
 {
     struct flock64 fl64;
@@ -11907,6 +11987,19 @@ static abi_long do_syscall1(void *cpu_env, int num, abi_long arg1,
         ret = get_errno(readahead(arg1, arg2, arg3));
 #endif
         return ret;
+#endif
+#ifdef TARGET_NR_e2k_longjmp2
+    case TARGET_NR_e2k_longjmp2: {
+        E2KCPU *e2k_cpu = E2K_CPU(cpu);
+        CPUE2KState *env = &e2k_cpu->env;
+        struct target_jmp_info ji;
+        ret = copy_from_user_jmp_info(&ji, arg1);
+        if (ret) {
+            break;
+        }
+        do_e2k_longjmp2(env, &ji);
+        return arg2;
+    }
 #endif
 #ifdef CONFIG_ATTR
 #ifdef TARGET_NR_setxattr

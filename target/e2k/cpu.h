@@ -41,6 +41,8 @@ typedef enum {
     E2K_TAG_NON_NUMBER64 = 5,
 } E2kRegisterTag;
 
+#define CRS_SIZE (sizeof(E2KCrs))
+
 #define CTPR_BASE_OFF 0
 #define CTPR_BASE_END 47
 #define CTPR_BASE_LEN (CTPR_BASE_END - CTPR_BASE_OFF + 1)
@@ -313,15 +315,36 @@ typedef struct {
         };
         uint64_t hi;
     };
-} E2KCr1State;
+} E2KCr1;
 
 typedef struct {
-    target_ulong base;
+    uint64_t cr0_lo;
+    uint64_t cr0_hi;
+    E2KCr1 cr1;
+} E2KCrs;
+
+typedef struct {
+    union {
+        struct {
+            uint64_t base: 48;          /* 47:0 */
+            uint64_t unused1: 7;        /* 55:48 */
+            uint64_t stub3: 1;          /* 56 */
+            uint64_t stub2: 1;          /* 57 */
+            uint64_t stub1: 1;          /* 58 */
+            uint64_t is_readable: 1;    /* 59 */
+            uint64_t is_writable: 1;    /* 60 */
+            uint64_t itag: 3;           /* 63:61 */
+        };
+        uint64_t lo;
+    };
+    union {
+        struct {
+            uint64_t index: 32;         /* 31:0 */
+            uint64_t size: 32;          /* 63:32 */
+        };
+        uint64_t hi;
+    };
     target_ulong base_tag;
-    uint32_t index;
-    uint32_t size;
-    bool is_readable;
-    bool is_writable;
 } E2KStackState, E2KPsState, E2KPcsState;
 
 typedef struct {
@@ -594,9 +617,7 @@ typedef struct {
     E2KDamEntry dam[32];
 
     /* procedure chain info */
-    uint64_t cr0_lo;
-    uint64_t cr0_hi;
-    E2KCr1State cr1;
+    E2KCrs crs;
 
     /* Procedure chain info = cr0_lo, cr0_hi, cr1_lo, cr1_hi */
     E2KPcsState pcsp;
@@ -639,6 +660,9 @@ typedef struct {
     int syscall_wbs; // FIXME: temp for syscall
     /* zeroing upper register half for 32-bit instructions */
     uint32_t wdbl;
+
+    target_ulong pcs_base;
+    target_ulong ps_base;
 
     /* Fields up to this point are cleared by a CPU reset */
     struct {} end_reset_fields;
@@ -738,6 +762,14 @@ static inline uint64_t e2k_state_wd(CPUE2KState *env)
     ret = deposit64(ret, WD_FX_OFF, 1, wd->fx);
 
     return ret;
+}
+
+static inline void e2k_state_wd_set(CPUE2KState *env, uint64_t raw)
+{
+    env->wd.base = extract64(raw, WD_BASE_OFF, WD_BASE_LEN) / 8;
+    env->wd.size = extract64(raw, WD_SIZE_OFF, WD_SIZE_LEN) / 8;
+    env->wd.psize = extract64(raw, WD_PSIZE_OFF, WD_PSIZE_LEN) / 8;
+    env->wd.fx = extract64(raw, WD_FX_OFF, 1);
 }
 
 static inline uint32_t e2k_state_br(CPUE2KState *env)

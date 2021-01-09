@@ -42,8 +42,8 @@ static void e2k_cpu_reset(DeviceState *dev)
 
     memset(env, 0, offsetof(CPUE2KState, end_reset_fields));
 
-    env->cr1.wpsz = 4;
-    env->cr1.wbs = 4;
+    env->crs.cr1.wpsz = 4;
+    env->crs.cr1.wbs = 4;
     env->wd.base = 0;
     env->wd.size = 16;
     env->wd.psize = 8;
@@ -57,7 +57,7 @@ static void e2k_cpu_reset(DeviceState *dev)
     e2k_update_fp_status(env);
 
     // FIXME: testing
-    env->idr = 0x3a207; // mimic 8c
+    env->idr = 0x3a207; /* mimic 8c */
 }
 
 static bool e2k_cpu_exec_interrupt(CPUState *cs, int interrupt_request)
@@ -151,10 +151,10 @@ void e2k_cpu_dump_state(CPUState *cs, FILE *f, int flags)
 
     qemu_fprintf(f, "       ip = 0x%016lx\n", env->ip);
     qemu_fprintf(f, "    pregs = 0x%016lx\n", env->pregs);
-    qemu_fprintf(f, "   cr0_lo = 0x%016lx\n", env->cr0_lo);
-    qemu_fprintf(f, "   cr0_hi = 0x%016lx\n", env->cr0_hi);
-    qemu_fprintf(f, "   cr1_lo = 0x%016lx\n", env->cr1.lo);
-    qemu_fprintf(f, "   cr1_hi = 0x%016lx\n", env->cr1.hi);
+    qemu_fprintf(f, "   cr0_lo = 0x%016lx\n", env->crs.cr0_lo);
+    qemu_fprintf(f, "   cr0_hi = 0x%016lx\n", env->crs.cr0_hi);
+    qemu_fprintf(f, "   cr1_lo = 0x%016lx\n", env->crs.cr1.lo);
+    qemu_fprintf(f, "   cr1_hi = 0x%016lx\n", env->crs.cr1.hi);
     qemu_fprintf(f, "  pcsp_lo = 0x%016lx\n", e2k_state_pcsp_lo(env));
     qemu_fprintf(f, "  pcsp_hi = 0x%016lx\n", e2k_state_pcsp_hi(env));
     qemu_fprintf(f, "   psp_lo = 0x%016lx\n", e2k_state_psp_lo(env));

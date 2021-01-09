@@ -47,10 +47,10 @@ uint64_t helper_state_reg_read_i64(CPUE2KState *env, int idx)
     case 0x13: return env->pcshtp; /* %pcshtp */
     case 0x2c: return env->usd.hi; /* %usd.hi */
     case 0x2d: return env->usd.lo; /* %usd.lo */
-    case 0x51: return env->cr0_hi; /* %cr0.hi */
-    case 0x53: return env->cr0_lo; /* %cr0.lo */
-    case 0x55: return env->cr1.hi; /* %cr1.hi */
-    case 0x57: return env->cr1.lo; /* %cr1.lo */
+    case 0x51: return env->crs.cr0_hi; /* %cr0.hi */
+    case 0x53: return env->crs.cr0_lo; /* %cr0.lo */
+    case 0x55: return env->crs.cr1.hi; /* %cr1.hi */
+    case 0x57: return env->crs.cr1.lo; /* %cr1.lo */
     case 0x81: return env->ip; /* %ip */
     case 0x85: return env->fpcr.raw; /* %fpcr */
     case 0x86: return env->fpsr.raw; /* %fpsr */

@@ -22,6 +22,8 @@
 #include "qemu.h"
 #include "cpu_loop-common.h"
 
+void helper_return(CPUE2KState *env);
+
 void cpu_loop(CPUE2KState *env)
 {
     CPUState *cs = env_cpu(env);
@@ -36,34 +38,32 @@ void cpu_loop(CPUE2KState *env)
 
         switch (trapnr) {
         case E2K_EXCP_SYSCALL: {
-            int offset = E2K_NR_COUNT + env->wd.base + env->syscall_wbs * 2;
-            uint64_t *regs = env->regs;
-            abi_ulong ret = do_syscall(env,
-                regs[(0 + offset) % E2K_NR_COUNT],
-                regs[(1 + offset) % E2K_NR_COUNT],
-                regs[(2 + offset) % E2K_NR_COUNT],
-                regs[(3 + offset) % E2K_NR_COUNT],
-                regs[(4 + offset) % E2K_NR_COUNT],
-                regs[(5 + offset) % E2K_NR_COUNT],
-                regs[(6 + offset) % E2K_NR_COUNT],
-                regs[(7 + offset) % E2K_NR_COUNT],
-                regs[(8 + offset) % E2K_NR_COUNT]
-            );
+            abi_long args[10] = { 0 };
+            int psize = env->wd.psize <= 10 ? env->wd.psize : 10;
+            int i;
+
+            for (i = 0; i < psize; i++) {
+                args[i] = env->regs[e2k_wrap_reg_index(env->wd.base + i)];
+            }
+
+            abi_ulong ret = do_syscall(env, args[0], args[1], args[2], args[3],
+                args[4], args[5], args[6], args[7], args[8]);
+
             if (ret == -TARGET_ERESTARTSYS) {
                 /* TODO: restart syscall */
                 abort();
-            } else if (ret != -TARGET_QEMU_ESIGRETURN) {
-                unsigned int i;
+            } else if (env->wd.psize > 0 && ret != -TARGET_QEMU_ESIGRETURN) {
+                env->regs[env->wd.base] = ret;
+                env->tags[env->wd.base] = 0;
 
-                env->regs[offset % E2K_NR_COUNT] = ret;
-                env->tags[offset % E2K_NR_COUNT] = 0;
-
-                for (i = 1; i < 8; i++) {
-                    int idx = (offset + i) % E2K_NR_COUNT;
-                    env->regs[idx] = 0;
-                    env->tags[idx] = E2K_TAG_NON_NUMBER64;
+                for (i = 1; i < env->wd.psize; i++) {
+                    int index = e2k_wrap_reg_index(env->wd.base + i);
+                    env->regs[index] = 0;
+                    env->tags[index] = E2K_TAG_NON_NUMBER64;
                 }
             }
+            // FIXME: Can call helpers from here?
+            helper_return(env);
             break;
         }
         case E2K_EXCP_ILLOPC:
@@ -126,4 +126,7 @@ void target_cpu_copy_regs(CPUE2KState *env, struct target_pt_regs *regs)
     env->sbr = regs->sbr;
 
     e2k_break_save_state(env);
+
+    env->pcs_base = env->pcsp.base;
+    env->ps_base = env->psp.base;
 }

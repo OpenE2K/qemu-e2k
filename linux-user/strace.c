@@ -3739,6 +3739,19 @@ print_ioctl(void *cpu_env, const struct syscallname *name,
 }
 #endif
 
+#ifdef TARGET_NR_e2k_longjmp2
+static void
+print_e2k_jmp_info(void *cpu_env, const struct syscallname *name,
+    abi_long arg0, abi_long arg1, abi_long arg2,
+    abi_long arg3, abi_long arg4, abi_long arg5)
+{
+    print_syscall_prologue(name);
+    print_pointer(arg0, 0);
+    print_raw_param("%d", arg1, 1);
+    print_syscall_epilogue(name);
+}
+#endif
+
 /*
  * An array of all of the syscalls we know about
  */
