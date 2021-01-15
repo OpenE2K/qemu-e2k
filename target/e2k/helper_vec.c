@@ -17,22 +17,22 @@ static uint8_t reverse_bits(uint8_t b)
 #define vec64_ub 8
 #define vec64_uh 4
 #define vec64_uw 2
-#define vec64_uq 1
+#define vec64_ud 1
 
 #define vec64_sb vec64_ub
 #define vec64_sh vec64_uh
 #define vec64_sw vec64_uw
-#define vec64_sq vec64_uq
+#define vec64_sd vec64_ud
 
 typedef union {
     uint8_t ub[vec64_ub];
     uint16_t uh[vec64_uh];
     uint32_t uw[vec64_uw];
-    uint64_t uq;
+    uint64_t ud[vec64_ud];
     int8_t sb[vec64_ub];
     int16_t sh[vec64_uh];
     int32_t sw[vec64_uw];
-    int64_t sq;
+    int64_t sd[vec64_ud];
 } vec64;
 
 uint64_t HELPER(packed_shuffle_i64)(uint64_t src1, uint64_t src2, uint64_t src3)
@@ -40,9 +40,9 @@ uint64_t HELPER(packed_shuffle_i64)(uint64_t src1, uint64_t src2, uint64_t src3)
     vec64 ret, s1, s2, s3;
     unsigned int i;
 
-    s1.uq = src1;
-    s2.uq = src2;
-    s3.uq = src3;
+    s1.ud[0] = src1;
+    s2.ud[0] = src2;
+    s3.ud[0] = src3;
 
     for (i = 0; i < 8; i++) {
         uint8_t desc = s3.ub[i];
@@ -101,43 +101,23 @@ uint64_t HELPER(packed_shuffle_i64)(uint64_t src1, uint64_t src2, uint64_t src3)
         ret.ub[i] = byte;
     }
 
-    return ret.uq;
+    return ret.ud[0];
 }
 
 #define GEN_HELPER_PACKED(name, type, code) \
-    uint64_t HELPER(glue(name, type))(uint64_t src1, uint64_t src2) \
+    uint64_t HELPER(name)(uint64_t src1, uint64_t src2) \
     { \
         size_t i = 0; \
-        vec64 s1 = { .uq = src1 }, s2 = { .uq = src2 }, dst; \
+        vec64 s1 = { .ud[0] = src1 }, s2 = { .ud[0] = src2 }, dst; \
         for (; i < glue(vec64_, type); i++) { \
             code \
         } \
-        return dst.uq; \
+        return dst.ud[0]; \
     }
 #define GEN_HELPER_PACKED_MINMAX(name, type, op) \
-    GEN_HELPER_PACKED(name, type, { \
+    GEN_HELPER_PACKED(glue(name, type), type, { \
         dst.type[i] = op(s1.type[i], s2.type[i]); \
     })
-
-// FIXME: not tested
-uint64_t HELPER(pcmpeqb)(uint64_t src1, uint64_t src2)
-{
-    unsigned int i;
-    vec64 s1, s2, ret;
-
-    s1.uq = src1;
-    s2.uq = src2;
-
-    for (i = 0; i < 8; i++) {
-        if (s1.ub[i] == s2.ub[i]) {
-            ret.ub[i] = 0xff;
-        } else {
-            ret.ub[i] = 0;
-        }
-    }
-
-    return ret.uq;
-}
 
 GEN_HELPER_PACKED_MINMAX(pmin, ub, MIN)
 GEN_HELPER_PACKED_MINMAX(pmin, sb, MIN)
@@ -153,14 +133,29 @@ GEN_HELPER_PACKED_MINMAX(pmax, sh, MAX)
 GEN_HELPER_PACKED_MINMAX(pmax, uw, MAX)
 GEN_HELPER_PACKED_MINMAX(pmax, sw, MAX)
 
+#define GEN_HELPER_PACKED_CMP(name, type, op) \
+    GEN_HELPER_PACKED(name, type, { \
+        dst.type[i] = s1.type[i] op s2.type[i] ? -1UL : 0; \
+    })
+
+GEN_HELPER_PACKED_CMP(pcmpeqb, ub, ==)
+GEN_HELPER_PACKED_CMP(pcmpeqh, uh, ==)
+GEN_HELPER_PACKED_CMP(pcmpeqw, uw, ==)
+GEN_HELPER_PACKED_CMP(pcmpeqd, ud, ==)
+
+GEN_HELPER_PACKED_CMP(pcmpgtb, sb, >)
+GEN_HELPER_PACKED_CMP(pcmpgth, sh, >)
+GEN_HELPER_PACKED_CMP(pcmpgtw, sw, >)
+GEN_HELPER_PACKED_CMP(pcmpgtd, sd, >)
+
 uint64_t HELPER(pmovmskb)(uint64_t src1, uint64_t src2)
 {
     unsigned int i;
     vec64 s1, s2;
     uint16_t ret = 0;
 
-    s1.uq = src1;
-    s2.uq = src2;
+    s1.ud[0] = src1;
+    s2.ud[0] = src2;
 
     for (i = 0; i < 8; i++) {
         if (s1.sb[i] < 0) {
