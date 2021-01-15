@@ -82,6 +82,9 @@ DEF_HELPER_2(psraw, i64, i64, i64)
 /* Packed Mul */
 DEF_HELPER_2(pmaddh, i64, i64, i64)
 DEF_HELPER_2(pmaddubsh, i64, i64, i64)
+DEF_HELPER_2(pmulhh, i64, i64, i64)
+DEF_HELPER_2(pmullh, i64, i64, i64)
+DEF_HELPER_2(pmulhuh, i64, i64, i64)
 
 /* Packed uncategorized */
 DEF_HELPER_2(psadbw, i64, i64, i64)
