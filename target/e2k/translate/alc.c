@@ -3068,6 +3068,8 @@ static void gen_op(DisasContext *ctx, Instr *instr)
     case OP_PSRLD: gen_alopf1_ddd(instr, tcg_gen_shr_i64); break;
     case OP_PSRAH: gen_alopf1_ddd(instr, gen_helper_psrah); break;
     case OP_PSRAW: gen_alopf1_ddd(instr, gen_helper_psraw); break;
+    case OP_PAVGUSB: gen_alopf1_ddd(instr, gen_helper_pavgusb); break;
+    case OP_PAVGUSH: gen_alopf1_ddd(instr, gen_helper_pavgush); break;
     case OP_PSLLQL: gen_alopf11_dddi(instr, gen_psllql); break;
     case OP_PSLLQH: gen_alopf11_dddi(instr, gen_psllqh); break;
     case OP_PSRLQL: gen_alopf11_dddi(instr, gen_psrlql); break;
@@ -3238,8 +3240,6 @@ static void gen_op(DisasContext *ctx, Instr *instr)
     case OP_GETVA:
     case OP_LDRD:
     case OP_PUTTC:
-    case OP_PAVGUSB:
-    case OP_PAVGUSH:
     case OP_PFDIVS:
     case OP_PFDIVD:
     case OP_PFMINS:
