@@ -183,6 +183,14 @@ GEN_HELPER_PACKED_SCALAR_BINOP(psllw, uw, <<)
 GEN_HELPER_PACKED_SCALAR_BINOP(psrlh, uh, >>)
 GEN_HELPER_PACKED_SCALAR_BINOP(psrlw, uw, >>)
 
+#define GEN_HELPER_PACKED_SRA(name, type, t) \
+    GEN_HELPER_PACKED_SCALAR(name, type, { \
+        dst.type[i] = (t) s1.type[i] >> s2; \
+    })
+
+GEN_HELPER_PACKED_SRA(psrah, sh, int32_t)
+GEN_HELPER_PACKED_SRA(psraw, sw, int64_t)
+
 uint64_t HELPER(pmovmskb)(uint64_t src1, uint64_t src2)
 {
     unsigned int i;
