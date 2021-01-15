@@ -3055,6 +3055,7 @@ static void gen_op(DisasContext *ctx, Instr *instr)
     case OP_PSUBUSH: gen_alopf1_ddd(instr, gen_helper_psubush); break;
     case OP_PMADDH: gen_alopf1_ddd(instr, gen_helper_pmaddh); break;
     case OP_PMADDUBSH: gen_alopf1_ddd(instr, gen_helper_pmaddubsh); break;
+    case OP_PSADBW: gen_alopf1_ddd(instr, gen_helper_psadbw); break;
     case OP_PSLLH: gen_alopf1_ddd(instr, gen_helper_psllh); break;
     case OP_PSLLW: gen_alopf1_ddd(instr, gen_helper_psllw); break;
     case OP_PSLLD: gen_alopf1_ddd(instr, tcg_gen_shl_i64); break;
@@ -3221,7 +3222,6 @@ static void gen_op(DisasContext *ctx, Instr *instr)
     case OP_FSQRTTD:
     case OP_PFMULS:
     case OP_PFMULD:
-    case OP_PSADBW:
     case OP_PMULHUH:
     case OP_PMULHH:
     case OP_PMULLH:
