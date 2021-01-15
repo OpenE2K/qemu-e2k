@@ -114,6 +114,16 @@ uint64_t HELPER(packed_shuffle_i64)(uint64_t src1, uint64_t src2, uint64_t src3)
         } \
         return dst.ud[0]; \
     }
+#define GEN_HELPER_PACKED_SCALAR(name, type, code) \
+    uint64_t HELPER(name)(uint64_t src1, uint64_t s2) \
+    { \
+        size_t i = 0; \
+        vec64 s1 = { .ud[0] = src1 }, dst; \
+        for (; i < glue(vec64_, type); i++) { \
+            code \
+        } \
+        return dst.ud[0]; \
+    }
 #define GEN_HELPER_PACKED_MINMAX(name, type, op) \
     GEN_HELPER_PACKED(glue(name, type), type, { \
         dst.type[i] = op(s1.type[i], s2.type[i]); \
@@ -162,6 +172,16 @@ GEN_HELPER_PACKED_BINOP_SATURATE(psubsb, sb, -, int, -128, 127)
 GEN_HELPER_PACKED_BINOP_SATURATE(psubsh, sh, -, int, -32768, 32767)
 GEN_HELPER_PACKED_BINOP_SATURATE(psubusb, ub, -, int, 0, 255)
 GEN_HELPER_PACKED_BINOP_SATURATE(psubush, uh, -, int, 0, 65535)
+
+#define GEN_HELPER_PACKED_SCALAR_BINOP(name, type, op) \
+    GEN_HELPER_PACKED_SCALAR(name, type, { \
+        dst.type[i] = s1.type[i] op s2; \
+    })
+
+GEN_HELPER_PACKED_SCALAR_BINOP(psllh, uh, <<)
+GEN_HELPER_PACKED_SCALAR_BINOP(psllw, uw, <<)
+GEN_HELPER_PACKED_SCALAR_BINOP(psrlh, uh, >>)
+GEN_HELPER_PACKED_SCALAR_BINOP(psrlw, uw, >>)
 
 uint64_t HELPER(pmovmskb)(uint64_t src1, uint64_t src2)
 {
