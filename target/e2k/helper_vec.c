@@ -148,6 +148,21 @@ GEN_HELPER_PACKED_CMP(pcmpgth, sh, >)
 GEN_HELPER_PACKED_CMP(pcmpgtw, sw, >)
 GEN_HELPER_PACKED_CMP(pcmpgtd, sd, >)
 
+#define GEN_HELPER_PACKED_BINOP_SATURATE(name, type, op, t, min, max) \
+    GEN_HELPER_PACKED(name, type, { \
+        dst.type[i] = MIN(MAX(s1.type[i] op s2.type[i], min), max); \
+    })
+
+GEN_HELPER_PACKED_BINOP_SATURATE(paddsb, sb, +, int, -128, 127)
+GEN_HELPER_PACKED_BINOP_SATURATE(paddsh, sh, +, int, -32768, 32767)
+GEN_HELPER_PACKED_BINOP_SATURATE(paddusb, ub, +, int, 0, 255)
+GEN_HELPER_PACKED_BINOP_SATURATE(paddush, uh, +, int, 0, 65535)
+
+GEN_HELPER_PACKED_BINOP_SATURATE(psubsb, sb, -, int, -128, 127)
+GEN_HELPER_PACKED_BINOP_SATURATE(psubsh, sh, -, int, -32768, 32767)
+GEN_HELPER_PACKED_BINOP_SATURATE(psubusb, ub, -, int, 0, 255)
+GEN_HELPER_PACKED_BINOP_SATURATE(psubush, uh, -, int, 0, 65535)
+
 uint64_t HELPER(pmovmskb)(uint64_t src1, uint64_t src2)
 {
     unsigned int i;
