@@ -2958,10 +2958,18 @@ static void gen_op(DisasContext *ctx, Instr *instr)
     case OP_PADDH: gen_alopf1_ddd(instr, tcg_gen_vec_add16_i64); break;
     case OP_PADDW: gen_alopf1_ddd(instr, tcg_gen_vec_add32_i64); break;
     case OP_PADDD: gen_alopf1_ddd(instr, tcg_gen_add_i64); break;
+    case OP_PADDSB: gen_alopf1_ddd(instr, gen_helper_paddsb); break;
+    case OP_PADDSH: gen_alopf1_ddd(instr, gen_helper_paddsh); break;
+    case OP_PADDUSB: gen_alopf1_ddd(instr, gen_helper_paddusb); break;
+    case OP_PADDUSH: gen_alopf1_ddd(instr, gen_helper_paddush); break;
     case OP_PSUBB: gen_alopf1_ddd(instr, tcg_gen_vec_sub8_i64); break;
     case OP_PSUBH: gen_alopf1_ddd(instr, tcg_gen_vec_sub16_i64); break;
     case OP_PSUBW: gen_alopf1_ddd(instr, tcg_gen_vec_sub32_i64); break;
     case OP_PSUBD: gen_alopf1_ddd(instr, tcg_gen_sub_i64); break;
+    case OP_PSUBSB: gen_alopf1_ddd(instr, gen_helper_psubsb); break;
+    case OP_PSUBSH: gen_alopf1_ddd(instr, gen_helper_psubsh); break;
+    case OP_PSUBUSB: gen_alopf1_ddd(instr, gen_helper_psubusb); break;
+    case OP_PSUBUSH: gen_alopf1_ddd(instr, gen_helper_psubush); break;
     case OP_GETTAGS: gen_gettag_i32(instr); break;
     case OP_GETTAGD: gen_gettag_i64(instr); break;
     case OP_PUTTAGS: gen_puttag_i32(instr); break;
@@ -3116,14 +3124,6 @@ static void gen_op(DisasContext *ctx, Instr *instr)
     case OP_FSQRTTD:
     case OP_PFMULS:
     case OP_PFMULD:
-    case OP_PADDSB:
-    case OP_PADDSH:
-    case OP_PADDUSB:
-    case OP_PADDUSH:
-    case OP_PSUBSB:
-    case OP_PSUBSH:
-    case OP_PSUBUSB:
-    case OP_PSUBUSH:
     case OP_PSADBW:
     case OP_PMULHUH:
     case OP_PMULHH:
