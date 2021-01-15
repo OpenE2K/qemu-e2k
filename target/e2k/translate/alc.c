@@ -2933,10 +2933,18 @@ static void gen_op(DisasContext *ctx, Instr *instr)
     case OP_MOVFI: gen_movfi(instr); break;
     case OP_MOVIF: gen_movif(instr); break;
     case OP_MOVTD: gen_movtd(instr); break;
-    case OP_PMAXSH: gen_alopf1_ddd(instr, gen_helper_pmaxsh); break;
-    case OP_PMAXUB: gen_alopf1_ddd(instr, gen_helper_pmaxub); break;
-    case OP_PMINSH: gen_alopf1_ddd(instr, gen_helper_pminsh); break;
     case OP_PMINUB: gen_alopf1_ddd(instr, gen_helper_pminub); break;
+    case OP_PMINSB: gen_alopf1_ddd(instr, gen_helper_pminsb); break;
+    case OP_PMINUH: gen_alopf1_ddd(instr, gen_helper_pminuh); break;
+    case OP_PMINSH: gen_alopf1_ddd(instr, gen_helper_pminsh); break;
+    case OP_PMINUW: gen_alopf1_ddd(instr, gen_helper_pminuw); break;
+    case OP_PMINSW: gen_alopf1_ddd(instr, gen_helper_pminsw); break;
+    case OP_PMAXUB: gen_alopf1_ddd(instr, gen_helper_pmaxub); break;
+    case OP_PMAXSB: gen_alopf1_ddd(instr, gen_helper_pmaxsb); break;
+    case OP_PMAXUH: gen_alopf1_ddd(instr, gen_helper_pmaxuh); break;
+    case OP_PMAXSH: gen_alopf1_ddd(instr, gen_helper_pmaxsh); break;
+    case OP_PMAXUW: gen_alopf1_ddd(instr, gen_helper_pmaxuw); break;
+    case OP_PMAXSW: gen_alopf1_ddd(instr, gen_helper_pmaxsw); break;
     case OP_GETTAGS: gen_gettag_i32(instr); break;
     case OP_GETTAGD: gen_gettag_i64(instr); break;
     case OP_PUTTAGS: gen_puttag_i32(instr); break;
@@ -3289,10 +3297,6 @@ static void gen_op(DisasContext *ctx, Instr *instr)
     case OP_PMULUBHH:
     case OP_FSTOIFS:
     case OP_FDTOIFD:
-    case OP_PMINUW:
-    case OP_PMINSW:
-    case OP_PMAXUW:
-    case OP_PMAXSW:
     case OP_MPSADBH:
     case OP_PACKUSWH:
     case OP_PCMPEQD:
@@ -3300,10 +3304,6 @@ static void gen_op(DisasContext *ctx, Instr *instr)
     case OP_PFHADDS:
     case OP_PFHSUBS:
     case OP_PFADDSUBS:
-    case OP_PMINSB:
-    case OP_PMINUH:
-    case OP_PMAXSB:
-    case OP_PMAXUH:
     case OP_PFSTOIFS:
     case OP_PFDTOIFD:
     case OP_PHADDH:
