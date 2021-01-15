@@ -2992,6 +2992,8 @@ static void gen_op(DisasContext *ctx, Instr *instr)
     case OP_FXCMPUDDF: gen_alopf1_sexd(instr, gen_helper_fxcmpudxf); break;
     case OP_FXCMPODXF: gen_alopf1_sexx(instr, gen_helper_fxcmpodxf); break;
     case OP_FXCMPUDXF: gen_alopf1_sexx(instr, gen_helper_fxcmpudxf); break;
+    case OP_FSTOIFS: gen_alopf1_sess(instr, gen_helper_fstoifs); break;
+    case OP_FDTOIFD: gen_alopf1_dedd(instr, gen_helper_fdtoifd); break;
     case OP_UDIVX:
     case OP_UMODX:
     case OP_SDIVX:
@@ -3295,8 +3297,6 @@ static void gen_op(DisasContext *ctx, Instr *instr)
     case OP_MOVXA:
     case OP_MOVXC:
     case OP_PMULUBHH:
-    case OP_FSTOIFS:
-    case OP_FDTOIFD:
     case OP_MPSADBH:
     case OP_PACKUSWH:
     case OP_PCMPEQD:

@@ -111,5 +111,9 @@ DEF_HELPER_2(fdtoistr, i32, env, i64)
 DEF_HELPER_2(fxtofs, i32, env, f80)
 DEF_HELPER_2(fxtofd, i64, env, f80)
 
+/* Float Rounding */
+DEF_HELPER_3(fstoifs, i32, env, i32, i32)
+DEF_HELPER_3(fdtoifd, i64, env, i64, i64)
+
 #undef DEF_HELPER_3_32_64_80
 #undef DEF_HELPER_3_32_64
