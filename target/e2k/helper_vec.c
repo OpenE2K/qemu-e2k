@@ -191,6 +191,24 @@ GEN_HELPER_PACKED_SCALAR_BINOP(psrlw, uw, >>)
 GEN_HELPER_PACKED_SRA(psrah, sh, int32_t)
 GEN_HELPER_PACKED_SRA(psraw, sw, int64_t)
 
+#define GEN_HELPER_PACKED_MAD(name, dst_type, type, cast, op) \
+    uint64_t HELPER(name)(uint64_t src1, uint64_t src2) \
+    { \
+        size_t i = 0; \
+        vec64 s1 = { .ud[0] = src1 }, s2 = { .ud[0] = src2 }, dst; \
+        for (; i < glue(vec64_, type); i += 2) { \
+            dst.dst_type[i >> 1] = op((cast) s1.type[i + 1] * s2.type[i + 1] +\
+                                      (cast) s1.type[i    ] * s2.type[i    ]); \
+        } \
+        return dst.ud[0]; \
+    }
+
+#define ident(x) x
+#define satsh(x) MIN(MAX(x, -32768), 32767)
+
+GEN_HELPER_PACKED_MAD(pmaddh, sw, sh, int32_t, ident)
+GEN_HELPER_PACKED_MAD(pmaddubsh, sh, ub, int16_t, satsh)
+
 uint64_t HELPER(pmovmskb)(uint64_t src1, uint64_t src2)
 {
     unsigned int i;
