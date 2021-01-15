@@ -212,6 +212,9 @@ GEN_HELPER_PACKED_MAD(pmaddubsh, sh, ub, int16_t, satsh)
 
 GEN_HELPER_PACKED(psadbw, ub, { dst.uw[0] += s1.ub[i] - s2.ub[i]; })
 
+GEN_HELPER_PACKED(pavgusb, ub, { dst.ub[i] = (s1.ub[i] + s2.ub[i] + 1) >> 1; })
+GEN_HELPER_PACKED(pavgush, uh, { dst.uh[i] = (s1.uh[i] + s2.uh[i] + 1) >> 1; })
+
 uint64_t HELPER(pmovmskb)(uint64_t src1, uint64_t src2)
 {
     int i;
