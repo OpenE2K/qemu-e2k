@@ -36,9 +36,17 @@ DEF_HELPER_4(dam_unlock_addr, int, env, i64, int, int)
 
 /* Packed Min/Max */
 DEF_HELPER_2(pminub, i64, i64, i64)
+DEF_HELPER_2(pminsb, i64, i64, i64)
+DEF_HELPER_2(pminuh, i64, i64, i64)
 DEF_HELPER_2(pminsh, i64, i64, i64)
+DEF_HELPER_2(pminuw, i64, i64, i64)
+DEF_HELPER_2(pminsw, i64, i64, i64)
 DEF_HELPER_2(pmaxub, i64, i64, i64)
+DEF_HELPER_2(pmaxsb, i64, i64, i64)
+DEF_HELPER_2(pmaxuh, i64, i64, i64)
 DEF_HELPER_2(pmaxsh, i64, i64, i64)
+DEF_HELPER_2(pmaxuw, i64, i64, i64)
+DEF_HELPER_2(pmaxsw, i64, i64, i64)
 
 /* Float 32/64 Ops */
 #define DEF_HELPER_3_32_64(name) \
