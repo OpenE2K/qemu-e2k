@@ -235,6 +235,58 @@ uint32_t HELPER(fxcmpudxf)(CPUE2KState *env, floatx80 *x, floatx80 *y)
     return HELPER(fxcmpodxf)(env, x, y);
 }
 
+#define TOIF_RC_CURRENT        0x4
+#define TOIF_RC_IGNORE_INEXACT 0x8
+
+static inline void toif_set_round_mode(CPUE2KState *env, uint32_t flags)
+{
+    if(flags <= FPCR_RC_CHOP) {
+        FloatRoundMode rm;
+        switch(flags) {
+        case FPCR_RC_NEAR: rm = float_round_nearest_even; break;
+        case FPCR_RC_DOWN: rm = float_round_down; break;
+        case FPCR_RC_UP:   rm = float_round_up; break;
+        case FPCR_RC_CHOP: rm = float_round_to_zero; break;
+        }
+        set_float_rounding_mode(rm, &env->fp_status);
+    }
+}
+
+static inline void toif_clear_inexact(CPUE2KState *env, uint32_t flags) 
+{
+    if(flags & TOIF_RC_IGNORE_INEXACT) {
+        int new_flags = get_float_exception_flags(&env->fp_status);
+        new_flags = new_flags & (~float_flag_inexact);
+        set_float_exception_flags(new_flags, &env->fp_status);
+    }
+}
+
+uint32_t HELPER(fstoifs)(CPUE2KState *env, uint32_t flags, uint32_t f)
+{
+    int old_flags = save_exception_flags(env);
+    FloatRoundMode oldrm = get_float_rounding_mode(&env->fp_status);
+    uint32_t ret;
+    toif_set_round_mode(env, flags);
+    ret = float32_val(float32_round_to_int(make_float32(f), &env->fp_status));
+    set_float_rounding_mode(oldrm, &env->fp_status);
+    toif_clear_inexact(env, flags);
+    merge_exception_flags(env, old_flags);
+    return ret;
+}
+
+uint64_t HELPER(fdtoifd)(CPUE2KState *env, uint64_t flags, uint64_t f)
+{
+    int old_flags = save_exception_flags(env);
+    FloatRoundMode oldrm = get_float_rounding_mode(&env->fp_status);
+    uint64_t ret;
+    toif_set_round_mode(env, flags);
+    ret = float64_val(float64_round_to_int(make_float64(f), &env->fp_status));
+    set_float_rounding_mode(oldrm, &env->fp_status);
+    toif_clear_inexact(env, flags);
+    merge_exception_flags(env, old_flags);
+    return ret;
+}
+
 /* TODO: test if valid, test exception flags */
 #if 0
 uint32_t HELPER(frcps)(CPUE2KState *env, uint32_t x)
