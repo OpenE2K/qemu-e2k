@@ -2945,6 +2945,14 @@ static void gen_op(DisasContext *ctx, Instr *instr)
     case OP_PMAXSH: gen_alopf1_ddd(instr, gen_helper_pmaxsh); break;
     case OP_PMAXUW: gen_alopf1_ddd(instr, gen_helper_pmaxuw); break;
     case OP_PMAXSW: gen_alopf1_ddd(instr, gen_helper_pmaxsw); break;
+    case OP_PCMPEQB: gen_alopf1_ddd(instr, gen_helper_pcmpeqb); break;
+    case OP_PCMPEQH: gen_alopf1_ddd(instr, gen_helper_pcmpeqh); break;
+    case OP_PCMPEQW: gen_alopf1_ddd(instr, gen_helper_pcmpeqw); break;
+    case OP_PCMPEQD: gen_alopf1_ddd(instr, gen_helper_pcmpeqd); break;
+    case OP_PCMPGTB: gen_alopf1_ddd(instr, gen_helper_pcmpgtb); break;
+    case OP_PCMPGTH: gen_alopf1_ddd(instr, gen_helper_pcmpgth); break;
+    case OP_PCMPGTW: gen_alopf1_ddd(instr, gen_helper_pcmpgtw); break;
+    case OP_PCMPGTD: gen_alopf1_ddd(instr, gen_helper_pcmpgtd); break;
     case OP_GETTAGS: gen_gettag_i32(instr); break;
     case OP_GETTAGD: gen_gettag_i64(instr); break;
     case OP_PUTTAGS: gen_puttag_i32(instr); break;
@@ -2952,7 +2960,6 @@ static void gen_op(DisasContext *ctx, Instr *instr)
     case OP_PMOVMSKB: gen_alopf1_ddd(instr, gen_helper_pmovmskb); break;
     case OP_PADDD: gen_alopf1_ddd(instr, tcg_gen_add_i64); break;
     case OP_PSUBD: gen_alopf1_ddd(instr, tcg_gen_sub_i64); break;
-    case OP_PCMPEQB: gen_alopf1_ddd(instr, gen_helper_pcmpeqb); break;
     case OP_STAAB: gen_staa_i32(instr, MO_8); break;
     case OP_STAAH: gen_staa_i32(instr, MO_16); break;
     case OP_STAAW: gen_staa_i32(instr, MO_32); break;
@@ -3192,11 +3199,6 @@ static void gen_op(DisasContext *ctx, Instr *instr)
     case OP_PFCMPNLTD:
     case OP_PFCMPNLED:
     case OP_PFCMPODD:
-    case OP_PCMPEQH:
-    case OP_PCMPEQW:
-    case OP_PCMPGTB:
-    case OP_PCMPGTH:
-    case OP_PCMPGTW:
     case OP_PMOVMSKPS:
     case OP_PMOVMSKPD:
     case OP_PACKSSHB:
@@ -3299,8 +3301,6 @@ static void gen_op(DisasContext *ctx, Instr *instr)
     case OP_PMULUBHH:
     case OP_MPSADBH:
     case OP_PACKUSWH:
-    case OP_PCMPEQD:
-    case OP_PCMPGTD:
     case OP_PFHADDS:
     case OP_PFHSUBS:
     case OP_PFADDSUBS:

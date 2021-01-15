@@ -25,7 +25,6 @@ DEF_HELPER_2(setwd, void, env, i32)
 DEF_HELPER_2(probe_read_access, int, env, tl)
 DEF_HELPER_2(probe_write_access, int, env, tl)
 DEF_HELPER_3(packed_shuffle_i64, i64, i64, i64, i64)
-DEF_HELPER_2(pcmpeqb, i64, i64, i64)
 
 DEF_HELPER_2(pmovmskb, i64, i64, i64)
 DEF_HELPER_1(aau_load_program, void, env)
@@ -47,6 +46,16 @@ DEF_HELPER_2(pmaxuh, i64, i64, i64)
 DEF_HELPER_2(pmaxsh, i64, i64, i64)
 DEF_HELPER_2(pmaxuw, i64, i64, i64)
 DEF_HELPER_2(pmaxsw, i64, i64, i64)
+
+/* Packed Cmp */
+DEF_HELPER_2(pcmpeqb, i64, i64, i64)
+DEF_HELPER_2(pcmpeqh, i64, i64, i64)
+DEF_HELPER_2(pcmpeqw, i64, i64, i64)
+DEF_HELPER_2(pcmpeqd, i64, i64, i64)
+DEF_HELPER_2(pcmpgtb, i64, i64, i64)
+DEF_HELPER_2(pcmpgth, i64, i64, i64)
+DEF_HELPER_2(pcmpgtw, i64, i64, i64)
+DEF_HELPER_2(pcmpgtd, i64, i64, i64)
 
 /* Float 32/64 Ops */
 #define DEF_HELPER_3_32_64(name) \
