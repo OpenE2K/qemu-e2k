@@ -26,10 +26,7 @@ DEF_HELPER_2(probe_read_access, int, env, tl)
 DEF_HELPER_2(probe_write_access, int, env, tl)
 DEF_HELPER_3(packed_shuffle_i64, i64, i64, i64, i64)
 DEF_HELPER_2(pcmpeqb, i64, i64, i64)
-DEF_HELPER_2(pminub, i64, i64, i64)
-DEF_HELPER_2(pminsh, i64, i64, i64)
-DEF_HELPER_2(pmaxub, i64, i64, i64)
-DEF_HELPER_2(pmaxsh, i64, i64, i64)
+
 DEF_HELPER_2(pmovmskb, i64, i64, i64)
 DEF_HELPER_1(aau_load_program, void, env)
 DEF_HELPER_3(mova_ptr, tl, env, int, int)
@@ -37,20 +34,34 @@ DEF_HELPER_3(aau_am, void, env, int, int)
 DEF_HELPER_4(dam_lock_addr, void, env, i64, int, int)
 DEF_HELPER_4(dam_unlock_addr, int, env, i64, int, int)
 
+/* Packed Min/Max */
+DEF_HELPER_2(pminub, i64, i64, i64)
+DEF_HELPER_2(pminsh, i64, i64, i64)
+DEF_HELPER_2(pmaxub, i64, i64, i64)
+DEF_HELPER_2(pmaxsh, i64, i64, i64)
+
+/* Float 32/64 Ops */
 #define DEF_HELPER_3_32_64(name) \
     DEF_HELPER_3(name##s, i32, env, i32, i32) \
     DEF_HELPER_3(name##d, i64, env, i64, i64)
-
-#define DEF_HELPER_3_32_64_80(name) \
-    DEF_HELPER_3_32_64(f##name) \
-    DEF_HELPER_3(fx##name##x, i64, env, f80, f80)
-
 DEF_HELPER_3_32_64(fadd)
 DEF_HELPER_3_32_64(fsub)
 DEF_HELPER_3_32_64(fmin)
 DEF_HELPER_3_32_64(fmax)
 DEF_HELPER_3_32_64(fmul)
 DEF_HELPER_3_32_64(fdiv)
+
+/* Float x80 ops */
+DEF_HELPER_3(fxaddxx, void, env, f80, f80)
+DEF_HELPER_3(fxsubxx, void, env, f80, f80)
+DEF_HELPER_3(fxrsubxx, void, env, f80, f80)
+DEF_HELPER_3(fxmulxx, void, env, f80, f80)
+DEF_HELPER_3(fxdivxx, void, env, f80, f80)
+
+/* Float 32/64/80 Comparisons */
+#define DEF_HELPER_3_32_64_80(name) \
+    DEF_HELPER_3_32_64(f##name) \
+    DEF_HELPER_3(fx##name##x, i64, env, f80, f80)
 DEF_HELPER_3_32_64_80(cmpeq)
 DEF_HELPER_3_32_64_80(cmpneq)
 DEF_HELPER_3_32_64_80(cmple)
@@ -59,9 +70,16 @@ DEF_HELPER_3_32_64_80(cmplt)
 DEF_HELPER_3_32_64_80(cmpnlt)
 DEF_HELPER_3_32_64_80(cmpuod)
 DEF_HELPER_3_32_64_80(cmpod)
-#undef DEF_HELPER_3_32_64_80
-#undef DEF_HELPER_3_32_64
 
+/* Float Flag Comparisons */
+DEF_HELPER_3(fcmpodsf, i32, env, i32, i32)
+DEF_HELPER_3(fcmpudsf, i32, env, i32, i32)
+DEF_HELPER_3(fcmpoddf, i32, env, i64, i64)
+DEF_HELPER_3(fcmpuddf, i32, env, i64, i64)
+DEF_HELPER_3(fxcmpodxf, i32, env, f80, f80)
+DEF_HELPER_3(fxcmpudxf, i32, env, f80, f80)
+
+/* Float Conversions */
 DEF_HELPER_2(fstois, i32, env, i32)
 DEF_HELPER_2(istofs, i32, env, i32)
 DEF_HELPER_2(fstoistr, i32, env, i32)
@@ -85,15 +103,5 @@ DEF_HELPER_2(fdtoistr, i32, env, i64)
 DEF_HELPER_2(fxtofs, i32, env, f80)
 DEF_HELPER_2(fxtofd, i64, env, f80)
 
-DEF_HELPER_3(fxaddxx, void, env, f80, f80)
-DEF_HELPER_3(fxsubxx, void, env, f80, f80)
-DEF_HELPER_3(fxrsubxx, void, env, f80, f80)
-DEF_HELPER_3(fxmulxx, void, env, f80, f80)
-DEF_HELPER_3(fxdivxx, void, env, f80, f80)
-
-DEF_HELPER_3(fcmpodsf, i32, env, i32, i32)
-DEF_HELPER_3(fcmpudsf, i32, env, i32, i32)
-DEF_HELPER_3(fcmpoddf, i32, env, i64, i64)
-DEF_HELPER_3(fcmpuddf, i32, env, i64, i64)
-DEF_HELPER_3(fxcmpodxf, i32, env, f80, f80)
-DEF_HELPER_3(fxcmpudxf, i32, env, f80, f80)
+#undef DEF_HELPER_3_32_64_80
+#undef DEF_HELPER_3_32_64
