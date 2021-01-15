@@ -3017,6 +3017,10 @@ static void gen_op(DisasContext *ctx, Instr *instr)
     case OP_MOVFI: gen_movfi(instr); break;
     case OP_MOVIF: gen_movif(instr); break;
     case OP_MOVTD: gen_movtd(instr); break;
+    case OP_PANDD: gen_alopf1_ddd(instr, tcg_gen_and_i64); break;
+    case OP_PANDND: gen_alopf1_ddd(instr, gen_andn_i64); break;
+    case OP_PORD: gen_alopf1_ddd(instr, tcg_gen_or_i64); break;
+    case OP_PXORD: gen_alopf1_ddd(instr, tcg_gen_xor_i64); break;
     case OP_PMINUB: gen_alopf1_ddd(instr, gen_helper_pminub); break;
     case OP_PMINSB: gen_alopf1_ddd(instr, gen_helper_pminsb); break;
     case OP_PMINUH: gen_alopf1_ddd(instr, gen_helper_pminuh); break;
@@ -3232,10 +3236,6 @@ static void gen_op(DisasContext *ctx, Instr *instr)
     case OP_APTOAP:
     case OP_APTOAPB:
     case OP_GETVA:
-    case OP_PANDD:
-    case OP_PANDND:
-    case OP_PORD:
-    case OP_PXORD:
     case OP_LDRD:
     case OP_PUTTC:
     case OP_PAVGUSB:
