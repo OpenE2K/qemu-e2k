@@ -57,6 +57,18 @@ DEF_HELPER_2(pcmpgth, i64, i64, i64)
 DEF_HELPER_2(pcmpgtw, i64, i64, i64)
 DEF_HELPER_2(pcmpgtd, i64, i64, i64)
 
+/* Packed Add using saturation */
+DEF_HELPER_2(paddsb, i64, i64, i64)
+DEF_HELPER_2(paddsh, i64, i64, i64)
+DEF_HELPER_2(paddusb, i64, i64, i64)
+DEF_HELPER_2(paddush, i64, i64, i64)
+
+/* Packed Sub using saturation */
+DEF_HELPER_2(psubsb, i64, i64, i64)
+DEF_HELPER_2(psubsh, i64, i64, i64)
+DEF_HELPER_2(psubusb, i64, i64, i64)
+DEF_HELPER_2(psubush, i64, i64, i64)
+
 /* Float 32/64 Ops */
 #define DEF_HELPER_3_32_64(name) \
     DEF_HELPER_3(name##s, i32, env, i32, i32) \
