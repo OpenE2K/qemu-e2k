@@ -75,6 +75,10 @@ DEF_HELPER_2(psllw, i64, i64, i64)
 DEF_HELPER_2(psrlh, i64, i64, i64)
 DEF_HELPER_2(psrlw, i64, i64, i64)
 
+/* Packed shifts with sign */
+DEF_HELPER_2(psrah, i64, i64, i64)
+DEF_HELPER_2(psraw, i64, i64, i64)
+
 /* Float 32/64 Ops */
 #define DEF_HELPER_3_32_64(name) \
     DEF_HELPER_3(name##s, i32, env, i32, i32) \
