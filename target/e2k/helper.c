@@ -57,54 +57,55 @@ static inline uint64_t ps_pop(CPUE2KState *env, uint8_t *ret_tag)
     return ret;
 }
 
-static void proc_chain_save(CPUE2KState *env, int wbs)
+static void proc_chain_save(CPUE2KState *env, int wd_base, target_ulong ret_ip)
 {
-    pcs_push(env, env->crs.cr0_lo);
-    pcs_push(env, env->crs.cr0_hi);
-    pcs_push(env, env->crs.cr1.lo);
-    pcs_push(env, env->crs.cr1.hi);
-
-    env->pshtp.index += wbs * 2;
+    env->pshtp.index += wd_base;
 
     env->crs.cr0_lo = env->pregs;
-    env->crs.cr0_hi = env->ip;
-    env->crs.cr1.wbs = wbs;
+    env->crs.cr0_hi = ret_ip;
+    env->crs.cr1.wbs = wd_base / 2;
     env->crs.cr1.wpsz = env->wd.psize / 2;
     env->crs.cr1.wfx = env->wd.fx;
     env->crs.cr1.wdbl = env->wdbl;
     env->crs.cr1.br = e2k_state_br(env);
     env->crs.cr1.ussz = env->usd.size >> 4;
 
+    pcs_push(env, env->crs.cr0_lo);
+    pcs_push(env, env->crs.cr0_hi);
+    pcs_push(env, env->crs.cr1.lo);
+    pcs_push(env, env->crs.cr1.hi);
+
     env->wd.fx = true;
-    env->wd.base = e2k_wrap_reg_index(env->wd.base + wbs * 2);
-    env->wd.size -= wbs * 2;
+    env->wd.base = e2k_wrap_reg_index(env->wd.base + wd_base);
+    env->wd.size -= wd_base;
     env->wd.psize = env->wd.size;
 }
 
-static inline void proc_chain_restore(CPUE2KState *env)
+static void proc_chain_restore(CPUE2KState *env)
 {
-    int wbs;
-
-    env->pregs = env->crs.cr0_lo;
-    env->ip = env->crs.cr0_hi;
-    wbs = env->crs.cr1.wbs;
-    e2k_state_br_set(env, env->crs.cr1.br);
-    env->wd.size = env->wd.psize + wbs * 2;
-    env->wd.psize = env->crs.cr1.wpsz * 2;
-    env->wd.base = e2k_wrap_reg_index(env->wd.base - wbs * 2);
-    env->wd.fx = env->crs.cr1.wfx;
-    env->wdbl = env->crs.cr1.wdbl;
-    env->usd.size = env->crs.cr1.ussz << 4;
-    env->usd.base = env->sbr - env->usd.size;
-
-    env->pshtp.index -= wbs * 2;
+    int wd_base;
 
     env->crs.cr1.hi = pcs_pop(env);
     env->crs.cr1.lo = pcs_pop(env);
     env->crs.cr0_hi = pcs_pop(env);
     env->crs.cr0_lo = pcs_pop(env);
+
+    env->pregs = env->crs.cr0_lo;
+    env->ip = env->crs.cr0_hi;
+    wd_base = env->crs.cr1.wbs * 2;
+    e2k_state_br_set(env, env->crs.cr1.br);
+    env->wd.size = env->wd.psize + wd_base;
+    env->wd.psize = env->crs.cr1.wpsz * 2;
+    env->wd.base = e2k_wrap_reg_index(env->wd.base - wd_base);
+    env->wd.fx = env->crs.cr1.wfx;
+    env->wdbl = env->crs.cr1.wdbl;
+    env->usd.size = env->crs.cr1.ussz << 4;
+    env->usd.base = env->sbr - env->usd.size;
+
+    env->pshtp.index -= wd_base;
 }
 
+/* Stores pair of registers to stack */
 static inline void ps_spill_round(CPUE2KState *env, bool force_fx)
 {
     int i = e2k_wrap_reg_index(env->wd.base - env->pshtp.index);
@@ -125,28 +126,32 @@ static inline void ps_spill_round(CPUE2KState *env, bool force_fx)
     env->pshtp.index -= 2;
 }
 
-static inline void ps_spill_all(CPUE2KState *env, bool force_fx)
-{
-    while (env->pshtp.index > 0) {
-        ps_spill_round(env, force_fx);
-    }
-}
-
-static inline void ps_spill_debug(CPUE2KState *env, bool force_fx)
+/* Stores all windows to stack */
+static void ps_spill_all(CPUE2KState *env, bool force_fx)
 {
     while (env->wd.size + env->pshtp.index) {
         ps_spill_round(env, force_fx);
     }
 }
 
-static inline void ps_spill(CPUE2KState *env, bool force_fx)
+/* Stores bottom windows to stack */
+static void ps_spill_bottom(CPUE2KState *env, bool force_fx)
+{
+    while (env->pshtp.index > 0) {
+        ps_spill_round(env, force_fx);
+    }
+}
+
+/* Stores registers to stack till be enough space to hold current window */
+static void ps_spill(CPUE2KState *env, bool force_fx)
 {
     while (E2K_NR_COUNT < env->pshtp.index + env->wd.size) {
         ps_spill_round(env, force_fx);
     }
 }
 
-static inline void ps_fill(CPUE2KState *env, bool force_fx)
+/* Restores current window from stack if needed */
+static void ps_fill(CPUE2KState *env, bool force_fx)
 {
     while(env->pshtp.index < 0) {
         env->pshtp.index += 2;
@@ -160,14 +165,81 @@ static inline void ps_fill(CPUE2KState *env, bool force_fx)
     }
 }
 
-static inline void do_call(CPUE2KState *env, int wbs, target_ulong pc_next)
+static inline void do_call(CPUE2KState *env, int wbs, target_ulong ret_ip)
 {
-    env->ip = pc_next;
-    proc_chain_save(env, wbs);
+    proc_chain_save(env, wbs * 2, ret_ip);
     reset_ctprs(env);
 }
 
-void helper_setwd(CPUE2KState *env, uint32_t lts)
+static inline void do_syscall(CPUE2KState *env, int wbs, target_ulong ret_ip)
+{
+    CPUState *cs = env_cpu(env);
+    do_call(env, wbs, ret_ip);
+    ps_spill_bottom(env, PS_FORCE_FX);
+    cs->exception_index = E2K_EXCP_SYSCALL;
+    cpu_loop_exit(cs);
+}
+
+void HELPER(call)(CPUE2KState *env, uint64_t ctpr_raw, int call_wbs,
+    target_ulong pc_next)
+{
+    E2KCtpr ctpr = { .raw = ctpr_raw };
+
+    switch (ctpr.tag) {
+    case CTPR_TAG_DISP:
+        do_call(env, call_wbs, pc_next);
+        env->ip = ctpr.base;
+        break;
+    case CTPR_TAG_SDISP:
+        do_syscall(env, call_wbs, pc_next);
+        env->ip = ctpr.base;
+        break;
+    default:
+        helper_raise_exception(env, E2K_EXCP_ILLOPC);
+        break;
+    }
+}
+
+uint64_t HELPER(prep_return)(CPUE2KState *env, int ipd)
+{
+    E2KCtpr ret = { 0 };
+
+    if (env->pcsp.index < 32) {
+        helper_raise_exception(env, E2K_EXCP_MAPERR);
+        return 0;
+    }
+
+    ret.base = cpu_ldq_le_data(env, env->pcsp.base + env->pcsp.index - 0x18);
+    ret.tag = CTPR_TAG_RETURN;
+    ret.ipd = ipd;
+
+    return ret.raw;
+}
+
+void HELPER(return)(CPUE2KState *env)
+{
+    proc_chain_restore(env);
+    ps_fill(env, PS_FORCE_FX);
+    reset_ctprs(env);
+}
+
+void HELPER(raise_exception)(CPUE2KState *env, int tt)
+{
+    CPUState *cs = env_cpu(env);
+    cs->exception_index = tt;
+    proc_chain_save(env, env->wd.size, env->ip);
+    ps_spill_all(env, PS_FORCE_FX);
+    cpu_loop_exit(cs);
+}
+
+void HELPER(raise_exception_no_spill)(CPUE2KState *env, int tt)
+{
+    CPUState *cs = env_cpu(env);
+    cs->exception_index = tt;
+    cpu_loop_exit(cs);
+}
+
+void HELPER(setwd)(CPUE2KState *env, uint32_t lts)
 {
     int old_size = env->wd.size, size = extract32(lts, 5, 7) * 2;
 
@@ -197,106 +269,34 @@ void helper_setwd(CPUE2KState *env, uint32_t lts)
     }
 }
 
-uint64_t helper_prep_return(CPUE2KState *env, int ipd)
-{
-    E2KCtpr ret = { 0 };
-
-    if (env->pcsp.index < 32) {
-        helper_raise_exception(env, E2K_EXCP_MAPERR);
-        return 0;
-    }
-
-    ret.base = env->crs.cr0_hi;
-    ret.tag = CTPR_TAG_RETURN;
-    ret.ipd = ipd;
-
-    return ret.raw;
-}
-
-void helper_return(CPUE2KState *env)
-{
-    proc_chain_restore(env);
-    ps_fill(env, PS_FORCE_FX);
-    reset_ctprs(env);
-}
-
-static inline void do_syscall(CPUE2KState *env, int call_wbs,
-    target_ulong pc_next)
-{
-    CPUState *cs = env_cpu(env);
-    env->ip = pc_next;
-    proc_chain_save(env, call_wbs);
-    ps_spill_all(env, PS_FORCE_FX);
-    reset_ctprs(env);
-    cs->exception_index = E2K_EXCP_SYSCALL;
-    cpu_loop_exit(cs);
-}
-
-void helper_call(CPUE2KState *env, uint64_t ctpr_raw, int call_wbs,
-    target_ulong pc_next)
-{
-    E2KCtpr ctpr = { .raw = ctpr_raw };
-
-    switch (ctpr.tag) {
-    case CTPR_TAG_DISP:
-        do_call(env, call_wbs, pc_next);
-        env->ip = ctpr.base;
-        break;
-    case CTPR_TAG_SDISP:
-        do_syscall(env, call_wbs, pc_next);
-        break;
-    default:
-        abort();
-        break;
-    }
-}
-
-void helper_raise_exception(CPUE2KState *env, int tt)
-{
-    CPUState *cs = env_cpu(env);
-    cs->exception_index = tt;
-
-    proc_chain_save(env, env->wd.size / 2);
-    ps_spill_debug(env, PS_FORCE_FX);
-
-    cpu_loop_exit(cs);
-}
-
-void HELPER(raise_exception_no_spill)(CPUE2KState *env, int tt)
-{
-    CPUState *cs = env_cpu(env);
-    cs->exception_index = tt;
-    cpu_loop_exit(cs);
-}
-
-void e2k_break_save_state(CPUE2KState *env)
-{
-    env->is_bp = true;
-    proc_chain_save(env, env->wd.size / 2);
-    ps_spill(env, PS_FORCE_FX);
-}
-
-void helper_break_restore_state(CPUE2KState *env)
-{
-    env->is_bp = false;
-    proc_chain_restore(env);
-    ps_fill(env, true);
-}
-
 bool e2k_cpu_tlb_fill(CPUState *cs, vaddr address, int size,
      MMUAccessType access_type, int mmu_idx, bool probe, uintptr_t retaddr)
 {
     E2KCPU *cpu = E2K_CPU(cs);
     CPUE2KState *env = &cpu->env;
 
-    proc_chain_save(env, env->wd.size / 2);
-    ps_spill(env, PS_FORCE_FX);
+    proc_chain_save(env, env->wd.size, env->ip);
+    ps_spill_all(env, PS_FORCE_FX);
 
     cs->exception_index = E2K_EXCP_MAPERR;
     cpu_loop_exit_restore(cs, retaddr);
 }
 
-void helper_debug(CPUE2KState *env)
+void e2k_break_save_state(CPUE2KState *env)
+{
+    env->is_bp = true;
+    proc_chain_save(env, env->wd.size, env->ip);
+    ps_spill_all(env, PS_FORCE_FX);
+}
+
+void HELPER(break_restore_state)(CPUE2KState *env)
+{
+    env->is_bp = false;
+    proc_chain_restore(env);
+    ps_fill(env, true);
+}
+
+void HELPER(debug)(CPUE2KState *env)
 {
     CPUState *cs = env_cpu(env);
     e2k_break_save_state(env);
@@ -304,17 +304,17 @@ void helper_debug(CPUE2KState *env)
     cpu_loop_exit(cs);
 }
 
-void helper_debug_i32(uint32_t x)
+void HELPER(debug_i32)(uint32_t x)
 {
     qemu_log_mask(LOG_UNIMP, "log %#x\n", x);
 }
 
-void helper_debug_i64(uint64_t x)
+void HELPER(debug_i64)(uint64_t x)
 {
     qemu_log_mask(LOG_UNIMP, "log %#lx\n", x);
 }
 
-void helper_debug_ptr(void *x)
+void HELPER(debug_ptr)(void *x)
 {
     qemu_log_mask(LOG_UNIMP, "log %p\n", x);
 }

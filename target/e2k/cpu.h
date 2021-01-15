@@ -616,7 +616,7 @@ typedef struct {
     /* DAM */
     E2KDamEntry dam[32];
 
-    /* procedure chain info */
+    // TODO: DO NOT USE! Will be removed!
     E2KCrs crs;
 
     /* Procedure chain info = cr0_lo, cr0_hi, cr1_lo, cr1_hi */
