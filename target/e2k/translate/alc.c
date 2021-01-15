@@ -1818,6 +1818,76 @@ static inline void gen_fxtofd(TCGv_i64 ret, Src80 src2)
     tcg_temp_free_ptr(t0);
 }
 
+static inline void gen_shli2_i64(TCGv_i64 rl, TCGv_i64 rh, TCGv_i64 l,
+    TCGv_i64 h, int i)
+{
+    if (i < 64) {
+        TCGv_i64 t0 = tcg_temp_new_i64();
+        TCGv_i64 t1 = tcg_temp_new_i64();
+        tcg_gen_shri_i64(t0, l, 64 - i);
+        tcg_gen_shli_i64(t1, h, i);
+        tcg_gen_shli_i64(rl, l, i);
+        tcg_gen_or_i64(rh, t1, t0);
+        tcg_temp_free_i64(t1);
+        tcg_temp_free_i64(t0);
+    } else if (i < 128) {
+        tcg_gen_movi_i64(rl, 0);
+        tcg_gen_shli_i64(rh, l, i - 64);
+    } else {
+        tcg_gen_movi_i64(rl, 0);
+        tcg_gen_movi_i64(rh, 0);
+    }
+}
+
+static inline void gen_shri2_i64(TCGv_i64 rl, TCGv_i64 rh, TCGv_i64 l,
+    TCGv_i64 h, int i)
+{
+    if (i < 64) {
+        TCGv_i64 t0 = tcg_temp_new_i64();
+        TCGv_i64 t1 = tcg_temp_new_i64();
+        tcg_gen_shli_i64(t0, h, 64 - i);
+        tcg_gen_shri_i64(t1, l, i);
+        tcg_gen_or_i64(rl, t1, t0);
+        tcg_gen_shri_i64(rh, h, i);
+        tcg_temp_free_i64(t1);
+        tcg_temp_free_i64(t0);
+    } else if (i < 128) {
+        tcg_gen_shri_i64(rl, h, i - 64);
+        tcg_gen_movi_i64(rh, 0);
+    } else {
+        tcg_gen_movi_i64(rl, 0);
+        tcg_gen_movi_i64(rh, 0);
+    }
+}
+
+static inline void gen_psllql(TCGv_i64 ret, TCGv_i64 src1,
+    TCGv_i64 src2, int i)
+{
+    tcg_gen_shli_i64(ret, src2, i * 8);
+}
+
+static inline void gen_psllqh(TCGv_i64 ret, TCGv_i64 src1,
+    TCGv_i64 src2, int i)
+{
+    TCGv_i64 t0 = tcg_temp_new_i64();
+    gen_shli2_i64(t0, ret, src2, src1, i * 8);
+    tcg_temp_free_i64(t0);
+}
+
+static inline void gen_psrlql(TCGv_i64 ret, TCGv_i64 src1,
+    TCGv_i64 src2, int i)
+{
+    TCGv_i64 t0 = tcg_temp_new_i64();
+    gen_shri2_i64(ret, t0, src2, src1, i * 8);
+    tcg_temp_free_i64(t0);
+}
+
+static inline void gen_psrlqh(TCGv_i64 ret, TCGv_i64 src1,
+    TCGv_i64 src2, int i)
+{
+    tcg_gen_shri_i64(ret, src1, i * 8);
+}
+
 static void gen_aad_tag(TCGv_i64 ret, TCGv_i32 tag)
 {
     TCGv_i32 t0 = tcg_temp_new_i32();
@@ -2094,6 +2164,19 @@ static void gen_alopf1_ddd(Instr *instr,
 
     gen_tag2_i64(tag, s1.tag, s2.tag);
     (*op)(dst, s1.value, s2.value);
+    gen_al_result_i64(instr, dst, tag);
+}
+
+static void gen_alopf11_dddi(Instr *instr,
+    void (*op)(TCGv_i64, TCGv_i64, TCGv_i64, int))
+{
+    Src64 s1 = get_src1_i64(instr);
+    Src64 s2 = get_src2_i64(instr);
+    TCGv_i32 tag = get_temp_i32(instr);
+    TCGv_i64 dst = get_temp_i64(instr);
+
+    gen_tag2_i64(tag, s1.tag, s2.tag);
+    (*op)(dst, s1.value, s2.value, instr->src3);
     gen_al_result_i64(instr, dst, tag);
 }
 
@@ -2976,6 +3059,10 @@ static void gen_op(DisasContext *ctx, Instr *instr)
     case OP_PSRLH: gen_alopf1_ddd(instr, gen_helper_psrlh); break;
     case OP_PSRLW: gen_alopf1_ddd(instr, gen_helper_psrlw); break;
     case OP_PSRLD:  gen_alopf1_ddd(instr, tcg_gen_shr_i64); break;
+    case OP_PSLLQL: gen_alopf11_dddi(instr, gen_psllql); break;
+    case OP_PSLLQH: gen_alopf11_dddi(instr, gen_psllqh); break;
+    case OP_PSRLQL: gen_alopf11_dddi(instr, gen_psrlql); break;
+    case OP_PSRLQH: gen_alopf11_dddi(instr, gen_psrlqh); break;
     case OP_GETTAGS: gen_gettag_i32(instr); break;
     case OP_GETTAGD: gen_gettag_i64(instr); break;
     case OP_PUTTAGS: gen_puttag_i32(instr); break;
@@ -3161,10 +3248,6 @@ static void gen_op(DisasContext *ctx, Instr *instr)
     case OP_PFSQRTTD:
     case OP_PEXTRH:
     case OP_PINSH:
-    case OP_PSLLQH:
-    case OP_PSLLQL:
-    case OP_PSRLQH:
-    case OP_PSRLQL:
     case OP_CAST:
     case OP_TDTOMP:
     case OP_ODTOAP:
