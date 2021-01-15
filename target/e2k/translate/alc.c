@@ -2,6 +2,7 @@
 #include "qemu.h"
 #include "exec/log.h"
 #include "translate.h"
+#include "tcg/tcg-op-gvec.h"
 
 #include "alops.inc"
 
@@ -2953,13 +2954,19 @@ static void gen_op(DisasContext *ctx, Instr *instr)
     case OP_PCMPGTH: gen_alopf1_ddd(instr, gen_helper_pcmpgth); break;
     case OP_PCMPGTW: gen_alopf1_ddd(instr, gen_helper_pcmpgtw); break;
     case OP_PCMPGTD: gen_alopf1_ddd(instr, gen_helper_pcmpgtd); break;
+    case OP_PADDB: gen_alopf1_ddd(instr, tcg_gen_vec_add8_i64); break;
+    case OP_PADDH: gen_alopf1_ddd(instr, tcg_gen_vec_add16_i64); break;
+    case OP_PADDW: gen_alopf1_ddd(instr, tcg_gen_vec_add32_i64); break;
+    case OP_PADDD: gen_alopf1_ddd(instr, tcg_gen_add_i64); break;
+    case OP_PSUBB: gen_alopf1_ddd(instr, tcg_gen_vec_sub8_i64); break;
+    case OP_PSUBH: gen_alopf1_ddd(instr, tcg_gen_vec_sub16_i64); break;
+    case OP_PSUBW: gen_alopf1_ddd(instr, tcg_gen_vec_sub32_i64); break;
+    case OP_PSUBD: gen_alopf1_ddd(instr, tcg_gen_sub_i64); break;
     case OP_GETTAGS: gen_gettag_i32(instr); break;
     case OP_GETTAGD: gen_gettag_i64(instr); break;
     case OP_PUTTAGS: gen_puttag_i32(instr); break;
     case OP_PUTTAGD: gen_puttag_i64(instr); break;
     case OP_PMOVMSKB: gen_alopf1_ddd(instr, gen_helper_pmovmskb); break;
-    case OP_PADDD: gen_alopf1_ddd(instr, tcg_gen_add_i64); break;
-    case OP_PSUBD: gen_alopf1_ddd(instr, tcg_gen_sub_i64); break;
     case OP_STAAB: gen_staa_i32(instr, MO_8); break;
     case OP_STAAH: gen_staa_i32(instr, MO_16); break;
     case OP_STAAW: gen_staa_i32(instr, MO_32); break;
@@ -3109,16 +3116,10 @@ static void gen_op(DisasContext *ctx, Instr *instr)
     case OP_FSQRTTD:
     case OP_PFMULS:
     case OP_PFMULD:
-    case OP_PADDB:
-    case OP_PADDH:
-    case OP_PADDW:
     case OP_PADDSB:
     case OP_PADDSH:
     case OP_PADDUSB:
     case OP_PADDUSH:
-    case OP_PSUBB:
-    case OP_PSUBH:
-    case OP_PSUBW:
     case OP_PSUBSB:
     case OP_PSUBSH:
     case OP_PSUBUSB:
