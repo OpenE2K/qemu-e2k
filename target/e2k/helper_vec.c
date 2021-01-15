@@ -35,6 +35,12 @@ typedef union {
     int64_t sd[vec64_ud];
 } vec64;
 
+#define ident(x) x
+#define satsb(x) MIN(MAX(x,   -128),   127)
+#define satsh(x) MIN(MAX(x, -32768), 32767)
+#define satub(x) MIN(MAX(x,      0),   255)
+#define satuh(x) MIN(MAX(x,      0), 65535)
+
 uint64_t HELPER(packed_shuffle_i64)(uint64_t src1, uint64_t src2, uint64_t src3)
 {
     vec64 ret, s1, s2, s3;
@@ -108,7 +114,8 @@ uint64_t HELPER(packed_shuffle_i64)(uint64_t src1, uint64_t src2, uint64_t src3)
     uint64_t HELPER(name)(uint64_t src1, uint64_t src2) \
     { \
         size_t i = 0; \
-        vec64 s1 = { .ud[0] = src1 }, s2 = { .ud[0] = src2 }, dst; \
+        vec64 s1 = { .ud[0] = src1 }, s2 = { .ud[0] = src2 }; \
+        vec64 dst = { .ud[0] = 0 }; \
         for (; i < glue(vec64_, type); i++) { \
             code \
         } \
@@ -118,7 +125,7 @@ uint64_t HELPER(packed_shuffle_i64)(uint64_t src1, uint64_t src2, uint64_t src3)
     uint64_t HELPER(name)(uint64_t src1, uint64_t s2) \
     { \
         size_t i = 0; \
-        vec64 s1 = { .ud[0] = src1 }, dst; \
+        vec64 s1 = { .ud[0] = src1 }, dst = { .ud[0] = 0 }; \
         for (; i < glue(vec64_, type); i++) { \
             code \
         } \
@@ -158,20 +165,20 @@ GEN_HELPER_PACKED_CMP(pcmpgth, sh, >)
 GEN_HELPER_PACKED_CMP(pcmpgtw, sw, >)
 GEN_HELPER_PACKED_CMP(pcmpgtd, sd, >)
 
-#define GEN_HELPER_PACKED_BINOP_SATURATE(name, type, op, t, min, max) \
+#define GEN_HELPER_PACKED_BINOP_MAP(name, type, op, cast, map) \
     GEN_HELPER_PACKED(name, type, { \
-        dst.type[i] = MIN(MAX(s1.type[i] op s2.type[i], min), max); \
+        dst.type[i] = map((cast) s1.type[i] op s2.type[i]); \
     })
 
-GEN_HELPER_PACKED_BINOP_SATURATE(paddsb, sb, +, int, -128, 127)
-GEN_HELPER_PACKED_BINOP_SATURATE(paddsh, sh, +, int, -32768, 32767)
-GEN_HELPER_PACKED_BINOP_SATURATE(paddusb, ub, +, int, 0, 255)
-GEN_HELPER_PACKED_BINOP_SATURATE(paddush, uh, +, int, 0, 65535)
+GEN_HELPER_PACKED_BINOP_MAP(paddsb,  sb, +,  int16_t, satsb)
+GEN_HELPER_PACKED_BINOP_MAP(paddsh,  sh, +,  int32_t, satsh)
+GEN_HELPER_PACKED_BINOP_MAP(paddusb, ub, +, uint16_t, satub)
+GEN_HELPER_PACKED_BINOP_MAP(paddush, uh, +, uint32_t, satuh)
 
-GEN_HELPER_PACKED_BINOP_SATURATE(psubsb, sb, -, int, -128, 127)
-GEN_HELPER_PACKED_BINOP_SATURATE(psubsh, sh, -, int, -32768, 32767)
-GEN_HELPER_PACKED_BINOP_SATURATE(psubusb, ub, -, int, 0, 255)
-GEN_HELPER_PACKED_BINOP_SATURATE(psubush, uh, -, int, 0, 65535)
+GEN_HELPER_PACKED_BINOP_MAP(psubsb,  sb, -, int16_t, satsb)
+GEN_HELPER_PACKED_BINOP_MAP(psubsh,  sh, -, int32_t, satsh)
+GEN_HELPER_PACKED_BINOP_MAP(psubusb, ub, -, uint16_t, satub)
+GEN_HELPER_PACKED_BINOP_MAP(psubush, uh, -, uint32_t, satuh)
 
 #define GEN_HELPER_PACKED_SCALAR_BINOP(name, type, op) \
     GEN_HELPER_PACKED_SCALAR(name, type, { \
@@ -192,26 +199,22 @@ GEN_HELPER_PACKED_SRA(psrah, sh, int32_t)
 GEN_HELPER_PACKED_SRA(psraw, sw, int64_t)
 
 #define GEN_HELPER_PACKED_MAD(name, dst_type, type, cast, op) \
-    uint64_t HELPER(name)(uint64_t src1, uint64_t src2) \
-    { \
-        size_t i = 0; \
-        vec64 s1 = { .ud[0] = src1 }, s2 = { .ud[0] = src2 }, dst; \
-        for (; i < glue(vec64_, type); i += 2) { \
-            dst.dst_type[i >> 1] = op((cast) s1.type[i + 1] * s2.type[i + 1] +\
-                                      (cast) s1.type[i    ] * s2.type[i    ]); \
-        } \
-        return dst.ud[0]; \
-    }
-
-#define ident(x) x
-#define satsh(x) MIN(MAX(x, -32768), 32767)
+    GEN_HELPER_PACKED(name, dst_type, { \
+        int j = i * 2; \
+        dst.dst_type[i] = op( \
+            (cast) s1.type[j + 1] * s2.type[j + 1] + \
+            (cast) s1.type[j    ] * s2.type[j    ] \
+        ); \
+    })
 
 GEN_HELPER_PACKED_MAD(pmaddh, sw, sh, int32_t, ident)
 GEN_HELPER_PACKED_MAD(pmaddubsh, sh, ub, int16_t, satsh)
 
+GEN_HELPER_PACKED(psadbw, ub, { dst.uw[0] += s1.ub[i] - s2.ub[i]; })
+
 uint64_t HELPER(pmovmskb)(uint64_t src1, uint64_t src2)
 {
-    unsigned int i;
+    int i;
     vec64 s1, s2;
     uint16_t ret = 0;
 
