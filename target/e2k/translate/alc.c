@@ -4023,21 +4023,21 @@ static void execute_fcomb_i64(DisasContext *ctx, Instr *instr)
     gen_tag3_i64(tag, s1.tag, s2.tag, s3.tag);
 
     switch(opc1) {
-    case 0x0:
+    case 0x1:
         /* fadd_{op}d */
         if ((ctx->version >= 2 && is_chan_0134(instr->chan)) || ctx->version >= 4) {
             gen_helper_faddd(dst, cpu_env, s1.value, s2.value);
             break;
         }
         goto gen_illopc;
-    case 0x2:
+    case 0x3:
         /* fsub_{op}d */
         if ((ctx->version >= 2 && is_chan_0134(instr->chan)) || ctx->version >= 4) {
             gen_helper_fsubd(dst, cpu_env, s1.value, s2.value);
             break;
         }
         goto gen_illopc;
-    case 0x8:
+    case 0x9:
         /* fmul_{op}d */
         if(is_chan_0134(instr->chan) || ctx->version >= 4) {
             gen_helper_fmuld(dst, cpu_env, s1.value, s2.value);
