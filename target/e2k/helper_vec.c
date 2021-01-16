@@ -256,6 +256,17 @@ uint64_t HELPER(pshufb)(uint64_t src1, uint64_t src2, uint64_t src3)
     return ret.ud[0];
 }
 
+uint64_t HELPER(pshufh)(uint64_t src1, uint32_t imm8)
+{
+    int i;
+    vec64 s1 = { .ud[0] = src1 }, dst;
+    for (i = 0; i < vec64_uh; i++) {
+        int j = (imm8 >> (i * 2)) & 0x3;
+        dst.uh[i] = s1.uh[j];
+    }
+    return dst.ud[0];
+}
+
 uint64_t HELPER(pshufw)(uint64_t src1, uint64_t src2, uint32_t imm8)
 {
     int i;
