@@ -911,6 +911,84 @@ static void gen_lzcntd(TCGv_i64 ret, TCGv_i64 src1) {
     tcg_gen_clzi_i64(ret, src1, 64);
 }
 
+static void gen_sm_i32(bool sm, TCGv_i32 ret, TCGv_i32 ret_tag, Exception excp)
+{
+    if (sm) {
+        tcg_gen_movi_i32(ret_tag, E2K_TAG_NON_NUMBER32);
+        tcg_gen_movi_i32(ret, 0);
+    } else {
+        e2k_gen_exception(excp);
+    }
+}
+
+static void gen_brchecki_i32(bool sm, TCGv_i32 ret, TCGv_i32 ret_tag,
+    TCGCond cond, TCGv_i32 arg0, uint32_t arg1, TCGLabel *l, Exception excp)
+{
+    TCGLabel *l0 = gen_new_label();
+    tcg_gen_brcondi_i32(cond, arg0, arg1, l0);
+    gen_sm_i32(sm, ret, ret_tag, excp);
+    tcg_gen_br(l);
+    gen_set_label(l0);
+}
+
+static void gen_brchecki_i32_i64(bool sm, TCGv_i32 ret, TCGv_i32 ret_tag,
+    TCGCond cond, TCGv_i64 arg0, uint64_t arg1, TCGLabel *l, Exception excp)
+{
+    TCGLabel *l0 = gen_new_label();
+    tcg_gen_brcondi_i64(cond, arg0, arg1, l0);
+    gen_sm_i32(sm, ret, ret_tag, excp);
+    tcg_gen_br(l);
+    gen_set_label(l0);
+}
+
+#define GEN_OP_DIVX(name, op, checks) \
+    static void glue(gen_, name)(TCGv_i32 ret, TCGv_i32 ret_tag, TCGv_i32 tag, \
+        TCGv_i64 src1, TCGv_i32 src2, bool sm) { \
+        TCGLabel *l0 = gen_new_label(); \
+        TCGv_i64 t0 = tcg_temp_new_i64(); \
+        TCGv_i64 t1 = tcg_temp_local_new_i64(); \
+        gen_brchecki_i32(sm, ret, ret_tag, \
+            TCG_COND_NE, src2, 0, l0, E2K_EXCP_DIV); \
+        tcg_gen_extu_i32_i64(t0, src2); \
+        op(t1, src1, t0); \
+        checks \
+        tcg_gen_extrl_i64_i32(ret, t1); \
+        gen_set_label(l0); \
+        tcg_temp_free_i64(t1); \
+        tcg_temp_free_i64(t0); \
+    }
+
+GEN_OP_DIVX(udivx, tcg_gen_divu_i64, { \
+    gen_brchecki_i32_i64(sm, ret, ret_tag, \
+        TCG_COND_LEU, t1, UINT32_MAX, l0, E2K_EXCP_DIV); \
+})
+GEN_OP_DIVX(sdivx, tcg_gen_div_i64, { \
+    gen_brchecki_i32_i64(sm, ret, ret_tag, \
+        TCG_COND_LE, t1, INT32_MAX, l0, E2K_EXCP_DIV); \
+    gen_brchecki_i32_i64(sm, ret, ret_tag, \
+        TCG_COND_GE, t1, INT32_MIN, l0, E2K_EXCP_DIV); \
+})
+
+#define GEN_OP_MODX(name, op) \
+    static void glue(gen_, name)(TCGv_i32 ret, TCGv_i32 tag, TCGv_i32 ret_tag, \
+        TCGv_i64 src1, TCGv_i32 src2, bool sm) { \
+        TCGLabel *l0 = gen_new_label(); \
+        TCGv_i64 t0 = tcg_temp_new_i64(); \
+        TCGv_i64 t1 = tcg_temp_new_i64(); \
+        gen_brchecki_i32(sm, ret, ret_tag, \
+            TCG_COND_NE, src2, 0, l0, E2K_EXCP_DIV); \
+        tcg_gen_extu_i32_i64(t0, src2); \
+        /* FIXME: must gen exception/tag on overflow */ \
+        op(t1, src1, t0); \
+        tcg_gen_extrl_i64_i32(ret, t1); \
+        gen_set_label(l0); \
+        tcg_temp_free_i64(t1); \
+        tcg_temp_free_i64(t0); \
+    }
+
+GEN_OP_MODX(umodx, tcg_gen_remu_i64)
+GEN_OP_MODX(smodx, tcg_gen_rem_i64)
+
 static inline void gen_cmp_i64(TCGv_i64 ret, int opc, TCGv_i64 src1,
     TCGv_i64 src2)
 {
@@ -2379,6 +2457,19 @@ static void gen_alopf1_sttss(Instr *instr,
     gen_al_result_i32(instr, dst, tag);
 }
 
+static void gen_alopf1_sttds(Instr *instr,
+    void (*op)(TCGv_i32, TCGv_i32, TCGv_i32, TCGv_i64, TCGv_i32, bool))
+{
+    Src64 s1 = get_src1_i64(instr);
+    Src32 s2 = get_src2_i32(instr);
+    TCGv_i32 tag = get_temp_i32(instr);
+    TCGv_i32 dst = get_temp_i32(instr);
+
+    gen_tag2_i32(tag, s1.tag, s2.tag);
+    (*op)(dst, tag, tag, s1.value, s2.value, instr->sm);
+    gen_al_result_i32(instr, dst, tag);
+}
+
 static void gen_alopf1_cmp_ddb(Instr *instr,
     void (*op)(TCGv_i64, int, TCGv_i64, TCGv_i64))
 {
@@ -3195,10 +3286,10 @@ static void gen_op(DisasContext *ctx, Instr *instr)
     case OP_FXCMPUDXF: gen_alopf1_sexx(instr, gen_helper_fxcmpudxf); break;
     case OP_FSTOIFS: gen_alopf1_sess(instr, gen_helper_fstoifs); break;
     case OP_FDTOIFD: gen_alopf1_dedd(instr, gen_helper_fdtoifd); break;
-    case OP_UDIVX:
-    case OP_UMODX:
-    case OP_SDIVX:
-    case OP_SMODX:
+    case OP_UDIVX: gen_alopf1_sttds(instr, gen_udivx); break;
+    case OP_UMODX: gen_alopf1_sttds(instr, gen_umodx); break;
+    case OP_SDIVX: gen_alopf1_sttds(instr, gen_sdivx); break;
+    case OP_SMODX: gen_alopf1_sttds(instr, gen_smodx); break;
     case OP_FXDIVTSS:
     case OP_FXDIVTDD:
     case OP_FXDIVTSX:
