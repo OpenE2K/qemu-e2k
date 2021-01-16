@@ -130,6 +130,7 @@ DEF_HELPER_2(psadbw, i64, i64, i64)
 DEF_HELPER_2(pavgusb, i64, i64, i64)
 DEF_HELPER_2(pavgush, i64, i64, i64)
 DEF_HELPER_2(phminposuh, i64, i64, i64)
+DEF_HELPER_2(mpsadbh, i64, i64, i64)
 
 /* Float 32/64 Ops */
 #define DEF_HELPER_3_32_64(name) \
