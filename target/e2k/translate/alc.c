@@ -1856,6 +1856,34 @@ static inline void gen_movif(Instr *instr)
     gen_al_result_i80(instr, src1.value, src2.value, tag);
 }
 
+static inline void gen_movx(Instr *instr)
+{
+    Src80 src2 = get_src2_i80(instr);
+    TCGv_i32 tag = get_temp_i32(instr);
+    gen_tag1_i64(tag, src2.tag);
+    gen_al_result_i80(instr, src2.lo, src2.hi, tag);
+}
+
+static inline void gen_movxa(Instr *instr)
+{
+    Src80 src2 = get_src2_i80(instr);
+    TCGv_i32 tag = get_temp_i32(instr);
+    TCGv_i32 dst_hi = get_temp_i32(instr);
+    gen_tag1_i64(tag, src2.tag);
+    tcg_gen_andi_i32(dst_hi, src2.hi, 0x7fff);
+    gen_al_result_i80(instr, src2.lo, dst_hi, tag);
+}
+
+static inline void gen_movxc(Instr *instr)
+{
+    Src80 src2 = get_src2_i80(instr);
+    TCGv_i32 tag = get_temp_i32(instr);
+    TCGv_i32 dst_hi = get_temp_i32(instr);
+    gen_tag1_i64(tag, src2.tag);
+    tcg_gen_ori_i32(dst_hi, src2.hi, 0x8000);
+    gen_al_result_i80(instr, src2.lo, dst_hi, tag);
+}
+
 static inline void gen_fstofx(Src80 *ret, TCGv_i32 src2)
 {
     TCGv_ptr t0 = tcg_temp_new_ptr();
@@ -3150,6 +3178,9 @@ static void gen_op(DisasContext *ctx, Instr *instr)
     case OP_FXDIVXS: gen_alopf1_xxs(instr, gen_helper_fxdivxx); break;
     case OP_MOVFI: gen_movfi(instr); break;
     case OP_MOVIF: gen_movif(instr); break;
+    case OP_MOVX: gen_movx(instr); break;
+    case OP_MOVXA: gen_movxa(instr); break;
+    case OP_MOVXC: gen_movxc(instr); break;
     case OP_MOVTD: gen_movtd(instr); break;
     case OP_PANDD: gen_alopf1_ddd(instr, tcg_gen_and_i64); break;
     case OP_PANDND: gen_alopf1_ddd(instr, gen_andn_i64); break;
@@ -3528,9 +3559,6 @@ static void gen_op(DisasContext *ctx, Instr *instr)
     case OP_MOVTRCQ:
     case OP_FXTOISTR:
     case OP_FXTOIDTR:
-    case OP_MOVX:
-    case OP_MOVXA:
-    case OP_MOVXC:
     case OP_PFHADDS:
     case OP_PFHSUBS:
     case OP_PFADDSUBS:
