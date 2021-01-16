@@ -1910,6 +1910,19 @@ static inline void gen_pextrh(TCGv_i64 ret, TCGv_i64 src1,
     }
 }
 
+static inline void gen_pshufh(Instr *instr)
+{
+    Src64 s2 = get_src2_i64(instr);
+    TCGv_i32 tag = get_temp_i32(instr);
+    TCGv_i64 dst = get_temp_i64(instr);
+    TCGv_i32 t0 = tcg_const_i32(instr->src3);
+
+    gen_tag1_i64(tag, s2.tag);
+    gen_helper_pshufh(dst, s2.value, t0);
+    gen_al_result_i64(instr, dst, tag);
+    tcg_temp_free_i32(t0);
+}
+
 static inline void gen_pshufw(TCGv_i64 ret, TCGv_i64 src1,
     TCGv_i64 src2, int i)
 {
@@ -3109,6 +3122,7 @@ static void gen_op(DisasContext *ctx, Instr *instr)
     case OP_PSRLQH: gen_alopf11_dddi(instr, gen_psrlqh); break;
     case OP_PINSH: gen_alopf11_dddi(instr, gen_pinsh); break;
     case OP_PEXTRH: gen_alopf11_dddi(instr, gen_pextrh); break;
+    case OP_PSHUFH: gen_pshufh(instr); break;
     case OP_PSHUFW: gen_alopf11_dddi(instr, gen_pshufw); break;
     case OP_PMOVMSKB: gen_alopf1_ddd(instr, gen_helper_pmovmskb); break;
     case OP_PMOVMSKPS: gen_alopf1_ddd(instr, gen_helper_pmovmskps); break;
@@ -3371,7 +3385,6 @@ static void gen_op(DisasContext *ctx, Instr *instr)
     case OP_GETTC:
     case OP_INVTC:
     case OP_GETSOD:
-    case OP_PSHUFH:
     case OP_STCSQ:
     case OP_STDSQ:
     case OP_STESQ:
