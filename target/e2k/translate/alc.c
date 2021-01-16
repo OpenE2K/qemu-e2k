@@ -1888,6 +1888,16 @@ static inline void gen_psrlqh(TCGv_i64 ret, TCGv_i64 src1,
     tcg_gen_shri_i64(ret, src1, i * 8);
 }
 
+static inline void gen_pinsh(TCGv_i64 ret, TCGv_i64 src1,
+    TCGv_i64 src2, int i)
+{
+    if (i < 4) {
+        tcg_gen_deposit_i64(ret, src1, src2, i * 16, 16);
+    } else {
+        tcg_gen_mov_i64(ret, src1);
+    }
+}
+
 static void gen_aad_tag(TCGv_i64 ret, TCGv_i32 tag)
 {
     TCGv_i32 t0 = tcg_temp_new_i32();
@@ -3077,6 +3087,7 @@ static void gen_op(DisasContext *ctx, Instr *instr)
     case OP_PSLLQH: gen_alopf11_dddi(instr, gen_psllqh); break;
     case OP_PSRLQL: gen_alopf11_dddi(instr, gen_psrlql); break;
     case OP_PSRLQH: gen_alopf11_dddi(instr, gen_psrlqh); break;
+    case OP_PINSH: gen_alopf11_dddi(instr, gen_pinsh); break;
     case OP_GETTAGS: gen_gettag_i32(instr); break;
     case OP_GETTAGD: gen_gettag_i64(instr); break;
     case OP_PUTTAGS: gen_puttag_i32(instr); break;
@@ -3248,7 +3259,6 @@ static void gen_op(DisasContext *ctx, Instr *instr)
     case OP_PFMAXD:
     case OP_PFSQRTTD:
     case OP_PEXTRH:
-    case OP_PINSH:
     case OP_CAST:
     case OP_TDTOMP:
     case OP_ODTOAP:
