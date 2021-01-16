@@ -24,7 +24,6 @@ DEF_HELPER_1(break_restore_state, void, env)
 DEF_HELPER_2(setwd, void, env, i32)
 DEF_HELPER_2(probe_read_access, int, env, tl)
 DEF_HELPER_2(probe_write_access, int, env, tl)
-DEF_HELPER_3(packed_shuffle_i64, i64, i64, i64, i64)
 
 DEF_HELPER_1(aau_load_program, void, env)
 DEF_HELPER_3(mova_ptr, tl, env, int, int)
@@ -94,6 +93,10 @@ DEF_HELPER_2(pmovmskpd, i64, i64, i64)
 DEF_HELPER_2(packsshb, i64, i64, i64)
 DEF_HELPER_2(packsswh, i64, i64, i64)
 DEF_HELPER_2(packushb, i64, i64, i64)
+
+/* Packed shuffle */
+DEF_HELPER_3(pshufb, i64, i64, i64, i64)
+DEF_HELPER_3(pshufw, i64, i64, i64, i32)
 
 /* Packed uncategorized */
 DEF_HELPER_2(psadbw, i64, i64, i64)

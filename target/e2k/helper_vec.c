@@ -41,75 +41,6 @@ typedef union {
 #define satub(x) MIN(MAX(x,      0),   255)
 #define satuh(x) MIN(MAX(x,      0), 65535)
 
-uint64_t HELPER(packed_shuffle_i64)(uint64_t src1, uint64_t src2, uint64_t src3)
-{
-    vec64 ret, s1, s2, s3;
-    unsigned int i;
-
-    s1.ud[0] = src1;
-    s2.ud[0] = src2;
-    s3.ud[0] = src3;
-
-    for (i = 0; i < 8; i++) {
-        uint8_t desc = s3.ub[i];
-        int index = extract8(desc, 0, 3);
-        uint8_t byte;
-
-        if (desc < 0x80) {
-            if (desc & 0x08) {
-                byte = s1.ub[index];
-            } else {
-                byte = s2.ub[index];
-            }
-
-            switch(desc >> 5) {
-            case 0x1:
-                byte = reverse_bits(byte);
-                break;
-            case 0x2:
-                if ((byte & 0x80) != 0) {
-                    byte = 0xff;
-                } else {
-                    byte = 0;
-                }
-                break;
-            case 0x3:
-                if ((byte & 1) != 0) {
-                    byte = 0xff;
-                } else {
-                    byte = 0;
-                }
-                break;
-            default:
-                break;
-            }
-
-            if (desc & 0x10) {
-                byte = ~byte;
-            }
-        } else {
-            switch(desc >> 6) {
-            case 0xa:
-                byte = 0x7f;
-                break;
-            case 0xc:
-                byte = 0x80;
-                break;
-            case 0xe:
-                byte = 0xff;
-                break;
-            default:
-                byte = 0;
-                break;
-            }
-        }
-
-        ret.ub[i] = byte;
-    }
-
-    return ret.ud[0];
-}
-
 #define GEN_HELPER_PACKED(name, type, code) \
     uint64_t HELPER(name)(uint64_t src1, uint64_t src2) \
     { \
@@ -242,3 +173,84 @@ GEN_HELPER_PACKED(pmovmskpd, sd, MOVMASK(ub, sd))
 GEN_HELPER_PACKED(packsshb, sh, PACK(sb, sh, satsb))
 GEN_HELPER_PACKED(packushb, uh, PACK(ub, sh, satub))
 GEN_HELPER_PACKED(packsswh, sw, PACK(sh, sw, satsh))
+
+uint64_t HELPER(pshufb)(uint64_t src1, uint64_t src2, uint64_t src3)
+{
+    vec64 ret, s1, s2, s3;
+    unsigned int i;
+
+    s1.ud[0] = src1;
+    s2.ud[0] = src2;
+    s3.ud[0] = src3;
+
+    for (i = 0; i < 8; i++) {
+        uint8_t desc = s3.ub[i];
+        int index = extract8(desc, 0, 3);
+        uint8_t byte;
+
+        if (desc < 0x80) {
+            if (desc & 0x08) {
+                byte = s1.ub[index];
+            } else {
+                byte = s2.ub[index];
+            }
+
+            switch(desc >> 5) {
+            case 0x1:
+                byte = reverse_bits(byte);
+                break;
+            case 0x2:
+                if ((byte & 0x80) != 0) {
+                    byte = 0xff;
+                } else {
+                    byte = 0;
+                }
+                break;
+            case 0x3:
+                if ((byte & 1) != 0) {
+                    byte = 0xff;
+                } else {
+                    byte = 0;
+                }
+                break;
+            default:
+                break;
+            }
+
+            if (desc & 0x10) {
+                byte = ~byte;
+            }
+        } else {
+            switch(desc >> 6) {
+            case 0xa:
+                byte = 0x7f;
+                break;
+            case 0xc:
+                byte = 0x80;
+                break;
+            case 0xe:
+                byte = 0xff;
+                break;
+            default:
+                byte = 0;
+                break;
+            }
+        }
+
+        ret.ub[i] = byte;
+    }
+
+    return ret.ud[0];
+}
+
+uint64_t HELPER(pshufw)(uint64_t src1, uint64_t src2, uint32_t imm8)
+{
+    int i;
+    vec64 s1 = { .ud[0] = src1 }, s2 = { .ud[0] = src2 }, dst;
+    for (i = 0; i < vec64_uw; i++) {
+        int sel = (imm8 >> (i * 2)) & 0x3;
+        int j = sel & 1;
+        dst.uw[i] = sel > 1 ? s1.uw[j] : s2.uw[j];
+    }
+    return dst.ud[0];
+}
