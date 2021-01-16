@@ -3148,6 +3148,7 @@ static void gen_op(DisasContext *ctx, Instr *instr)
     case OP_PUNPCKHBH: gen_alopf1_ddd(instr, gen_helper_punpckhbh); break;
     case OP_PUNPCKHHW: gen_alopf1_ddd(instr, gen_helper_punpckhhw); break;
     case OP_PUNPCKHWD: gen_alopf1_ddd(instr, gen_helper_punpckhwd); break;
+    case OP_PHMINPOSUH: gen_alopf1_ddd(instr, gen_helper_phminposuh); break;
     case OP_GETTAGS: gen_gettag_i32(instr); break;
     case OP_GETTAGD: gen_gettag_i64(instr); break;
     case OP_PUTTAGS: gen_puttag_i32(instr); break;
@@ -3444,7 +3445,6 @@ static void gen_op(DisasContext *ctx, Instr *instr)
     case OP_PFADDSUBS:
     case OP_PFSTOIFS:
     case OP_PFDTOIFD:
-    case OP_PHMINPOSUH:
     case OP_PUTTST:
     case OP_FSCALES:
     case OP_FSCALED:
