@@ -61,6 +61,11 @@ static void proc_chain_save(CPUE2KState *env, int wd_base, target_ulong ret_ip)
 {
     env->pshtp.index += wd_base;
 
+    pcs_push(env, env->crs.cr0_lo);
+    pcs_push(env, env->crs.cr0_hi);
+    pcs_push(env, env->crs.cr1.lo);
+    pcs_push(env, env->crs.cr1.hi);
+
     env->crs.cr0_lo = env->pregs;
     env->crs.cr0_hi = ret_ip;
     env->crs.cr1.wbs = wd_base / 2;
@@ -69,11 +74,6 @@ static void proc_chain_save(CPUE2KState *env, int wd_base, target_ulong ret_ip)
     env->crs.cr1.wdbl = env->wdbl;
     env->crs.cr1.br = e2k_state_br(env);
     env->crs.cr1.ussz = env->usd.size >> 4;
-
-    pcs_push(env, env->crs.cr0_lo);
-    pcs_push(env, env->crs.cr0_hi);
-    pcs_push(env, env->crs.cr1.lo);
-    pcs_push(env, env->crs.cr1.hi);
 
     env->wd.fx = true;
     env->wd.base = e2k_wrap_reg_index(env->wd.base + wd_base);
@@ -84,11 +84,6 @@ static void proc_chain_save(CPUE2KState *env, int wd_base, target_ulong ret_ip)
 static void proc_chain_restore(CPUE2KState *env)
 {
     int wd_base;
-
-    env->crs.cr1.hi = pcs_pop(env);
-    env->crs.cr1.lo = pcs_pop(env);
-    env->crs.cr0_hi = pcs_pop(env);
-    env->crs.cr0_lo = pcs_pop(env);
 
     env->pregs = env->crs.cr0_lo;
     env->ip = env->crs.cr0_hi;
@@ -101,6 +96,11 @@ static void proc_chain_restore(CPUE2KState *env)
     env->wdbl = env->crs.cr1.wdbl;
     env->usd.size = env->crs.cr1.ussz << 4;
     env->usd.base = env->sbr - env->usd.size;
+
+    env->crs.cr1.hi = pcs_pop(env);
+    env->crs.cr1.lo = pcs_pop(env);
+    env->crs.cr0_hi = pcs_pop(env);
+    env->crs.cr0_lo = pcs_pop(env);
 
     env->pshtp.index -= wd_base;
 }
@@ -209,7 +209,7 @@ uint64_t HELPER(prep_return)(CPUE2KState *env, int ipd)
         return 0;
     }
 
-    ret.base = cpu_ldq_le_data(env, env->pcsp.base + env->pcsp.index - 0x18);
+    ret.base = env->crs.cr0_hi;
     ret.tag = CTPR_TAG_RETURN;
     ret.ipd = ipd;
 
