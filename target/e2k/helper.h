@@ -94,6 +94,14 @@ DEF_HELPER_2(packsshb, i64, i64, i64)
 DEF_HELPER_2(packsswh, i64, i64, i64)
 DEF_HELPER_2(packushb, i64, i64, i64)
 
+/* Packed unpacks */
+DEF_HELPER_2(punpcklbh, i64, i64, i64)
+DEF_HELPER_2(punpcklhw, i64, i64, i64)
+DEF_HELPER_2(punpcklwd, i64, i64, i64)
+DEF_HELPER_2(punpckhbh, i64, i64, i64)
+DEF_HELPER_2(punpckhhw, i64, i64, i64)
+DEF_HELPER_2(punpckhwd, i64, i64, i64)
+
 /* Packed shuffle */
 DEF_HELPER_3(pshufb, i64, i64, i64, i64)
 DEF_HELPER_3(pshufw, i64, i64, i64, i32)
