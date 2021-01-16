@@ -24,6 +24,8 @@ static uint8_t reverse_bits(uint8_t b)
 #define vec64_sw vec64_uw
 #define vec64_sd vec64_ud
 
+#define vec64_len(type) glue(vec64_, type)
+
 typedef union {
     uint8_t ub[vec64_ub];
     uint16_t uh[vec64_uh];
@@ -43,17 +45,24 @@ typedef union {
 #define satub(x) MIN(MAX(x,      0),   255)
 #define satuh(x) MIN(MAX(x,      0), 65535)
 
-#define GEN_HELPER_PACKED(name, type, code) \
+#define add(a, b) ((a) + (b))
+#define sub(a, b) ((a) - (b))
+#define mul(a, b) ((a) * (b))
+#define div(a, b) ((a) / (b))
+
+#define GEN_HELPER_PACKED_N(name, n, code) \
     uint64_t HELPER(name)(uint64_t src1, uint64_t src2) \
     { \
         size_t i = 0; \
         vec64 s1 = { .ud[0] = src1 }, s2 = { .ud[0] = src2 }; \
         vec64 dst = { .ud[0] = 0 }; \
-        for (; i < glue(vec64_, type); i++) { \
+        for (; i < n; i++) { \
             code \
         } \
         return dst.ud[0]; \
     }
+#define GEN_HELPER_PACKED(name, type, code) \
+    GEN_HELPER_PACKED_N(name, vec64_len(type), code)
 #define GEN_HELPER_PACKED_SCALAR(name, type, code) \
     uint64_t HELPER(name)(uint64_t src1, uint64_t s2) \
     { \
@@ -112,6 +121,20 @@ GEN_HELPER_PACKED_BINOP_MAP(psubsb,  sb, -, int16_t, satsb)
 GEN_HELPER_PACKED_BINOP_MAP(psubsh,  sh, -, int32_t, satsh)
 GEN_HELPER_PACKED_BINOP_MAP(psubusb, ub, -, uint16_t, satub)
 GEN_HELPER_PACKED_BINOP_MAP(psubush, uh, -, uint32_t, satuh)
+
+#define GEN_HELPER_PACKED_HORIZONTAL_OP(name, type, op, map) \
+    GEN_HELPER_PACKED_N(name, vec64_len(type) / 2, { \
+        int j = i * 2; \
+        dst.type[i                      ] = map(op(s1.type[j], s1.type[j + 1])); \
+        dst.type[i + vec64_len(type) / 2] = map(op(s2.type[j], s2.type[j + 1])); \
+    })
+
+GEN_HELPER_PACKED_HORIZONTAL_OP(phaddh,  sh, add, ident)
+GEN_HELPER_PACKED_HORIZONTAL_OP(phaddw,  sw, add, ident)
+GEN_HELPER_PACKED_HORIZONTAL_OP(phaddsh, sh, add, satsh)
+GEN_HELPER_PACKED_HORIZONTAL_OP(phsubh,  sh, sub, ident)
+GEN_HELPER_PACKED_HORIZONTAL_OP(phsubw,  sw, sub, ident)
+GEN_HELPER_PACKED_HORIZONTAL_OP(phsubsh, sh, sub, satsh)
 
 #define GEN_HELPER_PACKED_SCALAR_BINOP(name, type, op) \
     GEN_HELPER_PACKED_SCALAR(name, type, { \
