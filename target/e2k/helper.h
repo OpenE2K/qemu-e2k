@@ -95,6 +95,11 @@ DEF_HELPER_2(pmullh, i64, i64, i64)
 DEF_HELPER_2(pmulhuh, i64, i64, i64)
 DEF_HELPER_2(pmulubhh, i64, i64, i64)
 
+/* Packed Sign Mul */
+DEF_HELPER_2(psignb, i64, i64, i64)
+DEF_HELPER_2(psignh, i64, i64, i64)
+DEF_HELPER_2(psignw, i64, i64, i64)
+
 /* Packed Move Mask */
 DEF_HELPER_2(pmovmskb, i64, i64, i64)
 DEF_HELPER_2(pmovmskps, i64, i64, i64)
