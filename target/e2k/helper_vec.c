@@ -319,3 +319,23 @@ uint64_t HELPER(pshufw)(uint64_t src1, uint64_t src2, uint32_t imm8)
     }
     return dst.ud[0];
 }
+
+uint64_t HELPER(phminposuh)(uint64_t src1, uint64_t src2)
+{
+    int i;
+    vec64 s1 = { .ud[0] = src1 }, s2 = { .ud[0] = src2 }, dst = { .ud[0] = 0 };
+    dst.uh[0] = s1.uh[0];
+    for (i = 0; i < 4; i++) {
+        if (s1.uh[i] < dst.uh[0]) {
+            dst.uh[0] = s1.uh[i];
+            dst.uh[1] = i;
+        }
+    }
+    for (i = 0; i < 4; i++) {
+        if (s2.uh[i] < dst.uh[0]) {
+            dst.uh[0] = s2.uh[i];
+            dst.uh[1] = 4 + i;
+        }
+    }
+    return dst.ud[0];
+}
