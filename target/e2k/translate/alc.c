@@ -1910,6 +1910,14 @@ static inline void gen_pextrh(TCGv_i64 ret, TCGv_i64 src1,
     }
 }
 
+static inline void gen_pshufw(TCGv_i64 ret, TCGv_i64 src1,
+    TCGv_i64 src2, int i)
+{
+    TCGv_i32 imm8 = tcg_const_i32(i);
+    gen_helper_pshufw(ret, src1, src2, imm8);
+    tcg_temp_free_i32(imm8);
+}
+
 static void gen_aad_tag(TCGv_i64 ret, TCGv_i32 tag)
 {
     TCGv_i32 t0 = tcg_temp_new_i32();
@@ -3101,6 +3109,7 @@ static void gen_op(DisasContext *ctx, Instr *instr)
     case OP_PSRLQH: gen_alopf11_dddi(instr, gen_psrlqh); break;
     case OP_PINSH: gen_alopf11_dddi(instr, gen_pinsh); break;
     case OP_PEXTRH: gen_alopf11_dddi(instr, gen_pextrh); break;
+    case OP_PSHUFW: gen_alopf11_dddi(instr, gen_pshufw); break;
     case OP_GETTAGS: gen_gettag_i32(instr); break;
     case OP_GETTAGD: gen_gettag_i64(instr); break;
     case OP_PUTTAGS: gen_puttag_i32(instr); break;
@@ -3311,7 +3320,6 @@ static void gen_op(DisasContext *ctx, Instr *instr)
     case OP_PFCMPNLTD:
     case OP_PFCMPNLED:
     case OP_PFCMPODD:
-    case OP_PSHUFW:
     case OP_PUNPCKHBH:
     case OP_PUNPCKHHW:
     case OP_PUNPCKHWD:
@@ -4275,7 +4283,7 @@ static void gen_pfcmb1(DisasContext *ctx, Instr *instr)
     case 0x4d:
         if (is_chan_0134(instr->chan) && ctx->version >= 2) {
             /* pshufb */
-            gen_alopf21_i64(ctx, instr, gen_helper_packed_shuffle_i64);
+            gen_alopf21_i64(ctx, instr, gen_helper_pshufb);
             return;
         }
         break;
