@@ -174,6 +174,19 @@ GEN_HELPER_PACKED(packsshb, sh, PACK(sb, sh, satsb))
 GEN_HELPER_PACKED(packushb, uh, PACK(ub, sh, satub))
 GEN_HELPER_PACKED(packsswh, sw, PACK(sh, sw, satsh))
 
+#define GEN_HELPER_PACKED_UNPACK(name, type, offset) \
+    GEN_HELPER_PACKED(name, type, { \
+        int j = offset + i / 2; \
+        dst.type[i] = i & 1 ? s1.type[j] : s2.type[j]; \
+    })
+
+GEN_HELPER_PACKED_UNPACK(punpcklbh, ub, 0)
+GEN_HELPER_PACKED_UNPACK(punpcklhw, uh, 0)
+GEN_HELPER_PACKED_UNPACK(punpcklwd, uw, 0)
+GEN_HELPER_PACKED_UNPACK(punpckhbh, ub, 4)
+GEN_HELPER_PACKED_UNPACK(punpckhhw, uh, 2)
+GEN_HELPER_PACKED_UNPACK(punpckhwd, uw, 1)
+
 uint64_t HELPER(pshufb)(uint64_t src1, uint64_t src2, uint64_t src3)
 {
     vec64 ret, s1, s2, s3;

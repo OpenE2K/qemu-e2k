@@ -3110,16 +3110,22 @@ static void gen_op(DisasContext *ctx, Instr *instr)
     case OP_PINSH: gen_alopf11_dddi(instr, gen_pinsh); break;
     case OP_PEXTRH: gen_alopf11_dddi(instr, gen_pextrh); break;
     case OP_PSHUFW: gen_alopf11_dddi(instr, gen_pshufw); break;
-    case OP_GETTAGS: gen_gettag_i32(instr); break;
-    case OP_GETTAGD: gen_gettag_i64(instr); break;
-    case OP_PUTTAGS: gen_puttag_i32(instr); break;
-    case OP_PUTTAGD: gen_puttag_i64(instr); break;
     case OP_PMOVMSKB: gen_alopf1_ddd(instr, gen_helper_pmovmskb); break;
     case OP_PMOVMSKPS: gen_alopf1_ddd(instr, gen_helper_pmovmskps); break;
     case OP_PMOVMSKPD: gen_alopf1_ddd(instr, gen_helper_pmovmskpd); break;
     case OP_PACKSSHB: gen_alopf1_ddd(instr, gen_helper_packsshb); break;
     case OP_PACKUSHB: gen_alopf1_ddd(instr, gen_helper_packushb); break;
     case OP_PACKSSWH: gen_alopf1_ddd(instr, gen_helper_packsswh); break;
+    case OP_PUNPCKLBH: gen_alopf1_ddd(instr, gen_helper_punpcklbh); break;
+    case OP_PUNPCKLHW: gen_alopf1_ddd(instr, gen_helper_punpcklhw); break;
+    case OP_PUNPCKLWD: gen_alopf1_ddd(instr, gen_helper_punpcklwd); break;
+    case OP_PUNPCKHBH: gen_alopf1_ddd(instr, gen_helper_punpckhbh); break;
+    case OP_PUNPCKHHW: gen_alopf1_ddd(instr, gen_helper_punpckhhw); break;
+    case OP_PUNPCKHWD: gen_alopf1_ddd(instr, gen_helper_punpckhwd); break;
+    case OP_GETTAGS: gen_gettag_i32(instr); break;
+    case OP_GETTAGD: gen_gettag_i64(instr); break;
+    case OP_PUTTAGS: gen_puttag_i32(instr); break;
+    case OP_PUTTAGD: gen_puttag_i64(instr); break;
     case OP_STAAB: gen_staa_i32(instr, MO_8); break;
     case OP_STAAH: gen_staa_i32(instr, MO_16); break;
     case OP_STAAW: gen_staa_i32(instr, MO_32); break;
@@ -3320,12 +3326,6 @@ static void gen_op(DisasContext *ctx, Instr *instr)
     case OP_PFCMPNLTD:
     case OP_PFCMPNLED:
     case OP_PFCMPODD:
-    case OP_PUNPCKHBH:
-    case OP_PUNPCKHHW:
-    case OP_PUNPCKHWD:
-    case OP_PUNPCKLBH:
-    case OP_PUNPCKLHW:
-    case OP_PUNPCKLWD:
     case OP_LDGDB:
     case OP_LDGDH:
     case OP_LDGDW:
