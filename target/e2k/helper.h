@@ -94,6 +94,7 @@ DEF_HELPER_2(pmulhh, i64, i64, i64)
 DEF_HELPER_2(pmullh, i64, i64, i64)
 DEF_HELPER_2(pmulhuh, i64, i64, i64)
 DEF_HELPER_2(pmulubhh, i64, i64, i64)
+DEF_HELPER_2(pmulhrsh, i64, i64, i64)
 
 /* Packed Sign Mul */
 DEF_HELPER_2(psignb, i64, i64, i64)

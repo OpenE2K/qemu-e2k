@@ -39,6 +39,7 @@ typedef union {
 
 #define ident(x) x
 #define shr16(x) ((x) >> 16)
+#define shr14_add1_shr1(x) ((((x) >> 14) + 1) >> 1)
 #define and16(x) ((x) & 0xffff)
 #define satsb(x) MIN(MAX(x,   -128),   127)
 #define satsh(x) MIN(MAX(x, -32768), 32767)
@@ -183,6 +184,7 @@ GEN_HELPER_PACKED(pavgush, uh, { dst.uh[i] = (s1.uh[i] + s2.uh[i] + 1) >> 1; })
 GEN_HELPER_PACKED_MULH(pmulhh,   sh,  int32_t, shr16)
 GEN_HELPER_PACKED_MULH(pmullh,   sh,  int32_t, and16)
 GEN_HELPER_PACKED_MULH(pmulhuh,  uh, uint32_t, shr16)
+GEN_HELPER_PACKED_MULH(pmulhrsh, sh,  int32_t, shr14_add1_shr1)
 
 GEN_HELPER_PACKED(pmulubhh, uh, { \
     dst.uh[i] = (((int16_t) s1.ub[i] * s2.sh[i]) + s1.ub[i]) >> 8; \
