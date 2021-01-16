@@ -63,6 +63,10 @@ typedef union {
     }
 #define GEN_HELPER_PACKED(name, type, code) \
     GEN_HELPER_PACKED_N(name, vec64_len(type), code)
+#define GEN_HELPER_PACKED_OP(name, type, op) \
+    GEN_HELPER_PACKED_N(name, vec64_len(type), { \
+        dst.type[i] = op(s1.type[i], s2.type[i]); \
+    })
 #define GEN_HELPER_PACKED_SCALAR(name, type, code) \
     uint64_t HELPER(name)(uint64_t src1, uint64_t s2) \
     { \
@@ -183,6 +187,12 @@ GEN_HELPER_PACKED_MULH(pmulhuh,  uh, uint32_t, shr16)
 GEN_HELPER_PACKED(pmulubhh, uh, { \
     dst.uh[i] = (((int16_t) s1.ub[i] * s2.sh[i]) + s1.ub[i]) >> 8; \
 })
+
+#define mul_sign(a, b) ((b) < 0 ? -(a) : ((b) > 0 ? (a) : 0))
+
+GEN_HELPER_PACKED_OP(psignb, sb, mul_sign)
+GEN_HELPER_PACKED_OP(psignh, sh, mul_sign)
+GEN_HELPER_PACKED_OP(psignw, sw, mul_sign)
 
 #define MOVMASK(mask_type, type) { \
     dst.mask_type[0] |= (s1.type[i] < 0) << (i + glue(vec64_, type)); \
