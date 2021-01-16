@@ -26,7 +26,6 @@ DEF_HELPER_2(probe_read_access, int, env, tl)
 DEF_HELPER_2(probe_write_access, int, env, tl)
 DEF_HELPER_3(packed_shuffle_i64, i64, i64, i64, i64)
 
-DEF_HELPER_2(pmovmskb, i64, i64, i64)
 DEF_HELPER_1(aau_load_program, void, env)
 DEF_HELPER_3(mova_ptr, tl, env, int, int)
 DEF_HELPER_3(aau_am, void, env, int, int)
@@ -85,6 +84,11 @@ DEF_HELPER_2(pmaddubsh, i64, i64, i64)
 DEF_HELPER_2(pmulhh, i64, i64, i64)
 DEF_HELPER_2(pmullh, i64, i64, i64)
 DEF_HELPER_2(pmulhuh, i64, i64, i64)
+
+/* Packed Move Mask */
+DEF_HELPER_2(pmovmskb, i64, i64, i64)
+DEF_HELPER_2(pmovmskps, i64, i64, i64)
+DEF_HELPER_2(pmovmskpd, i64, i64, i64)
 
 /* Packed uncategorized */
 DEF_HELPER_2(psadbw, i64, i64, i64)
