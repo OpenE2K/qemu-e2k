@@ -92,8 +92,9 @@ DEF_HELPER_2(pmovmskpd, i64, i64, i64)
 
 /* Packed packs */
 DEF_HELPER_2(packsshb, i64, i64, i64)
-DEF_HELPER_2(packsswh, i64, i64, i64)
 DEF_HELPER_2(packushb, i64, i64, i64)
+DEF_HELPER_2(packsswh, i64, i64, i64)
+DEF_HELPER_2(packuswh, i64, i64, i64)
 
 /* Packed unpacks */
 DEF_HELPER_2(punpcklbh, i64, i64, i64)
