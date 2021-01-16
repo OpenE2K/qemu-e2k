@@ -190,6 +190,13 @@ GEN_HELPER_PACKED(pmulubhh, uh, { \
     dst.uh[i] = (((int16_t) s1.ub[i] * s2.sh[i]) + s1.ub[i]) >> 8; \
 })
 
+GEN_HELPER_PACKED(mpsadbh, uh, { \
+    dst.uh[i] = abs((int16_t) s1.ub[i    ] - s2.ub[0]) \
+              + abs((int16_t) s1.ub[i + 1] - s2.ub[1]) \
+              + abs((int16_t) s1.ub[i + 2] - s2.ub[2]) \
+              + abs((int16_t) s1.ub[i + 3] - s2.ub[3]); \
+})
+
 #define mul_sign(a, b) ((b) < 0 ? -(a) : ((b) > 0 ? (a) : 0))
 
 GEN_HELPER_PACKED_OP(psignb, sb, mul_sign)
