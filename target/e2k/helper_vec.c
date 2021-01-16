@@ -36,6 +36,8 @@ typedef union {
 } vec64;
 
 #define ident(x) x
+#define shr16(x) ((x) >> 16)
+#define and16(x) ((x) & 0xffff)
 #define satsb(x) MIN(MAX(x,   -128),   127)
 #define satsh(x) MIN(MAX(x, -32768), 32767)
 #define satub(x) MIN(MAX(x,      0),   255)
@@ -146,14 +148,17 @@ GEN_HELPER_PACKED(psadbw, ub, { dst.uw[0] += s1.ub[i] - s2.ub[i]; })
 GEN_HELPER_PACKED(pavgusb, ub, { dst.ub[i] = (s1.ub[i] + s2.ub[i] + 1) >> 1; })
 GEN_HELPER_PACKED(pavgush, uh, { dst.uh[i] = (s1.uh[i] + s2.uh[i] + 1) >> 1; })
 
-GEN_HELPER_PACKED(pmulhh, sh, { \
-    dst.sh[i] = ((int32_t) s1.sh[i] * s2.sh[i]) >> 16; \
-})
-GEN_HELPER_PACKED(pmullh, sh, { \
-    dst.sh[i] = ((int32_t) s1.sh[i] * s2.sh[i]) & 0xffff; \
-})
-GEN_HELPER_PACKED(pmulhuh, uh, { \
-    dst.uh[i] = ((uint32_t) s1.uh[i] * s2.uh[i]) >> 16; \
+#define GEN_HELPER_PACKED_MULH(name, type, cast, map) \
+    GEN_HELPER_PACKED(name, type, { \
+        dst.type[i] = map(((cast) s1.type[i]) * s2.type[i]); \
+    })
+
+GEN_HELPER_PACKED_MULH(pmulhh,   sh,  int32_t, shr16)
+GEN_HELPER_PACKED_MULH(pmullh,   sh,  int32_t, and16)
+GEN_HELPER_PACKED_MULH(pmulhuh,  uh, uint32_t, shr16)
+
+GEN_HELPER_PACKED(pmulubhh, uh, { \
+    dst.uh[i] = (((int16_t) s1.ub[i] * s2.sh[i]) + s1.ub[i]) >> 8; \
 })
 
 #define MOVMASK(mask_type, type) { \
