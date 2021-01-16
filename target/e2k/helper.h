@@ -55,6 +55,16 @@ DEF_HELPER_2(pcmpgth, i64, i64, i64)
 DEF_HELPER_2(pcmpgtw, i64, i64, i64)
 DEF_HELPER_2(pcmpgtd, i64, i64, i64)
 
+/* Pached Horizontal Add */
+DEF_HELPER_2(phaddh, i64, i64, i64)
+DEF_HELPER_2(phaddw, i64, i64, i64)
+DEF_HELPER_2(phaddsh, i64, i64, i64)
+
+/* Packed Horizontal Sub */
+DEF_HELPER_2(phsubh, i64, i64, i64)
+DEF_HELPER_2(phsubw, i64, i64, i64)
+DEF_HELPER_2(phsubsh, i64, i64, i64)
+
 /* Packed Add using saturation */
 DEF_HELPER_2(paddsb, i64, i64, i64)
 DEF_HELPER_2(paddsh, i64, i64, i64)
