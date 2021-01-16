@@ -233,3 +233,12 @@ GEN_HELPER_PACKED(pmulhuh, uh, { \
 GEN_HELPER_PACKED(pmovmskb, sb, MOVMASK(uh, sb))
 GEN_HELPER_PACKED(pmovmskps, sw, MOVMASK(ub, sw))
 GEN_HELPER_PACKED(pmovmskpd, sd, MOVMASK(ub, sd))
+
+#define PACK(dst_type, type, op) { \
+    dst.dst_type[i + glue(vec64_, type)] = op(s1.type[i]); \
+    dst.dst_type[i                     ] = op(s2.type[i]); \
+}
+
+GEN_HELPER_PACKED(packsshb, sh, PACK(sb, sh, satsb))
+GEN_HELPER_PACKED(packushb, uh, PACK(ub, sh, satub))
+GEN_HELPER_PACKED(packsswh, sw, PACK(sh, sw, satsh))
