@@ -178,6 +178,7 @@ GEN_HELPER_PACKED(pmovmskpd, sd, MOVMASK(ub, sd))
 GEN_HELPER_PACKED(packsshb, sh, PACK(sb, sh, satsb))
 GEN_HELPER_PACKED(packushb, uh, PACK(ub, sh, satub))
 GEN_HELPER_PACKED(packsswh, sw, PACK(sh, sw, satsh))
+GEN_HELPER_PACKED(packuswh, sw, PACK(uh, sw, satuh))
 
 #define GEN_HELPER_PACKED_UNPACK(name, type, offset) \
     GEN_HELPER_PACKED(name, type, { \
