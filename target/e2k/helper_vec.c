@@ -225,23 +225,11 @@ GEN_HELPER_PACKED(pmulhuh, uh, { \
     dst.uh[i] = ((uint32_t) s1.uh[i] * s2.uh[i]) >> 16; \
 })
 
-uint64_t HELPER(pmovmskb)(uint64_t src1, uint64_t src2)
-{
-    int i;
-    vec64 s1, s2;
-    uint16_t ret = 0;
-
-    s1.ud[0] = src1;
-    s2.ud[0] = src2;
-
-    for (i = 0; i < 8; i++) {
-        if (s1.sb[i] < 0) {
-            ret |= 1 << (i + 8);
-        }
-        if (s2.sb[i] < 0) {
-            ret |= 1 << i;
-        }
-    }
-
-    return ret;
+#define MOVMASK(mask_type, type) { \
+    dst.mask_type[0] |= (s1.type[i] < 0) << (i + glue(vec64_, type)); \
+    dst.mask_type[0] |= (s2.type[i] < 0) << (i                     ); \
 }
+
+GEN_HELPER_PACKED(pmovmskb, sb, MOVMASK(uh, sb))
+GEN_HELPER_PACKED(pmovmskps, sw, MOVMASK(ub, sw))
+GEN_HELPER_PACKED(pmovmskpd, sd, MOVMASK(ub, sd))
