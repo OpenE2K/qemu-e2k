@@ -250,6 +250,7 @@ typedef enum {
     E2K_EXCP_ILLOPC = 0x03,
     E2K_EXCP_ILLOPN = 0x04,
     E2K_EXCP_MAPERR = 0x05,
+    E2K_EXCP_DIV = 0x06,
 } Exception;
 
 struct e2k_def_t {

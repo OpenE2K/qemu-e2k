@@ -67,16 +67,11 @@ void cpu_loop(CPUE2KState *env)
             break;
         }
         case E2K_EXCP_ILLOPC:
-            info.si_signo = TARGET_SIGILL;
-            info.si_errno = 0;
-            info.si_code = TARGET_ILL_ILLOPC;
-            info._sifields._sigfault._addr = env->ip;
-            queue_signal(env, info.si_signo, QEMU_SI_FAULT, &info);
-            break;
         case E2K_EXCP_ILLOPN:
             info.si_signo = TARGET_SIGILL;
             info.si_errno = 0;
-            info.si_code = TARGET_ILL_ILLOPN;
+            info.si_code = trapnr == E2K_EXCP_ILLOPC ?
+                TARGET_ILL_ILLOPC : TARGET_ILL_ILLOPN;
             info._sifields._sigfault._addr = env->ip;
             queue_signal(env, info.si_signo, QEMU_SI_FAULT, &info);
             break;
@@ -84,6 +79,13 @@ void cpu_loop(CPUE2KState *env)
             info.si_signo = TARGET_SIGSEGV;
             info.si_errno = 0;
             info.si_code = TARGET_SEGV_MAPERR;
+            info._sifields._sigfault._addr = env->ip;
+            queue_signal(env, info.si_signo, QEMU_SI_FAULT, &info);
+            break;
+        case E2K_EXCP_DIV:
+            info.si_signo = TARGET_SIGFPE;
+            info.si_errno = 0;
+            info.si_code = 0;
             info._sifields._sigfault._addr = env->ip;
             queue_signal(env, info.si_signo, QEMU_SI_FAULT, &info);
             break;
