@@ -90,6 +90,11 @@ DEF_HELPER_2(pmovmskb, i64, i64, i64)
 DEF_HELPER_2(pmovmskps, i64, i64, i64)
 DEF_HELPER_2(pmovmskpd, i64, i64, i64)
 
+/* Packed packs */
+DEF_HELPER_2(packsshb, i64, i64, i64)
+DEF_HELPER_2(packsswh, i64, i64, i64)
+DEF_HELPER_2(packushb, i64, i64, i64)
+
 /* Packed uncategorized */
 DEF_HELPER_2(psadbw, i64, i64, i64)
 DEF_HELPER_2(pavgusb, i64, i64, i64)
