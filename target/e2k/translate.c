@@ -47,12 +47,12 @@ static size_t unpack_bundle(CPUE2KState *env, DisasContext *ctx)
     }
 
     if (GET_BIT(hs, 25)) {
-        bundle->ales_present[5] = ALES_ALLOCATED;
+        bundle->ales_present[5] = ALES_PRESENT;
         bundle->ales[5] = 0x01c0;
     }
 
     if (GET_BIT(hs, 22)) {
-        bundle->ales_present[2] = ALES_ALLOCATED;
+        bundle->ales_present[2] = ALES_PRESENT;
         bundle->ales[2] = 0x01c0;
     }
 
@@ -76,8 +76,8 @@ static size_t unpack_bundle(CPUE2KState *env, DisasContext *ctx)
 
         /* Adjust `ALES_PRESENT[{5,2}]' as proposed above now that we know that
            they are allocated.  */
-        bundle->ales_present[5] |= ALES_PRESENT;
-        bundle->ales_present[2] |= ALES_PRESENT;
+        bundle->ales_present[5] |= ALES_ALLOCATED;
+        bundle->ales_present[2] |= ALES_ALLOCATED;
 
         pos += 4;
     }
