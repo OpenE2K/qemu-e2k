@@ -27,6 +27,7 @@ typedef struct {
 typedef struct {
     DisasContext *ctx;
     int chan;
+    int aaincr_len;
     union {
         uint32_t als;
         struct {
@@ -2127,21 +2128,35 @@ static void gen_aaurw_rest_i32(Instr* instr, TCGv_i32 arg1, TCGv_i32 tag)
     tcg_temp_free_i32(t0);
 }
 
-static void gen_aasti_incr(DisasContext *ctx, Instr *instr, int size)
+static void gen_aasti_incr(DisasContext *ctx, Instr *instr)
 {
     uint16_t rlp = find_am_cond(ctx, instr->chan);
     TCGLabel *l0 = gen_new_label();
     TCGv_i32 t0 = tcg_temp_new_i32();
 
+    if (ctx->loop_mode) {
+        TCGLabel *l1 = gen_new_label();
+        TCGv_i32 t0 = tcg_temp_local_new_i32();
+
+        tcg_gen_brcondi_i32(TCG_COND_EQ, ctx->is_prologue, 1, l0);
+        e2k_gen_is_loop_end_i32(t0);
+        tcg_gen_brcondi_i32(TCG_COND_EQ, t0, 0, l1);
+        e2k_gen_lsr_strem_i32(t0);
+        tcg_gen_brcondi_i32(TCG_COND_EQ, t0, 0, l0);
+        gen_set_label(l1);
+    }
+
     if (rlp != 0) {
+        // FIXME: need to test AM RLP
         TCGv_i32 t1 = tcg_temp_new_i32();
 
+        e2k_todo(ctx, "AM RLP found");
         gen_am_cond_i32(ctx, t1, instr->chan, rlp);
         tcg_gen_brcondi_i32(TCG_COND_EQ, t1, 0, l0);
         tcg_temp_free_i32(t1);
     }
 
-    tcg_gen_muli_i32(t0, e2k_cs.aaincr[instr->aaincr], size);
+    tcg_gen_muli_i32(t0, e2k_cs.aaincr[instr->aaincr], instr->aaincr_len);
     tcg_gen_add_i32(e2k_cs.aasti[instr->aaind], e2k_cs.aasti[instr->aaind], t0);
     gen_set_label(l0);
 
@@ -2228,7 +2243,8 @@ static void gen_staa_i64(Instr *instr)
         tcg_temp_free(t0);
 
         if (instr->aaopc & 1) {
-            gen_aasti_incr(ctx, instr, 8);
+            /* incr must be executed outside of the staa predicate condition */
+            instr->aaincr_len = 8;
         }
     }
 
@@ -2296,7 +2312,8 @@ static void gen_staa_i32(Instr *instr, MemOp memop)
         }
 
         if (instr->aaopc & 1) {
-            gen_aasti_incr(ctx, instr, len);
+            /* incr must be executed outside of the staa predicate condition */
+            instr->aaincr_len = len;
         }
     }
 
@@ -4524,6 +4541,7 @@ static void chan_execute(DisasContext *ctx, int chan)
     TCGLabel *l0 = gen_new_label();
     Instr instr = { 0 };
 
+    instr.aaincr = 0;
     instr.ctx = ctx;
     instr.chan = chan;
     instr.als = ctx->bundle.als[chan];
@@ -4549,6 +4567,10 @@ static void chan_execute(DisasContext *ctx, int chan)
     }
 
     gen_set_label(l0);
+
+    if (instr.aaincr_len != 0) {
+        gen_aasti_incr(ctx, &instr);
+    }
 }
 
 void e2k_alc_execute(DisasContext *ctx)
