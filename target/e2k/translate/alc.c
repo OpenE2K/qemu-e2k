@@ -6,7 +6,7 @@
 
 #include "alops.inc"
 
-static int16_t alops_map[4][128][6] = { { { -1 } } };
+static int16_t alops_map[4][128][6];
 
 typedef struct {
     TCGv_i32 tag;
@@ -27,6 +27,7 @@ typedef struct {
 typedef struct {
     DisasContext *ctx;
     int chan;
+    AlesFlag ales_present;
     int aaincr_len;
     union {
         uint32_t als;
@@ -2937,7 +2938,9 @@ static inline void gen_alopf2_dx(Instr *instr,
 
 static Alop find_op(Instr *instr)
 {
-    int16_t index = alops_map[instr->opc2][instr->opc1][instr->chan];
+    /* ALES2/5 may be allocated but must not be used */
+    int opc2 = instr->ales_present & ALES_PRESENT ? instr->opc2 : 0;
+    int16_t index = alops_map[opc2][instr->opc1][instr->chan];
     while (index != -1) {
         bool is_match = false;
         AlopDesc *desc = &alops[index];
@@ -4546,6 +4549,7 @@ static void chan_execute(DisasContext *ctx, int chan)
     instr.chan = chan;
     instr.als = ctx->bundle.als[chan];
     instr.ales = ctx->bundle.ales[chan];
+    instr.ales_present = ctx->bundle.ales_present[chan];
 
     chan_check_preds(ctx, chan, l0);
 
@@ -4757,6 +4761,7 @@ void e2k_alc_init(DisasContext *ctx)
 {
     int i, j;
 
+    memset(alops_map, -1, sizeof(alops_map));
     // TODO: symmetric alops table
     /* Most alops are symmetric and can be stored in a half table. */
     for (i = 0; i < ARRAY_SIZE(alops); i++) {
