@@ -603,7 +603,7 @@ static inline bool is_mrgc(uint16_t rlp, int chan)
 {
     int is_mrgc = GET_BIT(rlp, 15);
     int cluster = GET_BIT(rlp, 14);
-    int alc_mask = GET_FIELD(rlp, 10, 3);
+    int alc_mask = extract32(rlp, 10, 3);
     int alc = GET_BIT(alc_mask, chan % 3);
 
     return is_mrgc && (cluster == (chan > 2)) && (alc != 0);

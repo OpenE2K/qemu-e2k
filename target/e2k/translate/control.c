@@ -236,7 +236,7 @@ static void gen_cs0(DisasContext *dc)
         if (type == GETTSD && param_type != 1) {
             e2k_tr_gen_exception(dc, E2K_EXCP_ILLOPC);
         }
-        int ipd = bundle->ss_present ? GET_FIELD(bundle->ss, 30, 2) : 3;
+        int ipd = bundle->ss_present ? extract32(bundle->ss, 30, 2) : 3;
         if (type == DISP || type == LDISP) {
             int32_t sdisp = sextract32(cs0, 0, 28) << 3;
             uint64_t reg = (dc->pc + sdisp) |
@@ -247,7 +247,7 @@ static void gen_cs0(DisasContext *dc)
             }
             tcg_gen_movi_tl(e2k_cs.ctprs[ctpr - 1], reg);
         } else if (type == SDISP) {
-            unsigned int disp = GET_FIELD(cs0, 0, 28) << 11;
+            unsigned int disp = extract32(cs0, 0, 28) << 11;
             target_ulong base = ((uint64_t) 0xe2 << 40) | disp;
             uint64_t reg = (dc->pc + base) |
                 ((uint64_t) CTPR_TAG_SDISP << CTPR_TAG_OFF) |
@@ -374,7 +374,7 @@ static void gen_cs1(DisasContext *dc)
         unsigned int ctop = (bundle->ss & 0x00000c00) >> 10;
         if (ctop) {
             dc->ct.type = CT_CALL;
-            dc->ct.wbs = GET_FIELD(cs1, 0, 7);
+            dc->ct.wbs = extract32(cs1, 0, 7);
         } else {
             unsigned int cs1_ctopc = (cs1 & 0x380) >> 7;
             /* CS1.param.ctpopc == HCALL. CS0 is required to encode HCALL.  */
@@ -622,9 +622,9 @@ void e2k_control_window_change(DisasContext *dc)
         }
 
         if (setbn) {
-            int rbs = GET_FIELD(cs1, BR_RBS_OFF, BR_RBS_LEN);
-            int rsz = GET_FIELD(cs1, BR_RSZ_OFF, BR_RSZ_LEN);
-            int rcur = GET_FIELD(cs1, BR_RCUR_OFF, BR_RCUR_LEN);
+            int rbs = extract32(cs1, BR_RBS_OFF, BR_RBS_LEN);
+            int rsz = extract32(cs1, BR_RSZ_OFF, BR_RSZ_LEN);
+            int rcur = extract32(cs1, BR_RCUR_OFF, BR_RCUR_LEN);
 
             tcg_gen_movi_i32(e2k_cs.boff, rbs * 2);
             tcg_gen_movi_i32(e2k_cs.bsize, (rsz + 1) * 2);
@@ -632,7 +632,7 @@ void e2k_control_window_change(DisasContext *dc)
         }
 
         if (setbp) {
-            int psz = GET_FIELD(cs1, BR_PSZ_OFF, BR_PSZ_LEN);
+            int psz = extract32(cs1, BR_PSZ_OFF, BR_PSZ_LEN);
 
             tcg_gen_movi_i32(e2k_cs.psize, psz);
             tcg_gen_movi_i32(e2k_cs.pcur, 0);

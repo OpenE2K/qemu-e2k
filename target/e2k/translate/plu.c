@@ -5,7 +5,7 @@
 
 static void gen_get_lp(TCGv_i32 ret, uint16_t clp, int offset, TCGv_i32 lp[7])
 {
-    int p = GET_FIELD(clp, offset, 3);
+    int p = extract32(clp, offset, 3);
     int neg = GET_BIT(clp, offset + 3);
 
     tcg_gen_xori_i32(ret, lp[p], neg);
@@ -69,8 +69,8 @@ static inline void scan_needed(const UnpackedBundle *bundle, int need[7])
                 continue;
             }
 
-            p0 = GET_FIELD(bundle->pls[i], 10, 3);
-            p1 = GET_FIELD(bundle->pls[i], 6, 3);
+            p0 = extract32(bundle->pls[i], 10, 3);
+            p1 = extract32(bundle->pls[i], 6, 3);
 
             if (p0 < 7 && need[p0] == 0) {
                 need[p0] = 1;
@@ -117,23 +117,23 @@ void e2k_plu_execute(DisasContext *ctx)
 
         if (i < 2) {
             if (need[i * 2]) {
-                int elp = GET_FIELD(bundle->pls[i], 24, 7);
+                int elp = extract32(bundle->pls[i], 24, 7);
                 e2k_gen_cond_i32(ctx, lp[i * 2], elp);
             }
 
             if (need[i * 2 + 1]) {
-                int elp = GET_FIELD(bundle->pls[i], 16, 7);
+                int elp = extract32(bundle->pls[i], 16, 7);
                 e2k_gen_cond_i32(ctx, lp[i * 2 + 1], elp);
             }
         }
 
         if (need[4 + i]) {
-            uint16_t clp = GET_FIELD(bundle->pls[i], 0, 16);
-            int opc = GET_FIELD(clp, 14, 2);
+            uint16_t clp = extract32(bundle->pls[i], 0, 16);
+            int opc = extract32(clp, 14, 2);
             TCGv_i32 p0 = tcg_temp_new_i32();
             TCGv_i32 p1 = tcg_temp_new_i32();
             int vdst = GET_BIT(clp, 5);
-            int pdst = GET_FIELD(clp, 0, 5);
+            int pdst = extract32(clp, 0, 5);
 
             // TODO: check clp arg
             // {C/M}LP0 0, 1             => 4
