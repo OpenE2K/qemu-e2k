@@ -343,13 +343,6 @@ typedef struct {
 } E2KStackState, E2KPsState, E2KPcsState;
 
 typedef struct {
-    int16_t index;
-    uint16_t fx_index;
-    uint16_t t_index;
-    bool fx;
-} E2KPshtpState;
-
-typedef struct {
     int32_t base;
     uint32_t size;
     uint32_t psize;
@@ -620,7 +613,6 @@ typedef struct {
 
     /* Procedure stack pointer (for regs)  */
     E2KPsState psp;
-    E2KPshtpState pshtp;
 
     E2KWdState wd;
     E2KBnState bn;
@@ -704,8 +696,6 @@ void e2k_update_fp_status(CPUE2KState *env);
 #define cpu_signal_handler e2k_cpu_signal_handler
 #define cpu_list e2k_cpu_list
 
-#define e2k_wrap_reg_index(i) (E2K_NR_COUNT + i) % E2K_NR_COUNT
-
 static inline uint64_t e2k_state_desc_lo(E2KStackState *desc)
 {
     uint64_t lo = 0;
@@ -733,25 +723,11 @@ static inline uint64_t e2k_state_desc_hi(E2KStackState *env)
 #define e2k_state_psp_lo(env) e2k_state_desc_lo(&(env)->psp)
 #define e2k_state_psp_hi(env) e2k_state_desc_hi(&(env)->psp)
 
-static inline uint64_t e2k_state_pshtp(CPUE2KState *env)
-{
-    E2KPshtpState *s = &env->pshtp;
-    uint64_t ret = 0;
-
-    ret = deposit64(ret, PSHTP_IND_OFF, PSHTP_IND_LEN, s->index);
-    ret = deposit64(ret, PSHTP_FXIND_OFF, PSHTP_FXIND_LEN, s->fx_index);
-    ret = deposit64(ret, PSHTP_TIND_OFF, PSHTP_TIND_LEN, s->t_index);
-    ret = deposit64(ret, PSHTP_FX_OFF, 1, s->fx);
-
-    return ret;
-}
-
 static inline uint64_t e2k_state_wd(CPUE2KState *env)
 {
     E2KWdState *wd = &env->wd;
     uint64_t ret = 0;
 
-    ret = deposit64(ret, WD_BASE_OFF, WD_BASE_LEN, wd->base * 8);
     ret = deposit64(ret, WD_SIZE_OFF, WD_SIZE_LEN, wd->size * 8);
     ret = deposit64(ret, WD_PSIZE_OFF, WD_PSIZE_LEN, wd->psize * 8);
     ret = deposit64(ret, WD_FX_OFF, 1, wd->fx);
@@ -761,7 +737,6 @@ static inline uint64_t e2k_state_wd(CPUE2KState *env)
 
 static inline void e2k_state_wd_set(CPUE2KState *env, uint64_t raw)
 {
-    env->wd.base = extract64(raw, WD_BASE_OFF, WD_BASE_LEN) / 8;
     env->wd.size = extract64(raw, WD_SIZE_OFF, WD_SIZE_LEN) / 8;
     env->wd.psize = extract64(raw, WD_PSIZE_OFF, WD_PSIZE_LEN) / 8;
     env->wd.fx = extract64(raw, WD_FX_OFF, 1);

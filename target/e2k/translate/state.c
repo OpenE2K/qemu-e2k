@@ -204,25 +204,12 @@ void e2k_gen_reg_tag_write_i32(TCGv_i32 value, TCGv_i32 idx)
 
 static inline void gen_reg_index_from_wreg(TCGv_i32 ret, TCGv_i32 idx)
 {
-    TCGv_i32 t0 = tcg_temp_local_new_i32();
-    TCGv_i32 t1 = tcg_temp_new_i32();
-    TCGv_i32 t2;
-
-    tcg_gen_mov_i32(t0, idx);
-
-    tcg_gen_add_i32(t1, e2k_cs.wd_base, t0);
-    tcg_temp_free_i32(t0);
-    t2 = tcg_const_i32(E2K_NR_COUNT);
-    tcg_gen_remu_i32(ret, t1, t2);
-    tcg_temp_free_i32(t1);
-    tcg_temp_free_i32(t2);
+    tcg_gen_mov_i32(ret, idx);
 }
 
 void e2k_gen_reg_index_from_wregi(TCGv_i32 ret, int idx)
 {
-    TCGv_i32 t0 = tcg_const_i32(idx);
-    gen_reg_index_from_wreg(ret, t0);
-    tcg_temp_free_i32(t0);
+    tcg_gen_movi_i32(ret, idx);
 }
 
 void e2k_gen_reg_index_from_bregi(TCGv_i32 ret, int idx)
