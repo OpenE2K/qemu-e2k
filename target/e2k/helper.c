@@ -59,8 +59,6 @@ static inline uint64_t ps_pop(CPUE2KState *env, uint8_t *ret_tag)
 
 static void proc_chain_save(CPUE2KState *env, int wd_base, target_ulong ret_ip)
 {
-    env->pshtp.index += wd_base;
-
     pcs_push(env, env->crs.cr0_lo);
     pcs_push(env, env->crs.cr0_hi);
     pcs_push(env, env->crs.cr1.lo);
@@ -76,7 +74,6 @@ static void proc_chain_save(CPUE2KState *env, int wd_base, target_ulong ret_ip)
     env->crs.cr1.ussz = env->usd.size >> 4;
 
     env->wd.fx = true;
-    env->wd.base = e2k_wrap_reg_index(env->wd.base + wd_base);
     env->wd.size -= wd_base;
     env->wd.psize = env->wd.size;
 }
@@ -91,7 +88,6 @@ static void proc_chain_restore(CPUE2KState *env)
     e2k_state_br_set(env, env->crs.cr1.br);
     env->wd.size = env->wd.psize + wd_base;
     env->wd.psize = env->crs.cr1.wpsz * 2;
-    env->wd.base = e2k_wrap_reg_index(env->wd.base - wd_base);
     env->wd.fx = env->crs.cr1.wfx;
     env->wdbl = env->crs.cr1.wdbl;
     env->usd.size = env->crs.cr1.ussz << 4;
@@ -101,72 +97,63 @@ static void proc_chain_restore(CPUE2KState *env)
     env->crs.cr1.lo = pcs_pop(env);
     env->crs.cr0_hi = pcs_pop(env);
     env->crs.cr0_lo = pcs_pop(env);
-
-    env->pshtp.index -= wd_base;
 }
 
-/* Stores pair of registers to stack */
-static inline void ps_spill_round(CPUE2KState *env, bool force_fx)
+static void ps_spill(CPUE2KState *env, int n, bool fx)
 {
-    int i = e2k_wrap_reg_index(env->wd.base - env->pshtp.index);
-    ps_push(env, env->regs[i], env->tags[i]);
-    ps_push(env, env->regs[i + 1], env->tags[i + 1]);
-
-    // TODO: push fx
-    if (force_fx) {
-        ps_push(env, env->xregs[i], 0);
-        ps_push(env, env->xregs[i + 1], 0);
-    }
-
-    env->regs[i] = 0;
-    env->tags[i] = E2K_TAG_NON_NUMBER64;
-    env->regs[i + 1] = 0;
-    env->tags[i + 1] = E2K_TAG_NON_NUMBER64;
-
-    env->pshtp.index -= 2;
-}
-
-/* Stores all windows to stack */
-static void ps_spill_all(CPUE2KState *env, bool force_fx)
-{
-    while (env->wd.size + env->pshtp.index) {
-        ps_spill_round(env, force_fx);
-    }
-}
-
-/* Stores bottom windows to stack */
-static void ps_spill_bottom(CPUE2KState *env, bool force_fx)
-{
-    while (env->pshtp.index > 0) {
-        ps_spill_round(env, force_fx);
-    }
-}
-
-/* Stores registers to stack till be enough space to hold current window */
-static void ps_spill(CPUE2KState *env, bool force_fx)
-{
-    while (E2K_NR_COUNT < env->pshtp.index + env->wd.size) {
-        ps_spill_round(env, force_fx);
-    }
-}
-
-/* Restores current window from stack if needed */
-static void ps_fill(CPUE2KState *env, bool force_fx)
-{
-    while(env->pshtp.index < 0) {
-        env->pshtp.index += 2;
-        int i = e2k_wrap_reg_index(env->wd.base - env->pshtp.index);
-        if (force_fx) {
-            env->xregs[i + 1] = ps_pop(env, NULL);
-            env->xregs[i] = ps_pop(env, NULL);
+    int i;
+    for (i = 0; i < n; i += 2) {
+        ps_push(env, env->regs[i], env->tags[i]);
+        ps_push(env, env->regs[i + 1], env->tags[i + 1]);
+        if (fx) {
+            ps_push(env, env->xregs[i + 0], 0);
+            ps_push(env, env->xregs[i + 1], 0);
         }
-        env->regs[i + 1] = ps_pop(env, &env->tags[i + 1]);
-        env->regs[i] = ps_pop(env, &env->tags[i]);
     }
+}
+
+static void ps_fill(CPUE2KState *env, int n, bool fx)
+{
+    int i;
+    for (i = n; i > 0; i -= 2) {
+        if (fx) {
+            env->xregs[i - 1] = ps_pop(env, NULL);
+            env->xregs[i - 2] = ps_pop(env, NULL);
+        }
+        env->regs[i - 1] = ps_pop(env, &env->tags[i - 1]);
+        env->regs[i - 2] = ps_pop(env, &env->tags[i - 2]);
+    }
+}
+
+static inline void ps_spill_all(CPUE2KState *env)
+{
+    ps_spill(env, env->wd.size, env->wd.fx);
+}
+
+static void move_regs(CPUE2KState *env, int dst, int src, int n)
+{
+    memmove(&env->regs[dst], &env->regs[src], n * sizeof(env->regs[0]));
+    memmove(&env->tags[dst], &env->tags[src], n * sizeof(env->tags[0]));
+    memmove(&env->xregs[dst], &env->xregs[src], n * sizeof(env->xregs[0]));
+}
+
+static void callee_window(CPUE2KState *env, int wbs)
+{
+    int s = wbs * 2;
+    ps_spill(env, s, env->wd.fx);
+    move_regs(env, 0, s, env->wd.size - s);
+}
+
+static void caller_window(CPUE2KState *env)
+{
+    int s = env->crs.cr1.wbs * 2;
+    move_regs(env, s, 0, env->wd.psize);
+    ps_fill(env, s, env->crs.cr1.wfx);
 }
 
 static inline void do_call(CPUE2KState *env, int wbs, target_ulong ret_ip)
 {
+    callee_window(env, wbs);
     proc_chain_save(env, wbs * 2, ret_ip);
     reset_ctprs(env);
 }
@@ -175,7 +162,6 @@ static inline void do_syscall(CPUE2KState *env, int wbs, target_ulong ret_ip)
 {
     CPUState *cs = env_cpu(env);
     do_call(env, wbs, ret_ip);
-    ps_spill_bottom(env, PS_FORCE_FX);
     cs->exception_index = E2K_EXCP_SYSCALL;
     cpu_loop_exit(cs);
 }
@@ -218,8 +204,8 @@ uint64_t HELPER(prep_return)(CPUE2KState *env, int ipd)
 
 void HELPER(return)(CPUE2KState *env)
 {
+    caller_window(env);
     proc_chain_restore(env);
-    ps_fill(env, PS_FORCE_FX);
     reset_ctprs(env);
 }
 
@@ -227,8 +213,8 @@ void HELPER(raise_exception)(CPUE2KState *env, int tt)
 {
     CPUState *cs = env_cpu(env);
     cs->exception_index = tt;
+    ps_spill_all(env);
     proc_chain_save(env, env->wd.size, env->ip);
-    ps_spill_all(env, PS_FORCE_FX);
     cpu_loop_exit(cs);
 }
 
@@ -241,7 +227,7 @@ void HELPER(raise_exception_no_spill)(CPUE2KState *env, int tt)
 
 void HELPER(setwd)(CPUE2KState *env, uint32_t lts)
 {
-    int old_size = env->wd.size, size = extract32(lts, 5, 7) * 2;
+    int i, old_size = env->wd.size, size = extract32(lts, 5, 7) * 2;
 
     if (size < env->wd.psize) {
         helper_raise_exception(env, E2K_EXCP_ILLOPN);
@@ -256,16 +242,8 @@ void HELPER(setwd)(CPUE2KState *env, uint32_t lts)
         env->wdbl = dbl;
     }
 
-    ps_spill(env, PS_FORCE_FX);
-
-    if (old_size < size) {
-        unsigned int i, offset = env->wd.base + old_size;
-
-        for (i = 0; i < size - old_size; i++) {
-            int idx = e2k_wrap_reg_index(offset + i);
-            env->regs[idx] = 0;
-            env->tags[idx] = E2K_TAG_NON_NUMBER64;
-        }
+    for (i = 0; i < size - old_size; i++) {
+        env->tags[old_size + i] = E2K_TAG_NON_NUMBER64;
     }
 }
 
@@ -275,8 +253,8 @@ bool e2k_cpu_tlb_fill(CPUState *cs, vaddr address, int size,
     E2KCPU *cpu = E2K_CPU(cs);
     CPUE2KState *env = &cpu->env;
 
+    ps_spill_all(env);
     proc_chain_save(env, env->wd.size, env->ip);
-    ps_spill_all(env, PS_FORCE_FX);
 
     cs->exception_index = E2K_EXCP_MAPERR;
     cpu_loop_exit_restore(cs, retaddr);
@@ -285,15 +263,15 @@ bool e2k_cpu_tlb_fill(CPUState *cs, vaddr address, int size,
 void e2k_break_save_state(CPUE2KState *env)
 {
     env->is_bp = true;
+    ps_spill_all(env);
     proc_chain_save(env, env->wd.size, env->ip);
-    ps_spill_all(env, PS_FORCE_FX);
 }
 
 void HELPER(break_restore_state)(CPUE2KState *env)
 {
-    env->is_bp = false;
     proc_chain_restore(env);
-    ps_fill(env, true);
+    ps_fill(env, env->wd.size, env->wd.fx);
+    env->is_bp = false;
 }
 
 void HELPER(debug)(CPUE2KState *env)

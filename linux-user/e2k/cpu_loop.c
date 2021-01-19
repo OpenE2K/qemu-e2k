@@ -43,7 +43,7 @@ void cpu_loop(CPUE2KState *env)
             int i;
 
             for (i = 0; i < psize; i++) {
-                args[i] = env->regs[e2k_wrap_reg_index(env->wd.base + i)];
+                args[i] = env->regs[i];
             }
 
             abi_ulong ret = do_syscall(env, args[0], args[1], args[2], args[3],
@@ -53,13 +53,11 @@ void cpu_loop(CPUE2KState *env)
                 /* TODO: restart syscall */
                 abort();
             } else if (env->wd.psize > 0 && ret != -TARGET_QEMU_ESIGRETURN) {
-                env->regs[env->wd.base] = ret;
-                env->tags[env->wd.base] = 0;
+                env->regs[0] = ret;
+                env->tags[0] = E2K_TAG_NUMBER64;
 
                 for (i = 1; i < env->wd.psize; i++) {
-                    int index = e2k_wrap_reg_index(env->wd.base + i);
-                    env->regs[index] = 0;
-                    env->tags[index] = E2K_TAG_NON_NUMBER64;
+                    env->tags[i] = E2K_TAG_NON_NUMBER64;
                 }
             }
             // FIXME: Can call helpers from here?

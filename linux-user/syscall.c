@@ -6894,9 +6894,8 @@ static abi_long do_e2k_longjmp2(CPUE2KState *env, struct target_jmp_info *jmp_in
 
     level = (env->pcsp.index - jmp_pcsp.index) / CRS_SIZE;
     for (i = 0; i < level; i++) {
-        // FIXME: nfx
         psize = crs.cr1.wpsz * 2;
-        ps_index -= crs.cr1.wbs * E2K_REG_LEN * 4;
+        ps_index -= crs.cr1.wbs * E2K_REG_LEN * (crs.cr1.wfx ? 4 : 2);
         pcs_index -= CRS_SIZE;
         ret = copy_from_user_crs(&crs, env->pcsp.base + pcs_index);
         if (ret) {
@@ -6910,7 +6909,6 @@ static abi_long do_e2k_longjmp2(CPUE2KState *env, struct target_jmp_info *jmp_in
     env->crs.cr1.ussz = (env->sbr - extract64(jmp_info->usdlo, 0, 48)) >> 4;
     env->pcsp.index = pcs_index;
     env->psp.index = ps_index;
-    env->wd.base = 0;
     env->wd.psize = psize;
 
     return 0;
