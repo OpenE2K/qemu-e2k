@@ -10,12 +10,6 @@ void e2k_tcg_initialize(void);
 
 #define GEN_MASK(start, len) (((1UL << (len)) - 1) << (start))
 #define GET_BIT(v, index) (((v) >> (index)) & 1)
-#define GET_FIELD(v, s, l) (((v) >> (s)) & GEN_MASK(0, l))
-#define SET_FIELD(v, f, s, l) \
-    ( \
-        ((v) & ~GEN_MASK((s), (l))) | \
-        ((((typeof((v))) (f)) << (s)) & GEN_MASK((s), (l))) \
-    )
 
 #define MMU_USER_IDX 1
 #define CPU_RESOLVING_TYPE TYPE_E2K_CPU
