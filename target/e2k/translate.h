@@ -216,8 +216,10 @@ typedef struct DisasContext {
     int max_breg;
     int max_breg_cur;
 
-    /* illegal tag for delayed exception */
+    /* Delayed illegal tag check */
     TCGv_i32 illtag;
+    bool do_check_illtag;
+
     TCGv_i64 cond[6];
     AlResult al_results[6];
     TCGv_i32 al_cond[6];

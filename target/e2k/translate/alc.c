@@ -198,7 +198,7 @@ static inline void gen_literal_i64(DisasContext *ctx, Src64 *ret, uint8_t arg)
     uint64_t lit = ctx->bundle.lts[i];
 
     if (!ctx->bundle.lts_present[i]) {
-        e2k_gen_exception(E2K_EXCP_ILLOPN);
+        e2k_tr_gen_exception(ctx, E2K_EXCP_ILLOPN);
     } else if (IS_LIT16_LO(arg) && i < 2) {
         lit = ((int64_t) lit << 48) >> 48;
     } else if (IS_LIT16_HI(arg) && i < 2) {
@@ -224,7 +224,7 @@ static inline void gen_literal_i32(DisasContext *ctx, Src32 *ret, uint8_t arg)
     int32_t lit = ctx->bundle.lts[i];
 
     if (!ctx->bundle.lts_present[i]) {
-        e2k_gen_exception(E2K_EXCP_ILLOPN);
+        e2k_tr_gen_exception(ctx, E2K_EXCP_ILLOPN);
     } else if (IS_LIT16_LO(arg) && i < 2) {
         lit = (lit << 16) >> 16;
     } else if (IS_LIT16_HI(arg) && i < 2) {
@@ -437,6 +437,7 @@ static inline void gen_tag1(TCGv_i32 ret, int tag, TCGv_i32 arg1)
 static inline void gen_tag_check(Instr *instr, TCGv_i32 tag)
 {
     if (!instr->sm && tag != NULL) {
+        instr->ctx->do_check_illtag = true;
         TCGv_i32 illtag = instr->ctx->illtag;
         tcg_gen_or_i32(illtag, illtag, tag);
     }
