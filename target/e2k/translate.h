@@ -210,6 +210,12 @@ typedef struct DisasContext {
     int t64_len;
     int ttl_len;
 
+    /* Delayed window bounds checks */
+    int max_wreg;
+    int max_wreg_cur;
+    int max_breg;
+    int max_breg_cur;
+
     /* illegal tag for delayed exception */
     TCGv_i32 illtag;
     TCGv_i64 cond[6];
@@ -482,12 +488,16 @@ void e2k_gen_reg_tag_check_i32(TCGv_i32 ret, TCGv_i32 tag);
 void e2k_gen_reg_index_from_wregi(TCGv_i32 ret, int idx);
 void e2k_gen_reg_index_from_bregi(TCGv_i32 ret, int idx);
 void e2k_gen_reg_index_from_gregi(TCGv_i32 ret, int idx);
-static inline void e2k_gen_reg_index(TCGv_i32 ret, uint8_t arg)
+static inline void e2k_gen_reg_index(DisasContext *ctx, TCGv_i32 ret, uint8_t arg)
 {
     if (IS_BASED(arg)) {
-        e2k_gen_reg_index_from_bregi(ret, GET_BASED(arg));
+        int index = GET_BASED(arg);
+        ctx->max_breg_cur = MAX(ctx->max_breg_cur, index);
+        e2k_gen_reg_index_from_bregi(ret, index);
     } else if (IS_REGULAR(arg)) {
-        e2k_gen_reg_index_from_wregi(ret, GET_REGULAR(arg));
+        int index = GET_REGULAR(arg);
+        ctx->max_wreg_cur = MAX(ctx->max_wreg_cur, index);
+        e2k_gen_reg_index_from_wregi(ret, index);
     } else if (IS_GLOBAL(arg)) {
         e2k_gen_reg_index_from_gregi(ret, GET_GLOBAL(arg));
     } else {
@@ -564,7 +574,7 @@ void e2k_control_execute(DisasContext *ctx);
 void e2k_control_window_change(DisasContext *ctx);
 void e2k_stubs_commit(DisasContext *ctx);
 
-void e2k_alc_init(DisasContext *ctx);
+void alc_init(DisasContext *ctx);
 void e2k_alc_execute(DisasContext *ctx);
 void e2k_alc_commit(DisasContext *ctx);
 
