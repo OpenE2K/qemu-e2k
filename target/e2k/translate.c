@@ -261,6 +261,8 @@ static inline void do_reset(DisasContext *ctx)
     memset(ctx->mas, 0, sizeof(ctx->mas));
     ctx->illtag = e2k_get_temp_i32(ctx);
     tcg_gen_movi_i32(ctx->illtag, 0);
+    ctx->max_wreg_cur = -1;
+    ctx->max_breg_cur = -1;
 }
 
 static inline target_ulong do_decode(DisasContext *ctx, CPUState *cs)
@@ -304,6 +306,22 @@ static inline void do_execute(DisasContext *ctx)
  * */
 static inline void do_commit(DisasContext *ctx)
 {
+    if (ctx->max_wreg < ctx->max_wreg_cur) {
+        TCGLabel *l0 = gen_new_label();
+        ctx->max_wreg = ctx->max_wreg_cur;
+        tcg_gen_brcondi_i32(TCG_COND_GT, e2k_cs.wd_size, ctx->max_wreg, l0);
+        e2k_gen_exception(E2K_EXCP_MAPERR);
+        gen_set_label(l0);
+    }
+
+    if (ctx->max_breg < ctx->max_breg_cur) {
+        TCGLabel *l0 = gen_new_label();
+        ctx->max_breg = ctx->max_breg_cur;
+        tcg_gen_brcondi_i32(TCG_COND_GT, e2k_cs.bsize, ctx->max_breg, l0);
+        e2k_gen_exception(E2K_EXCP_MAPERR);
+        gen_set_label(l0);
+    }
+
     e2k_control_window_change(ctx);
     e2k_alc_commit(ctx);
     e2k_aau_commit(ctx);
@@ -375,12 +393,23 @@ static inline void do_branch(DisasContext *ctx, target_ulong pc_next)
 
 static void e2k_tr_init_disas_context(DisasContextBase *db, CPUState *cs)
 {
+    static int version = -1;
     DisasContext *ctx = container_of(db, DisasContext, base);
     E2KCPU *cpu = E2K_CPU(cs);
     CPUE2KState *env = &cpu->env;
 
     ctx->version = env->version;
-    e2k_alc_init(ctx);
+    ctx->max_wreg = -1;
+    ctx->max_breg = -1;
+
+    if (version != ctx->version) {
+        if (version > 0) {
+            // FIXME: can it happen?
+            e2k_todo(ctx, "reinitialize alc map");
+        }
+        alc_init(ctx);
+        version = ctx->version;
+    }
 }
 
 static bool e2k_tr_breakpoint_check(DisasContextBase *db, CPUState *cs,

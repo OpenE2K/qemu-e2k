@@ -142,7 +142,7 @@ static inline void gen_reg_i80(DisasContext *ctx, Src80 *ret, uint8_t arg)
 {
     TCGv_i32 t0 = tcg_temp_new_i32();
 
-    e2k_gen_reg_index(t0, arg);
+    e2k_gen_reg_index(ctx, t0, arg);
     ret->tag = e2k_get_temp_i32(ctx);
     ret->lo = e2k_get_temp_i64(ctx);
     ret->hi = e2k_get_temp_i32(ctx);
@@ -156,7 +156,7 @@ static inline void gen_reg_i64(DisasContext *ctx, Src64 *ret, uint8_t arg)
 {
     TCGv_i32 t0 = tcg_temp_new_i32();
 
-    e2k_gen_reg_index(t0, arg);
+    e2k_gen_reg_index(ctx, t0, arg);
     ret->tag = e2k_get_temp_i32(ctx);
     ret->value = e2k_get_temp_i64(ctx);
     e2k_gen_reg_tag_read_i64(ret->tag, t0);
@@ -169,7 +169,7 @@ static inline void gen_reg_i32(DisasContext *ctx, Src32 *ret, uint8_t arg)
 {
     TCGv_i32 t0 = tcg_temp_new_i32();
 
-    e2k_gen_reg_index(t0, arg);
+    e2k_gen_reg_index(ctx, t0, arg);
     ret->tag = e2k_get_temp_i32(ctx);
     ret->value = e2k_get_temp_i32(ctx);
     e2k_gen_reg_tag_read_i32(ret->tag, t0);
@@ -488,7 +488,7 @@ static inline void set_al_result_reg80_tag(Instr *instr, TCGv_i64 lo,
         res->reg.index = get_temp_i32(instr);
         res->reg.dst = dst;
         if (!IS_REGULAR(dst)) {
-            e2k_gen_reg_index(res->reg.index, dst);
+            e2k_gen_reg_index(instr->ctx, res->reg.index, dst);
         }
     }
 }
@@ -521,7 +521,7 @@ static inline void set_al_result_reg64_tag(Instr *instr,
             res->reg.dst = arg;
         } else {
             res->reg.dst = 0;
-            e2k_gen_reg_index(res->reg.index, arg);
+            e2k_gen_reg_index(instr->ctx, res->reg.index, arg);
         }
     }
 }
@@ -560,7 +560,7 @@ static inline void set_al_result_reg32_tag(Instr *instr,
             res->reg.dst = arg;
         } else {
             res->reg.dst = 0;
-            e2k_gen_reg_index(res->reg.index, arg);
+            e2k_gen_reg_index(instr->ctx, res->reg.index, arg);
         }
     }
 }
@@ -1659,7 +1659,7 @@ static inline void gen_ld_mas_mod(DisasContext *ctx, Instr *instr,
     TCGv_i32 reg = tcg_temp_new_i32();
 
     // FIXME: %empty
-    e2k_gen_reg_index(reg, instr->dst);
+    e2k_gen_reg_index(instr->ctx, reg, instr->dst);
     size = tcg_const_i32(1 << (instr->opc1 - 0x64));
 
     switch (mod) {
@@ -4579,7 +4579,7 @@ static void chan_execute(DisasContext *ctx, int chan)
 
 void e2k_alc_execute(DisasContext *ctx)
 {
-    unsigned int i;
+    int i;
 
     for (i = 0; i < 6; i++) {
         ctx->al_results[i].type = AL_RESULT_NONE;
@@ -4757,7 +4757,8 @@ void e2k_alc_commit(DisasContext *ctx)
     }
 }
 
-void e2k_alc_init(DisasContext *ctx)
+
+void alc_init(DisasContext *ctx)
 {
     int i, j;
 

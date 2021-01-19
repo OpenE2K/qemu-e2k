@@ -204,16 +204,11 @@ void e2k_gen_reg_tag_write_i32(TCGv_i32 value, TCGv_i32 idx)
 
 static inline void gen_reg_index_from_wreg(TCGv_i32 ret, TCGv_i32 idx)
 {
-    TCGLabel *l0 = gen_new_label();
     TCGv_i32 t0 = tcg_temp_local_new_i32();
     TCGv_i32 t1 = tcg_temp_new_i32();
     TCGv_i32 t2;
 
     tcg_gen_mov_i32(t0, idx);
-
-    tcg_gen_brcond_i32(TCG_COND_LTU, t0, e2k_cs.wd_size, l0);
-    e2k_gen_exception(E2K_EXCP_MAPERR);
-    gen_set_label(l0);
 
     tcg_gen_add_i32(t1, e2k_cs.wd_base, t0);
     tcg_temp_free_i32(t0);
@@ -232,14 +227,9 @@ void e2k_gen_reg_index_from_wregi(TCGv_i32 ret, int idx)
 
 void e2k_gen_reg_index_from_bregi(TCGv_i32 ret, int idx)
 {
-    TCGLabel *l0 = gen_new_label();
     TCGv_i32 t0 = tcg_temp_new_i32();
     TCGv_i32 t1 = tcg_temp_new_i32();
     TCGv_i32 t2 = tcg_temp_new_i32();
-
-    tcg_gen_brcondi_i32(tcg_invert_cond(TCG_COND_LTU), e2k_cs.bsize, idx, l0);
-    e2k_gen_exception(E2K_EXCP_MAPERR);
-    gen_set_label(l0);
 
     tcg_gen_addi_i32(t0, e2k_cs.bcur, idx);
     tcg_gen_remu_i32(t1, t0, e2k_cs.bsize);

@@ -34,7 +34,7 @@ static void gen_aau_result_reg64(DisasContext *ctx, Instr *instr, TCGv_i64 dst)
         res->dst = instr->dst;
     } else {
         res->dst = 0;
-        e2k_gen_reg_index(res->index, instr->dst);
+        e2k_gen_reg_index(ctx, res->index, instr->dst);
     }
 }
 
@@ -49,7 +49,7 @@ static void gen_aau_result_reg32(DisasContext *ctx, Instr *instr, TCGv_i32 dst)
         res->dst = instr->dst;
     } else {
         res->dst = 0;
-        e2k_gen_reg_index(res->index, instr->dst);
+        e2k_gen_reg_index(ctx, res->index, instr->dst);
     }
 }
 

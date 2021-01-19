@@ -946,14 +946,14 @@ typedef enum {
 } AlopExt;
 
 typedef struct {
-    Alop op;
-    Alopf alopf;
+    uint16_t op;
+    uint8_t alopf;
     AlopArgs format;
-    AlopExt opc2;
+    uint8_t opc2;
     uint8_t opc1;
     uint8_t min_version;
     uint8_t max_version;
-    Channels channels;
+    uint8_t channels;
     int16_t next[6];
     uint8_t extra1; /* opce1, opce2, cmpopce */
     uint8_t extra2; /* opce2, implicit_nops, explicit_ales25_v4 */
