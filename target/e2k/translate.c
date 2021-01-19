@@ -258,11 +258,12 @@ static inline void gen_goto_ctpr_disp(TCGv_i64 ctpr)
 
 static inline void do_reset(DisasContext *ctx)
 {
+    ctx->max_wreg_cur = -1;
+    ctx->max_breg_cur = -1;
+    ctx->do_check_illtag = false;
     memset(ctx->mas, 0, sizeof(ctx->mas));
     ctx->illtag = e2k_get_temp_i32(ctx);
     tcg_gen_movi_i32(ctx->illtag, 0);
-    ctx->max_wreg_cur = -1;
-    ctx->max_breg_cur = -1;
 }
 
 static inline target_ulong do_decode(DisasContext *ctx, CPUState *cs)
@@ -296,15 +297,7 @@ static inline void do_execute(DisasContext *ctx)
     e2k_plu_execute(ctx);
 }
 
-/*
- * Writes results of instructions from a bundle to the state
- *
- * Note
- * ====
- *
- * Must not generate any exception.
- * */
-static inline void do_commit(DisasContext *ctx)
+static inline void do_window_bounds_check(DisasContext *ctx)
 {
     if (ctx->max_wreg < ctx->max_wreg_cur) {
         TCGLabel *l0 = gen_new_label();
@@ -322,6 +315,18 @@ static inline void do_commit(DisasContext *ctx)
         gen_set_label(l0);
     }
 
+}
+
+/*
+ * Writes results of instructions from a bundle to the state
+ *
+ * Note
+ * ====
+ *
+ * Must not generate any exception.
+ * */
+static inline void do_commit(DisasContext *ctx)
+{
     e2k_control_window_change(ctx);
     e2k_alc_commit(ctx);
     e2k_aau_commit(ctx);
@@ -333,9 +338,11 @@ static inline void do_branch(DisasContext *ctx, target_ulong pc_next)
 {
     TCGLabel *l0 = gen_new_label();
 
-    tcg_gen_brcondi_i32(TCG_COND_EQ, ctx->illtag, 0, l0);
-    e2k_gen_exception(E2K_EXCP_ILLOPC);
-    gen_set_label(l0);
+    if (ctx->do_check_illtag) {
+        tcg_gen_brcondi_i32(TCG_COND_EQ, ctx->illtag, 0, l0);
+        e2k_gen_exception(E2K_EXCP_ILLOPC);
+        gen_set_label(l0);
+    }
 
     if (ctx->ct.type == CT_NONE) {
         e2k_gen_save_pc(ctx->base.pc_next);
@@ -399,8 +406,6 @@ static void e2k_tr_init_disas_context(DisasContextBase *db, CPUState *cs)
     CPUE2KState *env = &cpu->env;
 
     ctx->version = env->version;
-    ctx->max_wreg = -1;
-    ctx->max_breg = -1;
 
     if (version != ctx->version) {
         if (version > 0) {
@@ -433,8 +438,10 @@ static bool e2k_tr_breakpoint_check(DisasContextBase *db, CPUState *cs,
 
 static void e2k_tr_tb_start(DisasContextBase *db, CPUState *cs)
 {
-//    DisasContext *ctx = container_of(db, DisasContext, base);
+    DisasContext *ctx = container_of(db, DisasContext, base);
 
+    ctx->max_wreg = -1;
+    ctx->max_breg = -1;
     tcg_gen_movi_i32(e2k_cs.ct_cond, 0);
 }
 
@@ -448,16 +455,19 @@ static void e2k_tr_insn_start(DisasContextBase *db, CPUState *cs)
 static void e2k_tr_translate_insn(DisasContextBase *db, CPUState *cs)
 {
     DisasContext *ctx = container_of(db, DisasContext, base);
-    TCGLabel *l0 = gen_new_label();
     target_ulong pc_next;
 
-    tcg_gen_brcondi_i32(TCG_COND_EQ, e2k_cs.is_bp, 0, l0);
-    gen_helper_break_restore_state(cpu_env);
-    gen_set_label(l0);
+    if (unlikely(!QTAILQ_EMPTY(&cs->breakpoints))) {
+        TCGLabel *l0 = gen_new_label();
+        tcg_gen_brcondi_i32(TCG_COND_EQ, e2k_cs.is_bp, 0, l0);
+        gen_helper_break_restore_state(cpu_env);
+        gen_set_label(l0);
+    }
 
     do_reset(ctx);
     pc_next = do_decode(ctx, cs);
     do_execute(ctx);
+    do_window_bounds_check(ctx);
     do_commit(ctx);
     do_branch(ctx, pc_next);
 
