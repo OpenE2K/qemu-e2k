@@ -102,10 +102,16 @@ static const struct e2k_def_t e2k_defs[] = {
         .isa_version    = 4,
     },
     {
-        .name           = "e2c+", // however it works better
+        .name           = "e2c+", // however it may work better
         .canonical_name = "MCST Elbrus 2C+ (Monocube)",
         .gdb_arch       = "elbrus-v2",
         .isa_version    = 2,
+    },
+    {
+        .name           = "e8c2",
+        .canonical_name = "MCST Elbrus 8CB",
+        .gdb_arch       = "elbrus-v5",
+        .isa_version    = 5,
     },
 #if 0 /* for reference, never tested */
     {
@@ -113,12 +119,6 @@ static const struct e2k_def_t e2k_defs[] = {
         .canonical_name = "MCST Elbrus 4C",
         .gdb_arch       = "elbrus-v3",
         .isa_version    = 3,
-    },
-    {
-        .name           = "e8c2",
-        .canonical_name = "MCST Elbrus 8CB",
-        .gdb_arch       = "elbrus-v5",
-        .isa_version    = 5,
     },
     {
         .name           = "e16c",
