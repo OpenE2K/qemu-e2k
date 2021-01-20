@@ -3342,6 +3342,12 @@ static void gen_op(DisasContext *ctx, Instr *instr)
     case OP_UMODX: gen_alopf1_sttds(instr, gen_umodx); break;
     case OP_SDIVX: gen_alopf1_sttds(instr, gen_sdivx); break;
     case OP_SMODX: gen_alopf1_sttds(instr, gen_smodx); break;
+    case OP_PFMULD: gen_alopf1_dedd(instr, gen_helper_fmuld); break;
+    case OP_PFADDD: gen_alopf1_dedd(instr, gen_helper_faddd); break;
+    case OP_PFSUBD: gen_alopf1_dedd(instr, gen_helper_fsubd); break;
+    case OP_PFDIVD: gen_alopf1_dedd(instr, gen_helper_fdivd); break;
+    case OP_PFMIND: gen_alopf1_dedd(instr, gen_helper_fmind); break;
+    case OP_PFMAXD: gen_alopf1_dedd(instr, gen_helper_fmaxd); break;
     case OP_FXDIVTSS:
     case OP_FXDIVTDD:
     case OP_FXDIVTSX:
@@ -3445,22 +3451,16 @@ static void gen_op(DisasContext *ctx, Instr *instr)
     */
     case OP_FSQRTTD:
     case OP_PFMULS:
-    case OP_PFMULD:
     case OP_PFADDS:
-    case OP_PFADDD:
     case OP_PFSUBS:
-    case OP_PFSUBD:
     case OP_APTOAP:
     case OP_APTOAPB:
     case OP_GETVA:
     case OP_LDRD:
     case OP_PUTTC:
     case OP_PFDIVS:
-    case OP_PFDIVD:
     case OP_PFMINS:
-    case OP_PFMIND:
     case OP_PFMAXS:
-    case OP_PFMAXD:
     case OP_PFSQRTTD:
     case OP_CAST:
     case OP_TDTOMP:
