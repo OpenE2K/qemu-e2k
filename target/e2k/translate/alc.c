@@ -4447,6 +4447,25 @@ static void gen_pfcmb1(DisasContext *ctx, Instr *instr)
     e2k_tr_gen_exception(ctx, E2K_EXCP_ILLOPC);
 }
 
+static void gen_lcmbd(DisasContext *ctx, Instr *instr, uint32_t base)
+{
+    if (ctx->version >= 5) {
+        /* see gen_alopf21_i64 */
+        Src64 s1 = get_src1_i64(instr);
+        Src64 s2 = get_src2_i64(instr);
+        Src64 s3 = get_src3_i64(instr);
+        TCGv_i32 tag = e2k_get_temp_i32(ctx);
+        TCGv_i64 dst = e2k_get_temp_i64(ctx);
+        TCGv_i32 opc = tcg_const_i32(base + instr->opc1);
+
+        gen_tag3_i64(tag, s1.tag, s2.tag, s3.tag);
+        gen_helper_plog(dst, opc, s1.value, s2.value, s3.value);
+        gen_al_result_i64(instr, dst, tag);
+    } else {
+        e2k_tr_gen_exception(ctx, E2K_EXCP_ILLOPC);
+    }
+}
+
 static inline bool rlp_check_chan(uint16_t rlp, int chan)
 {
     return extract16(rlp, 14, 1) == (chan > 2) &&
@@ -4566,6 +4585,8 @@ static void chan_execute(DisasContext *ctx, int chan)
     case FCMB0:
     case FCMB1: gen_fcmb(ctx, &instr); break;
     case PFCMB1: gen_pfcmb1(ctx, &instr); break;
+    case LCMBD0: gen_lcmbd(ctx, &instr, 0); break;
+    case LCMBD1: gen_lcmbd(ctx, &instr, 0x80); break;
     default:
         e2k_tr_gen_exception(ctx, E2K_EXCP_ILLOPC);
         break;

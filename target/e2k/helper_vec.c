@@ -346,3 +346,27 @@ uint64_t HELPER(phminposuh)(uint64_t src1, uint64_t src2)
     }
     return dst.ud[0];
 }
+
+static uint64_t get_value_from_truth_table(bool x, bool y, bool z, uint32_t truth_table)
+{
+    int pos = x << 2 | y << 1 | z;
+    return (truth_table >> pos) & 1ULL;
+}
+
+uint64_t HELPER(plog)(uint32_t opc, uint64_t src1, uint64_t src2, uint64_t src3)
+{
+    int i;
+    uint64_t ret = 0;
+
+    for (i = 0; i < 64; i++) {
+        uint32_t x = extract64(src1, i, 1);
+        uint32_t y = extract64(src2, i, 1);
+        uint32_t z = extract64(src3, i, 1);
+
+        uint64_t bit = get_value_from_truth_table(x, y, z, opc);
+
+        ret |= bit << i;
+    }
+
+    return ret;
+}
