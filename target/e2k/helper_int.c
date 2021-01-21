@@ -33,7 +33,6 @@ static uint64_t* state_reg_ptr(CPUE2KState *env, int idx)
 {
     switch (idx) {
     case 0x80: return &env->upsr; /* %upsr */
-    case 0x83: return &env->lsr; /* %lsr */
     default: return NULL;
     }
 }
@@ -77,6 +76,15 @@ uint32_t helper_state_reg_read_i32(CPUE2KState *env, int idx)
 void helper_state_reg_write_i64(CPUE2KState *env, int idx, uint64_t val)
 {
     switch(idx) {
+    case 0x83: /* %lsr */
+        env->lsr = val;
+        env->lsr_lcnt = extract64(val, LSR_LCNT_OFF, LSR_LCNT_LEN);
+        env->lsr_ecnt = extract64(val, LSR_ECNT_OFF, LSR_ECNT_LEN);
+        env->lsr_vlc = extract64(val, LSR_VLC_OFF, 1);
+        env->lsr_over = extract64(val, LSR_OVER_OFF, 1);
+        env->lsr_pcnt = extract64(val, LSR_PCNT_OFF, LSR_PCNT_LEN);
+        env->lsr_strmd = extract64(val, LSR_STRMD_OFF, LSR_STRMD_LEN);
+        break;
     case 0x85: /* %fpcr */
         env->fpcr.raw = val;
         e2k_update_fp_status(env);
@@ -99,6 +107,9 @@ void helper_state_reg_write_i64(CPUE2KState *env, int idx, uint64_t val)
 void helper_state_reg_write_i32(CPUE2KState *env, int idx, uint32_t val)
 {
     switch (idx) {
+    case 0x83: /* %lsr */
+        env->lsr_lcnt = val;
+        break;
     case 0x85: /* %fpcr */
         env->fpcr.raw = val;
         e2k_update_fp_status(env);

@@ -11,7 +11,6 @@ e2k_ss.add(files(
   'translate.c',
   'translate/alc.c',
   'translate/aau.c',
-  'translate/control.c',
   'translate/plu.c',
   'translate/state.c',
 ))

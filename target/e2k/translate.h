@@ -40,7 +40,6 @@ typedef struct CPUE2KStateTCG {
     TCGv_i32 ct_cond;
     TCGv_i32 is_bp; /* breakpoint flag */
     TCGv_i32 wdbl;
-    TCGv_i64 lsr;
     TCGv_i32 wd_base; /* holds wbs * 2 */
     TCGv_i32 wd_size; /* holds wsz * 2 */
     TCGv_i32 boff; /* holds rbs * 2 */
@@ -49,6 +48,13 @@ typedef struct CPUE2KStateTCG {
     TCGv_i64 pregs;
     TCGv_i32 psize; /* holds psz */
     TCGv_i32 pcur; /* holds pcur */
+    /* lsr */
+    TCGv_i32 lsr_lcnt;
+    TCGv_i32 lsr_ecnt;
+    TCGv_i32 lsr_vlc;
+    TCGv_i32 lsr_over;
+    TCGv_i32 lsr_pcnt;
+    TCGv_i32 lsr_strmd;
     /* AAU */
     TCGv_i32 aasti[16];
     TCGv_i32 aasti_tags;
@@ -63,7 +69,7 @@ typedef struct CPUE2KStateTCG {
 
 extern struct CPUE2KStateTCG e2k_cs;
 
-typedef struct UnpackedBundle {
+typedef struct {
   uint32_t hs;
   uint32_t ss;
   uint32_t als[6];
@@ -85,6 +91,140 @@ typedef struct UnpackedBundle {
   bool pls_present[3];
   bool cds_present[3];
 } UnpackedBundle;
+
+typedef struct {
+    int32_t sdisp;   /* CS0 28:0 */
+} Cs0IBranch, Cs0Puttsd;
+
+typedef struct {
+    int32_t sdisp;   /* CS0 28:0 */
+    uint8_t ipd;    /* SS 31:30 */
+    uint8_t ctpr;   /* CS0 31:30 */
+    uint8_t opc;
+} Cs0Disp;
+
+typedef struct {
+    uint32_t disp;  /* CS0 28:0 */
+    uint8_t ipd;    /* SS 31:30 */
+    uint8_t ctpr;   /* CS0 31:30 */
+} Cs0SDisp;
+
+typedef struct {
+    uint8_t ipd;
+} Cs0Return;
+
+typedef struct {
+    uint32_t disp;  /* 28:4 */
+    uint8_t prefr;  /* 2:0 */
+    uint8_t ipd;    /* 3 */
+} Cs0Pref;
+
+typedef enum {
+    CS0_NONE,
+    CS0_IBRANCH,
+    CS0_PREF,
+    CS0_PUTTSD,
+    CS0_DONE,
+    CS0_HRET,
+    CS0_GLAUNCH,
+    CS0_DISP,
+    CS0_SDISP,
+    CS0_GETTSD,
+    CS0_RETURN,
+} Cs0Type;
+
+typedef struct {
+    Cs0Type type;
+    union {
+        Cs0IBranch ibranch;
+        Cs0Puttsd puttsd;
+        Cs0Disp disp;
+        Cs0SDisp sdisp;
+        Cs0Pref pref;
+        Cs0Return ret;
+    };
+} Cs0;
+
+typedef enum {
+    SETR_VFRPSZ = 0x01,
+    SETR_WD = 0x02,
+    SETR_BN = 0x04,
+    SETR_BP = 0x08,
+} SetrType;
+
+typedef struct {
+    SetrType type;
+    uint8_t rpsz;
+    uint8_t wsz;
+    bool nfx;
+    bool dbl;
+    uint8_t rbs;
+    uint8_t rsz;
+    uint8_t rcur;
+    uint8_t psz;
+} Cs1Setr;
+
+typedef struct {
+    bool ma_c;
+    bool fl_c;
+    bool ld_c;
+    bool st_c;
+    bool all_e;
+    bool all_c;
+    /* v2+ */
+    bool trap;
+    /* v5+ */
+    bool sal;
+    bool sas;
+} Cs1Wait;
+
+typedef struct {
+    uint8_t wbs;
+    uint8_t disp;
+} Cs1HCall;
+
+typedef struct {
+    bool flushr;
+    bool flushc;
+} Cs1Flush;
+
+typedef struct {
+    bool chkm4;
+    uint8_t dmask;
+    uint8_t umask;
+} Cs1Vfbg;
+
+typedef enum {
+    CS1_NONE,
+    CS1_SETR,
+    CS1_SETEI,
+    CS1_SETSFT,
+    CS1_WAIT,
+    CS1_CALL,
+    CS1_HCALL,
+    CS1_MAS,
+    CS1_FLUSH,
+    CS1_VFBG,
+} Cs1Type;
+
+typedef struct {
+    Cs1Type type;
+    union {
+        Cs1Setr setr;
+        uint8_t ei;
+        Cs1Wait wait;
+        uint8_t call_wbs;
+        Cs1HCall hcall;
+        uint8_t mas[6];
+        Cs1Flush flush;
+        Cs1Vfbg vfbg;
+    };
+} Cs1;
+
+typedef struct {
+    Cs0 cs0;
+    Cs1 cs1;
+} Bundle;
 
 typedef enum {
     AL_RESULT_NONE = 0,
@@ -119,7 +259,6 @@ typedef struct {
     bool poison;
     union {
         struct {
-            uint8_t dst;    /* %rN, 1st phase */
             TCGv_i32 index;
             TCGv_i32 tag;
             union {
@@ -180,18 +319,19 @@ typedef struct {
         TCGv_i64 ctpr;
     } u;
     int wbs;
-    bool is_branch;
+    uint8_t cond_type;
+    uint8_t psrc;
 } ControlTransfer;
 
 typedef struct DisasContext {
     DisasContextBase base;
     UnpackedBundle bundle;
+    Bundle bundle2;
     target_ulong pc;
     int jump_ctpr;
     int mmuidx;
     uint8_t mas[6];
     bool loop_mode;
-    TCGv_i32 is_prologue;
     TCGv_i32 is_epilogue;
     /* optional, can be NULL */
     TCGv_i32 mlock;
@@ -210,15 +350,15 @@ typedef struct DisasContext {
     int t64_len;
     int ttl_len;
 
-    /* Delayed window bounds checks */
-    int max_wreg;
-    int max_wreg_cur;
-    int max_breg;
-    int max_breg_cur;
-
     /* Delayed illegal tag check */
     TCGv_i32 illtag;
     bool do_check_illtag;
+
+    /* Delayed window bounds check */
+    int max_r;
+    int max_r_cur;
+    int max_b;
+    int max_b_cur;
 
     TCGv_i64 cond[6];
     AlResult al_results[6];
@@ -244,22 +384,13 @@ static inline void e2k_gen_exception(int excp)
     tcg_temp_free_i32(t0);
 }
 
+#define e2k_todo(ctx, fmt, ...) \
+    qemu_log("%#lx: " fmt " (%s:%d)\n", ctx->pc, \
+        ## __VA_ARGS__, __FILE__, __LINE__)
 
-#define e2k_todo(ctx, fmt, ...)                         \
-    do {                                                \
-        if (unlikely(qemu_loglevel_mask(LOG_UNIMP))) {  \
-            qemu_log("%#lx: todo: ", ctx->pc);          \
-            qemu_log(fmt, ## __VA_ARGS__);              \
-            qemu_log("\n");                             \
-        }                                               \
-    } while (0)
-
-
-#define e2k_todo_illop(ctx, fmt, ...)                   \
-    do {                                                \
-        e2k_todo(ctx, fmt, ## __VA_ARGS__);             \
-        e2k_tr_gen_exception(ctx, E2K_EXCP_ILLOPC);     \
-    } while (0)
+#define e2k_todo_illop(ctx, fmt, ...) \
+    e2k_todo(ctx, fmt, ## __VA_ARGS__); \
+    e2k_tr_gen_exception(ctx, E2K_EXCP_ILLOPC)
 
 static inline void e2k_gen_mask_i64(TCGv_i64 ret, TCGv_i64 len)
 {
@@ -360,97 +491,9 @@ static inline void e2k_gen_save_cpu_state(DisasContext *ctx)
     e2k_gen_save_pc(ctx->pc);
 }
 
-static inline void e2k_gen_lcnt_i64(TCGv_i64 ret)
-{
-    tcg_gen_andi_i64(ret, e2k_cs.lsr, (1UL << 32) - 1);
-}
-
-static inline void e2k_gen_lcnt_i32(TCGv_i32 ret)
-{
-    TCGv_i64 t0 = tcg_temp_new_i64();
-
-    e2k_gen_lcnt_i64(t0);
-    tcg_gen_extrl_i64_i32(ret, t0);
-    tcg_temp_free_i64(t0);
-}
-
-static inline void e2k_gen_lcnt_set_i32(TCGv_i32 value)
-{
-    TCGv_i64 t0 = tcg_temp_new_i64();
-
-    tcg_gen_extu_i32_i64(t0, value);
-    tcg_gen_deposit_i64(e2k_cs.lsr, e2k_cs.lsr, t0, LSR_LCNT_OFF, LSR_LCNT_LEN);
-    tcg_temp_free_i64(t0);
-}
-
-static inline void e2k_gen_ecnt_i64(TCGv_i64 ret)
-{
-    tcg_gen_extract_i64(ret, e2k_cs.lsr, LSR_ECNT_OFF, LSR_ECNT_LEN);
-}
-
-static inline void e2k_gen_ecnt_i32(TCGv_i32 ret)
-{
-    TCGv_i64 t0 = tcg_temp_new_i64();
-
-    e2k_gen_ecnt_i64(t0);
-    tcg_gen_extrl_i64_i32(ret, t0);
-    tcg_temp_free_i64(t0);
-}
-
-static inline void e2k_gen_ecnt_set_i32(TCGv_i32 value)
-{
-    TCGv_i64 t0 = tcg_temp_new_i64();
-
-    tcg_gen_extu_i32_i64(t0, value);
-    tcg_gen_deposit_i64(e2k_cs.lsr, e2k_cs.lsr, t0, LSR_ECNT_OFF, LSR_ECNT_LEN);
-    tcg_temp_free_i64(t0);
-}
-
-static inline void e2k_gen_pcnt_i32(TCGv_i32 ret)
-{
-    TCGv_i64 t0 = tcg_temp_new_i64();
-
-    tcg_gen_extract_i64(t0, e2k_cs.lsr, LSR_PCNT_OFF, LSR_PCNT_LEN);
-    tcg_gen_extrl_i64_i32(ret, t0);
-    tcg_temp_free_i64(t0);
-}
-
-static inline void e2k_gen_pcnt_set_i32(TCGv_i32 value)
-{
-    TCGv_i64 t0 = tcg_temp_new_i64();
-
-    tcg_gen_extu_i32_i64(t0, value);
-    tcg_gen_deposit_i64(e2k_cs.lsr, e2k_cs.lsr, t0, LSR_PCNT_OFF, LSR_PCNT_LEN);
-    tcg_temp_free_i64(t0);
-}
-
-static inline void e2k_gen_lsr_strem_i32(TCGv_i32 ret)
-{
-    TCGv_i64 t0 = tcg_temp_new_i64();
-
-    tcg_gen_extract_i64(t0, e2k_cs.lsr, LSR_STRMD_OFF, LSR_STRMD_LEN);
-    tcg_gen_extrl_i64_i32(ret, t0);
-    tcg_temp_free_i64(t0);
-}
-
-static inline void e2k_gen_lsr_strem_set_i32(TCGv_i32 value)
-{
-    TCGv_i64 t0 = tcg_temp_new_i64();
-
-    tcg_gen_extu_i32_i64(t0, value);
-    tcg_gen_deposit_i64(e2k_cs.lsr, e2k_cs.lsr, t0, LSR_STRMD_OFF,
-        LSR_STRMD_LEN);
-    tcg_temp_free_i64(t0);
-}
-
 static inline void e2k_gen_lcntex(TCGv_i32 ret)
 {
-    TCGv_i32 t0 = tcg_temp_new_i32();
-
-    tcg_gen_extrl_i64_i32(t0, e2k_cs.lsr);
-    tcg_gen_setcondi_i32(TCG_COND_EQ, ret, t0, 0);
-
-    tcg_temp_free_i32(t0);
+    tcg_gen_setcondi_i32(TCG_COND_EQ, ret, e2k_cs.lsr_lcnt, 0);
 }
 
 void e2k_gen_store_preg(int idx, TCGv_i32 val);
@@ -493,17 +536,13 @@ void e2k_gen_reg_index_from_gregi(TCGv_i32 ret, int idx);
 static inline void e2k_gen_reg_index(DisasContext *ctx, TCGv_i32 ret, uint8_t arg)
 {
     if (IS_BASED(arg)) {
-        int index = GET_BASED(arg);
-        ctx->max_breg_cur = MAX(ctx->max_breg_cur, index);
-        e2k_gen_reg_index_from_bregi(ret, index);
+        e2k_gen_reg_index_from_bregi(ret, GET_BASED(arg));
     } else if (IS_REGULAR(arg)) {
-        int index = GET_REGULAR(arg);
-        ctx->max_wreg_cur = MAX(ctx->max_wreg_cur, index);
-        e2k_gen_reg_index_from_wregi(ret, index);
+        e2k_gen_reg_index_from_wregi(ret, GET_REGULAR(arg));
     } else if (IS_GLOBAL(arg)) {
         e2k_gen_reg_index_from_gregi(ret, GET_GLOBAL(arg));
     } else {
-        e2k_gen_exception(E2K_EXCP_ILLOPN);
+        e2k_tr_gen_exception(ctx, E2K_EXCP_ILLOPN);
     }
 }
 
@@ -519,41 +558,8 @@ void e2k_gen_xreg_write_i64(TCGv_i64 value, TCGv_i32 idx);
 void e2k_gen_xreg_write_i32(TCGv_i32 value, TCGv_i32 idx);
 void e2k_gen_xreg_write16u_i32(TCGv_i32 value, TCGv_i32 idx);
 
-void e2k_gen_preg_i64(TCGv_i64 ret, int reg);
 void e2k_gen_preg_i32(TCGv_i32 ret, int reg);
-TCGv_i64 e2k_get_preg(DisasContext *dc, int reg);
 void e2k_gen_cond_i32(DisasContext *ctx, TCGv_i32 ret, uint8_t psrc);
-
-static inline void e2k_gen_cond_i64(DisasContext *ctx, TCGv_i64 ret,
-    uint8_t psrc)
-{
-    TCGv_i32 t0 = tcg_temp_new_i32();
-
-    e2k_gen_cond_i32(ctx, t0, psrc);
-    tcg_gen_extu_i32_i64(ret, t0);
-
-    tcg_temp_free_i32(t0);
-}
-
-static inline void e2k_gen_is_last_iter(TCGv_i32 ret)
-{
-    TCGv_i32 t0 = tcg_temp_new_i32();
-    TCGv_i32 t1 = tcg_temp_new_i32();
-    TCGv_i64 t2 = tcg_temp_new_i64();
-    TCGv_i32 t3 = tcg_temp_new_i32();
-
-    e2k_gen_lcnt_i32(t0);
-    tcg_gen_setcondi_i32(TCG_COND_LTU, t1, t0, 2);
-    tcg_gen_andi_i64(t2, e2k_cs.lsr, LSR_VLC_BIT);
-    tcg_gen_setcondi_i64(TCG_COND_NE, t2, t2, 0);
-    tcg_gen_extrl_i64_i32(t3, t2);
-    tcg_gen_and_i32(ret, t1, t3);
-
-    tcg_temp_free_i32(t3);
-    tcg_temp_free_i64(t2);
-    tcg_temp_free_i32(t1);
-    tcg_temp_free_i32(t0);
-}
 
 static inline void e2k_gen_is_loop_end_i32(TCGv_i32 ret)
 {
@@ -561,10 +567,10 @@ static inline void e2k_gen_is_loop_end_i32(TCGv_i32 ret)
     TCGv_i32 t1 = tcg_temp_new_i32();
     TCGv_i32 t2 = tcg_temp_new_i32();
 
-    e2k_gen_ecnt_i32(t0);
-    tcg_gen_setcondi_i32(TCG_COND_EQ, t1, t0, 0);
-    e2k_gen_is_last_iter(t2);
-    tcg_gen_and_i32(ret, t1, t2);
+    tcg_gen_setcondi_i32(TCG_COND_EQ, t0, e2k_cs.lsr_ecnt, 0);
+    tcg_gen_setcondi_i32(TCG_COND_LTU, t1, e2k_cs.lsr_lcnt, 2);
+    tcg_gen_and_i32(t2, t0, t1);
+    tcg_gen_and_i32(ret, t2, e2k_cs.lsr_vlc);
 
     tcg_temp_free_i32(t2);
     tcg_temp_free_i32(t1);
@@ -572,8 +578,6 @@ static inline void e2k_gen_is_loop_end_i32(TCGv_i32 ret)
 }
 
 void e2k_decode_jmp(DisasContext *ctx);
-void e2k_control_execute(DisasContext *ctx);
-void e2k_control_window_change(DisasContext *ctx);
 void e2k_stubs_commit(DisasContext *ctx);
 
 void alc_init(DisasContext *ctx);

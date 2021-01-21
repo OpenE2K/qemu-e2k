@@ -16,14 +16,14 @@ typedef struct {
         uint16_t aas;
     };
     uint8_t dst;
-} Instr;
+} Mova;
 
 static void gen_load_prefetch_program(DisasContext *ctx)
 {
     gen_helper_aau_load_program(cpu_env);
 }
 
-static void gen_aau_result_reg64(DisasContext *ctx, Instr *instr, TCGv_i64 dst)
+static void gen_aau_result_reg64(DisasContext *ctx, Mova *instr, TCGv_i64 dst)
 {
     AauResult *res = &ctx->aau_results[instr->chan];
     res->type = AAU_RESULT_REG64;
@@ -38,7 +38,7 @@ static void gen_aau_result_reg64(DisasContext *ctx, Instr *instr, TCGv_i64 dst)
     }
 }
 
-static void gen_aau_result_reg32(DisasContext *ctx, Instr *instr, TCGv_i32 dst)
+static void gen_aau_result_reg32(DisasContext *ctx, Mova *instr, TCGv_i32 dst)
 {
     AauResult *res = &ctx->aau_results[instr->chan];
     res->type = AAU_RESULT_REG32;
@@ -53,7 +53,7 @@ static void gen_aau_result_reg32(DisasContext *ctx, Instr *instr, TCGv_i32 dst)
     }
 }
 
-static void gen_mova_i32(DisasContext *ctx, Instr *instr, TCGv ptr)
+static void gen_mova_i32(DisasContext *ctx, Mova *instr, TCGv ptr)
 {
     MemOp memop = instr->be ? MO_BE : MO_LE;
     TCGv_i32 dst = e2k_get_temp_i32(ctx);
@@ -71,7 +71,7 @@ static void gen_mova_i32(DisasContext *ctx, Instr *instr, TCGv ptr)
     gen_aau_result_reg32(ctx, instr, dst);
 }
 
-static void gen_mova_i64(DisasContext *ctx, Instr *instr, TCGv ptr)
+static void gen_mova_i64(DisasContext *ctx, Mova *instr, TCGv ptr)
 {
     TCGv_i64 dst = e2k_get_temp_i64(ctx);
 
@@ -79,7 +79,7 @@ static void gen_mova_i64(DisasContext *ctx, Instr *instr, TCGv ptr)
     gen_aau_result_reg64(ctx, instr, dst);
 }
 
-static inline void gen_mova_ptr(TCGv ret, Instr *instr)
+static inline void gen_mova_ptr(TCGv ret, Mova *instr)
 {
     TCGv_i32 t0 = tcg_const_i32(instr->chan);
     TCGv_i32 t1 = tcg_const_i32(instr->area);
@@ -92,7 +92,7 @@ static inline void gen_mova_ptr(TCGv ret, Instr *instr)
     tcg_temp_free_i32(t1);
     tcg_temp_free_i32(t0);
 }
-static void gen_mova(DisasContext *ctx, Instr *instr)
+static void gen_mova(DisasContext *ctx, Mova *instr)
 {
     TCGv t5 = tcg_temp_new();
 
@@ -142,7 +142,7 @@ void e2k_aau_execute(DisasContext *ctx)
     unsigned int i;
 
     for (i = 0; i < 4; i++) {
-        Instr instr = { 0 };
+        Mova instr = { 0 };
         AauResult *res = &ctx->aau_results[i];
 
         instr.chan = i;

@@ -127,7 +127,12 @@ static void ps_fill(CPUE2KState *env, int n, bool fx)
 
 static inline void ps_spill_all(CPUE2KState *env)
 {
-    ps_spill(env, env->wd.size, env->wd.fx);
+    ps_spill(env, env->wd.size, true);
+}
+
+static inline void ps_fill_all(CPUE2KState *env)
+{
+    ps_fill(env, env->wd.size, true);
 }
 
 static void move_regs(CPUE2KState *env, int dst, int src, int n)
@@ -225,26 +230,22 @@ void HELPER(raise_exception_no_spill)(CPUE2KState *env, int tt)
     cpu_loop_exit(cs);
 }
 
-void HELPER(setwd)(CPUE2KState *env, uint32_t lts)
+void HELPER(setwd)(CPUE2KState *env, int wsz, int nfx, int dbl)
 {
-    int i, old_size = env->wd.size, size = extract32(lts, 5, 7) * 2;
+    int i, size = wsz * 2;
 
     if (size < env->wd.psize) {
         helper_raise_exception(env, E2K_EXCP_ILLOPN);
         return;
     }
 
+    for (i = env->wd.size; i < size; i++) {
+        env->tags[i] = E2K_TAG_NON_NUMBER64;
+    }
+
     env->wd.size = size;
-    env->wd.fx = extract32(lts, 4, 1) == 0;
-
-    if (env->version >= 3) {
-        bool dbl = extract32(lts, 3, 1);
-        env->wdbl = dbl;
-    }
-
-    for (i = 0; i < size - old_size; i++) {
-        env->tags[old_size + i] = E2K_TAG_NON_NUMBER64;
-    }
+    env->wd.fx = nfx == 0;
+    env->wdbl = dbl;
 }
 
 bool e2k_cpu_tlb_fill(CPUState *cs, vaddr address, int size,
@@ -270,7 +271,7 @@ void e2k_break_save_state(CPUE2KState *env)
 void HELPER(break_restore_state)(CPUE2KState *env)
 {
     proc_chain_restore(env);
-    ps_fill(env, env->wd.size, env->wd.fx);
+    ps_fill_all(env);
     env->is_bp = false;
 }
 
