@@ -29,6 +29,7 @@ typedef struct {
     int chan;
     AlesFlag ales_present;
     int aaincr_len;
+    uint8_t mas;
     union {
         uint32_t als;
         struct {
@@ -487,10 +488,7 @@ static inline void set_al_result_reg80_tag(Instr *instr, TCGv_i64 lo,
         res->reg.v64 = lo;
         res->reg.x32 = hi;
         res->reg.index = get_temp_i32(instr);
-        res->reg.dst = dst;
-        if (!IS_REGULAR(dst)) {
-            e2k_gen_reg_index(instr->ctx, res->reg.index, dst);
-        }
+        e2k_gen_reg_index(instr->ctx, res->reg.index, dst);
     }
 }
 
@@ -518,12 +516,7 @@ static inline void set_al_result_reg64_tag(Instr *instr,
         res->reg.v64 = value;
         res->reg.tag = tag;
         res->reg.index = e2k_get_temp_i32(instr->ctx);
-        if (IS_REGULAR(arg)) {
-            res->reg.dst = arg;
-        } else {
-            res->reg.dst = 0;
-            e2k_gen_reg_index(instr->ctx, res->reg.index, arg);
-        }
+        e2k_gen_reg_index(instr->ctx, res->reg.index, arg);
     }
 }
 
@@ -557,12 +550,7 @@ static inline void set_al_result_reg32_tag(Instr *instr,
         res->reg.v32 = value;
         res->reg.tag = tag;
         res->reg.index = e2k_get_temp_i32(instr->ctx);
-        if (IS_REGULAR(arg)) {
-            res->reg.dst = arg;
-        } else {
-            res->reg.dst = 0;
-            e2k_gen_reg_index(instr->ctx, res->reg.index, arg);
-        }
+        e2k_gen_reg_index(instr->ctx, res->reg.index, arg);
     }
 }
 
@@ -689,16 +677,14 @@ static void gen_loop_mode_st(DisasContext *ctx, TCGLabel *l)
 {
     if (ctx->loop_mode) {
         TCGLabel *l0 = gen_new_label();
-        TCGv_i32 t0 = tcg_temp_local_new_i32();
-
-        tcg_gen_brcondi_i32(TCG_COND_EQ, ctx->is_prologue, 1, l);
+        TCGv_i32 t0 = tcg_temp_new_i32();
+        tcg_gen_brcondi_i32(TCG_COND_NE, e2k_cs.lsr_pcnt, 0, l);
         e2k_gen_is_loop_end_i32(t0);
         tcg_gen_brcondi_i32(TCG_COND_EQ, t0, 0, l0);
-        e2k_gen_lsr_strem_i32(t0);
-        tcg_gen_brcondi_i32(TCG_COND_EQ, t0, 0, l);
-        tcg_gen_subi_i32(t0, t0, 1);
-        e2k_gen_lsr_strem_set_i32(t0);
+        tcg_gen_brcondi_i32(TCG_COND_EQ, e2k_cs.lsr_strmd, 0, l);
+        tcg_gen_subi_i32(e2k_cs.lsr_strmd, e2k_cs.lsr_strmd, 1);
         gen_set_label(l0);
+        tcg_temp_free_i32(t0);
     }
 }
 
@@ -1698,7 +1684,7 @@ ok_exit:
 static MemOp gen_mas(Instr *instr, MemOp memop, TCGv_i64 addr)
 {
     DisasContext *ctx = instr->ctx;
-    uint8_t mas = ctx->mas[instr->chan];
+    uint8_t mas = instr->mas;
 
     if ((mas & 0x7) == 7) {
         int opc = mas >> 3;
@@ -2140,11 +2126,10 @@ static void gen_aasti_incr(DisasContext *ctx, Instr *instr)
         TCGLabel *l1 = gen_new_label();
         TCGv_i32 t0 = tcg_temp_local_new_i32();
 
-        tcg_gen_brcondi_i32(TCG_COND_EQ, ctx->is_prologue, 1, l0);
+        tcg_gen_brcondi_i32(TCG_COND_NE, e2k_cs.lsr_pcnt, 0, l0);
         e2k_gen_is_loop_end_i32(t0);
         tcg_gen_brcondi_i32(TCG_COND_EQ, t0, 0, l1);
-        e2k_gen_lsr_strem_i32(t0);
-        tcg_gen_brcondi_i32(TCG_COND_EQ, t0, 0, l0);
+        tcg_gen_brcondi_i32(TCG_COND_EQ, e2k_cs.lsr_strmd, 0, l0);
         gen_set_label(l1);
     }
 
@@ -2201,7 +2186,7 @@ static void gen_aad_ptr(DisasContext *ctx, TCGv ret, Instr *instr)
 static void gen_staa_i64(Instr *instr)
 {
     DisasContext *ctx = instr->ctx;
-    uint8_t mas = ctx->mas[instr->chan];
+    uint8_t mas = instr->mas;
     TCGLabel *l0 = gen_new_label();
     Src64 s4 = get_src4_i64(instr);
 
@@ -2256,7 +2241,7 @@ static void gen_staa_i64(Instr *instr)
 static void gen_staa_i32(Instr *instr, MemOp memop)
 {
     DisasContext *ctx = instr->ctx;
-    uint8_t mas = ctx->mas[instr->chan];
+    uint8_t mas = instr->mas;
     TCGLabel *l0 = gen_new_label();
     Src32 s4 = get_src4_i32(instr);
 
@@ -4509,17 +4494,12 @@ static void chan_check_preds(DisasContext *ctx, int chan, TCGLabel *l)
 
             switch(kind) {
             case 0x2: { /* %pcntN */
-                TCGv_i32 t3 = tcg_temp_new_i32();
-
                 has_pcnt = true;
-                // FIXME: slow, need to store unpacked LSR for fast field access
-                e2k_gen_pcnt_i32(t3);
-                tcg_gen_setcondi_i32(TCG_COND_LEU, t2, t3, idx);
+                tcg_gen_setcondi_i32(TCG_COND_LEU, t2, e2k_cs.lsr_pcnt, idx);
                 if (invert) {
                     tcg_gen_xori_i32(t2, t2, 1);
                 }
                 tcg_gen_or_i32(t0, t0, t2);
-                tcg_temp_free_i32(t3);
                 break;
             }
             case 0x3: /* %predN */
@@ -4564,9 +4544,9 @@ static void chan_execute(DisasContext *ctx, int chan)
     TCGLabel *l0 = gen_new_label();
     Instr instr = { 0 };
 
-    instr.aaincr = 0;
     instr.ctx = ctx;
     instr.chan = chan;
+    instr.mas = ctx->bundle2.cs1.type == CS1_MAS ? ctx->bundle2.cs1.mas[chan] : 0;
     instr.als = ctx->bundle.als[chan];
     instr.ales = ctx->bundle.ales[chan];
     instr.ales_present = ctx->bundle.ales_present[chan];
@@ -4729,18 +4709,7 @@ static inline void gen_al_result_commit_ctpr(AlResult *res)
 
 void e2k_alc_commit(DisasContext *ctx)
 {
-    unsigned int i;
-
-    for (i = 0; i < 6; i++) {
-        AlResult *res = &ctx->al_results[i];
-
-        if (e2k_al_result_type(res->type) == AL_RESULT_REG) {
-            uint8_t dst = res->reg.dst;
-            if (IS_REGULAR(dst)) {
-                e2k_gen_reg_index_from_wregi(res->reg.index, GET_REGULAR(dst));
-            }
-        }
-    }
+    int i;
 
     for (i = 0; i < 6; i++) {
         TCGLabel *l0 = gen_new_label();
