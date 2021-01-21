@@ -256,16 +256,6 @@ static inline void gen_goto_ctpr_disp(TCGv_i64 ctpr)
     tcg_temp_free_i64(t0);
 }
 
-static inline void do_reset(DisasContext *ctx)
-{
-    ctx->max_wreg_cur = -1;
-    ctx->max_breg_cur = -1;
-    ctx->do_check_illtag = false;
-    memset(ctx->mas, 0, sizeof(ctx->mas));
-    ctx->illtag = e2k_get_temp_i32(ctx);
-    tcg_gen_movi_i32(ctx->illtag, 0);
-}
-
 static inline target_ulong do_decode(DisasContext *ctx, CPUState *cs)
 {
     E2KCPU *cpu = E2K_CPU(cs);
@@ -439,10 +429,19 @@ static bool e2k_tr_breakpoint_check(DisasContextBase *db, CPUState *cs,
 static void e2k_tr_tb_start(DisasContextBase *db, CPUState *cs)
 {
     DisasContext *ctx = container_of(db, DisasContext, base);
+    E2KCPU *cpu = E2K_CPU(cs);
+    CPUE2KState *env = &cpu->env;
 
     ctx->max_wreg = -1;
     ctx->max_breg = -1;
     tcg_gen_movi_i32(e2k_cs.ct_cond, 0);
+
+    if (env->is_bp) {
+        TCGLabel *l0 = gen_new_label();
+        tcg_gen_brcondi_i32(TCG_COND_EQ, e2k_cs.is_bp, 0, l0);
+        gen_helper_break_restore_state(cpu_env);
+        gen_set_label(l0);
+    }
 }
 
 static void e2k_tr_insn_start(DisasContextBase *db, CPUState *cs)
@@ -450,6 +449,13 @@ static void e2k_tr_insn_start(DisasContextBase *db, CPUState *cs)
     DisasContext *ctx = container_of(db, DisasContext, base);
 
     tcg_gen_insn_start(ctx->base.pc_next);
+
+    ctx->max_wreg_cur = -1;
+    ctx->max_breg_cur = -1;
+    ctx->do_check_illtag = false;
+    memset(ctx->mas, 0, sizeof(ctx->mas));
+    ctx->illtag = e2k_get_temp_i32(ctx);
+    tcg_gen_movi_i32(ctx->illtag, 0);
 }
 
 static void e2k_tr_translate_insn(DisasContextBase *db, CPUState *cs)
@@ -457,14 +463,6 @@ static void e2k_tr_translate_insn(DisasContextBase *db, CPUState *cs)
     DisasContext *ctx = container_of(db, DisasContext, base);
     target_ulong pc_next;
 
-    if (unlikely(!QTAILQ_EMPTY(&cs->breakpoints))) {
-        TCGLabel *l0 = gen_new_label();
-        tcg_gen_brcondi_i32(TCG_COND_EQ, e2k_cs.is_bp, 0, l0);
-        gen_helper_break_restore_state(cpu_env);
-        gen_set_label(l0);
-    }
-
-    do_reset(ctx);
     pc_next = do_decode(ctx, cs);
     do_execute(ctx);
     do_window_bounds_check(ctx);
