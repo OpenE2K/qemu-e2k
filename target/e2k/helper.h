@@ -21,7 +21,7 @@ DEF_HELPER_3(state_reg_write_i64, void, env, int, i64)
 DEF_HELPER_3(state_reg_write_i32, void, env, int, i32)
 DEF_HELPER_2(getsp, i64, env, i32) /* FIXME: return tl? */
 DEF_HELPER_1(break_restore_state, void, env)
-DEF_HELPER_2(setwd, void, env, i32)
+DEF_HELPER_4(setwd, void, env, int, int, int)
 DEF_HELPER_2(probe_read_access, int, env, tl)
 DEF_HELPER_2(probe_write_access, int, env, tl)
 

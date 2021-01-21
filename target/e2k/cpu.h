@@ -58,6 +58,7 @@ typedef enum {
 } CtprTag;
 
 typedef enum {
+    CTPR_OPC_DISP = 0x0,
     CTPR_OPC_LDISP = 0x1,
 } CtprOpc;
 
@@ -618,7 +619,14 @@ typedef struct {
     E2KBnState bn;
     E2KBpState bp;
 
-    uint64_t lsr; /* loop status register */
+    /* loop status register */
+    uint64_t lsr;
+    uint32_t lsr_lcnt;
+    uint32_t lsr_ecnt;
+    uint32_t lsr_vlc;
+    uint32_t lsr_over;
+    uint32_t lsr_pcnt;
+    uint32_t lsr_strmd;
 
     uint64_t sbr;
     E2KUserStackDesc usd;

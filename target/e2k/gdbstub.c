@@ -174,7 +174,16 @@ int e2k_cpu_gdb_read_register(CPUState *cs, GByteArray *mem_buf, int n)
     case 344: return gdb_get_reg64(mem_buf, 0); // cutd
     case 345: return gdb_get_reg64(mem_buf, 0); // cuir
     case 346: return gdb_get_reg64(mem_buf, 0); // tsd
-    case 347: return gdb_get_reg64(mem_buf, env->lsr); // lsr
+    case 347: { // lsr
+        uint64_t lsr = env->lsr;
+        lsr = deposit64(lsr, LSR_LCNT_OFF, LSR_LCNT_LEN, env->lsr_lcnt);
+        lsr = deposit64(lsr, LSR_ECNT_OFF, LSR_ECNT_LEN, env->lsr_ecnt);
+        lsr = deposit64(lsr, LSR_VLC_OFF, 1, env->lsr_vlc);
+        lsr = deposit64(lsr, LSR_OVER_OFF, 1, env->lsr_over);
+        lsr = deposit64(lsr, LSR_PCNT_OFF, LSR_PCNT_LEN, env->lsr_pcnt);
+        lsr = deposit64(lsr, LSR_STRMD_OFF, LSR_STRMD_LEN, env->lsr_strmd);
+        return gdb_get_reg64(mem_buf, lsr);
+    }
     case 348: return gdb_get_reg64(mem_buf, env->lsr & LSR_ILCR_MASK); // ilcr
     default:
         break;
