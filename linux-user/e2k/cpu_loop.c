@@ -21,6 +21,7 @@
 #include "qemu-common.h"
 #include "qemu.h"
 #include "cpu_loop-common.h"
+#include "target_elf.h"
 
 void helper_return(CPUE2KState *env);
 
@@ -118,15 +119,50 @@ void cpu_loop(CPUE2KState *env)
 
 void target_cpu_copy_regs(CPUE2KState *env, struct target_pt_regs *regs)
 {
+    CPUState *cpu = env_cpu(env);
+    TaskState *ts = cpu->opaque;
+    struct image_info *info = ts->info;
+    uint32_t eflags = info->elf_flags;
+
     env->ip = regs->ip;
     env->pcsp = regs->pcsp;
     env->psp = regs->psp;
     env->usd.lo = regs->usd_lo;
     env->usd.hi = regs->usd_hi;
     env->sbr = regs->sbr;
+    env->elf_flags = info->elf_flags;
+
+    if (eflags & E2K_ELF_PM) {
+        fprintf(stderr, "Protected mode is unsupported\n");
+        exit(EXIT_FAILURE);
+    }
+
+    if (eflags & E2K_ELF_X86APP) {
+        fprintf(stderr, "x86 recompiler is unsupported\n");
+        exit(EXIT_FAILURE);
+    }
 
     e2k_break_save_state(env);
 
     env->pcs_base = env->pcsp.base;
     env->ps_base = env->psp.base;
+}
+
+const char *cpu_get_model(uint32_t eflags)
+{
+    const char *name = "any";
+    uint32_t machine = E2K_ELF_MACH(eflags);
+
+    /* TODO: can't check for EM_E2K_OLD flags because e_machine isn't saved anywhere... */
+    switch(machine) {
+    case E2K_MACH_EV2: name = "e2c+"; break;
+    case E2K_MACH_EV3: name = "e2s"; break;
+    case E2K_MACH_1CPLUS:
+    case E2K_MACH_8C:
+    case E2K_MACH_EV4: name = "e8c"; break;
+    case E2K_MACH_EV5: name = "e8c2"; break;
+    case E2K_MACH_EV6: name = "e16c"; break;
+    }
+
+    return name;
 }
