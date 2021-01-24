@@ -665,6 +665,8 @@ typedef struct {
     uint32_t version;
 
     struct e2k_def_t def;
+
+    uint32_t elf_flags;
 } CPUE2KState;
 
 /**

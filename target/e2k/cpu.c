@@ -96,24 +96,11 @@ void cpu_e2k_set_id(CPUE2KState *env, unsigned int cpu)
 #define DEFAULT_CPU_MODEL "e8c"
 static const struct e2k_def_t e2k_defs[] = {
     {
-        .name           = "e8c", // default choice
-        .canonical_name = "MCST Elbrus 8C",
-        .gdb_arch       = "elbrus-8c",
-        .isa_version    = 4,
-    },
-    {
-        .name           = "e2c+", // however it may work better
+        .name           = "e2c+", /* however it may work better */
         .canonical_name = "MCST Elbrus 2C+ (Monocube)",
         .gdb_arch       = "elbrus-v2",
         .isa_version    = 2,
     },
-    {
-        .name           = "e8c2",
-        .canonical_name = "MCST Elbrus 8CB",
-        .gdb_arch       = "elbrus-v5",
-        .isa_version    = 5,
-    },
-#if 0 /* for reference, never tested */
     {
         .name           = "e2s",
         .canonical_name = "MCST Elbrus 4C",
@@ -121,12 +108,23 @@ static const struct e2k_def_t e2k_defs[] = {
         .isa_version    = 3,
     },
     {
+        .name           = "e8c", /* default choice for system */
+        .canonical_name = "MCST Elbrus 8C",
+        .gdb_arch       = "elbrus-8c",
+        .isa_version    = 4,
+    },
+    {
+        .name           = "e8c2",
+        .canonical_name = "MCST Elbrus 8CB",
+        .gdb_arch       = "elbrus-v5",
+        .isa_version    = 5,
+    },
+    {
         .name           = "e16c",
         .canonical_name = "MCST Elbrus 16C",
         .gdb_arch       = "elbrus-v6",
         .isa_version    = 6,
     },
-#endif
 };
 
 static inline void cpu_dump_state_br(CPUE2KState *env, FILE *f, int flags)
@@ -217,7 +215,7 @@ static ObjectClass *e2k_cpu_class_by_name(const char *cpu_model)
     if (!strcasecmp(cpu_model, "any")) {
         cpu_model = DEFAULT_CPU_MODEL;
     }
-#endif // CONFIG_USER_ONLY
+#endif
    
     typename = e2k_cpu_type_name(cpu_model);
     oc = object_class_by_name(typename);
