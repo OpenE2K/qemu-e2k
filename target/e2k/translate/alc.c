@@ -1462,7 +1462,7 @@ static inline void gen_puttag_i32(Instr *instr)
     set_al_result_reg32_tag(instr, dst, tag, false, false);
 }
 
-static inline void gen_insert_field_i64(TCGv_i64 ret, TCGv_i64 src1,
+static inline void gen_insfd(TCGv_i64 ret, TCGv_i64 src1,
     TCGv_i64 src2, TCGv_i64 src3)
 {
     TCGv_i64 one = tcg_const_i64(1);
@@ -1496,7 +1496,7 @@ static inline void gen_insert_field_i64(TCGv_i64 ret, TCGv_i64 src1,
     tcg_temp_free_i64(one);
 }
 
-static inline void gen_insert_field_i32(TCGv_i32 ret, TCGv_i32 src1,
+static inline void gen_insfs(TCGv_i32 ret, TCGv_i32 src1,
     TCGv_i32 src2, TCGv_i32 src3)
 {
     TCGv_i32 one = tcg_const_i32(1);
@@ -2922,7 +2922,7 @@ static inline void gen_alopf2_dx(Instr *instr,
     gen_al_result_i80(instr, res.lo, res.hi, res.tag);
 }
 
-static Alop find_op(Instr *instr)
+static AlopDesc *find_op(Instr *instr)
 {
     /* ALES2/5 may be allocated but must not be used */
     int opc2 = instr->ales_present & ALES_PRESENT ? instr->opc2 : 0;
@@ -2965,25 +2965,109 @@ static Alop find_op(Instr *instr)
         case ALOPF16:
             is_match = desc->extra1 == instr->opce2;
             break;
+        default:
+            g_assert_not_reached();
+            break;
         }
 
         if (is_match) {
-            return desc->op;
+            return desc;
         }
 
         index = desc->next[instr->chan];
     }
 
-    return OP_NONE;
+    return NULL;
+}
+
+static inline void check_reg_src(DisasContext *ctx, uint8_t src)
+{
+    if (IS_REGULAR(src)) {
+        ctx->max_r_src = MAX(ctx->max_r_src, GET_REGULAR(src));
+    } else if (IS_BASED(src)) {
+        ctx->max_b_cur = MAX(ctx->max_b_cur, GET_BASED(src));
+    }
+}
+
+static inline void check_reg_dst(DisasContext *ctx, uint8_t dst)
+{
+    if (IS_REGULAR(dst)) {
+        ctx->max_r_dst = MAX(ctx->max_r_dst, GET_REGULAR(dst));
+    } else if (IS_BASED(dst)) {
+        ctx->max_b_cur = MAX(ctx->max_b_cur, GET_BASED(dst));
+    }
+}
+
+static void check_args(Alopf alopf, Instr *instr)
+{
+    DisasContext *ctx = instr->ctx;
+
+    switch(alopf) {
+    case ALOPF1:
+    case ALOPF1_MERGE:
+    case ALOPF11:
+    case ALOPF11_MERGE:
+    case ALOPF11_LIT8:
+        check_reg_src(ctx, instr->src1);
+        check_reg_src(ctx, instr->src2);
+        check_reg_dst(ctx, instr->dst);
+        break;
+    case ALOPF2:
+    case ALOPF12:
+    case ALOPF12_PSHUFH:
+    case ALOPF15:
+    case ALOPF22:
+        check_reg_src(ctx, instr->src2);
+        check_reg_dst(ctx, instr->dst);
+        break;
+    case ALOPF3:
+        check_reg_src(ctx, instr->src1);
+        check_reg_src(ctx, instr->src2);
+        check_reg_src(ctx, instr->src4);
+        break;
+    case ALOPF7:
+    case ALOPF17:
+        check_reg_src(ctx, instr->src1);
+        check_reg_src(ctx, instr->src2);
+        break;
+    case ALOPF8:
+        check_reg_src(ctx, instr->src2);
+        break;
+    case ALOPF10:
+        check_reg_src(ctx, instr->src4);
+        break;
+    case ALOPF13:
+        // FIXME: not tested
+        e2k_todo(ctx, "check_args ALOPF13");
+        check_reg_src(ctx, instr->src1);
+        check_reg_src(ctx, instr->src2);
+        check_reg_src(ctx, instr->src4);
+        break;
+    case ALOPF16:
+        check_reg_dst(ctx, instr->dst);
+        break;
+    case ALOPF21:
+        check_reg_src(ctx, instr->src1);
+        check_reg_src(ctx, instr->src2);
+        check_reg_src(ctx, instr->src3);
+        check_reg_dst(ctx, instr->dst);
+        break;
+    default:
+        e2k_todo(ctx, "check_args %d", alopf);
+        break;
+    }
 }
 
 static void gen_op(DisasContext *ctx, Instr *instr)
 {
     int chan = instr->chan;
-    Alop op = find_op(instr);
-
-    switch(op) {
-    case OP_NONE: e2k_tr_gen_exception(ctx, E2K_EXCP_ILLOPC); break;
+    AlopDesc *desc = find_op(instr);
+    if (desc == NULL) {
+        e2k_tr_gen_exception(ctx, E2K_EXCP_ILLOPC);
+        return;
+    }
+    check_args(desc->alopf, instr);
+    switch(desc->op) {
     case OP_ANDS: gen_alopf1_sss(instr, tcg_gen_and_i32); break;
     case OP_ANDD: gen_alopf1_ddd(instr, tcg_gen_and_i64); break;
     case OP_ANDNS: gen_alopf1_sss(instr, gen_andn_i32); break;
@@ -3809,7 +3893,7 @@ static void gen_op(DisasContext *ctx, Instr *instr)
     case OP_QPFMSAS:
     case OP_QPFMASD:
     case OP_QPFMSAD:
-        e2k_todo_illop(ctx, "unimplemented %d\n", op); break;
+        e2k_todo_illop(ctx, "unimplemented %d\n", desc->op); break;
     }
 }
 
@@ -4245,18 +4329,21 @@ static void gen_icmb3(DisasContext *ctx, Instr *instr)
     case 0x6c:
         if (is_chan_0134(instr->chan) && ctx->version >= 4) {
             /* insfs */
-            gen_alopf21_i32(ctx, instr, gen_insert_field_i32);
+            check_args(ALOPF21, instr);
+            gen_alopf21_i32(ctx, instr, gen_insfs);
             return;
         }
         break;
     case 0x6d:
         if (is_chan_0134(instr->chan) && ctx->version>= 4) {
             /* insfd */
-            gen_alopf21_i64(ctx, instr, gen_insert_field_i64);
+            check_args(ALOPF21, instr);
+            gen_alopf21_i64(ctx, instr, gen_insfd);
             return;
         }
         break;
     default:
+        check_args(ALOPF21, instr);
         gen_icmb012(ctx, instr);
         break;
     }
@@ -4408,6 +4495,8 @@ gen_illopc:
 
 static void gen_fcmb(DisasContext *ctx, Instr *instr)
 {
+    check_args(ALOPF21, instr);
+
     if (instr->opc1 & 1) {
         execute_fcomb_i64(ctx, instr);
     } else {
@@ -4421,6 +4510,7 @@ static void gen_pfcmb1(DisasContext *ctx, Instr *instr)
     case 0x4d:
         if (is_chan_0134(instr->chan) && ctx->version >= 2) {
             /* pshufb */
+            check_args(ALOPF21, instr);
             gen_alopf21_i64(ctx, instr, gen_helper_pshufb);
             return;
         }
@@ -4443,6 +4533,7 @@ static void gen_lcmbd(DisasContext *ctx, Instr *instr, uint32_t base)
         TCGv_i64 dst = e2k_get_temp_i64(ctx);
         TCGv_i32 opc = tcg_const_i32(base + instr->opc1);
 
+        check_args(ALOPF21, instr);
         gen_tag3_i64(tag, s1.tag, s2.tag, s3.tag);
         gen_helper_plog(dst, opc, s1.value, s2.value, s3.value);
         gen_al_result_i64(instr, dst, tag);

@@ -4,6 +4,8 @@
 #include "tcg/tcg-op.h"
 #include "exec/translator.h"
 
+#define DYNAMIC -1
+
 #define IS_BASED(i) (((i) & 0x80) == 0)
 #define IS_REGULAR(i) (((i) & 0xc0) == 0x80)
 #define IS_IMM5(i) (((i) & 0xe0) == 0xc0)
@@ -355,8 +357,11 @@ typedef struct DisasContext {
     bool do_check_illtag;
 
     /* Delayed window bounds check */
+    int wd_size;
     int max_r;
-    int max_r_cur;
+    int max_r_src;
+    int max_r_dst;
+    int bsize;
     int max_b;
     int max_b_cur;
 

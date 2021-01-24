@@ -1,5 +1,4 @@
 typedef enum {
-    OP_NONE,
     OP_ANDS,
     OP_ANDD,
     OP_ANDNS,
