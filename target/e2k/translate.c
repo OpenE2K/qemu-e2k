@@ -548,6 +548,7 @@ static inline void gen_setwd(DisasContext *ctx)
         TCGv_i32 t0 = tcg_const_i32(setr->wsz);
         TCGv_i32 t1 = tcg_const_i32(setr->nfx);
         TCGv_i32 t2 = tcg_const_i32(setr->dbl);
+        ctx->wd_size = setr->wsz * 2;
         gen_helper_setwd(cpu_env, t0, t1, t2);
         tcg_temp_free_i32(t2);
         tcg_temp_free_i32(t1);
@@ -561,6 +562,7 @@ static inline void gen_setbn(DisasContext *ctx)
     Cs1Setr *setr = &cs1->setr;
 
     if (cs1->type == CS1_SETR && (setr->type & SETR_BN)) {
+        ctx->bsize = (setr->rsz + 1) * 2;
         tcg_gen_movi_i32(e2k_cs.boff, setr->rbs * 2);
         tcg_gen_movi_i32(e2k_cs.bsize, (setr->rsz + 1) * 2);
         tcg_gen_movi_i32(e2k_cs.bcur, setr->rcur * 2);
@@ -937,6 +939,64 @@ static inline target_ulong do_decode(DisasContext *ctx, CPUState *cs)
     return ctx->pc + len;
 }
 
+static inline void gen_maperr_condi_i32(TCGCond cond, TCGv_i32 arg1, int arg2)
+{
+    TCGLabel *l0 = gen_new_label();
+    tcg_gen_brcondi_i32(tcg_invert_cond(cond), arg1, arg2, l0);
+    e2k_gen_exception(E2K_EXCP_MAPERR);
+    gen_set_label(l0);
+}
+
+static inline void do_checks(DisasContext *ctx)
+{
+    const Bundle *b = &ctx->bundle2;
+    const Cs1Setr *setr = &b->cs1.setr;
+
+    if (ctx->wd_size != DYNAMIC) {
+        /* %rN src static check */
+        if (ctx->wd_size <= ctx->max_r_src) {
+            e2k_tr_gen_exception(ctx, E2K_EXCP_MAPERR);
+        }
+        /* %rN dst static check */
+        if (b->cs1.type == CS1_SETR && (setr->type & SETR_WD)) {
+            if (setr->wsz * 2 <= ctx->max_r_dst) {
+                e2k_tr_gen_exception(ctx, E2K_EXCP_MAPERR);
+            }
+        } else if (ctx->wd_size <= ctx->max_r_dst) {
+            e2k_tr_gen_exception(ctx, E2K_EXCP_MAPERR);
+        }
+    } else if (b->cs1.type == CS1_SETR && (setr->type & SETR_WD)) {
+        /* %rN src dynamic check */
+        if (ctx->max_r < ctx->max_r_src) {
+            ctx->max_r = ctx->max_r_src;
+            gen_maperr_condi_i32(TCG_COND_LE, e2k_cs.wd_size, ctx->max_r_src);
+        }
+
+        /* %rN dst static check */
+        if (setr->wsz * 2 <= ctx->max_r_dst) {
+            e2k_tr_gen_exception(ctx, E2K_EXCP_MAPERR);
+        }
+    } else {
+        /* %rN src/dst dynamic check */
+        int max = MAX(ctx->max_r_src, ctx->max_r_dst);
+        if (ctx->max_r < max) {
+            ctx->max_r = max;
+            gen_maperr_condi_i32(TCG_COND_LE, e2k_cs.wd_size, max);
+        }
+    }
+
+    if (ctx->bsize != DYNAMIC) {
+        /* %b[N] src/dst static check */
+        if (ctx->bsize <= ctx->max_b_cur) {
+            e2k_tr_gen_exception(ctx, E2K_EXCP_MAPERR);
+        }
+    } else if (ctx->max_b < ctx->max_b_cur) {
+        /* %b[N] src/dst dynamic check */
+        ctx->max_b = ctx->max_b_cur;
+        gen_maperr_condi_i32(TCG_COND_LE, e2k_cs.bsize, ctx->max_b);
+    }
+}
+
 /*
  * Executes instructions from a bundle and store the results to
  * temporary buffer.
@@ -1073,9 +1133,17 @@ static bool e2k_tr_breakpoint_check(DisasContextBase *db, CPUState *cs,
 
 static void e2k_tr_tb_start(DisasContextBase *db, CPUState *cs)
 {
-//    DisasContext *ctx = container_of(db, DisasContext, base);
+    DisasContext *ctx = container_of(db, DisasContext, base);
     E2KCPU *cpu = E2K_CPU(cs);
     CPUE2KState *env = &cpu->env;
+
+    ctx->wd_size = DYNAMIC;
+    ctx->max_r = -1;
+    ctx->max_r_src = -1;
+    ctx->max_r_dst = -1;
+    ctx->bsize = DYNAMIC;
+    ctx->max_b = -1;
+    ctx->max_b_cur = -1;
 
     tcg_gen_movi_i32(e2k_cs.ct_cond, 0);
 
@@ -1095,6 +1163,11 @@ static void e2k_tr_insn_start(DisasContextBase *db, CPUState *cs)
 
     memset(ctx->mas, 0, sizeof(ctx->mas));
     memset(&ctx->bundle2, 0, sizeof(ctx->bundle2));
+
+    ctx->max_r_src = -1;
+    ctx->max_r_dst = -1;
+    ctx->max_b_cur = -1;
+
     ctx->do_check_illtag = false;
     ctx->illtag = e2k_get_temp_i32(ctx);
     tcg_gen_movi_i32(ctx->illtag, 0);
@@ -1107,6 +1180,7 @@ static void e2k_tr_translate_insn(DisasContextBase *db, CPUState *cs)
 
     pc_next = do_decode(ctx, cs);
     do_execute(ctx);
+    do_checks(ctx);
     do_commit(ctx);
     do_branch(ctx, pc_next);
 
