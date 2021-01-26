@@ -861,6 +861,7 @@ static void gen_advance_loop_counters(void)
     TCGv_i32 t0 = tcg_temp_new_i32();
     TCGv_i32 t1 = tcg_temp_new_i32();
     TCGv_i32 t2 = tcg_temp_new_i32();
+    TCGv_i32 t3 = tcg_temp_new_i32();
 
     gen_dec_sat_i32(e2k_cs.lsr_pcnt, e2k_cs.lsr_pcnt);
     gen_dec_sat_i32(e2k_cs.lsr_lcnt, e2k_cs.lsr_lcnt);
@@ -868,8 +869,10 @@ static void gen_advance_loop_counters(void)
     tcg_gen_setcondi_i32(TCG_COND_EQ, t1, e2k_cs.lsr_lcnt, 0);
     tcg_gen_mov_i32(e2k_cs.lsr_over, t1);
     gen_dec_sat_i32(t2, e2k_cs.lsr_ecnt);
-    tcg_gen_movcond_i32(TCG_COND_NE, e2k_cs.lsr_ecnt, t1, z, t2, e2k_cs.lsr_ecnt);
+    tcg_gen_and_i32(t3, t1, e2k_cs.lsr_vlc);
+    tcg_gen_movcond_i32(TCG_COND_NE, e2k_cs.lsr_ecnt, t3, z, t2, e2k_cs.lsr_ecnt);
 
+    tcg_temp_free_i32(t3);
     tcg_temp_free_i32(t2);
     tcg_temp_free_i32(t1);
     tcg_temp_free_i32(t0);
