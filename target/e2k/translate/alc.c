@@ -736,97 +736,105 @@ static inline void gen_xorn_i64(TCGv_i64 ret, TCGv_i64 src1, TCGv_i64 src2)
     tcg_temp_free_i64(t0);
 }
 
-static inline void gen_getfield_i32(TCGv_i32 ret, TCGv_i32 src1,
-    TCGv_i32 shift, TCGv_i32 size, TCGv_i32 sign)
-{
-    TCGv_i32 n32 = tcg_const_i32(32);
-    TCGv_i32 n1 = tcg_const_i32(1);
-    TCGv_i32 t0 = tcg_temp_new_i32();
-    TCGv_i32 t1 = tcg_temp_new_i32();
-    TCGv_i32 t2 = tcg_temp_new_i32();
-    TCGv_i32 t3 = tcg_temp_new_i32();
-    TCGv_i32 t4 = tcg_temp_new_i32();
-    TCGv_i32 t5 = tcg_temp_new_i32();
+#define IMPL_GEN_MASK(S, T, L) \
+    static inline void glue(gen_mask_, S)(T ret, T size) \
+    { \
+        T t0 = glue(tcg_const_, S)(1); \
+        T t1 = glue(tcg_temp_new_, S)(); \
+        glue(tcg_gen_shl_, S)(t1, t0, size); \
+        glue(tcg_gen_subi_, S)(ret, t1, 1); \
+        glue(tcg_temp_free_, S)(t1); \
+        glue(tcg_temp_free_, S)(t0); \
+    } \
+    static inline void glue(gen_maski_, S)(T ret, int size) \
+    { \
+        T t0 = glue(tcg_const_, S)(size); \
+        glue(gen_mask_, S)(ret, t0); \
+        glue(tcg_temp_free_, S)(t0); \
+    }
 
-    tcg_gen_add_i32(t0, shift, size);
-    tcg_gen_sub_i32(t1, n32, t0);
-    tcg_gen_add_i32(t2, shift, t1);
-    tcg_gen_shl_i32(t3, src1, t1);
-    tcg_gen_shr_i32(t4, t3, t2);
-    tcg_gen_sar_i32(t5, t3, t2);
-    tcg_gen_movcond_i32(TCG_COND_NE, ret, sign, n1, t4, t5);
+IMPL_GEN_MASK(i64, TCGv_i64, 64)
+IMPL_GEN_MASK(i32, TCGv_i32, 32)
 
-    tcg_temp_free_i32(t5);
-    tcg_temp_free_i32(t4);
-    tcg_temp_free_i32(t3);
-    tcg_temp_free_i32(t2);
-    tcg_temp_free_i32(t1);
-    tcg_temp_free_i32(t0);
-    tcg_temp_free_i32(n1);
-    tcg_temp_free_i32(n32);
-}
+#define IMPL_GEN_GETF_SIGN(S, T) \
+    static inline void glue(gen_getf_sign_, S)(T ret, T val, T size, \
+        T off, T sign_off) \
+    { \
+       T z = glue(tcg_const_, S)(0); \
+       T ones = glue(tcg_const_, S)(-1); \
+       T t0 = glue(tcg_temp_new_, S)(); \
+       T t1 = glue(tcg_temp_new_, S)(); \
+       T t2 = glue(tcg_temp_new_, S)(); \
+       T t3 = glue(tcg_temp_new_, S)(); \
+       T t4 = glue(tcg_temp_new_, S)(); \
+       T t5 = glue(tcg_temp_new_, S)(); \
+       T t6 = glue(tcg_temp_new_, S)(); \
+       T t7 = glue(tcg_temp_new_, S)(); \
+       T t8 = glue(tcg_temp_new_, S)(); \
+       /* sign = (src1 >> ((sign_offset << 3) + ((size - 1) & 7) - (offset & 7))) & 1 */ \
+       glue(tcg_gen_subi_, S)(t0, size, 1); \
+       glue(tcg_gen_andi_, S)(t1, t0, 7); \
+       glue(tcg_gen_andi_, S)(t2, off, 7); \
+       glue(tcg_gen_shli_, S)(t3, sign_off, 3); \
+       glue(tcg_gen_add_, S)(t4, t3, t1); \
+       glue(tcg_gen_sub_, S)(t5, t4, t2); \
+       glue(tcg_gen_shr_, S)(t6, val, t5); \
+       glue(tcg_gen_andi_, S)(t7, t6, 1); \
+       glue(tcg_gen_shl_, S)(t8, ones, size); \
+       glue(tcg_gen_movcond_, S)(TCG_COND_NE, ret, t7, z, t8, z); \
+       glue(tcg_temp_free_, S)(t8); \
+       glue(tcg_temp_free_, S)(t7); \
+       glue(tcg_temp_free_, S)(t6); \
+       glue(tcg_temp_free_, S)(t5); \
+       glue(tcg_temp_free_, S)(t4); \
+       glue(tcg_temp_free_, S)(t3); \
+       glue(tcg_temp_free_, S)(t2); \
+       glue(tcg_temp_free_, S)(t1); \
+       glue(tcg_temp_free_, S)(t0); \
+       glue(tcg_temp_free_, S)(ones); \
+       glue(tcg_temp_free_, S)(z); \
+    }
 
-static inline void gen_getfield_i64(TCGv_i64 ret, TCGv_i64 src1,
-    TCGv_i64 shift, TCGv_i64 size, TCGv_i64 sign)
-{
-    TCGv_i64 n64 = tcg_const_i64(64);
-    TCGv_i64 n1 = tcg_const_i64(1);
-    TCGv_i64 t0 = tcg_temp_new_i64();
-    TCGv_i64 t1 = tcg_temp_new_i64();
-    TCGv_i64 t2 = tcg_temp_new_i64();
-    TCGv_i64 t3 = tcg_temp_new_i64();
-    TCGv_i64 t4 = tcg_temp_new_i64();
-    TCGv_i64 t5 = tcg_temp_new_i64();
+IMPL_GEN_GETF_SIGN(i64, TCGv_i64)
+IMPL_GEN_GETF_SIGN(i32, TCGv_i32)
 
-    tcg_gen_add_i64(t0, shift, size);
-    tcg_gen_sub_i64(t1, n64, t0);
-    tcg_gen_add_i64(t2, shift, t1);
-    tcg_gen_shl_i64(t3, src1, t1);
-    tcg_gen_shr_i64(t4, t3, t2);
-    tcg_gen_sar_i64(t5, t3, t2);
-    tcg_gen_movcond_i64(TCG_COND_NE, ret, sign, n1, t4, t5);
+#define IMPL_GEN_GETF(NAME, S, T, OFFSET, SIZE, SIGN_OFF, N) \
+    static inline void NAME(T ret, T src1, T src2) \
+    { \
+        T z = glue(tcg_const_, S)(0); \
+        T offset = glue(tcg_temp_new_, S)(); \
+        T size = glue(tcg_temp_new_, S)(); \
+        T sign = glue(tcg_temp_new_, S)(); \
+        T sign_off = glue(tcg_temp_new_, S)(); \
+        T t0 = glue(tcg_temp_new_, S)(); \
+        T t1 = glue(tcg_temp_new_, S)(); \
+        T t2 = glue(tcg_temp_new_, S)(); \
+        T t3 = glue(tcg_temp_new_, S)(); \
+        T t4 = glue(tcg_temp_new_, S)(); \
+        glue(tcg_gen_extract_, S)(offset, src2, 0, OFFSET); \
+        glue(tcg_gen_extract_, S)(size, src2, 6, SIZE); \
+        glue(tcg_gen_extract_, S)(sign, src2, 12, 1); \
+        glue(tcg_gen_extract_, S)(sign_off, src2, 13, SIGN_OFF); \
+        glue(tcg_gen_rotr_, S)(t0, src1, offset); \
+        glue(gen_mask_, S)(t1, size); \
+        glue(tcg_gen_and_, S)(t2, t0, t1); \
+        glue(gen_getf_sign_, S)(t3, src1, size, offset, sign_off); \
+        glue(tcg_gen_or_, S)(t4, t3, t2); \
+        glue(tcg_gen_movcond_, S)(TCG_COND_NE, ret, sign, z, t4, t2); \
+        glue(tcg_temp_free_, S)(t4); \
+        glue(tcg_temp_free_, S)(t3); \
+        glue(tcg_temp_free_, S)(t2); \
+        glue(tcg_temp_free_, S)(t1); \
+        glue(tcg_temp_free_, S)(t0); \
+        glue(tcg_temp_free_, S)(sign_off); \
+        glue(tcg_temp_free_, S)(sign); \
+        glue(tcg_temp_free_, S)(size); \
+        glue(tcg_temp_free_, S)(offset); \
+        glue(tcg_temp_free_, S)(z); \
+    }
 
-    tcg_temp_free_i64(t5);
-    tcg_temp_free_i64(t4);
-    tcg_temp_free_i64(t3);
-    tcg_temp_free_i64(t2);
-    tcg_temp_free_i64(t1);
-    tcg_temp_free_i64(t0);
-    tcg_temp_free_i64(n1);
-    tcg_temp_free_i64(n64);
-}
-
-static inline void gen_getfs(TCGv_i32 ret, TCGv_i32 src1, TCGv_i32 src2)
-{
-    TCGv_i32 shift = tcg_temp_new_i32();
-    TCGv_i32 size = tcg_temp_new_i32();
-    TCGv_i32 sign = tcg_temp_new_i32();
-
-    tcg_gen_extract_i32(shift, src2, 0, 5);
-    tcg_gen_extract_i32(size, src2, 6, 5);
-    tcg_gen_extract_i32(sign, src2, 12, 1);
-    gen_getfield_i32(ret, src1, shift, size, sign);
-
-    tcg_temp_free_i32(sign);
-    tcg_temp_free_i32(size);
-    tcg_temp_free_i32(shift);
-}
-
-static inline void gen_getfd(TCGv_i64 ret, TCGv_i64 src1, TCGv_i64 src2)
-{
-    TCGv_i64 shift = tcg_temp_new_i64();
-    TCGv_i64 size = tcg_temp_new_i64();
-    TCGv_i64 sign = tcg_temp_new_i64();
-
-    tcg_gen_extract_i64(shift, src2, 0, 6);
-    tcg_gen_extract_i64(size, src2, 6, 6);
-    tcg_gen_extract_i64(sign, src2, 12, 1);
-    gen_getfield_i64(ret, src1, shift, size, sign);
-
-    tcg_temp_free_i64(sign);
-    tcg_temp_free_i64(size);
-    tcg_temp_free_i64(shift);
-}
+IMPL_GEN_GETF(gen_getfd, i64, TCGv_i64, 6, 6, 3, 64)
+IMPL_GEN_GETF(gen_getfs, i32, TCGv_i32, 5, 5, 2, 32)
 
 static void gen_bitrevs(TCGv_i32 ret, TCGv_i32 src1) {
     TCGv_i32 ltemp0 = tcg_temp_new_i32();
