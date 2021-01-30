@@ -1470,9 +1470,46 @@ static inline void gen_puttag_i32(Instr *instr)
     set_al_result_reg32_tag(instr, dst, tag, false, false);
 }
 
-static inline void gen_insfd(TCGv_i64 ret, TCGv_i64 src1,
-    TCGv_i64 src2, TCGv_i64 src3)
+static inline void gen_insfd_tag_mask(TCGv_i32 ret, TCGv_i32 flags,
+    TCGv_i32 tag, int offset)
 {
+    TCGv_i32 z = tcg_const_i32(0);
+    TCGv_i32 t0 = tcg_temp_new_i32();
+    TCGv_i32 t1 = tcg_temp_new_i32();
+    tcg_gen_andi_i32(t0, flags, 1 << offset);
+    tcg_gen_andi_i32(t1, tag, 0x3);
+    tcg_gen_movcond_i32(TCG_COND_NE, ret, t0, z, t1, tag);
+    tcg_temp_free_i32(t1);
+    tcg_temp_free_i32(t0);
+    tcg_temp_free_i32(z);
+}
+
+static inline void gen_insfd_tag(TCGv_i32 ret, TCGv_i64 value,
+    TCGv_i32 s1_tag, TCGv_i32 s3_tag)
+{
+    TCGv_i32 z = tcg_const_i32(0);
+    TCGv_i32 t0 = tcg_temp_new_i32();
+    TCGv_i32 t1 = tcg_temp_new_i32();
+    TCGv_i32 t2 = tcg_temp_new_i32();
+
+    tcg_gen_extrl_i64_i32(t0, value);
+    gen_insfd_tag_mask(t1, t0, s1_tag, 13);
+    gen_insfd_tag_mask(t2, t0, s3_tag, 15);
+    tcg_gen_or_i32(ret, t1, t2);
+
+    tcg_temp_free_i32(t2);
+    tcg_temp_free_i32(t1);
+    tcg_temp_free_i32(t0);
+    tcg_temp_free_i32(z);
+}
+
+static inline void gen_insfd(Instr *instr)
+{
+    Src64 s1 = get_src1_i64(instr);
+    Src64 s2 = get_src2_i64(instr);
+    Src64 s3 = get_src3_i64(instr);
+    TCGv_i32 tag = get_temp_i32(instr);
+    TCGv_i64 dst = get_temp_i64(instr);
     TCGv_i64 one = tcg_const_i64(1);
     TCGv_i64 offset = tcg_temp_new_i64();
     TCGv_i64 len = tcg_temp_new_i64();
@@ -1482,17 +1519,23 @@ static inline void gen_insfd(TCGv_i64 ret, TCGv_i64 src1,
     TCGv_i64 t3 = tcg_temp_new_i64();
     TCGv_i64 t4 = tcg_temp_new_i64();
     TCGv_i64 t5 = tcg_temp_new_i64();
+    TCGv_i32 t6 = tcg_temp_new_i32();
 
-    tcg_gen_extract_i64(offset, src2, 0, 6);
-    tcg_gen_extract_i64(len, src2, 6, 6);
+    tcg_gen_extract_i64(offset, s2.value, 0, 6);
+    tcg_gen_extract_i64(len, s2.value, 6, 6);
     tcg_gen_shl_i64(t0, one, len);
     tcg_gen_subi_i64(t1, t0, 1);
-    tcg_gen_rotr_i64(t2, src1, offset);
+    tcg_gen_rotr_i64(t2, s1.value, offset);
     tcg_gen_not_i64(t3, t1);
     tcg_gen_and_i64(t4, t2, t3);
-    tcg_gen_and_i64(t5, src3, t1);
-    tcg_gen_or_i64(ret, t4, t5);
+    tcg_gen_and_i64(t5, s3.value, t1);
+    tcg_gen_or_i64(dst, t4, t5);
 
+    gen_insfd_tag(t6, s2.value, s1.tag, s3.tag);
+    gen_tag2_i64(tag, s2.tag, t6);
+    gen_al_result_i64(instr, dst, tag);
+
+    tcg_temp_free_i32(t6);
     tcg_temp_free_i64(t5);
     tcg_temp_free_i64(t4);
     tcg_temp_free_i64(t3);
@@ -4346,7 +4389,7 @@ static void gen_icmb3(DisasContext *ctx, Instr *instr)
         if (is_chan_0134(instr->chan) && ctx->version>= 4) {
             /* insfd */
             check_args(ALOPF21, instr);
-            gen_alopf21_i64(ctx, instr, gen_insfd);
+            gen_insfd(instr);
             return;
         }
         break;
