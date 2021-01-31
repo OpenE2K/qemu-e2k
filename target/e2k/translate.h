@@ -286,20 +286,11 @@ typedef struct {
     };
 } AlResult;
 
-typedef enum {
-    AAU_RESULT_NONE,
-    AAU_RESULT_REG32,
-    AAU_RESULT_REG64,
-} AauResultType;
-
 typedef struct {
-    AauResultType type;
+    bool is_set;
     uint8_t dst;
     TCGv_i32 index;
-    union {
-        TCGv_i32 v32;
-        TCGv_i64 v64;
-    };
+    TCGv_i64 value;
 } AauResult;
 
 typedef struct {
