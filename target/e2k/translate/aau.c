@@ -23,13 +23,13 @@ static void gen_load_prefetch_program(DisasContext *ctx)
     gen_helper_aau_load_program(cpu_env);
 }
 
-static void gen_aau_result_reg64(DisasContext *ctx, Mova *instr, TCGv_i64 dst)
+static void gen_aau_result(DisasContext *ctx, Mova *instr, TCGv_i64 dst)
 {
     AauResult *res = &ctx->aau_results[instr->chan];
-    res->type = AAU_RESULT_REG64;
+    res->is_set = true;
     res->dst = instr->dst;
     res->index = e2k_get_temp_i32(ctx);
-    res->v64 = dst;
+    res->value = dst;
     if (IS_REGULAR(instr->dst)) {
         res->dst = instr->dst;
     } else {
@@ -38,45 +38,23 @@ static void gen_aau_result_reg64(DisasContext *ctx, Mova *instr, TCGv_i64 dst)
     }
 }
 
-static void gen_aau_result_reg32(DisasContext *ctx, Mova *instr, TCGv_i32 dst)
-{
-    AauResult *res = &ctx->aau_results[instr->chan];
-    res->type = AAU_RESULT_REG32;
-    res->dst = instr->dst;
-    res->index = e2k_get_temp_i32(ctx);
-    res->v32 = dst;
-    if (IS_REGULAR(instr->dst)) {
-        res->dst = instr->dst;
-    } else {
-        res->dst = 0;
-        e2k_gen_reg_index(ctx, res->index, instr->dst);
-    }
-}
-
-static void gen_mova_i32(DisasContext *ctx, Mova *instr, TCGv ptr)
+static void gen_ld(DisasContext *ctx, Mova *instr, TCGv ptr)
 {
     MemOp memop = instr->be ? MO_BE : MO_LE;
-    TCGv_i32 dst = e2k_get_temp_i32(ctx);
+    TCGv_i64 dst = e2k_get_temp_i64(ctx);
 
     switch(instr->opc) {
     case 1: memop |= MO_8; break; /* movab */
     case 2: memop |= MO_16; break; /* movah */
     case 3: memop |= MO_32; break; /* movaw */
+    case 4: memop |= MO_64; break; /* movad */
     default:
         g_assert_not_reached();
         break;
     }
 
-    tcg_gen_qemu_ld_i32(dst, ptr, 0, memop);
-    gen_aau_result_reg32(ctx, instr, dst);
-}
-
-static void gen_mova_i64(DisasContext *ctx, Mova *instr, TCGv ptr)
-{
-    TCGv_i64 dst = e2k_get_temp_i64(ctx);
-
-    tcg_gen_qemu_ld_i64(dst, ptr, 0, instr->be ? MO_BEQ : MO_LEQ);
-    gen_aau_result_reg64(ctx, instr, dst);
+    tcg_gen_qemu_ld_i64(dst, ptr, 0, memop);
+    gen_aau_result(ctx, instr, dst);
 }
 
 static inline void gen_mova_ptr(TCGv ret, Mova *instr)
@@ -92,6 +70,7 @@ static inline void gen_mova_ptr(TCGv ret, Mova *instr)
     tcg_temp_free_i32(t1);
     tcg_temp_free_i32(t0);
 }
+
 static void gen_mova(DisasContext *ctx, Mova *instr)
 {
     TCGv t5 = tcg_temp_new();
@@ -105,18 +84,14 @@ static void gen_mova(DisasContext *ctx, Mova *instr)
     case 1: /* movab */
     case 2: /* movah */
     case 3: /* movaw */
-        gen_mova_i32(ctx, instr, t5);
-        break;
     case 4: /* movad */
-        gen_mova_i64(ctx, instr, t5);
+        gen_ld(ctx, instr, t5);
         break;
     case 5: /* movaq */
-        qemu_log_mask(LOG_UNIMP, "0x%lx: movaq is not implemented\n", ctx->pc);
-        abort();
+        e2k_todo_illop(ctx, "movaq");
         break;
     case 7: /* movaqp */
-        qemu_log_mask(LOG_UNIMP, "0x%lx: movaqp is not implemented\n", ctx->pc);
-        abort();
+        e2k_todo_illop(ctx, "movaqp");
         break;
     default:
         e2k_tr_gen_exception(ctx, E2K_EXCP_ILLOPC);
@@ -151,7 +126,7 @@ void e2k_aau_execute(DisasContext *ctx)
 
         if (!bundle->aas_present[i + 2] || instr.opc == 0) {
             ctx->aau_am[i] = -1;
-            res->type = AAU_RESULT_NONE;
+            res->is_set = false;
             continue;
         }
 
@@ -171,39 +146,24 @@ void e2k_aau_commit(DisasContext *ctx)
     for (i = 0; i < 4; i++) {
         AauResult *res = &ctx->aau_results[i];
 
-        if (res->type == AAU_RESULT_REG32 || res->type == AAU_RESULT_REG64) {
+        if (res->is_set) {
             if (IS_REGULAR(res->dst)) {
                 e2k_gen_reg_index_from_wregi(res->index, GET_REGULAR(res->dst));
             }
         }
     }
 
+    TCGv_i32 zero = tcg_const_i32(0);
     for (i = 0; i < 4; i++) {
         AauResult *res = &ctx->aau_results[i];
-        TCGv_i32 zero = tcg_const_i32(0);
 
         // TODO: aau.tags
-        switch(res->type) {
-        case AAU_RESULT_REG32: {
-            TCGv_i64 t0 = tcg_temp_new_i64();
-
-            /* mova{b,h,w} always write to reg64 */
-            tcg_gen_extu_i32_i64(t0, res->v32);
-            e2k_gen_reg_tag_write_i32(zero, res->index);
-            e2k_gen_reg_write_i64(t0, res->index);
-            tcg_temp_free_i64(t0);
-            break;
-        }
-        case AAU_RESULT_REG64:
+        if (res->is_set) {
             e2k_gen_reg_tag_write_i64(zero, res->index);
-            e2k_gen_reg_write_i64(res->v64, res->index);
-            break;
-        default:
-            break;
+            e2k_gen_reg_write_i64(res->value, res->index);
         }
-
-        tcg_temp_free_i32(zero);
     }
+    tcg_temp_free_i32(zero);
 
     for (i = 0; i < 4; i++) {
         int area = ctx->aau_am[i];
