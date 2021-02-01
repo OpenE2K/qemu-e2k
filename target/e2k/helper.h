@@ -143,6 +143,8 @@ DEF_HELPER_3_32_64(fmin)
 DEF_HELPER_3_32_64(fmax)
 DEF_HELPER_3_32_64(fmul)
 DEF_HELPER_3_32_64(fdiv)
+DEF_HELPER_3(fscaled, i64, env, i64, i32)
+DEF_HELPER_3(fscales, i32, env, i32, i32)
 
 /* Float x80 ops */
 DEF_HELPER_3(fxaddxx, void, env, f80, f80)
@@ -150,6 +152,7 @@ DEF_HELPER_3(fxsubxx, void, env, f80, f80)
 DEF_HELPER_3(fxrsubxx, void, env, f80, f80)
 DEF_HELPER_3(fxmulxx, void, env, f80, f80)
 DEF_HELPER_3(fxdivxx, void, env, f80, f80)
+DEF_HELPER_3(fxscalesx, void, env, f80, i32)
 
 /* Float 32/64/80 Comparisons */
 #define DEF_HELPER_3_32_64_80(name) \

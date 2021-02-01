@@ -2457,6 +2457,19 @@ static void gen_alopf1_dedd(Instr *instr,
     gen_al_result_i64(instr, dst, tag);
 }
 
+static void gen_alopf1_deds(Instr *instr,
+    void (*op)(TCGv_i64, TCGv_env, TCGv_i64, TCGv_i32))
+{
+    Src64 s1 = get_src1_i64(instr);
+    Src32 s2 = get_src2_i32(instr);
+    TCGv_i32 tag = get_temp_i32(instr);
+    TCGv_i64 dst = get_temp_i64(instr);
+
+    gen_tag2_i64(tag, s1.tag, s2.tag);
+    (*op)(dst, cpu_env, s1.value, s2.value);
+    gen_al_result_i64(instr, dst, tag);
+}
+
 static void gen_alopf1_sss(Instr *instr,
     void (*op)(TCGv_i32, TCGv_i32, TCGv_i32))
 {
@@ -2869,6 +2882,19 @@ static inline void gen_alopf1_f80(Src80 *ret, Src80 src1, Src80 src2,
     tcg_temp_free_ptr(t0);
 }
 
+static inline void gen_alopf1_xexs_raw(Src80 *ret, Src80 src1, Src32 src2,
+    void (*op)(TCGv_env, TCGv_ptr, TCGv_i32))
+{
+    TCGv_ptr t0 = tcg_temp_new_ptr();
+
+    gen_tag2_i64(ret->tag, src1.tag, src2.tag);
+    tcg_gen_addi_ptr(t0, cpu_env, offsetof(CPUE2KState, t0.f80));
+    gen_temp_reg_write_i64_i32(src1.lo, src1.hi, t0);
+    (*op)(cpu_env, t0, src2.value);
+    gen_temp_reg_read_i64_i32(t0, ret->lo, ret->hi);
+    tcg_temp_free_ptr(t0);
+}
+
 static inline void gen_alopf1_xxx(Instr *instr,
     void (*op)(TCGv_env, TCGv_ptr, TCGv_ptr))
 {
@@ -2894,6 +2920,17 @@ static inline void gen_alopf1_xxs(Instr *instr,
     gen_al_result_i32(instr, dst, tag);
 
     temp_free_src80(&t0);
+}
+
+static inline void gen_alopf1_xexi(Instr *instr,
+    void (*op)(TCGv_env, TCGv_ptr, TCGv_i32))
+{
+    Src80 src1 = get_src1_i80(instr);
+    Src32 src2 = get_src2_i32(instr);
+    Src80 res = get_temp_src80(instr);
+
+    gen_alopf1_xexs_raw(&res, src1, src2, op);
+    gen_al_result_i80(instr, res.lo, res.hi, res.tag);
 }
 
 static inline void gen_alopf1_xxd(Instr *instr,
@@ -3534,6 +3571,9 @@ static void gen_op(DisasContext *ctx, Instr *instr)
     case OP_PFDIVD: gen_alopf1_dedd(instr, gen_helper_fdivd); break;
     case OP_PFMIND: gen_alopf1_dedd(instr, gen_helper_fmind); break;
     case OP_PFMAXD: gen_alopf1_dedd(instr, gen_helper_fmaxd); break;
+    case OP_FSCALED: gen_alopf1_deds(instr, gen_helper_fscaled); break;
+    case OP_FSCALES: gen_alopf1_sess(instr, gen_helper_fscales); break;
+    case OP_FXSCALESX: gen_alopf1_xexi(instr, gen_helper_fxscalesx); break;
     case OP_FXDIVTSS:
     case OP_FXDIVTDD:
     case OP_FXDIVTSX:
@@ -3766,9 +3806,6 @@ static void gen_op(DisasContext *ctx, Instr *instr)
     case OP_PFSTOIFS:
     case OP_PFDTOIFD:
     case OP_PUTTST:
-    case OP_FSCALES:
-    case OP_FSCALED:
-    case OP_FXSCALESX:
     case OP_STAAQP:
     case OP_QPAND:
     case OP_QPANDN:

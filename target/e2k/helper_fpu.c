@@ -334,3 +334,26 @@ uint32_t HELPER(frsqrts)(CPUE2KState *env, uint32_t x)
     return float32_val(z);
 }
 #endif
+
+#define IMPL_FSCALE(name, ty, exp_len, exp_off, mul, cvt) \
+    ty HELPER(name)(CPUE2KState *env, ty src1, uint32_t src2) \
+    { \
+        ty max = (1 << exp_len) - 1; \
+        ty bias = max >> 1; \
+        ty exp = src2 <= bias ? bias + src2 : max; \
+        ty s2 = exp << exp_off; \
+        return mul(env, src1, s2); \
+    }
+
+IMPL_FSCALE(fscaled, uint64_t, 11, 52, helper_fmuld, uint64_to_float64)
+IMPL_FSCALE(fscales, uint32_t, 8, 23, helper_fmuls, uint32_to_float32)
+
+void HELPER(fxscalesx)(CPUE2KState *env, floatx80 *src1, uint32_t src2)
+{
+    floatx80 s2;
+    uint16_t max = (1 << 15) - 1;
+    uint16_t bias = max >> 1;
+    s2.low = 1UL << 63;
+    s2.high = src2 <= bias ? bias + src2 : max;
+    helper_fxmulxx(env, src1, &s2);
+}
