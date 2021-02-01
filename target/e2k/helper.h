@@ -177,11 +177,13 @@ DEF_HELPER_2(fstois, i32, env, i32)
 DEF_HELPER_2(istofs, i32, env, i32)
 DEF_HELPER_2(fstoistr, i32, env, i32)
 DEF_HELPER_3(fstofx, void, f80, env, i32)
+DEF_HELPER_3(istofx, void, f80, env, i32)
 
 DEF_HELPER_2(fdtoid, i64, env, i64)
 DEF_HELPER_2(idtofd, i64, env, i64)
 DEF_HELPER_2(fdtoidtr, i64, env, i64)
 DEF_HELPER_3(fdtofx, void, f80, env, i64)
+DEF_HELPER_3(idtofx, void, f80, env, i64)
 
 DEF_HELPER_2(fstofd, i64, env, i32)
 DEF_HELPER_2(fstoid, i64, env, i32)
@@ -194,7 +196,12 @@ DEF_HELPER_2(idtofs, i32, env, i64)
 DEF_HELPER_2(fdtoistr, i32, env, i64)
 
 DEF_HELPER_2(fxtofs, i32, env, f80)
+DEF_HELPER_2(fxtois, i32, env, f80)
+DEF_HELPER_2(fxtoistr, i32, env, f80)
+
 DEF_HELPER_2(fxtofd, i64, env, f80)
+DEF_HELPER_2(fxtoid, i64, env, f80)
+DEF_HELPER_2(fxtoidtr, i64, env, f80)
 
 /* Float Rounding */
 DEF_HELPER_3(fstoifs, i32, env, i32, i32)

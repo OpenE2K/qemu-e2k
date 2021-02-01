@@ -147,7 +147,12 @@ GENERATE_CVT_FLOAT1_OP(idtofs,   int64,   float32, uint64_t, uint32_t, no_cvt, f
 GENERATE_CVT_FLOAT1_OP(fdtoistr, float64, int32_round_to_zero, uint64_t, uint32_t, make_float64, no_cvt)
 
 GENERATE_CVT_FLOAT1_OP(fxtofs,   floatx80, float32, floatx80*, uint32_t, deref, float32_val)
+GENERATE_CVT_FLOAT1_OP(fxtois,   floatx80, int32, floatx80*, uint32_t, deref, no_cvt)
+GENERATE_CVT_FLOAT1_OP(fxtoistr, floatx80, int32_round_to_zero, floatx80*, uint32_t, deref, no_cvt)
+
 GENERATE_CVT_FLOAT1_OP(fxtofd,   floatx80, float64, floatx80*, uint64_t, deref, float64_val)
+GENERATE_CVT_FLOAT1_OP(fxtoid,   floatx80, int64, floatx80*, uint64_t, deref, no_cvt)
+GENERATE_CVT_FLOAT1_OP(fxtoidtr, floatx80, int64_round_to_zero, floatx80*, uint64_t, deref, no_cvt)
 
 void HELPER(fstofx)(floatx80 *ret, CPUE2KState *env, uint32_t x)
 {
@@ -160,6 +165,20 @@ void HELPER(fdtofx)(floatx80 *ret, CPUE2KState *env, uint64_t x)
 {
     int old_flags = save_exception_flags(env);
     *ret = float64_to_floatx80(make_float64(x), &env->fp_status);
+    merge_exception_flags(env, old_flags);
+}
+
+void HELPER(istofx)(floatx80 *ret, CPUE2KState *env, uint32_t x)
+{
+    int old_flags = save_exception_flags(env);
+    *ret = int32_to_floatx80(no_cvt(x), &env->fp_status);
+    merge_exception_flags(env, old_flags);
+}
+
+void HELPER(idtofx)(floatx80 *ret, CPUE2KState *env, uint64_t x)
+{
+    int old_flags = save_exception_flags(env);
+    *ret = int64_to_floatx80(no_cvt(x), &env->fp_status);
     merge_exception_flags(env, old_flags);
 }
 

@@ -1934,12 +1934,32 @@ static inline void gen_fstofx(Src80 *ret, TCGv_i32 src2)
     tcg_temp_free_ptr(t0);
 }
 
+static inline void gen_istofx(Src80 *ret, TCGv_i32 src2)
+{
+    TCGv_ptr t0 = tcg_temp_new_ptr();
+
+    tcg_gen_addi_ptr(t0, cpu_env, offsetof(CPUE2KState, t0.f80));
+    gen_helper_istofx(t0, cpu_env, src2);
+    gen_temp_reg_read_i64_i32(t0, ret->lo, ret->hi);
+    tcg_temp_free_ptr(t0);
+}
+
 static inline void gen_fdtofx(Src80 *ret, TCGv_i64 src2)
 {
     TCGv_ptr t0 = tcg_temp_new_ptr();
 
     tcg_gen_addi_ptr(t0, cpu_env, offsetof(CPUE2KState, t0));
     gen_helper_fdtofx(t0, cpu_env, src2);
+    gen_temp_reg_read_i64_i32(t0, ret->lo, ret->hi);
+    tcg_temp_free_ptr(t0);
+}
+
+static inline void gen_idtofx(Src80 *ret, TCGv_i64 src2)
+{
+    TCGv_ptr t0 = tcg_temp_new_ptr();
+
+    tcg_gen_addi_ptr(t0, cpu_env, offsetof(CPUE2KState, t0));
+    gen_helper_idtofx(t0, cpu_env, src2);
     gen_temp_reg_read_i64_i32(t0, ret->lo, ret->hi);
     tcg_temp_free_ptr(t0);
 }
@@ -1954,6 +1974,26 @@ static inline void gen_fxtofs(TCGv_i32 ret, Src80 src2)
     tcg_temp_free_ptr(t0);
 }
 
+static inline void gen_fxtois(TCGv_i32 ret, Src80 src2)
+{
+    TCGv_ptr t0 = tcg_temp_new_ptr();
+
+    tcg_gen_addi_ptr(t0, cpu_env, offsetof(CPUE2KState, t0));
+    gen_temp_reg_write_i64_i32(src2.lo, src2.hi, t0);
+    gen_helper_fxtois(ret, cpu_env, t0);
+    tcg_temp_free_ptr(t0);
+}
+
+static inline void gen_fxtoistr(TCGv_i32 ret, Src80 src2)
+{
+    TCGv_ptr t0 = tcg_temp_new_ptr();
+
+    tcg_gen_addi_ptr(t0, cpu_env, offsetof(CPUE2KState, t0));
+    gen_temp_reg_write_i64_i32(src2.lo, src2.hi, t0);
+    gen_helper_fxtoistr(ret, cpu_env, t0);
+    tcg_temp_free_ptr(t0);
+}
+
 static inline void gen_fxtofd(TCGv_i64 ret, Src80 src2)
 {
     TCGv_ptr t0 = tcg_temp_new_ptr();
@@ -1961,6 +2001,26 @@ static inline void gen_fxtofd(TCGv_i64 ret, Src80 src2)
     tcg_gen_addi_ptr(t0, cpu_env, offsetof(CPUE2KState, t0));
     gen_temp_reg_write_i64_i32(src2.lo, src2.hi, t0);
     gen_helper_fxtofd(ret, cpu_env, t0);
+    tcg_temp_free_ptr(t0);
+}
+
+static inline void gen_fxtoid(TCGv_i64 ret, Src80 src2)
+{
+    TCGv_ptr t0 = tcg_temp_new_ptr();
+
+    tcg_gen_addi_ptr(t0, cpu_env, offsetof(CPUE2KState, t0));
+    gen_temp_reg_write_i64_i32(src2.lo, src2.hi, t0);
+    gen_helper_fxtoid(ret, cpu_env, t0);
+    tcg_temp_free_ptr(t0);
+}
+
+static inline void gen_fxtoidtr(TCGv_i64 ret, Src80 src2)
+{
+    TCGv_ptr t0 = tcg_temp_new_ptr();
+
+    tcg_gen_addi_ptr(t0, cpu_env, offsetof(CPUE2KState, t0));
+    gen_temp_reg_write_i64_i32(src2.lo, src2.hi, t0);
+    gen_helper_fxtoidtr(ret, cpu_env, t0);
     tcg_temp_free_ptr(t0);
 }
 
@@ -3274,6 +3334,12 @@ static void gen_op(DisasContext *ctx, Instr *instr)
     case OP_IDTOFS: gen_alopf2_sed(instr, gen_helper_idtofs); break;
     case OP_FDTOFS: gen_alopf2_sed(instr, gen_helper_fdtofs); break;
     case OP_FXTOFS: gen_alopf2_xs(instr, gen_fxtofs); break;
+    case OP_FXTOIS: gen_alopf2_xs(instr, gen_fxtois); break;
+    case OP_FXTOISTR: gen_alopf2_xs(instr, gen_fxtoistr); break;
+    case OP_FXTOID: gen_alopf2_xd(instr, gen_fxtoid); break;
+    case OP_FXTOIDTR: gen_alopf2_xd(instr, gen_fxtoidtr); break;
+    case OP_ISTOFX: gen_alopf2_sx(instr, gen_istofx); break;
+    case OP_IDTOFX: gen_alopf2_dx(instr, gen_idtofx); break;
     case OP_UDIVS:
         if (instr->src2 == 0xc0) {
             // FIXME: temp hack
@@ -3513,10 +3579,6 @@ static void gen_op(DisasContext *ctx, Instr *instr)
     case OP_MOVTCD:
     case OP_MOVTRD:
     case OP_MOVTRCD:
-    case OP_FXTOIS:
-    case OP_FXTOID:
-    case OP_ISTOFX:
-    case OP_IDTOFX:
     case OP_PFDTOIS:
     case OP_PFSTOIS:
     case OP_PFDTOISTR:
@@ -3698,8 +3760,6 @@ static void gen_op(DisasContext *ctx, Instr *instr)
     case OP_MOVTCQ:
     case OP_MOVTRQ:
     case OP_MOVTRCQ:
-    case OP_FXTOISTR:
-    case OP_FXTOIDTR:
     case OP_PFHADDS:
     case OP_PFHSUBS:
     case OP_PFADDSUBS:
