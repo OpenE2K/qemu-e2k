@@ -31,6 +31,11 @@ void cpu_loop(CPUE2KState *env)
     int trapnr;
     target_siginfo_t info;
 
+    if (env->restore_procedure) {
+        env->restore_procedure = false;
+        helper_return(env);
+    }
+
     while (1) {
         cpu_exec_start(cs);
         trapnr = cpu_exec(cs);

@@ -6775,8 +6775,7 @@ static inline abi_long copy_from_user_jmp_info(struct target_jmp_info *ji,
     return 0;
 }
 
-static inline abi_long copy_from_user_crs(E2KCrs *crs,
-    abi_ulong target_crs_addr)
+abi_long e2k_copy_from_user_crs(E2KCrs *crs, abi_ulong target_crs_addr)
 {
     E2KCrs *target_crs;
 
@@ -6788,6 +6787,21 @@ static inline abi_long copy_from_user_crs(E2KCrs *crs,
     __get_user(crs->cr1.lo, &target_crs->cr1.lo);
     __get_user(crs->cr1.hi, &target_crs->cr1.hi);
     unlock_user_struct(target_crs, target_crs_addr, 0);
+    return 0;
+}
+
+abi_long e2k_copy_to_user_crs(abi_ulong target_crs_addr, E2KCrs *crs)
+{
+    E2KCrs *target_crs;
+
+    if (!lock_user_struct(VERIFY_WRITE, target_crs, target_crs_addr, 0)) {
+        return -TARGET_EFAULT;
+    }
+    __put_user(crs->cr0_lo, &target_crs->cr0_lo);
+    __put_user(crs->cr0_hi, &target_crs->cr0_hi);
+    __put_user(crs->cr1.lo, &target_crs->cr1.lo);
+    __put_user(crs->cr1.hi, &target_crs->cr1.hi);
+    unlock_user_struct(target_crs, target_crs_addr, 1);
     return 0;
 }
 
@@ -6809,7 +6823,7 @@ static abi_long do_e2k_longjmp2(CPUE2KState *env, struct target_jmp_info *jmp_in
         psize = crs.cr1.wpsz * 2;
         ps_index -= crs.cr1.wbs * E2K_REG_LEN * (crs.cr1.wfx ? 4 : 2);
         pcs_index -= CRS_SIZE;
-        ret = copy_from_user_crs(&crs, env->pcsp.base + pcs_index);
+        ret = e2k_copy_from_user_crs(&crs, env->pcsp.base + pcs_index);
         if (ret) {
             return ret;
         }
@@ -11929,6 +11943,12 @@ static abi_long do_syscall1(void *cpu_env, int num, abi_long arg1,
         do_e2k_longjmp2(env, &ji);
         return arg2;
     }
+#endif
+#ifdef TARGET_NR_access_hw_stacks
+    case TARGET_NR_access_hw_stacks:
+        // TODO: e2k_sys_access_hw_stacks
+        qemu_log_mask(LOG_UNIMP, "syscall access_hw_stacks is not implemented yet\n");
+        return -TARGET_EPERM;
 #endif
 #ifdef CONFIG_ATTR
 #ifdef TARGET_NR_setxattr

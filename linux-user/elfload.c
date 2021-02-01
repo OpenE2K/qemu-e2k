@@ -1567,7 +1567,7 @@ static inline void init_thread(struct target_pt_regs *regs,
 typedef target_elf_greg_t target_elf_gregset_t[ELF_NREG];
 #define USE_ELF_CORE_DUMP
 
-static inline abi_ulong e2k_mmap(abi_ulong size)
+static abi_ulong e2k_mmap(abi_ulong size)
 {
     abi_ulong addr;
     abi_ulong guard = TARGET_PAGE_SIZE;
@@ -1590,6 +1590,25 @@ static inline abi_ulong e2k_mmap(abi_ulong size)
     return addr;
 }
 
+void e2k_pcs_new(E2KPcsState *pcs)
+{
+    pcs->is_readable = true;
+    pcs->is_writable = true;
+    pcs->index = 0;
+    pcs->size = TARGET_PAGE_SIZE;
+    pcs->base = e2k_mmap(pcs->size);
+}
+
+void e2k_ps_new(E2KPsState *ps)
+{
+    ps->is_readable = true;
+    ps->is_writable = true;
+    ps->index = 0;
+    ps->size = TARGET_PAGE_SIZE * 8;
+    ps->base = e2k_mmap(ps->size);
+    ps->base_tag = e2k_mmap(ps->size / 8);
+}
+
 static inline void init_thread(struct target_pt_regs *regs, struct image_info *infop)
 {
     abi_ulong start_stack = infop->start_stack & ~0xf;
@@ -1601,18 +1620,8 @@ static inline void init_thread(struct target_pt_regs *regs, struct image_info *i
     regs->usd_lo = (0x1800UL << 48) | start_stack;
     regs->usd_hi = (regs->sbr - start_stack) << 32;
 
-    regs->pcsp.is_readable = true;
-    regs->pcsp.is_writable = true;
-    regs->pcsp.index = 0;
-    regs->pcsp.size = TARGET_PAGE_SIZE;
-    regs->pcsp.base = e2k_mmap(regs->pcsp.size);
-
-    regs->psp.is_readable = true;
-    regs->psp.is_writable = true;
-    regs->psp.index = 0;
-    regs->psp.size = TARGET_PAGE_SIZE * 8;
-    regs->psp.base = e2k_mmap(regs->psp.size);
-    regs->psp.base_tag = e2k_mmap(regs->psp.size / 8);
+    e2k_pcs_new(&regs->pcsp);
+    e2k_ps_new(&regs->psp);
 }
 
 static void elf_core_copy_regs(target_elf_gregset_t *regs, const CPUE2KState *env)
