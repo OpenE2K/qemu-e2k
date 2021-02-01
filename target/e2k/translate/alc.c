@@ -3944,7 +3944,7 @@ static void gen_op(DisasContext *ctx, Instr *instr)
     case OP_QPFMSAS:
     case OP_QPFMASD:
     case OP_QPFMSAD:
-        e2k_todo_illop(ctx, "unimplemented %d\n", desc->op); break;
+        e2k_todo_illop(ctx, "unimplemented %d (%s)\n", desc->op, desc->dsc); break;
     }
 }
 
