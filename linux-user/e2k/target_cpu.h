@@ -12,7 +12,7 @@ static inline void cpu_clone_regs_child(CPUE2KState *env, target_ulong newsp,
     if (newsp) {
         E2KPcsState pcs;
         E2KPsState ps;
-        E2KCrs crs;
+        E2KCrs crs = { 0 };
         uint64_t *ps_old, *ps_new;
         size_t frame_size;
         target_ulong pcs_base = env->pcsp.base + env->pcsp.index - sizeof(E2KCrs);
