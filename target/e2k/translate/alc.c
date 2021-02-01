@@ -527,12 +527,13 @@ static inline void set_al_result_reg64(Instr *instr, TCGv_i64 value)
 }
 
 static inline void set_al_result_reg32_tag(Instr *instr,
-    TCGv_i32 value, TCGv_i32 tag, bool poison, bool check_tag)
+    TCGv_i32 value, TCGv_i32 tag, bool poison, bool check_tag, bool dbl)
 {
     uint8_t arg = instr->dst;
     AlResult *res = &instr->ctx->al_results[instr->chan];
 
     res->check_tag = check_tag;
+    res->dbl = dbl;
     res->poison = poison;
     // TODO: %tst, %tc, %tcd
     if (arg == 0xdf) { /* %empty */
@@ -557,7 +558,7 @@ static inline void set_al_result_reg32_tag(Instr *instr,
 static inline void set_al_result_reg32(Instr *instr, TCGv_i32 value)
 {
     TCGv_i32 tag = e2k_get_const_i32(instr->ctx, 0);
-    set_al_result_reg32_tag(instr, value, tag, true, true);
+    set_al_result_reg32_tag(instr, value, tag, true, true, true);
 }
 
 static inline void set_al_result_preg(Instr *instr, int index, TCGv_i32 value)
@@ -585,7 +586,22 @@ static inline void gen_al_result_i64(Instr *instr, TCGv_i64 dst, TCGv_i32 tag)
 static inline void gen_al_result_i32(Instr *instr, TCGv_i32 dst, TCGv_i32 tag)
 {
     gen_tag_check(instr, tag);
-    set_al_result_reg32_tag(instr, dst, tag, true, true);
+    set_al_result_reg32_tag(instr, dst, tag, true, true, true);
+}
+
+static inline bool check_qr(uint8_t src, int chan)
+{
+    int index = 0, o = chan & 1;
+    if (IS_REGULAR(src)) {
+        index = GET_REGULAR(src);
+    } else if (IS_BASED(src)) {
+        index = GET_BASED(src);
+    } else if (IS_GLOBAL(src)) {
+        index = GET_GLOBAL(src);
+    } else {
+        return true;
+    }
+    return (index & 1) == (chan < 2 ? o : o ^ 1);
 }
 
 static inline bool is_mrgc(uint16_t rlp, int chan)
@@ -1467,7 +1483,7 @@ static inline void gen_puttag_i32(Instr *instr)
     gen_set_label(l0);
     tcg_gen_mov_i32(tag, s2.value);
     gen_set_label(l1);
-    set_al_result_reg32_tag(instr, dst, tag, false, false);
+    set_al_result_reg32_tag(instr, dst, tag, false, false, true);
 }
 
 static inline void gen_insfd_tag_mask(TCGv_i32 ret, TCGv_i32 flags,
@@ -1684,10 +1700,51 @@ static void gen_getsp(DisasContext *ctx, Instr *instr)
     gen_al_result_i64(instr, dst, tag);
 }
 
+static void gen_movts(Instr *instr)
+{
+    Src32 s2 = get_src2_i32(instr);
+    set_al_result_reg32_tag(instr, s2.value, s2.tag, false, false, false);
+}
+
+static void gen_movtcs(Instr *instr)
+{
+    Src32 s2 = get_src2_i32(instr);
+    gen_tag_check(instr, s2.tag);
+    set_al_result_reg32_tag(instr, s2.value, s2.tag, false, false, false);
+}
+
 static void gen_movtd(Instr *instr)
 {
     Src64 s2 = get_src2_i64(instr);
     set_al_result_reg64_tag(instr, s2.value, s2.tag, false);
+}
+
+static void gen_movtcd(Instr *instr)
+{
+    Src64 s2 = get_src2_i64(instr);
+    gen_tag_check(instr, s2.tag);
+    set_al_result_reg64_tag(instr, s2.value, s2.tag, false);
+}
+
+static void gen_movtq_inner(Instr *instr, Src64 src)
+{
+    if (check_qr(instr->src2, instr->chan) && check_qr(instr->dst, instr->chan)) {
+        set_al_result_reg64_tag(instr, src.value, src.tag, false);
+    } else {
+        e2k_tr_gen_exception(instr->ctx, E2K_EXCP_ILLOPN);
+    }
+}
+
+static void gen_movtq(Instr *instr)
+{
+    gen_movtq_inner(instr, get_src2_i64(instr));
+}
+
+static void gen_movtcq(Instr *instr)
+{
+    Src64 s2 = get_src2_i64(instr);
+    gen_tag_check(instr, s2.tag);
+    gen_movtq_inner(instr, s2);
 }
 
 static inline void gen_ld_mas_mod(DisasContext *ctx, Instr *instr,
@@ -3425,7 +3482,12 @@ static void gen_op(DisasContext *ctx, Instr *instr)
     case OP_MOVX: gen_movx(instr); break;
     case OP_MOVXA: gen_movxa(instr); break;
     case OP_MOVXC: gen_movxc(instr); break;
+    case OP_MOVTS: gen_movts(instr); break;
+    case OP_MOVTCS: gen_movtcs(instr); break;
     case OP_MOVTD: gen_movtd(instr); break;
+    case OP_MOVTCD: gen_movtcd(instr); break;
+    case OP_MOVTQ: gen_movtq(instr); break;
+    case OP_MOVTCQ: gen_movtcq(instr); break;
     case OP_PANDD: gen_alopf1_ddd(instr, tcg_gen_and_i64); break;
     case OP_PANDND: gen_alopf1_ddd(instr, gen_andn_i64); break;
     case OP_PORD: gen_alopf1_ddd(instr, tcg_gen_or_i64); break;
@@ -3612,11 +3674,8 @@ static void gen_op(DisasContext *ctx, Instr *instr)
     case OP_FXSQRTISX:
     case OP_FXSQRTIDX:
     case OP_FXSQRTIXX:
-    case OP_MOVTS:
-    case OP_MOVTCS:
     case OP_MOVTRS:
     case OP_MOVTRCS:
-    case OP_MOVTCD:
     case OP_MOVTRD:
     case OP_MOVTRCD:
     case OP_PFDTOIS:
@@ -3796,8 +3855,6 @@ static void gen_op(DisasContext *ctx, Instr *instr)
     case OP_STODWH:
     case OP_STODWQ:
     case OP_STODWW:
-    case OP_MOVTQ:
-    case OP_MOVTCQ:
     case OP_MOVTRQ:
     case OP_MOVTRCQ:
     case OP_PFHADDS:
@@ -4871,31 +4928,37 @@ static inline void gen_al_result_commit_reg(AlResult *res)
     switch (size) {
     case AL_RESULT_32: {
         TCGLabel *l0 = gen_new_label();
-        TCGLabel *l1 = gen_new_label();
-        TCGv_i32 t0 = tcg_temp_new_i32();
-        TCGv_i64 t1 = tcg_temp_new_i64();
 
-        tcg_gen_brcondi_i32(TCG_COND_NE, e2k_cs.wdbl, 0, l0);
-        /* wdbl is not set */
+        if (res->dbl) {
+            tcg_gen_brcondi_i32(TCG_COND_NE, e2k_cs.wdbl, 0, l0);
+            /* wdbl is not set */
+        }
+
         gen_al_result_commit_reg32(res->poison, res->reg.index, res->reg.tag,
             res->reg.v32);
-        tcg_gen_br(l1);
 
-        /* wdbl is set */
-        gen_set_label(l0);
-        if (res->check_tag) {
-            gen_tag1_i64(t0, res->reg.tag);
-        } else {
-            tcg_gen_mov_i32(t0, res->reg.tag);
+        if (res->dbl) {
+            TCGv_i32 t0 = tcg_temp_new_i32();
+            TCGv_i64 t1 = tcg_temp_new_i64();
+            TCGLabel *l1 = gen_new_label();
+            tcg_gen_br(l1);
+
+            /* wdbl is set */
+            gen_set_label(l0);
+            if (res->check_tag) {
+                gen_tag1_i64(t0, res->reg.tag);
+            } else {
+                tcg_gen_mov_i32(t0, res->reg.tag);
+            }
+            tcg_gen_extu_i32_i64(t1, res->reg.v32);
+            gen_al_result_commit_reg64(res->poison, res->reg.index, t0, t1);
+
+            /* exit */
+            gen_set_label(l1);
+            tcg_temp_free_i64(t1);
+            tcg_temp_free_i32(t0);
         }
-        tcg_gen_extu_i32_i64(t1, res->reg.v32);
-        gen_al_result_commit_reg64(res->poison, res->reg.index, t0, t1);
 
-        /* exit */
-        gen_set_label(l1);
-
-        tcg_temp_free_i64(t1);
-        tcg_temp_free_i32(t0);
         break;
     }
     case AL_RESULT_64:
