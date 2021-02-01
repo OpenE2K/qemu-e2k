@@ -259,6 +259,8 @@ typedef struct {
     bool check_tag;
     /* poison result if tag is not zero */
     bool poison;
+    /* Is 32-bit op affected by wdbl  */
+    bool dbl;
     union {
         struct {
             TCGv_i32 index;
