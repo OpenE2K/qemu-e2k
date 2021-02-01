@@ -25,6 +25,7 @@ void e2k_tcg_initialize(void);
 #define E2K_GR_COUNT 32     /* %gN      [0, 32) */
 #define E2K_BGR_COUNT 8     /* %gN      [24, 32) */
 #define E2K_REG_COUNT (E2K_NR_COUNT + E2K_GR_COUNT)
+#define E2K_TLS_REG (E2K_NR_COUNT + 13)
 
 #define E2K_PR_COUNT 32     /* %predN   [0, 32) */
 
@@ -659,6 +660,9 @@ typedef struct {
     target_ulong pcs_base;
     target_ulong ps_base;
 
+    /* New thread needs to restore its state from hw stacks. */
+    bool restore_procedure;
+
     /* Fields up to this point are cleared by a CPU reset */
     struct {} end_reset_fields;
 
@@ -702,6 +706,8 @@ bool e2k_cpu_tlb_fill(CPUState *cpu, vaddr address, int size,
                  MMUAccessType access_type, int mmu_idx,
                  bool probe, uintptr_t retaddr);
 void e2k_update_fp_status(CPUE2KState *env);
+void e2k_pcs_new(E2KPcsState *pcs);
+void e2k_ps_new(E2KPsState *ps);
 
 #define cpu_signal_handler e2k_cpu_signal_handler
 #define cpu_list e2k_cpu_list
