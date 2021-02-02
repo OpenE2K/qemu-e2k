@@ -145,6 +145,9 @@ DEF_HELPER_3_32_64(fmul)
 DEF_HELPER_3_32_64(fdiv)
 DEF_HELPER_3(fscaled, i64, env, i64, i32)
 DEF_HELPER_3(fscales, i32, env, i32, i32)
+DEF_HELPER_2(frcps, i32, env, i32)
+DEF_HELPER_2(fsqrts, i32, env, i32)
+DEF_HELPER_2(frsqrts, i32, env, i32)
 
 /* Float x80 ops */
 DEF_HELPER_3(fxaddxx, void, env, f80, f80)
