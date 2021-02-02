@@ -292,6 +292,7 @@ typedef struct {
     bool is_set;
     uint8_t dst;
     TCGv_i32 index;
+    TCGv_i32 tag;
     TCGv_i64 value;
 } AauResult;
 
