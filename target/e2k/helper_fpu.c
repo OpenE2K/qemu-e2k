@@ -307,7 +307,7 @@ uint64_t HELPER(fdtoifd)(CPUE2KState *env, uint64_t flags, uint64_t f)
 }
 
 /* TODO: test if valid, test exception flags */
-#if 0
+#if 1
 uint32_t HELPER(frcps)(CPUE2KState *env, uint32_t x)
 {
     int old_flags = save_exception_flags(env);
@@ -331,7 +331,7 @@ uint32_t HELPER(frsqrts)(CPUE2KState *env, uint32_t x)
                              float32_sqrt(make_float32(x), &env->fp_status),
                              &env->fp_status);
     merge_exception_flags(env, old_flags);
-    return float32_val(z);
+    return float32_val(y);
 }
 #endif
 

@@ -3636,6 +3636,9 @@ static void gen_op(DisasContext *ctx, Instr *instr)
     case OP_FSCALED: gen_alopf1_deds(instr, gen_helper_fscaled); break;
     case OP_FSCALES: gen_alopf1_sess(instr, gen_helper_fscales); break;
     case OP_FXSCALESX: gen_alopf1_xexi(instr, gen_helper_fxscalesx); break;
+    case OP_FRCPS: gen_alopf2_ses(instr, gen_helper_frcps); break;
+    case OP_FSQRTS: gen_alopf2_ses(instr, gen_helper_fsqrts); break;
+    case OP_FRSQRTS: gen_alopf2_ses(instr, gen_helper_frsqrts); break;
     case OP_FXDIVTSS:
     case OP_FXDIVTDD:
     case OP_FXDIVTSX:
@@ -3814,10 +3817,7 @@ static void gen_op(DisasContext *ctx, Instr *instr)
     case OP_LDFSQ:
     case OP_LDGSQ:
     case OP_LDSSQ:
-    case OP_FRCPS:
-    case OP_FSQRTS:
     case OP_FSQRTID:
-    case OP_FRSQRTS:
     case OP_PFSQRTS:
     case OP_GETTD:
     case OP_GETTC:
