@@ -23,18 +23,11 @@
 #include "cpu_loop-common.h"
 #include "target_elf.h"
 
-void helper_return(CPUE2KState *env);
-
 void cpu_loop(CPUE2KState *env)
 {
     CPUState *cs = env_cpu(env);
     int trapnr;
     target_siginfo_t info;
-
-    if (env->restore_procedure) {
-        env->restore_procedure = false;
-        helper_return(env);
-    }
 
     while (1) {
         cpu_exec_start(cs);
@@ -44,30 +37,26 @@ void cpu_loop(CPUE2KState *env)
 
         switch (trapnr) {
         case E2K_EXCP_SYSCALL: {
-            abi_long args[10] = { 0 };
-            int psize = env->wd.psize <= 10 ? env->wd.psize : 10;
-            int i;
+            abi_ullong args[E2K_SYSCALL_MAX_ARGS] = { 0 };
+            int psize = MIN(E2K_SYSCALL_MAX_ARGS, env->wd.size);
+            abi_ulong ret;
 
-            for (i = 0; i < psize; i++) {
-                args[i] = env->regs[i];
-            }
+            // TODO: check what happens if env->wd.size is zero
+            memcpy(args, env->regs, psize * sizeof(args[0]));
 
-            abi_ulong ret = do_syscall(env, args[0], args[1], args[2], args[3],
-                args[4], args[5], args[6], args[7], args[8]);
+            do {
+                ret = do_syscall(env, args[0], args[1], args[2], args[3],
+                    args[4], args[5], args[6], args[7], args[8]);
+                // FIXME: I don't know how to properly handle syscall restart
+            } while (ret == -TARGET_ERESTARTSYS);
 
-            if (ret == -TARGET_ERESTARTSYS) {
-                /* TODO: restart syscall */
-                abort();
-            } else if (env->wd.psize > 0 && ret != -TARGET_QEMU_ESIGRETURN) {
+            if (ret != -TARGET_QEMU_ESIGRETURN && env->wd.psize > 0) {
+                memset(env->tags, E2K_TAG_NON_NUMBER64,
+                    psize * sizeof(env->tags[0]));
+
                 env->regs[0] = ret;
                 env->tags[0] = E2K_TAG_NUMBER64;
-
-                for (i = 1; i < env->wd.psize; i++) {
-                    env->tags[i] = E2K_TAG_NON_NUMBER64;
-                }
             }
-            // FIXME: Can call helpers from here?
-            helper_return(env);
             break;
         }
         case E2K_EXCP_ILLOPC:

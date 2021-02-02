@@ -32,75 +32,270 @@
 #define MLT_NUM (16 * 3)		/* common for E3M and E3S */
 
 struct target_sigcontext {
-	abi_ulong	cr0_lo;
-	abi_ulong	cr0_hi;
-	abi_ulong	cr1_lo;
-	abi_ulong	cr1_hi;
-	abi_ulong	sbr;	 /* 21 Stack base register: top of */
+	abi_ullong	cr0_lo;
+	abi_ullong	cr0_hi;
+	abi_ullong	cr1_lo;
+	abi_ullong	cr1_hi;
+	abi_ullong	sbr;	 /* 21 Stack base register: top of */
 					 /*    local data (user) stack */
-	abi_ulong	usd_lo;	 /* 22 Local data (user) stack */
-	abi_ulong	usd_hi;	 /* 23 descriptor: base & size */
-	abi_ulong	psp_lo;	 /* 24 Procedure stack pointer: */
-	abi_ulong	psp_hi;	 /* 25 base & index & size */
-	abi_ulong	pcsp_lo; /* 26 Procedure chain stack */
-	abi_ulong	pcsp_hi; /* 27 pointer: base & index & size */
+	abi_ullong	usd_lo;	 /* 22 Local data (user) stack */
+	abi_ullong	usd_hi;	 /* 23 descriptor: base & size */
+	abi_ullong	psp_lo;	 /* 24 Procedure stack pointer: */
+	abi_ullong	psp_hi;	 /* 25 base & index & size */
+	abi_ullong	pcsp_lo; /* 26 Procedure chain stack */
+	abi_ullong	pcsp_hi; /* 27 pointer: base & index & size */
+
+	/* additional part (for binary compiler) */
+    abi_ullong rpr_hi;
+    abi_ullong rpr_lo;
+
+    abi_ullong nr_TIRs;
+    abi_ullong tir_lo[TIR_NUM];
+    abi_ullong tir_hi[TIR_NUM];
+    abi_ullong trap_cell_addr[MAX_TC_SIZE];
+    abi_ullong trap_cell_val[MAX_TC_SIZE];
+    uint8_t    trap_cell_tag[MAX_TC_SIZE];
+    abi_ullong trap_cell_info[MAX_TC_SIZE];
+
+    abi_ullong dam[DAM_ENTRIES_NUM];
+    abi_ullong sbbp[SBBP_ENTRIES_NUM];
+    abi_ullong mlt[MLT_NUM];
+    abi_ullong upsr;
+};
+
 /*
- *  additional part (for binary compiler)
+ * This structure is used for compatibility
+ * All new fields must be added in this structure
  */
-    uint8_t   bincomp_padding[sizeof(abi_ulong)*184 + 10];
+struct target_extra_ucontext {
+    abi_int sizeof_extra_uc;    /* size of used fields(in bytes) */
+    abi_int curr_cnt;           /* current index into trap_celler */
+    abi_int tc_count;           /* trap_celler records count */
 
-#if 0
-	abi_ulong rpr_hi;
-	abi_ulong rpr_lo;
+    /*
+     * For getcontext()
+     */
+    abi_int fpcr;
+    abi_int fpsr;
+    abi_int pfpfr;
 
-	abi_ulong nr_TIRs;
-	abi_ulong tir_lo[TIR_NUM];
-	abi_ulong tir_hi[TIR_NUM];
-	abi_ulong trap_cell_addr[MAX_TC_SIZE];
-	abi_ulong trap_cell_val[MAX_TC_SIZE];
-	uint8_t      trap_cell_tag[MAX_TC_SIZE];
-	abi_ulong trap_cell_info[MAX_TC_SIZE];
+    abi_ullong ctpr1;
+    abi_ullong ctpr2;
+    abi_ullong ctpr3;
 
-	abi_ulong dam[DAM_ENTRIES_NUM];
+    abi_int sc_need_rstrt;
+};
 
-	abi_ulong sbbp[SBBP_ENTRIES_NUM];
+struct target_ucontext {
+    abi_ulong uc_flags;
+    struct target_ucontext *uc_link;
+    target_stack_t uc_stack;
+    struct target_sigcontext uc_mcontext;
+    union {
+        target_sigset_t uc_sigmask; /* mask last for extensibility */
+        abi_ullong pad[16];
+    };
+    struct target_extra_ucontext uc_extra; /* for compatibility */
+};
 
-	abi_ulong mlt[MLT_NUM];
+struct target_sigframe {
+    target_siginfo_t info;
+    union {
+        struct target_ucontext uc;
+        // TODO: ucontext_prot
+    };
+    target_sigset_t saved_set;
 
-	abi_ulong upsr;
-#endif
+    // FIXME: find where AAU state is saved
+    E2KAauState aau;
 };
 
 #define NF_ALIGNEDSZ  (((sizeof(struct target_signal_frame) + 7) & (~7)))
 
-void setup_frame(int sig, struct target_sigaction *ka,
-                 target_sigset_t *set, CPUE2KState *env)
+void helper_signal_frame(CPUE2KState *env, int wbs, target_ulong ret_ip);
+void helper_signal_return(CPUE2KState *env);
+
+static void setup_sigcontext(CPUE2KState *env,
+    struct target_sigcontext *sc, struct target_extra_ucontext *extra)
 {
-    // TODO: setup_frame
-    qemu_log_mask(LOG_UNIMP, "setup_frame: not implemented\n");
+    int i;
+
+    // TODO: save binary compiler state (uspr, rpr, MLT)
+
+    __put_user(env->crs.cr0_lo, &sc->cr0_lo);
+    __put_user(env->crs.cr0_hi, &sc->cr0_hi);
+    __put_user(env->crs.cr1.lo, &sc->cr1_lo);
+    __put_user(env->crs.cr1.hi, &sc->cr1_hi);
+    __put_user(env->sbr, &sc->sbr);
+    __put_user(env->usd.lo, &sc->usd_lo);
+    __put_user(env->usd.hi, &sc->usd_hi);
+    __put_user(env->psp.lo, &sc->psp_lo);
+    __put_user(env->psp.hi, &sc->psp_hi);
+    __put_user(env->pcsp.lo, &sc->pcsp_lo);
+    __put_user(env->pcsp.hi, &sc->pcsp_hi);
+
+    // TODO: save trap state
+    __put_user(0, &sc->nr_TIRs);
+    __put_user(0, &sc->tir_lo[0]);
+    __put_user(0, &sc->tir_hi[0]);
+    __put_user(-1, &extra->curr_cnt);
+    __put_user(0, &extra->tc_count);
+
+    __put_user(sizeof(struct target_extra_ucontext) - sizeof(abi_int),
+        &extra->sizeof_extra_uc);
+
+    __put_user(env->fpcr.raw, &extra->fpcr);
+    __put_user(env->fpsr.raw, &extra->fpsr);
+    __put_user(env->pfpfr, &extra->pfpfr);
+
+    __put_user(env->ctprs[0].raw, &extra->ctpr1);
+    __put_user(env->ctprs[1].raw, &extra->ctpr2);
+    __put_user(env->ctprs[2].raw, &extra->ctpr3);
+
+    for (i = 0; i < DAM_ENTRIES_NUM; i++) {
+        __put_user(env->dam[i].raw, &sc->dam[i]);
+    }
+}
+
+static void setup_ucontext(struct target_ucontext *uc, CPUE2KState *env)
+{
+    __put_user(0, &uc->uc_flags);
+    __put_user(0, &uc->uc_link);
+
+    target_save_altstack(&uc->uc_stack, env);
+    setup_sigcontext(env, &uc->uc_mcontext, &uc->uc_extra);
+}
+
+static abi_ulong get_sigframe(struct target_sigaction *ka, CPUE2KState *env,
+    size_t frame_size)
+{
+    abi_ulong sp;
+
+    sp = target_sigsp(get_sp_from_cpustate(env), ka);
+    sp = (sp - frame_size) & ~15;
+
+    return sp;
+}
+
+static void target_setup_frame(int sig, struct target_sigaction *ka,
+    target_siginfo_t *info, target_sigset_t *set, CPUE2KState *env)
+{
+    abi_ulong frame_addr;
+    struct target_sigframe *frame;
+
+    /* save current frame */
+    helper_signal_frame(env, env->wd.size, env->ip);
+
+    frame_addr = get_sigframe(ka, env, sizeof(*frame));
+    trace_user_setup_rt_frame(env, frame_addr);
+    if (!lock_user_struct(VERIFY_WRITE, frame, frame_addr, 0)) {
+        force_sigsegv(sig);
+    }
+
+    setup_ucontext(&frame->uc, env);
+    copy_to_user((abi_ulong) &frame->uc.uc_sigmask, set, sizeof(*set));
+    copy_to_user((abi_ulong) &frame->aau, &env->aau, sizeof(env->aau));
+
+    if (ka->sa_flags & TARGET_SA_RESTORER) {
+        // TODO: sa_restorer?
+        qemu_log_mask(LOG_UNIMP, "target_setup_frame sa_restorer +\n");
+    } else {
+        // TODO: ignore?
+    }
+
+    /* fake kernel frame */
+    env->regs[0] = frame_addr;
+    env->tags[0] = E2K_TAG_NUMBER64;
+    env->wd.size = 2;
+    env->wd.psize = 0;
+    env->usd.size = env->sbr - frame_addr;
+    env->usd.base = frame_addr;
+    helper_signal_frame(env, 2, 0xe2ffffffffff);
+
+    env->ip = ka->_sa_handler;
+    env->regs[0] = sig;
+    env->tags[0] = E2K_TAG_NUMBER64;
+    env->wd.size = 8;
+
+    if (info && (ka->sa_flags & TARGET_SA_SIGINFO)) {
+        tswap_siginfo(&frame->info, info);
+        env->regs[1] = (uint64_t) &frame->info;
+        env->tags[1] = E2K_TAG_NUMBER64;
+        env->regs[2] = (uint64_t) &frame->uc;
+        env->tags[2] = E2K_TAG_NUMBER64;
+    }
+
+    unlock_user_struct(frame, frame_addr, 1);
+}
+
+static int target_restore_sigframe(CPUE2KState *env,
+    struct target_sigframe *frame)
+{
+    __get_user(env->crs.cr0_hi, &frame->uc.uc_mcontext.cr0_hi);
+    __get_user(env->ctprs[0].raw, &frame->uc.uc_extra.ctpr1);
+    __get_user(env->ctprs[1].raw, &frame->uc.uc_extra.ctpr2);
+    __get_user(env->ctprs[2].raw, &frame->uc.uc_extra.ctpr3);
+
+    copy_from_user(&env->aau, (abi_ulong) &frame->aau, sizeof(env->aau));
+
+    return 0;
+}
+
+void setup_frame(int sig, struct target_sigaction *ka,
+    target_sigset_t *set, CPUE2KState *env)
+{
+    target_setup_frame(sig, ka, 0, set, env);
 }
 
 void setup_rt_frame(int sig, struct target_sigaction *ka,
-                    target_siginfo_t *info,
-                    target_sigset_t *set, CPUE2KState *env)
+    target_siginfo_t *info, target_sigset_t *set, CPUE2KState *env)
 {
-    // TODO: setup_rt_frame
-    qemu_log_mask(LOG_UNIMP, "setup_rt_frame: not implemented\n");
+    target_setup_frame(sig, ka, info, set, env);
 }
 
 long do_sigreturn(CPUE2KState *env)
 {
-    // TODO: do_sigreturn
-    qemu_log_mask(LOG_UNIMP, "do_sigreturn: not implemented\n");
-    return 0;
+    return do_rt_sigreturn(env);
 }
 
 long do_rt_sigreturn(CPUE2KState *env)
 {
-    trace_user_do_rt_sigreturn(env, 0);
-    // TODO: do_rt_sigreturn
-    qemu_log_mask(LOG_UNIMP, "do_rt_sigreturn: not implemented\n");
-    return -TARGET_ENOSYS;
+    abi_ulong frame_addr;
+    struct target_sigframe *frame;
+    sigset_t set;
+
+    /* restore fake kernel frame */
+    helper_signal_return(env);
+    frame_addr = env->regs[0];
+
+    trace_user_do_rt_sigreturn(env, frame_addr);
+    if (!lock_user_struct(VERIFY_READ, frame, frame_addr, 1)) {
+        goto badframe;
+    }
+
+    target_to_host_sigset(&set, &frame->uc.uc_sigmask);
+    set_sigmask(&set);
+
+    if (target_restore_sigframe(env, frame)) {
+        goto badframe;
+    }
+
+    if (do_sigaltstack(frame_addr +
+            offsetof(struct target_sigframe, uc.uc_stack),
+            0, get_sp_from_cpustate(env)) == -EFAULT)
+    {
+        goto badframe;
+    }
+
+    env->ip = E2K_SIGRET_ADDR;
+
+    unlock_user_struct(frame, frame_addr, 0);
+    return -TARGET_QEMU_ESIGRETURN;
+
+badframe:
+    unlock_user_struct(frame, frame_addr, 0);
+    force_sig(TARGET_SIGSEGV);
+    return -TARGET_QEMU_ESIGRETURN;
 }
 
 abi_long do_swapcontext(CPUArchState *env, abi_ulong uold_ctx,

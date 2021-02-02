@@ -76,7 +76,18 @@ typedef enum {
 typedef enum {
     CTPR_OPC_DISP = 0x0,
     CTPR_OPC_LDISP = 0x1,
+    CTPR_OPC_SIGRET = 0x3,
 } CtprOpc;
+
+#ifdef CONFIG_USER_ONLY
+#define E2K_SYSCALL_MAX_ARGS 10
+/* fake kernel addresses */
+#define E2K_SYSCALL_ADDR3 0xe20000001800
+#define E2K_SYSCALL_ADDR6 0xe20000003000
+#define E2K_SYSRET_ADDR 0xe28000000000
+#define E2K_SYSRET_ADDR_CTPR 0xe2fffffffff8
+#define E2K_SIGRET_ADDR 0xe20000015800
+#endif
 
 #define WD_BASE_OFF 0
 #define WD_BASE_END 10
@@ -669,15 +680,12 @@ typedef struct {
 
     /* internal use */
     uint32_t is_bp; /* breakpoint flag */
-    int syscall_wbs; // FIXME: temp for syscall
+
     /* zeroing upper register half for 32-bit instructions */
     uint32_t wdbl;
 
     target_ulong pcs_base;
     target_ulong ps_base;
-
-    /* New thread needs to restore its state from hw stacks. */
-    bool restore_procedure;
 
     /* Fields up to this point are cleared by a CPU reset */
     struct {} end_reset_fields;
