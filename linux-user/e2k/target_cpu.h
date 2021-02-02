@@ -10,6 +10,14 @@ static inline void cpu_clone_regs_child(CPUE2KState *env, target_ulong newsp,
                                         unsigned flags)
 {
     if (newsp) {
+        // FIXME: what size must be?
+        env->usd.size = 0x20000;
+        env->usd.base = env->sbr = newsp & ~0xf;
+        env->usd.read = 1;
+        env->usd.write = 1;
+    }
+
+    if (flags & CLONE_VM) {
         E2KPcsState pcs;
         E2KPsState ps;
         E2KCrs crs = { 0 };
@@ -18,12 +26,6 @@ static inline void cpu_clone_regs_child(CPUE2KState *env, target_ulong newsp,
         target_ulong pcs_base = env->pcsp.base + env->pcsp.index - sizeof(E2KCrs);
         target_ulong ps_base = env->psp.base + env->psp.index;
         int i;
-
-        // FIXME: what size must be?
-        env->usd.size = 0x20000;
-        env->usd.base = env->sbr = newsp & ~0xf;
-        env->usd.read = 1;
-        env->usd.write = 1;
 
         e2k_pcs_new(&pcs);
         e2k_ps_new(&ps);
@@ -49,12 +51,12 @@ static inline void cpu_clone_regs_child(CPUE2KState *env, target_ulong newsp,
         unlock_user_struct(ps_new, ps.base, 1);
         unlock_user_struct(ps_old, ps_base, 0);
 
+        env->ip = E2K_SYSRET_ADDR;
         env->pcsp = pcs;
         env->psp = ps;
+        env->regs[0] = 0;
+        env->tags[0] = 0;
     }
-    env->restore_procedure = true;
-    env->regs[0] = 0;
-    env->tags[0] = 0;
 }
 
 static inline void cpu_clone_regs_parent(CPUE2KState *env, unsigned flags)

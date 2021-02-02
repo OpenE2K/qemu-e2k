@@ -619,7 +619,8 @@ static inline void gen_cs0(DisasContext *ctx)
     }
     case CS0_SDISP: {
         // TODO: real sdisp target address
-        target_ulong target = (0xe2UL << 40) | cs0->sdisp.disp;
+        target_ulong target = 0xe2UL << 40;
+        target = deposit64(target, 11, 17, cs0->sdisp.disp);
         uint64_t ctpr = ctpr_new(CTPR_TAG_SDISP, 0, cs0->sdisp.ipd, target);
         gen_set_ctpr(cs0->sdisp.ctpr, ctpr);
         break;
@@ -1149,13 +1150,50 @@ static void e2k_tr_translate_insn(DisasContextBase *db, CPUState *cs)
     DisasContext *ctx = container_of(db, DisasContext, base);
     target_ulong pc_next;
 
-    pc_next = do_decode(ctx, cs);
-    do_execute(ctx);
-    do_checks(ctx);
-    do_commit(ctx);
-    do_branch(ctx, pc_next);
+    switch (ctx->base.pc_next) {
+#ifdef CONFIG_USER_ONLY
+    case E2K_SYSCALL_ADDR3:
+    case E2K_SYSCALL_ADDR6:
+        /* fake enter into syscall handler */
+        ctx->base.is_jmp = DISAS_NORETURN;
+        /* force non-zero tb size */
+        pc_next = ctx->base.pc_next + 8;
+        e2k_gen_save_pc(E2K_SYSRET_ADDR);
+        gen_helper_syscall(cpu_env);
+        tcg_gen_exit_tb(NULL, TB_EXIT_IDX0);
+        break;
+    case E2K_SYSRET_ADDR: {
+        /* fake return from syscall handler */
+        TCGv_i32 t0 = tcg_const_i32(0);
 
-    ctx->mlock = NULL;
+        ctx->base.is_jmp = DISAS_NORETURN;
+        /* force non-zero tb size */
+        pc_next = ctx->base.pc_next + 8;
+        gen_helper_prep_return(e2k_cs.ctprs[2], cpu_env, t0);
+        gen_helper_return(cpu_env);
+        tcg_gen_exit_tb(NULL, TB_EXIT_IDX0);
+
+        tcg_temp_free_i32(t0);
+        break;
+    }
+    case E2K_SIGRET_ADDR:
+        /* fake return from signal handler */
+        gen_helper_signal_return(cpu_env);
+        tcg_gen_exit_tb(NULL, TB_EXIT_IDX0);
+        break;
+#endif
+    default: {
+        pc_next = do_decode(ctx, cs);
+        do_execute(ctx);
+        do_checks(ctx);
+        do_commit(ctx);
+        do_branch(ctx, pc_next);
+
+        ctx->mlock = NULL;
+        break;
+    }
+    }
+
     ctx->base.pc_next = pc_next;
 
     /* Free temporary values */
