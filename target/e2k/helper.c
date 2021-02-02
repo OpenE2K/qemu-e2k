@@ -8,6 +8,8 @@
 
 #define PS_FORCE_FX true
 
+void helper_signal_frame(CPUE2KState *env, int wbs, target_ulong ret_ip);
+
 static inline void reset_ctprs(CPUE2KState *env)
 {
     unsigned int i;
@@ -65,7 +67,7 @@ static void proc_chain_save(CPUE2KState *env, int wd_base, target_ulong ret_ip)
     pcs_push(env, env->crs.cr1.hi);
 
     env->crs.cr0_lo = env->pregs;
-    env->crs.cr0_hi = ret_ip;
+    env->crs.cr0_hi = ret_ip & ~7;
     env->crs.cr1.wbs = wd_base / 2;
     env->crs.cr1.wpsz = env->wd.psize / 2;
     env->crs.cr1.wfx = env->wd.fx;
@@ -83,7 +85,7 @@ static void proc_chain_restore(CPUE2KState *env)
     int wd_base;
 
     env->pregs = env->crs.cr0_lo;
-    env->ip = env->crs.cr0_hi;
+    env->ip = env->crs.cr0_hi & ~7;
     wd_base = env->crs.cr1.wbs * 2;
     e2k_state_br_set(env, env->crs.cr1.br);
     env->wd.size = env->wd.psize + wd_base;
@@ -156,6 +158,18 @@ static void caller_window(CPUE2KState *env)
     ps_fill(env, s, env->crs.cr1.wfx);
 }
 
+void HELPER(signal_frame)(CPUE2KState *env, int wd_size, target_ulong ret_ip)
+{
+    callee_window(env, wd_size / 2);
+    proc_chain_save(env, wd_size, ret_ip);
+}
+
+void HELPER(signal_return)(CPUE2KState *env)
+{
+    caller_window(env);
+    proc_chain_restore(env);
+}
+
 static inline void do_call(CPUE2KState *env, int wbs, target_ulong ret_ip)
 {
     callee_window(env, wbs);
@@ -171,6 +185,13 @@ static inline void do_syscall(CPUE2KState *env, int wbs, target_ulong ret_ip)
     cpu_loop_exit(cs);
 }
 
+void HELPER(syscall)(CPUE2KState *env)
+{
+    CPUState *cs = env_cpu(env);
+    cs->exception_index = E2K_EXCP_SYSCALL;
+    cpu_loop_exit(cs);
+}
+
 void HELPER(call)(CPUE2KState *env, uint64_t ctpr_raw, int call_wbs,
     target_ulong pc_next)
 {
@@ -178,11 +199,8 @@ void HELPER(call)(CPUE2KState *env, uint64_t ctpr_raw, int call_wbs,
 
     switch (ctpr.tag) {
     case CTPR_TAG_DISP:
-        do_call(env, call_wbs, pc_next);
-        env->ip = ctpr.base;
-        break;
     case CTPR_TAG_SDISP:
-        do_syscall(env, call_wbs, pc_next);
+        do_call(env, call_wbs, pc_next);
         env->ip = ctpr.base;
         break;
     default:
@@ -200,7 +218,13 @@ uint64_t HELPER(prep_return)(CPUE2KState *env, int ipd)
         return 0;
     }
 
-    ret.base = env->crs.cr0_hi;
+    if (env->crs.cr0_hi == E2K_SYSRET_ADDR_CTPR) {
+        ret.base = E2K_SIGRET_ADDR;
+        ret.opc = CTPR_OPC_SIGRET;
+    } else {
+        ret.base = env->crs.cr0_hi;
+    }
+
     ret.tag = CTPR_TAG_RETURN;
     ret.ipd = ipd;
 
@@ -209,9 +233,24 @@ uint64_t HELPER(prep_return)(CPUE2KState *env, int ipd)
 
 void HELPER(return)(CPUE2KState *env)
 {
-    caller_window(env);
-    proc_chain_restore(env);
-    reset_ctprs(env);
+    CtprOpc opc = env->ctprs[2].opc;
+
+    if (opc == CTPR_OPC_SIGRET) {
+        CPUState *cs = env_cpu(env);
+        env->wd.psize = 2;
+        env->regs[0] = 119; /* TARGET_NR_sigreturn */
+        env->tags[0] = E2K_TAG_NUMBER64;
+        cs->exception_index = E2K_EXCP_SYSCALL;
+        cpu_loop_exit(cs);
+    } else {
+        if (opc != 0) {
+            qemu_log("%#lx: unknown return ctpr opc %d\n", env->ip, opc);
+        }
+
+        caller_window(env);
+        proc_chain_restore(env);
+        reset_ctprs(env);
+    }
 }
 
 void HELPER(raise_exception)(CPUE2KState *env, int tt)
