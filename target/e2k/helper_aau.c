@@ -11,7 +11,7 @@ static inline void init_prefetch_area(E2KAauAreaState *s, E2KAauPrefInstr pi,
     if (pi.fmt != 0) {
         s->pi = pi;
         s->ldi = 0;
-        s->cdi = inds[pi.ind] & ~((1 << pi.fmt) - 1);
+        s->cdi = inds[pi.ind];
     } else {
         s->pi.raw = 0;
         s->ldi = 0;
