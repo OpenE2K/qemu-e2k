@@ -4596,22 +4596,22 @@ static void execute_fcomb_i64(DisasContext *ctx, Instr *instr)
     case 0x00:
         if (instr->opc2 == FCMB0) {
             /* f{op}_addd */
-            gen_helper_faddd(dst, cpu_env, dst, s3.value);
+            gen_helper_faddd(dst, cpu_env, s3.value, dst);
             break;
         } else if (ctx->version == 1 && instr->opc2 == FCMB1) {
             /* f{op}_muld */
-            gen_helper_fmuld(dst, cpu_env, dst, s3.value);
+            gen_helper_fmuld(dst, cpu_env, s3.value, dst);
             break;
         }
         goto gen_illopc;
     case 0x20:
         if (instr->opc2 == FCMB0) {
             /* f{op}_subd */
-            gen_helper_fsubd(dst, cpu_env, dst, s3.value);
+            gen_helper_fsubd(dst, cpu_env, s3.value, dst);
             break;
         } else if (instr->opc2 == FCMB1) {
             /* f{op}_rsubd */
-            gen_helper_fsubd(dst, cpu_env, s3.value, dst);
+            gen_helper_fsubd(dst, cpu_env, dst, s3.value);
             break;
         }
         goto gen_illopc;
@@ -4668,22 +4668,22 @@ static void execute_fcomb_i32(DisasContext *ctx, Instr *instr)
     case 0x00:
         if (instr->opc2 == FCMB0) {
             /* f{op}_adds */
-            gen_helper_fadds(dst, cpu_env, dst, s3.value);
+            gen_helper_fadds(dst, cpu_env, s3.value, dst);
             break;
         } else if (ctx->version == 1 && instr->opc2 == FCMB1) {
             /* f{op}_muls */
-            gen_helper_fmuls(dst, cpu_env, dst, s3.value);
+            gen_helper_fmuls(dst, cpu_env, s3.value, dst);
             break;
         }
         goto gen_illopc;
     case 0x20:
         if (instr->opc2 == FCMB0) {
             /* f{op}_subs */
-            gen_helper_fsubs(dst, cpu_env, dst, s3.value);
+            gen_helper_fsubs(dst, cpu_env, s3.value, dst);
             break;
         } else if (instr->opc2 == FCMB1) {
             /* f{op}_rsubs */
-            gen_helper_fsubs(dst, cpu_env, s3.value, dst);
+            gen_helper_fsubs(dst, cpu_env, dst, s3.value);
             break;
         }
         goto gen_illopc;
