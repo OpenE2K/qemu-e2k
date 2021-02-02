@@ -130,6 +130,7 @@ void e2k_aau_execute(DisasContext *ctx)
             continue;
         }
 
+        // TODO: invalid value if addr is unaligned
         gen_mova(ctx, &instr);
     }
 
