@@ -36,6 +36,8 @@ typedef enum {
     E2K_TAG_NON_NUMBER64 = 5,
 } E2kRegisterTag;
 
+#define E2K_MOVA_RESULT_INVALID 0xeaed0f70eaed0f70
+
 #define CRS_SIZE (sizeof(E2KCrs))
 
 #define CTPR_BASE_OFF 0
