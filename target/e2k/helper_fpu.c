@@ -338,10 +338,25 @@ uint32_t HELPER(frsqrts)(CPUE2KState *env, uint32_t x)
 #define IMPL_FSCALE(name, ty, exp_len, exp_off, mul, cvt) \
     ty HELPER(name)(CPUE2KState *env, ty src1, uint32_t src2) \
     { \
+        int32_t p = (int32_t) src2; \
         ty max = (1 << exp_len) - 1; \
-        ty bias = max >> 1; \
-        ty exp = src2 <= bias ? bias + src2 : max; \
-        ty s2 = exp << exp_off; \
+        int32_t bias = max >> 1; \
+        ty exp; \
+        ty m = 0; \
+        if (p <= -bias) { \
+            exp = 0; \
+            p += bias + exp_off - 1; \
+            if (p >= 0 && p < exp_off) { \
+                m = 1ULL << p; \
+            } else { \
+                m = p == -1; \
+            } \
+        } else if (p > bias) { \
+            exp = max; \
+        } else { \
+            exp = bias + p; \
+        } \
+        ty s2 = (exp << exp_off) | m; \
         return mul(env, src1, s2); \
     }
 
@@ -351,9 +366,23 @@ IMPL_FSCALE(fscales, uint32_t, 8, 23, helper_fmuls, uint32_to_float32)
 void HELPER(fxscalesx)(CPUE2KState *env, floatx80 *src1, uint32_t src2)
 {
     floatx80 s2;
+    int32_t p = (int32_t) src2;
     uint16_t max = (1 << 15) - 1;
-    uint16_t bias = max >> 1;
-    s2.low = 1UL << 63;
-    s2.high = src2 <= bias ? bias + src2 : max;
+    int16_t bias = max >> 1;
+    if (p <= -bias) {
+        s2.high = 0;
+        p += bias + 62;
+        if (p >= 0 && p < 63) {
+            s2.low = 1ULL << p;
+        } else {
+            s2.low = p == -1;
+        }
+    } else if (p > bias) {
+        s2.low = 1UL << 63;
+        s2.high = max;
+    } else {
+        s2.low = 1UL << 63;
+        s2.high = bias + p;
+    }
     helper_fxmulxx(env, src1, &s2);
 }
