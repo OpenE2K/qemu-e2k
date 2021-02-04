@@ -307,7 +307,6 @@ uint64_t HELPER(fdtoifd)(CPUE2KState *env, uint64_t flags, uint64_t f)
 }
 
 /* TODO: test if valid, test exception flags */
-#if 1
 uint32_t HELPER(frcps)(CPUE2KState *env, uint32_t x)
 {
     int old_flags = save_exception_flags(env);
@@ -333,7 +332,29 @@ uint32_t HELPER(frsqrts)(CPUE2KState *env, uint32_t x)
     merge_exception_flags(env, old_flags);
     return float32_val(y);
 }
+
+#ifdef TARGET_E2K_PRECISE_FSQRTID
+uint64 HELPER(fsqrtid)(CPUE2KState *env, uint64_t x)
+{
+#error implement
+    return x;
+}
 #endif
+
+uint64_t HELPER(fsqrttd)(CPUE2KState *env, uint64_t x, uint64_t unused)
+{
+    int old_flags = save_exception_flags(env);
+    uint64_t y = float64_sqrt(make_float64(x), &env->fp_status);
+    merge_exception_flags(env, old_flags);
+    return float64_val(y);
+}
+
+void HELPER(fxsqrttxx)(CPUE2KState *env, floatx80 *x, floatx80 *unused)
+{
+    int old_flags = save_exception_flags(env);
+    *x = floatx80_sqrt(*x, &env->fp_status);
+    merge_exception_flags(env, old_flags);
+}
 
 #define IMPL_FSCALE(name, ty, exp_len, exp_off, mul, cvt) \
     ty HELPER(name)(CPUE2KState *env, ty src1, uint32_t src2) \
