@@ -8,6 +8,18 @@
 
 void e2k_tcg_initialize(void);
 
+/* a1ba: fsqrtid, fxsqrtixx, fxsqrtuxx are instructions that
+ * calculate intermediate square root
+ * I don't think the results of these instructions are meant to be used
+ * somewhere else than final square root instruction (fsqrttd, fxsqrttxx)
+ * Correctly emulating that instruction may impact performance
+ *
+ * Uncomment this macro to have correct implementation,
+ * or left as is to just copy values
+ */
+
+/* #define TARGET_E2K_PRECISE_FSQRTID */
+
 #define GEN_MASK(start, len) (((1UL << (len)) - 1) << (start))
 #define GET_BIT(v, index) (((v) >> (index)) & 1)
 

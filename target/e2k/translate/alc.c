@@ -3127,6 +3127,23 @@ static inline void gen_alopf2_dx(Instr *instr,
     gen_al_result_i80(instr, res.lo, res.hi, res.tag);
 }
 
+static inline void gen_mov_f80(Src80 *ret, Src80 src2)
+{
+    tcg_gen_mov_i32(ret->hi, src2.hi);
+    tcg_gen_mov_i64(ret->lo, src2.lo);
+}
+
+static inline void gen_alopf2_xx(Instr *instr,
+    void (*op)(Src80 *ret, Src80 src2))
+{
+    Src80 src2 = get_src2_i80(instr);
+    Src80 res = get_temp_src80(instr);
+
+    gen_tag1_i64(res.tag, src2.tag);
+    (*op)(&res, src2);
+    gen_al_result_i80(instr, res.lo, res.hi, res.tag);
+}
+
 static AlopDesc *find_op(Instr *instr)
 {
     /* ALES2/5 may be allocated but must not be used */
@@ -3639,16 +3656,26 @@ static void gen_op(DisasContext *ctx, Instr *instr)
     case OP_FRCPS: gen_alopf2_ses(instr, gen_helper_frcps); break;
     case OP_FSQRTS: gen_alopf2_ses(instr, gen_helper_fsqrts); break;
     case OP_FRSQRTS: gen_alopf2_ses(instr, gen_helper_frsqrts); break;
+#ifndef TARGET_E2K_PRECISE_FSQRTID
+    case OP_FSQRTID: gen_alopf2_dd(instr, tcg_gen_mov_i64); break;
+    case OP_FXSQRTISX: gen_alopf2_sx(instr, gen_fstofx); break;
+    case OP_FXSQRTIDX: gen_alopf2_dx(instr, gen_fdtofx); break;
+    case OP_FXSQRTIXX: gen_alopf2_xx(instr, gen_mov_f80); break;
+    /* FIXME: these are not ALOPF2! */
+    case OP_FXSQRTUSX: /* fallthrough */
+    case OP_FXSQRTUDX: /* fallthrough */
+    case OP_FXSQRTUXX: gen_alopf2_xx(instr, gen_mov_f80); break;
+#else
+#error Not implemented
+#endif
+    case OP_FSQRTTD: gen_alopf1_dedd(instr, gen_helper_fsqrttd); break;
+    case OP_FXSQRTTSX: gen_alopf1_xsx(instr, gen_helper_fxsqrttxx); break;
+    case OP_FXSQRTTDX: gen_alopf1_xdx(instr, gen_helper_fxsqrttxx); break;
+    case OP_FXSQRTTXX: gen_alopf1_xxx(instr, gen_helper_fxsqrttxx); break;
     case OP_FXDIVTSS:
     case OP_FXDIVTDD:
     case OP_FXDIVTSX:
     case OP_FXDIVTDX:
-    case OP_FXSQRTUSX:
-    case OP_FXSQRTUDX:
-    case OP_FXSQRTUXX:
-    case OP_FXSQRTTSX:
-    case OP_FXSQRTTDX:
-    case OP_FXSQRTTXX:
     case OP_VFSI:
     case OP_LDCSB:
     case OP_LDDSB:
@@ -3674,9 +3701,6 @@ static void gen_op(DisasContext *ctx, Instr *instr)
     case OP_LDFSD:
     case OP_LDGSD:
     case OP_LDSSD:
-    case OP_FXSQRTISX:
-    case OP_FXSQRTIDX:
-    case OP_FXSQRTIXX:
     case OP_MOVTRS:
     case OP_MOVTRCS:
     case OP_MOVTRD:
@@ -3733,7 +3757,6 @@ static void gen_op(DisasContext *ctx, Instr *instr)
     case OP_AAURRD:
     case OP_AAURRQ:
     */
-    case OP_FSQRTTD:
     case OP_PFMULS:
     case OP_PFADDS:
     case OP_PFSUBS:
@@ -3817,7 +3840,6 @@ static void gen_op(DisasContext *ctx, Instr *instr)
     case OP_LDFSQ:
     case OP_LDGSQ:
     case OP_LDSSQ:
-    case OP_FSQRTID:
     case OP_PFSQRTS:
     case OP_GETTD:
     case OP_GETTC:
