@@ -85,6 +85,9 @@ void helper_state_reg_write_i64(CPUE2KState *env, int idx, uint64_t val)
         env->lsr_pcnt = extract64(val, LSR_PCNT_OFF, LSR_PCNT_LEN);
         env->lsr_strmd = extract64(val, LSR_STRMD_OFF, LSR_STRMD_LEN);
         break;
+    case 0x84: /* %pfpfr */
+        qemu_log_mask(LOG_UNIMP, "pfpfr write 0x%lx\n", val);
+        break;
     case 0x85: /* %fpcr */
         env->fpcr.raw = val;
         e2k_update_fp_status(env);
@@ -109,6 +112,9 @@ void helper_state_reg_write_i32(CPUE2KState *env, int idx, uint32_t val)
     switch (idx) {
     case 0x83: /* %lsr */
         env->lsr_lcnt = val;
+        break;
+    case 0x84: /* %pfpfr */
+        qemu_log_mask(LOG_UNIMP, "pfpfr write 0x%x\n", val);
         break;
     case 0x85: /* %fpcr */
         env->fpcr.raw = val;
