@@ -6,6 +6,8 @@
 
 #include "alops.inc"
 
+#define glue4(a, b, c, d) glue(glue(a, b), glue(c, d))
+
 static int16_t alops_map[4][128][6];
 
 typedef struct {
@@ -4177,18 +4179,12 @@ typedef enum {
 IMPL_GEN_ICOMB_OP(i64)
 IMPL_GEN_ICOMB_OP(i32)
 
-static inline IComb icomb_opc1(Instr *instr)
-{
-    return (instr->opc1 >> 1) & 0xf;
-}
-
-static inline IComb icomb_opc2(Instr *instr)
-{
-    return ((instr->opc2 & 3) << 2) | ((instr->opc1 >> 5) & 3);
-}
-
 static inline bool icomb_check(Instr *instr, IComb opc1, IComb opc2)
 {
+    if (!is_chan_14(instr->chan)) {
+        return false;
+    }
+
     if (instr->ctx->version == 1) {
         return opc1 != ICOMB_RSUB;
     } else {
@@ -4198,38 +4194,93 @@ static inline bool icomb_check(Instr *instr, IComb opc1, IComb opc2)
     }
 }
 
-#define IMPL_GEN_ICOMB(S, T) \
-    static void glue(gen_icomb_, S)(Instr *instr) \
+typedef enum {
+    FCOMB_ADD = 0,
+    FCOMB_SUB = 1,
+    FCOMB_MUL = 4,
+    FCOMB_RSUB = 5,
+} FComb;
+
+static inline bool fcomb_is_add_unit(FComb op)
+{
+    return op != FCOMB_MUL;
+}
+
+static inline bool fcomb_is_mul_unit(FComb op)
+{
+    return op == FCOMB_MUL;
+}
+
+static inline bool fcomb_check(Instr *instr, FComb opc1, FComb opc2)
+{
+    int ver = instr->ctx->version;
+
+    if (ver < 4 && is_chan_25(instr->chan)) {
+        return false;
+    }
+
+    if (ver >= 2) {
+        return fcomb_is_mul_unit(opc1) != fcomb_is_mul_unit(opc2);
+    } else {
+        return fcomb_is_add_unit(opc1) == fcomb_is_mul_unit(opc2);
+    }
+}
+
+#define IMPL_GEN_FCOMB_OP(S, T) \
+    static void glue(gen_fcomb_op_, S)(Instr *instr, FComb opc, \
+        glue(TCGv_, S) ret, glue(TCGv_, S) arg1, glue(TCGv_, S) arg2) \
     { \
-        IComb opc1 = icomb_opc1(instr); \
-        IComb opc2 = icomb_opc2(instr); \
+        switch(opc) { \
+        case FCOMB_ADD: glue(gen_helper_fadd, T)(ret, cpu_env, arg1, arg2); break; \
+        case FCOMB_SUB: glue(gen_helper_fsub, T)(ret, cpu_env, arg1, arg2); break; \
+        case FCOMB_MUL: glue(gen_helper_fmul, T)(ret, cpu_env, arg1, arg2); break; \
+        case FCOMB_RSUB: glue(gen_helper_fsub, T)(ret, cpu_env, arg2, arg1); break; \
+        default: g_assert_not_reached(); break; \
+        } \
+    }
+
+IMPL_GEN_FCOMB_OP(i64, d)
+IMPL_GEN_FCOMB_OP(i32, s)
+
+static inline int comb_opc1(Instr *instr)
+{
+    return (instr->opc1 >> 1) & 0xf;
+}
+
+static inline int comb_opc2(Instr *instr)
+{
+    return ((instr->opc2 & 3) << 2) | ((instr->opc1 >> 5) & 3);
+}
+
+#define IMPL_GEN_COMB(P, S, T) \
+    static void glue4(gen_, P, _, S)(Instr *instr) \
+    { \
+        int opc1 = comb_opc1(instr); \
+        int opc2 = comb_opc2(instr); \
         glue(Src, T) s1 = glue(get_src1_, S)(instr); \
         glue(Src, T) s2 = glue(get_src2_, S)(instr); \
         glue(Src, T) s3 = glue(get_src3_, S)(instr); \
         TCGv_i32 tag = get_temp_i32(instr); \
         glue(TCGv_, S) dst = glue(get_temp_, S)(instr); \
         \
-        if (!icomb_check(instr, opc1, opc2)) { \
+        if (!glue(P, _check)(instr, opc1, opc2)) { \
             e2k_tr_gen_exception(instr->ctx, E2K_EXCP_ILLOPC); \
             return; \
         } \
         \
         glue(gen_tag3_, S)(tag, s1.tag, s2.tag, s3.tag); \
-        glue(gen_icomb_op_, S)(instr, opc1, dst, s1.value, s2.value); \
-        glue(gen_icomb_op_, S)(instr, opc2, dst, s3.value, dst); \
+        glue4(gen_, P, _op_, S)(instr, opc1, dst, s1.value, s2.value); \
+        glue4(gen_, P, _op_, S)(instr, opc2, dst, s3.value, dst); \
         glue(gen_al_result_, S)(instr, dst, tag); \
     }
 
-IMPL_GEN_ICOMB(i64, 64)
-IMPL_GEN_ICOMB(i32, 32)
+IMPL_GEN_COMB(icomb, i64, 64)
+IMPL_GEN_COMB(icomb, i32, 32)
+IMPL_GEN_COMB(fcomb, i64, 64)
+IMPL_GEN_COMB(fcomb, i32, 32)
 
-static void gen_icmb(DisasContext *ctx, Instr *instr)
+static void gen_icomb(Instr *instr)
 {
-    if (!is_chan_14(instr->chan)) {
-        e2k_tr_gen_exception(ctx, E2K_EXCP_ILLOPC);
-        return;
-    }
-
     check_args(ALOPF21, instr);
 
     if (instr->opc1 & 1) {
@@ -4239,158 +4290,14 @@ static void gen_icmb(DisasContext *ctx, Instr *instr)
     }
 }
 
-static void execute_fcomb_i64(DisasContext *ctx, Instr *instr)
-{
-    int opc1 = instr->opc1 & 0x1f;
-    int opc2 = instr->opc1 & 0x20;
-    Src64 s1 = get_src1_i64(instr);
-    Src64 s2 = get_src2_i64(instr);
-    Src64 s3 = get_src3_i64(instr);
-    TCGv_i32 tag = e2k_get_temp_i32(ctx);
-    TCGv_i64 dst = e2k_get_temp_i64(ctx);
-
-    gen_tag3_i64(tag, s1.tag, s2.tag, s3.tag);
-
-    switch(opc1) {
-    case 0x1:
-        /* fadd_{op}d */
-        if ((ctx->version >= 2 && is_chan_0134(instr->chan)) || ctx->version >= 4) {
-            gen_helper_faddd(dst, cpu_env, s1.value, s2.value);
-            break;
-        }
-        goto gen_illopc;
-    case 0x3:
-        /* fsub_{op}d */
-        if ((ctx->version >= 2 && is_chan_0134(instr->chan)) || ctx->version >= 4) {
-            gen_helper_fsubd(dst, cpu_env, s1.value, s2.value);
-            break;
-        }
-        goto gen_illopc;
-    case 0x9:
-        /* fmul_{op}d */
-        if(is_chan_0134(instr->chan) || ctx->version >= 4) {
-            gen_helper_fmuld(dst, cpu_env, s1.value, s2.value);
-            break;
-        }
-        goto gen_illopc;
-    default:
-        goto gen_illopc;
-    }
-
-    switch(opc2) {
-    case 0x00:
-        if (instr->opc2 == FCMB0) {
-            /* f{op}_addd */
-            gen_helper_faddd(dst, cpu_env, s3.value, dst);
-            break;
-        } else if (ctx->version == 1 && instr->opc2 == FCMB1) {
-            /* f{op}_muld */
-            gen_helper_fmuld(dst, cpu_env, s3.value, dst);
-            break;
-        }
-        goto gen_illopc;
-    case 0x20:
-        if (instr->opc2 == FCMB0) {
-            /* f{op}_subd */
-            gen_helper_fsubd(dst, cpu_env, s3.value, dst);
-            break;
-        } else if (instr->opc2 == FCMB1) {
-            /* f{op}_rsubd */
-            gen_helper_fsubd(dst, cpu_env, dst, s3.value);
-            break;
-        }
-        goto gen_illopc;
-    default:
-        goto gen_illopc;
-    }
-
-    gen_al_result_i64(instr, dst, tag);
-    return;
-
-gen_illopc:
-    e2k_tr_gen_exception(ctx, E2K_EXCP_ILLOPC);
-}
-
-static void execute_fcomb_i32(DisasContext *ctx, Instr *instr)
-{
-    int opc1 = instr->opc1 & 0x1f;
-    int opc2 = instr->opc1 & 0x20;
-    Src32 s1 = get_src1_i32(instr);
-    Src32 s2 = get_src2_i32(instr);
-    Src32 s3 = get_src3_i32(instr);
-    TCGv_i32 tag = e2k_get_temp_i32(ctx);
-    TCGv_i32 dst = e2k_get_temp_i32(ctx);
-
-    gen_tag3_i32(tag, s1.tag, s2.tag, s3.tag);
-
-    switch(opc1) {
-    case 0x0:
-        /* fadd_{op}s */
-        if ((ctx->version >= 2 && is_chan_0134(instr->chan)) || ctx->version >= 4) {
-            gen_helper_fadds(dst, cpu_env, s1.value, s2.value);
-            break;
-        }
-        goto gen_illopc;
-    case 0x2:
-        /* fsub_{op}s */
-        if ((ctx->version >= 2 && is_chan_0134(instr->chan)) || ctx->version >= 4) {
-            gen_helper_fsubs(dst, cpu_env, s1.value, s2.value);
-            break;
-        }
-        goto gen_illopc;
-    case 0x8:
-        /* fmul_{op}s */
-        if(is_chan_0134(instr->chan) || ctx->version >= 4) {
-            gen_helper_fmuls(dst, cpu_env, s1.value, s2.value);
-            break;
-        }
-        goto gen_illopc;
-    default:
-        goto gen_illopc;
-    }
-
-    switch(opc2) {
-    case 0x00:
-        if (instr->opc2 == FCMB0) {
-            /* f{op}_adds */
-            gen_helper_fadds(dst, cpu_env, s3.value, dst);
-            break;
-        } else if (ctx->version == 1 && instr->opc2 == FCMB1) {
-            /* f{op}_muls */
-            gen_helper_fmuls(dst, cpu_env, s3.value, dst);
-            break;
-        }
-        goto gen_illopc;
-    case 0x20:
-        if (instr->opc2 == FCMB0) {
-            /* f{op}_subs */
-            gen_helper_fsubs(dst, cpu_env, s3.value, dst);
-            break;
-        } else if (instr->opc2 == FCMB1) {
-            /* f{op}_rsubs */
-            gen_helper_fsubs(dst, cpu_env, dst, s3.value);
-            break;
-        }
-        goto gen_illopc;
-    default:
-        goto gen_illopc;
-    }
-
-    gen_al_result_i32(instr, dst, tag);
-    return;
-
-gen_illopc:
-    e2k_tr_gen_exception(ctx, E2K_EXCP_ILLOPC);
-}
-
-static void gen_fcmb(DisasContext *ctx, Instr *instr)
+static void gen_fcomb(Instr *instr)
 {
     check_args(ALOPF21, instr);
 
     if (instr->opc1 & 1) {
-        execute_fcomb_i64(ctx, instr);
+        gen_fcomb_i64(instr);
     } else {
-        execute_fcomb_i32(ctx, instr);
+        gen_fcomb_i32(instr);
     }
 }
 
@@ -4542,33 +4449,26 @@ static void chan_execute(DisasContext *ctx, int chan)
     case ICMB0:
     case ICMB1:
     case ICMB2:
-        gen_icmb(ctx, &instr);
+        gen_icomb(&instr);
         break;
     case ICMB3:
-        switch(instr.opc1) {
-        case 0x6c:
-            if (is_chan_0134(instr.chan)) {
-                /* insfs */
-                check_args(ALOPF21, &instr);
-                gen_alopf21_i32(ctx, &instr, gen_insfs);
+        if (instr.opc1 == 0x6c || instr.opc1 == 0x6d) {
+            if (!is_chan_0134(instr.chan)) {
+                e2k_tr_gen_exception(ctx, E2K_EXCP_ILLOPC);
                 return;
             }
-            break;
-        case 0x6d:
-            if (is_chan_0134(instr.chan)) {
-                /* insfd */
-                check_args(ALOPF21, &instr);
+            check_args(ALOPF21, &instr);
+            if (instr.opc1 & 1) {
                 gen_insfd(&instr);
-                return;
+            } else {
+                gen_alopf21_i32(ctx, &instr, gen_insfs);
             }
-            break;
-        default:
-            gen_icmb(ctx, &instr);
-            break;
+        } else {
+            gen_icomb(&instr);
         }
         break;
     case FCMB0:
-    case FCMB1: gen_fcmb(ctx, &instr); break;
+    case FCMB1: gen_fcomb(&instr); break;
     case PFCMB1: gen_pfcmb1(ctx, &instr); break;
     case LCMBD0: gen_lcmbd(ctx, &instr, 0); break;
     case LCMBD1: gen_lcmbd(ctx, &instr, 0x80); break;
