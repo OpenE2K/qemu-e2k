@@ -1,4 +1,4 @@
-typedef enum {
+enum {
     OP_ANDS,
     OP_ANDD,
     OP_ANDNS,
@@ -788,7 +788,10 @@ typedef enum {
     OP_QPFMSAS,
     OP_QPFMASD,
     OP_QPFMSAD,
-} Alop;
+    OP_INSFS,
+    OP_INSFD,
+    OP_PSHUFB,
+};
 
 typedef enum {
     CHAN_0 = 1 << 0,
@@ -805,29 +808,6 @@ typedef enum {
     CHAN_0235 = CHAN_03 | CHAN_25,
     CHAN_012345 = CHAN_03 | CHAN_14 | CHAN_25,
 } Channels;
-
-typedef enum {
-    ALOPF1,
-    ALOPF1_MERGE,
-    ALOPF2,
-    ALOPF3,
-    ALOPF7,
-    ALOPF8,
-    ALOPF10,
-    ALOPF11,
-    ALOPF11_MERGE,
-    ALOPF11_LIT8,
-    ALOPF12,
-    ALOPF12_PSHUFH,
-    ALOPF12_IBRANCHD,
-    ALOPF12_ICALLD,
-    ALOPF13,
-    ALOPF15,
-    ALOPF16,
-    ALOPF17,
-    ALOPF21,
-    ALOPF22,
-} Alopf;
 
 #define SRC1_SHIFT 0
 #define SRC2_SHIFT 8
