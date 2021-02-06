@@ -223,9 +223,42 @@ typedef struct {
     };
 } Cs1;
 
+typedef enum {
+    ALOPF_NONE,
+    ALOPF1,
+    ALOPF1_MERGE,
+    ALOPF2,
+    ALOPF3,
+    ALOPF7,
+    ALOPF8,
+    ALOPF10,
+    ALOPF11,
+    ALOPF11_MERGE,
+    ALOPF11_LIT8,
+    ALOPF12,
+    ALOPF12_PSHUFH,
+    ALOPF12_IBRANCHD,
+    ALOPF12_ICALLD,
+    ALOPF13,
+    ALOPF15,
+    ALOPF16,
+    ALOPF17,
+    ALOPF21,
+    ALOPF21_ICOMB,
+    ALOPF21_FCOMB,
+    ALOPF21_LCOMB,
+    ALOPF22,
+} Alopf;
+
+typedef struct {
+    Alopf format;
+    uint32_t op;
+} Alop;
+
 typedef struct {
     Cs0 cs0;
     Cs1 cs1;
+    Alop alops[6];
 } Bundle;
 
 typedef enum {
@@ -580,6 +613,7 @@ void e2k_decode_jmp(DisasContext *ctx);
 void e2k_stubs_commit(DisasContext *ctx);
 
 void alc_init(DisasContext *ctx);
+void e2k_alc_decode(DisasContext *ctx);
 void e2k_alc_execute(DisasContext *ctx);
 void e2k_alc_commit(DisasContext *ctx);
 
