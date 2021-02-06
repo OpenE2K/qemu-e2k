@@ -1979,7 +1979,7 @@ static inline void gen_movxc(Instr *instr)
     TCGv_i32 tag = get_temp_i32(instr);
     TCGv_i32 dst_hi = get_temp_i32(instr);
     gen_tag1_i64(tag, src2.tag);
-    tcg_gen_ori_i32(dst_hi, src2.hi, 0x8000);
+    tcg_gen_xori_i32(dst_hi, src2.hi, 0x8000);
     gen_al_result_i80(instr, src2.lo, dst_hi, tag);
 }
 
