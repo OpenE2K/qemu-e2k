@@ -935,6 +935,7 @@ static inline target_ulong do_decode(DisasContext *ctx, CPUState *cs)
     decode_cs1(ctx, &ctx->bundle);
     decode_cs0(ctx, &ctx->bundle);
     decode_ct_cond(ctx, &ctx->bundle);
+    e2k_alc_decode(ctx);
 
     return ctx->pc + len;
 }

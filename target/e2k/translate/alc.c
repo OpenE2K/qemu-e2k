@@ -3271,6 +3271,9 @@ static void check_args(Alopf alopf, Instr *instr)
         check_reg_dst(ctx, instr->dst);
         break;
     case ALOPF21:
+    case ALOPF21_ICOMB:
+    case ALOPF21_FCOMB:
+    case ALOPF21_LCOMB:
         check_reg_src(ctx, instr->src1);
         check_reg_src(ctx, instr->src2);
         check_reg_src(ctx, instr->src3);
@@ -3282,16 +3285,11 @@ static void check_args(Alopf alopf, Instr *instr)
     }
 }
 
-static void gen_op(DisasContext *ctx, Instr *instr)
+static void gen_alop_simple(Instr *instr, uint32_t op)
 {
+    DisasContext *ctx = instr->ctx;
     int chan = instr->chan;
-    AlopDesc *desc = find_op(instr);
-    if (desc == NULL) {
-        e2k_tr_gen_exception(ctx, E2K_EXCP_ILLOPC);
-        return;
-    }
-    check_args(desc->alopf, instr);
-    switch(desc->op) {
+    switch(op) {
     case OP_ANDS: gen_alopf1_sss(instr, tcg_gen_and_i32); break;
     case OP_ANDD: gen_alopf1_ddd(instr, tcg_gen_and_i64); break;
     case OP_ANDNS: gen_alopf1_sss(instr, gen_andn_i32); break;
@@ -3674,6 +3672,9 @@ static void gen_op(DisasContext *ctx, Instr *instr)
     case OP_FXSQRTTSX: gen_alopf1_xsx(instr, gen_helper_fxsqrttxx); break;
     case OP_FXSQRTTDX: gen_alopf1_xdx(instr, gen_helper_fxsqrttxx); break;
     case OP_FXSQRTTXX: gen_alopf1_xxx(instr, gen_helper_fxsqrttxx); break;
+    case OP_INSFS: gen_alopf21_i32(ctx, instr, gen_insfs); break;
+    case OP_INSFD: gen_insfd(instr); break;
+    case OP_PSHUFB: gen_alopf21_i64(ctx, instr, gen_helper_pshufb); break;
     case OP_FXDIVTSS:
     case OP_FXDIVTDD:
     case OP_FXDIVTSX:
@@ -4122,7 +4123,7 @@ static void gen_op(DisasContext *ctx, Instr *instr)
     case OP_QPFMSAS:
     case OP_QPFMASD:
     case OP_QPFMSAD:
-        e2k_todo_illop(ctx, "unimplemented %d (%s)\n", desc->op, desc->dsc); break;
+        e2k_todo_illop(ctx, "unimplemented %d\n", op); break;
     }
 }
 
@@ -4253,21 +4254,13 @@ static inline int comb_opc2(Instr *instr)
 }
 
 #define IMPL_GEN_COMB(P, S, T) \
-    static void glue4(gen_, P, _, S)(Instr *instr) \
+    static void glue4(gen_, P, _, S)(Instr *instr, int opc1, int opc2) \
     { \
-        int opc1 = comb_opc1(instr); \
-        int opc2 = comb_opc2(instr); \
         glue(Src, T) s1 = glue(get_src1_, S)(instr); \
         glue(Src, T) s2 = glue(get_src2_, S)(instr); \
         glue(Src, T) s3 = glue(get_src3_, S)(instr); \
         TCGv_i32 tag = get_temp_i32(instr); \
         glue(TCGv_, S) dst = glue(get_temp_, S)(instr); \
-        \
-        if (!glue(P, _check)(instr, opc1, opc2)) { \
-            e2k_tr_gen_exception(instr->ctx, E2K_EXCP_ILLOPC); \
-            return; \
-        } \
-        \
         glue(gen_tag3_, S)(tag, s1.tag, s2.tag, s3.tag); \
         glue4(gen_, P, _op_, S)(instr, opc1, dst, s1.value, s2.value); \
         glue4(gen_, P, _op_, S)(instr, opc2, dst, s3.value, dst); \
@@ -4279,64 +4272,44 @@ IMPL_GEN_COMB(icomb, i32, 32)
 IMPL_GEN_COMB(fcomb, i64, 64)
 IMPL_GEN_COMB(fcomb, i32, 32)
 
-static void gen_icomb(Instr *instr)
+static void gen_icomb(Instr *instr, uint32_t op)
 {
-    check_args(ALOPF21, instr);
+    int opc1 = op & 0xffff;
+    int opc2 = op >> 16;
 
     if (instr->opc1 & 1) {
-        gen_icomb_i64(instr);
+        gen_icomb_i64(instr, opc1, opc2);
     } else {
-        gen_icomb_i32(instr);
+        gen_icomb_i32(instr, opc1, opc2);
     }
 }
 
-static void gen_fcomb(Instr *instr)
+static void gen_fcomb(Instr *instr, uint32_t op)
 {
-    check_args(ALOPF21, instr);
+    int opc1 = op & 0xffff;
+    int opc2 = op >> 16;
 
     if (instr->opc1 & 1) {
-        gen_fcomb_i64(instr);
+        gen_fcomb_i64(instr, opc1, opc2);
     } else {
-        gen_fcomb_i32(instr);
+        gen_fcomb_i32(instr, opc1, opc2);
     }
 }
 
-static void gen_pfcmb1(DisasContext *ctx, Instr *instr)
+static void gen_lcomb_i64(Instr *instr, uint32_t base)
 {
-    switch(instr->opc1) {
-    case 0x4d:
-        if (is_chan_0134(instr->chan) && ctx->version >= 2) {
-            /* pshufb */
-            check_args(ALOPF21, instr);
-            gen_alopf21_i64(ctx, instr, gen_helper_pshufb);
-            return;
-        }
-        break;
-    default:
-        break;
-    }
+    /* see gen_alopf21_i64 */
+    Src64 s1 = get_src1_i64(instr);
+    Src64 s2 = get_src2_i64(instr);
+    Src64 s3 = get_src3_i64(instr);
+    TCGv_i32 tag = get_temp_i32(instr);
+    TCGv_i64 dst = get_temp_i64(instr);
+    TCGv_i32 opc = tcg_const_i32(base + instr->opc1);
 
-    e2k_tr_gen_exception(ctx, E2K_EXCP_ILLOPC);
-}
-
-static void gen_lcmbd(DisasContext *ctx, Instr *instr, uint32_t base)
-{
-    if (ctx->version >= 5) {
-        /* see gen_alopf21_i64 */
-        Src64 s1 = get_src1_i64(instr);
-        Src64 s2 = get_src2_i64(instr);
-        Src64 s3 = get_src3_i64(instr);
-        TCGv_i32 tag = e2k_get_temp_i32(ctx);
-        TCGv_i64 dst = e2k_get_temp_i64(ctx);
-        TCGv_i32 opc = tcg_const_i32(base + instr->opc1);
-
-        check_args(ALOPF21, instr);
-        gen_tag3_i64(tag, s1.tag, s2.tag, s3.tag);
-        gen_helper_plog(dst, opc, s1.value, s2.value, s3.value);
-        gen_al_result_i64(instr, dst, tag);
-    } else {
-        e2k_tr_gen_exception(ctx, E2K_EXCP_ILLOPC);
-    }
+    check_args(ALOPF21, instr);
+    gen_tag3_i64(tag, s1.tag, s2.tag, s3.tag);
+    gen_helper_plog(dst, opc, s1.value, s2.value, s3.value);
+    gen_al_result_i64(instr, dst, tag);
 }
 
 static inline bool rlp_check_chan(uint16_t rlp, int chan)
@@ -4427,75 +4400,161 @@ static void chan_check_preds(DisasContext *ctx, int chan, TCGLabel *l)
     tcg_temp_free_i32(t0);
 }
 
-static void chan_execute(DisasContext *ctx, int chan)
+static inline void alop_instr_init(Instr *instr, DisasContext *ctx, int chan)
 {
-    TCGLabel *l0 = gen_new_label();
-    Instr instr = { 0 };
+    memset(instr, 0, sizeof(Instr));
 
-    instr.ctx = ctx;
-    instr.chan = chan;
-    instr.mas = ctx->bundle2.cs1.type == CS1_MAS ? ctx->bundle2.cs1.mas[chan] : 0;
-    instr.als = ctx->bundle.als[chan];
-    instr.ales = ctx->bundle.ales[chan];
-    instr.ales_present = ctx->bundle.ales_present[chan];
+    instr->ctx = ctx;
+    instr->chan = chan;
+    instr->mas = ctx->bundle2.cs1.type == CS1_MAS ? ctx->bundle2.cs1.mas[chan] : 0;
+    instr->als = ctx->bundle.als[chan];
+    instr->ales = ctx->bundle.ales[chan];
+    instr->ales_present = ctx->bundle.ales_present[chan];
+}
 
-    chan_check_preds(ctx, chan, l0);
+static void alop_decode(Instr *instr)
+{
+    Alop *alop = &instr->ctx->bundle2.alops[instr->chan];
 
-    switch (instr.opc2) {
+    switch (instr->opc2) {
     case SHORT:
     case EXT:
     case EXT1:
-    case EXT2: gen_op(ctx, &instr); break;
+    case EXT2: {
+        AlopDesc *desc = find_op(instr);
+        if (!desc) {
+            e2k_tr_gen_exception(instr->ctx, E2K_EXCP_ILLOPC);
+            return;
+        }
+        alop->format = desc->alopf;
+        alop->op = desc->op;
+        break;
+    }
     case ICMB0:
     case ICMB1:
     case ICMB2:
-        gen_icomb(&instr);
-        break;
     case ICMB3:
-        if (instr.opc1 == 0x6c || instr.opc1 == 0x6d) {
-            if (!is_chan_0134(instr.chan)) {
-                e2k_tr_gen_exception(ctx, E2K_EXCP_ILLOPC);
+        if (instr->opc2 == ICMB3
+            && (instr->opc1 == 0x6c || instr->opc1 == 0x6d))
+        {
+            if (!is_chan_0134(instr->chan)) {
+                e2k_tr_gen_exception(instr->ctx, E2K_EXCP_ILLOPC);
                 return;
             }
-            check_args(ALOPF21, &instr);
-            if (instr.opc1 & 1) {
-                gen_insfd(&instr);
-            } else {
-                gen_alopf21_i32(ctx, &instr, gen_insfs);
-            }
+            alop->format = ALOPF21;
+            alop->op = instr->opc1 & 1 ? OP_INSFD : OP_INSFS;
         } else {
-            gen_icomb(&instr);
+            int opc1 = comb_opc1(instr);
+            int opc2 = comb_opc2(instr);
+            if (!icomb_check(instr, opc1, opc2)) {
+                e2k_tr_gen_exception(instr->ctx, E2K_EXCP_ILLOPC);
+                return;
+            }
+            alop->format = ALOPF21_ICOMB;
+            alop->op = (opc2 << 16) | opc1;
         }
         break;
     case FCMB0:
-    case FCMB1: gen_fcomb(&instr); break;
-    case PFCMB1: gen_pfcmb1(ctx, &instr); break;
-    case LCMBD0: gen_lcmbd(ctx, &instr, 0); break;
-    case LCMBD1: gen_lcmbd(ctx, &instr, 0x80); break;
+    case FCMB1: {
+        int opc1 = comb_opc1(instr);
+        int opc2 = comb_opc2(instr);
+        if (!icomb_check(instr, opc1, opc2)) {
+            e2k_tr_gen_exception(instr->ctx, E2K_EXCP_ILLOPC);
+            return;
+        }
+        alop->format = ALOPF21_FCOMB;
+        alop->op = (opc2 << 16) | opc1;
+        break;
+    }
+    case PFCMB1:
+        if (instr->opc1 == 0x4d
+            && is_chan_0134(instr->chan)
+            && instr->ctx->version >= 2)
+        {
+            alop->format = ALOPF21;
+            alop->op = OP_PSHUFB;
+        } else {
+            e2k_tr_gen_exception(instr->ctx, E2K_EXCP_ILLOPC);
+        }
+        break;
+    case LCMBD0:
+    case LCMBD1:
+        if (is_chan_0134(instr->chan) && instr->ctx->version >= 5) {
+            alop->format = ALOPF21_LCOMB;
+            alop->op = instr->opc2 == LCMBD0 ? 0 : 0x80;
+        } else {
+            e2k_tr_gen_exception(instr->ctx, E2K_EXCP_ILLOPC);
+        }
+        break;
     default:
-        e2k_tr_gen_exception(ctx, E2K_EXCP_ILLOPC);
+        e2k_tr_gen_exception(instr->ctx, E2K_EXCP_ILLOPC);
+        break;
+    }
+}
+
+void e2k_alc_decode(DisasContext *ctx)
+{
+    int i;
+
+    for (i = 0; i < 6; i++) {
+        if (ctx->bundle.als_present[i]) {
+            Instr instr;
+            alop_instr_init(&instr, ctx, i);
+            alop_decode(&instr);
+        }
+    }
+}
+
+static void gen_alop(Instr *instr, Alop *alop)
+{
+    TCGLabel *l0 = gen_new_label();
+
+    if (alop->format == ALOPF_NONE) {
+        return;
+    }
+
+    chan_check_preds(instr->ctx, instr->chan, l0);
+    check_args(alop->format, instr);
+
+    switch (alop->format) {
+    case ALOPF21_ICOMB:
+        gen_icomb(instr, alop->op);
+        break;
+    case ALOPF21_FCOMB:
+        gen_fcomb(instr, alop->op);
+        break;
+    case ALOPF21_LCOMB:
+        gen_lcomb_i64(instr, alop->op);
+        break;
+    default:
+        gen_alop_simple(instr, alop->op);
         break;
     }
 
     gen_set_label(l0);
 
-    if (instr.aaincr_len != 0) {
-        gen_aasti_incr(ctx, &instr);
+    if (instr->aaincr_len != 0) {
+        gen_aasti_incr(instr->ctx, instr);
+    }
+}
+
+static void gen_alops(DisasContext *ctx)
+{
+    int i;
+
+    for (i = 0; i < 6; i++) {
+        Instr instr;
+        Alop *alop = &ctx->bundle2.alops[i];
+        ctx->al_results[i].type = AL_RESULT_NONE;
+        ctx->al_cond[i] = NULL;
+        alop_instr_init(&instr, ctx, i);
+        gen_alop(&instr, alop);
     }
 }
 
 void e2k_alc_execute(DisasContext *ctx)
 {
-    int i;
-
-    for (i = 0; i < 6; i++) {
-        ctx->al_results[i].type = AL_RESULT_NONE;
-        ctx->al_cond[i] = NULL;
-
-        if (ctx->bundle.als_present[i]) {
-            chan_execute(ctx, i);
-        }
-    }
+    gen_alops(ctx);
 }
 
 static inline void gen_al_result_commit_reg32(bool poison, TCGv_i32 index,
