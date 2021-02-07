@@ -1749,11 +1749,11 @@ static void gen_movtcq(Instr *instr)
     gen_movtq_inner(instr, s2);
 }
 
-static inline void gen_ld_mas_mod(DisasContext *ctx, Instr *instr,
-    TCGv_i64 addr, uint8_t mod)
+static inline bool gen_ld_mas_mod(DisasContext *ctx, Instr *instr, uint8_t mod)
 {
     TCGv_i32 size;
     TCGv_i32 reg = tcg_temp_new_i32();
+    bool ret = true;
 
     // FIXME: %empty
     e2k_gen_reg_index(instr->ctx, reg, instr->dst);
@@ -1763,22 +1763,19 @@ static inline void gen_ld_mas_mod(DisasContext *ctx, Instr *instr,
     case 3:
         if (is_chan_25(instr->chan)) {
             /* ld,{2,5} [ addr ], dst, mas=X (mod 3) */
-            TCGv_i32 t0 = tcg_temp_new_i32();
-
-            gen_helper_dam_unlock_addr(t0, cpu_env, addr, size, reg);
             if (ctx->mlock == NULL) {
                 ctx->mlock = e2k_get_temp_i32(ctx);
-                tcg_gen_movi_i32(ctx->mlock, 0);
+                /* always go to fixing code */
+                tcg_gen_movi_i32(ctx->mlock, 1);
             }
-            tcg_gen_or_i32(ctx->mlock, ctx->mlock, t0);
-            tcg_temp_free_i32(t0);
             goto ok_exit;
         }
         break;
     case 4:
         if (instr->sm && is_chan_03(instr->chan)) {
             /* ld,{0,3},sm [ addr ], dst, mas=X (mod 4) */
-            gen_helper_dam_lock_addr(cpu_env, addr, size, reg);
+            /* always ignore lock load */
+            ret = false;
             goto ok_exit;
         }
         break;
@@ -1789,9 +1786,11 @@ static inline void gen_ld_mas_mod(DisasContext *ctx, Instr *instr,
 ok_exit:
     tcg_temp_free_i32(size);
     tcg_temp_free_i32(reg);
+
+    return ret;
 }
 
-static MemOp gen_mas(Instr *instr, MemOp memop, TCGv_i64 addr)
+static MemOp gen_mas(Instr *instr, MemOp memop)
 {
     DisasContext *ctx = instr->ctx;
     uint8_t mas = instr->mas;
@@ -1817,7 +1816,9 @@ static MemOp gen_mas(Instr *instr, MemOp memop, TCGv_i64 addr)
 
         if (mod != 0) {
             if (0x64 <= instr->opc1 && instr->opc1 < 0x68) {
-                gen_ld_mas_mod(ctx, instr, addr, mod);
+                if (!gen_ld_mas_mod(ctx, instr, mod)) {
+                    return 0;
+                }
             } else {
                 // TODO: mas modes
                 e2k_todo(ctx, "opc %#x, chan %d, mas=%#x, mod=%#x", instr->opc1,
@@ -1836,107 +1837,82 @@ static MemOp gen_mas(Instr *instr, MemOp memop, TCGv_i64 addr)
 
 static void gen_ld(Instr *instr, MemOp memop)
 {
-    TCGLabel *l0 = gen_new_label();
-    TCGLabel *l1 = gen_new_label();
-    Src64 s1 = get_src1_i64(instr);
-    Src64 s2 = get_src2_i64(instr);
     TCGv_i32 tag = get_temp_i32(instr);
     TCGv_i64 dst = get_temp_i64(instr);
-    TCGv_i64 t0 = tcg_temp_local_new_i64();
-    TCGv_i32 t1 = tcg_temp_new_i32();
 
-    gen_tag2_i64(tag, s1.tag, s2.tag);
-    tcg_gen_add_i64(t0, s1.value, s2.value);
-    memop = gen_mas(instr, memop, t0);
+    memop = gen_mas(instr, memop);
 
     if (memop == 0) {
-        // FIXME: hack
-        return;
+        /* ignore load */
+        tcg_gen_movi_i32(tag, E2K_TAG_NON_NUMBER64);
+        tcg_gen_movi_i64(dst, E2K_LD_RESULT_INVALID);
+    } else {
+        TCGLabel *l0 = gen_new_label();
+        TCGLabel *l1 = gen_new_label();
+        Src64 s1 = get_src1_i64(instr);
+        Src64 s2 = get_src2_i64(instr);
+        TCGv_i64 t0 = tcg_temp_local_new_i64();
+
+        gen_tag2_i64(tag, s1.tag, s2.tag);
+        tcg_gen_add_i64(t0, s1.value, s2.value);
+
+        if (instr->sm) {
+            TCGv_i32 t1 = tcg_temp_new_i32();
+
+            gen_helper_probe_read_access(t1, cpu_env, t0);
+            tcg_gen_brcondi_i32(TCG_COND_EQ, t1, 1, l0);
+            tcg_gen_movi_i32(tag, E2K_TAG_NON_NUMBER64);
+            tcg_gen_movi_i64(dst, E2K_LD_RESULT_INVALID);
+            tcg_gen_br(l1);
+
+            tcg_temp_free_i32(t1);
+        }
+
+        gen_set_label(l0);
+        tcg_gen_qemu_ld_i64(dst, t0, instr->ctx->mmuidx, memop);
+
+        gen_set_label(l1);
+
+        tcg_temp_free_i64(t0);
     }
 
-    if (instr->sm) {
-        gen_helper_probe_read_access(t1, cpu_env, t0);
-        tcg_gen_brcondi_i32(TCG_COND_EQ, t1, 1, l0);
-        tcg_gen_movi_i32(tag, 5);
-        tcg_gen_movi_i64(dst, 0x0afafafa0afafafa);
-        tcg_gen_br(l1);
-    }
-
-    gen_set_label(l0);
-    tcg_gen_qemu_ld_i64(dst, t0, instr->ctx->mmuidx, memop);
-
-    gen_set_label(l1);
     gen_al_result_i64(instr, dst, tag);
-
-    tcg_temp_free_i32(t1);
-    tcg_temp_free_i64(t0);
 }
 
-static void gen_st_ddd(Instr *instr, MemOp memop)
-{
-    TCGLabel *l0 = gen_new_label();
-    Src64 s1 = get_src1_i64(instr);
-    Src64 s2 = get_src2_i64(instr);
-    Src64 s4 = get_src4_i64(instr);
-    TCGv_i64 t0 = tcg_temp_local_new_i64();
-
-    gen_loop_mode_st(instr->ctx, l0);
-    gen_tag_check(instr, s1.tag);
-    gen_tag_check(instr, s2.tag);
-    gen_tag_check(instr, s4.tag);
-    tcg_gen_add_i64(t0, s1.value, s2.value);
-    memop = gen_mas(instr, memop, t0);
-
-    if (memop == 0) {
-        // FIXME: hack
-        return;
+#define IMPL_ST(NAME, S) \
+    static void NAME(Instr *instr, MemOp memop) \
+    { \
+        memop = gen_mas(instr, memop); \
+        \
+        if (memop != 0) { \
+            TCGLabel *l0 = gen_new_label(); \
+            Src64 s1 = get_src1_i64(instr); \
+            Src64 s2 = get_src2_i64(instr); \
+            glue(Src, S) s4 = glue(get_src4_i, S)(instr); \
+            TCGv_i64 t0 = tcg_temp_local_new_i64(); \
+            \
+            gen_loop_mode_st(instr->ctx, l0); \
+            gen_tag_check(instr, s1.tag); \
+            gen_tag_check(instr, s2.tag); \
+            gen_tag_check(instr, s4.tag); \
+            tcg_gen_add_i64(t0, s1.value, s2.value); \
+            \
+            if (instr->sm) { \
+                TCGv_i32 t1 = tcg_temp_new_i32(); \
+                gen_helper_probe_write_access(t1, cpu_env, t0); \
+                tcg_gen_brcondi_i32(TCG_COND_EQ, t1, 0, l0); \
+                tcg_temp_free_i32(t1); \
+            } \
+            \
+            glue(tcg_gen_qemu_st_i, S)(s4.value, t0, instr->ctx->mmuidx, memop); \
+            gen_set_label(l0); \
+            \
+            tcg_temp_free_i64(t0); \
+        } \
     }
 
-    if (instr->sm) {
-        TCGv_i32 t1 = tcg_temp_new_i32();
-        gen_helper_probe_write_access(t1, cpu_env, t0);
-        tcg_gen_brcondi_i32(TCG_COND_EQ, t1, 0, l0);
-        tcg_temp_free_i32(t1);
-    }
-
-    tcg_gen_qemu_st_i64(s4.value, t0, instr->ctx->mmuidx, memop);
-    gen_set_label(l0);
-
-    tcg_temp_free_i64(t0);
-}
-
-static void gen_st_dds(Instr *instr, MemOp memop)
-{
-    TCGLabel *l0 = gen_new_label();
-    Src64 s1 = get_src1_i64(instr);
-    Src64 s2 = get_src2_i64(instr);
-    Src32 s4 = get_src4_i32(instr);
-    TCGv_i64 t0 = tcg_temp_local_new_i64();
-
-    gen_loop_mode_st(instr->ctx, l0);
-    gen_tag_check(instr, s1.tag);
-    gen_tag_check(instr, s2.tag);
-    gen_tag_check(instr, s4.tag);
-    tcg_gen_add_i64(t0, s1.value, s2.value);
-    memop = gen_mas(instr, memop, t0);
-
-    if (memop == 0) {
-        // FIXME: hack
-        return;
-    }
-
-    if (instr->sm) {
-        TCGv_i32 t1 = tcg_temp_new_i32();
-        gen_helper_probe_write_access(t1, cpu_env, t0);
-        tcg_gen_brcondi_i32(TCG_COND_EQ, t1, 0, l0);
-        tcg_temp_free_i32(t1);
-    }
-
-    tcg_gen_qemu_st_i32(s4.value, t0, instr->ctx->mmuidx, memop);
-    gen_set_label(l0);
-
-    tcg_temp_free_i64(t0);
-}
+IMPL_ST(gen_st_ddd, 64)
+IMPL_ST(gen_st_dds, 32)
 
 static inline void gen_movfi(Instr *instr)
 {
