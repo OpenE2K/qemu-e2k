@@ -4458,7 +4458,7 @@ static void alop_decode(Instr *instr)
     case FCMB1: {
         int opc1 = comb_opc1(instr);
         int opc2 = comb_opc2(instr);
-        if (!icomb_check(instr, opc1, opc2)) {
+        if (!fcomb_check(instr, opc1, opc2)) {
             e2k_tr_gen_exception(instr->ctx, E2K_EXCP_ILLOPC);
             return;
         }
@@ -4471,7 +4471,7 @@ static void alop_decode(Instr *instr)
             && is_chan_0134(instr->chan)
             && instr->ctx->version >= 2)
         {
-            alop->format = ALOPF21;
+            alop->format = ALOPF12_PSHUFH;
             alop->op = OP_PSHUFB;
         } else {
             e2k_tr_gen_exception(instr->ctx, E2K_EXCP_ILLOPC);
