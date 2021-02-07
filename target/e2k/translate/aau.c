@@ -45,7 +45,6 @@ static void gen_checked_ld(DisasContext *ctx, Mova *instr, TCGv ptr)
     TCGLabel *l1 = gen_new_label();
     TCGv_i32 tag = e2k_get_temp_i32(ctx);
     TCGv_i64 dst = e2k_get_temp_i64(ctx);
-    TCGv_i32 t0 = tcg_temp_new_i32();
     MemOp memop = instr->be ? MO_BE : MO_LE;
 
     switch(instr->opc) {
@@ -58,10 +57,7 @@ static void gen_checked_ld(DisasContext *ctx, Mova *instr, TCGv ptr)
         break;
     }
 
-    /* MOVA can try to read inaccessible memory */
-    gen_helper_probe_read_access(t0, cpu_env, ptr);
-    tcg_gen_brcondi_i32(TCG_COND_NE, t0, 0, l0);
-    tcg_temp_free_i32(t0);
+    tcg_gen_brcondi_tl(TCG_COND_NE, ptr, 0, l0);
 
     /* if address is invalid */
     tcg_gen_movi_i32(tag, E2K_TAG_NON_NUMBER64);
@@ -81,12 +77,9 @@ static inline void gen_mova_ptr(TCGv ret, Mova *instr)
 {
     TCGv_i32 t0 = tcg_const_i32(instr->chan);
     TCGv_i32 t1 = tcg_const_i32(instr->area);
-    TCGv t2 = tcg_temp_new();
-
-    gen_helper_mova_ptr(t2, cpu_env, t0, t1);
-    tcg_gen_addi_tl(ret, t2, instr->ind);
-
-    tcg_temp_free(t2);
+    TCGv_i32 t2 = tcg_const_i32(instr->ind);
+    gen_helper_mova_ptr(ret, cpu_env, t0, t1, t2);
+    tcg_temp_free_i32(t2);
     tcg_temp_free_i32(t1);
     tcg_temp_free_i32(t0);
 }
