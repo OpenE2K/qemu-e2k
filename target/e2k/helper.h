@@ -26,7 +26,7 @@ DEF_HELPER_2(probe_read_access, int, env, tl)
 DEF_HELPER_2(probe_write_access, int, env, tl)
 
 DEF_HELPER_1(aau_load_program, void, env)
-DEF_HELPER_3(mova_ptr, tl, env, int, int)
+DEF_HELPER_4(mova_ptr, tl, env, int, int, int)
 DEF_HELPER_3(aau_am, void, env, int, int)
 DEF_HELPER_4(dam_lock_addr, void, env, i64, int, int)
 DEF_HELPER_4(dam_unlock_addr, int, env, i64, int, int)

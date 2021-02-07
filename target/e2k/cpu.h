@@ -475,6 +475,7 @@ typedef struct {
     E2KAauPrefInstr pi;     /* prefetch instr */
     uint32_t cdi;   /* current data index */
     uint32_t ldi;   /* loaded data index */
+    target_ulong last_page;
 } E2KAauAreaState;
 
 typedef struct {
