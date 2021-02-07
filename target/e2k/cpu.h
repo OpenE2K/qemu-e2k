@@ -49,6 +49,7 @@ typedef enum {
 } E2kRegisterTag;
 
 #define E2K_MOVA_RESULT_INVALID 0xeaed0f70eaed0f70
+#define E2K_LD_RESULT_INVALID 0x0afafafa0afafafa
 
 #define CRS_SIZE (sizeof(E2KCrs))
 
