@@ -8,6 +8,7 @@
 static inline void init_prefetch_area(E2KAauAreaState *s, E2KAauPrefInstr pi,
     uint32_t *inds)
 {
+    s->last_page = 0;
     if (pi.fmt != 0) {
         s->pi = pi;
         s->ldi = 0;
@@ -45,14 +46,23 @@ void HELPER(aau_load_program)(CPUE2KState *env)
     }
 }
 
-target_ulong HELPER(mova_ptr)(CPUE2KState *env, int chan, int area)
+target_ulong HELPER(mova_ptr)(CPUE2KState *env, int chan, int area, int ind)
 {
     E2KAauPrefState *ps = chan < 2 ? &env->aau.pl : &env->aau.pr;
     E2KAauAreaState *as = &ps->area[area];
     E2KAauPrefInstr instr = as->pi;
     E2KAad aad = env->aau.ds[instr.aad];
+    target_ulong ptr = aad.base + as->cdi + instr.disp + ind;
+    target_ulong page = ptr & ~(TARGET_PAGE_SIZE - 1);
 
-    return aad.base + as->cdi + instr.disp;
+    if (as->last_page == 0 || page != as->last_page) {
+        if (!helper_probe_read_access(env, page)) {
+            return 0;
+        }
+        as->last_page = page;
+    }
+
+    return ptr;
 }
 
 void HELPER(aau_am)(CPUE2KState *env, int chan, int area)
