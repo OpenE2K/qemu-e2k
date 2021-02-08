@@ -4197,7 +4197,7 @@ static inline bool fcomb_check(Instr *instr, FComb opc1, FComb opc2)
     }
 
     if (ver >= 2) {
-        return fcomb_is_mul_unit(opc1) != fcomb_is_mul_unit(opc2);
+        return !(fcomb_is_mul_unit(opc1) && fcomb_is_mul_unit(opc2));
     } else {
         return fcomb_is_add_unit(opc1) == fcomb_is_mul_unit(opc2);
     }
