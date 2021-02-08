@@ -250,32 +250,13 @@ uint64_t HELPER(pshufb)(uint64_t src1, uint64_t src2, uint64_t src3)
         uint8_t byte;
 
         if (desc < 0x80) {
-            if (desc & 0x08) {
-                byte = s1.ub[index];
-            } else {
-                byte = s2.ub[index];
-            }
+            byte = desc & 0x08 ? s1.ub[index] : s2.ub[index];
 
             switch(desc >> 5) {
-            case 0x1:
-                byte = reverse_bits(byte);
-                break;
-            case 0x2:
-                if ((byte & 0x80) != 0) {
-                    byte = 0xff;
-                } else {
-                    byte = 0;
-                }
-                break;
-            case 0x3:
-                if ((byte & 1) != 0) {
-                    byte = 0xff;
-                } else {
-                    byte = 0;
-                }
-                break;
-            default:
-                break;
+            case 0x1: byte = reverse_bits(byte); break;
+            case 0x2: byte = (byte & 0x80) != 0 ? 0xff : 0; break;
+            case 0x3: byte = (byte & 1) != 0 ? 0xff : 0; break;
+            default: break;
             }
 
             if (desc & 0x10) {
@@ -283,18 +264,10 @@ uint64_t HELPER(pshufb)(uint64_t src1, uint64_t src2, uint64_t src3)
             }
         } else {
             switch(desc >> 6) {
-            case 0xa:
-                byte = 0x7f;
-                break;
-            case 0xc:
-                byte = 0x80;
-                break;
-            case 0xe:
-                byte = 0xff;
-                break;
-            default:
-                byte = 0;
-                break;
+            case 0xa: byte = 0x7f; break;
+            case 0xc: byte = 0x80; break;
+            case 0xe: byte = 0xff; break;
+            default: byte = 0; break;
             }
         }
 
@@ -302,6 +275,22 @@ uint64_t HELPER(pshufb)(uint64_t src1, uint64_t src2, uint64_t src3)
     }
 
     return ret.ud[0];
+}
+
+uint64_t HELPER(pmerge)(uint64_t src1, uint64_t src2, uint64_t src3)
+{
+    vec64 r, s1, s2, s3;
+    unsigned int i;
+
+    s1.ud[0] = src1;
+    s2.ud[0] = src2;
+    s3.ud[0] = src3;
+
+    for (i = 0; i < 8; i++) {
+        r.ub[i] = s3.sb[i] < 0 ? s2.ub[i] : s1.ub[i];
+    }
+
+    return r.ud[0];
 }
 
 uint64_t HELPER(pshufh)(uint64_t src1, uint32_t imm8)
@@ -370,3 +359,80 @@ uint64_t HELPER(plog)(uint32_t opc, uint64_t src1, uint64_t src2, uint64_t src3)
 
     return ret;
 }
+
+#define GEN_ENV_HELPER_PACKED_N(name, n, code) \
+    uint64_t HELPER(name)(CPUE2KState *env, uint64_t src1, uint64_t src2) \
+    { \
+        size_t i = 0; \
+        vec64 s1 = { .ud[0] = src1 }, s2 = { .ud[0] = src2 }; \
+        vec64 dst = { .ud[0] = 0 }; \
+        for (; i < n; i++) { \
+            code \
+        } \
+        return dst.ud[0]; \
+    }
+#define GEN_ENV_HELPER_PACKED(name, type, code) \
+    GEN_ENV_HELPER_PACKED_N(name, vec64_len(type), code)
+#define GEN_ENV_HELPER_PACKED_OP(name, type, op) \
+    GEN_ENV_HELPER_PACKED_N(name, vec64_len(type), { \
+        dst.type[i] = op(env, s1.type[i], s2.type[i]); \
+    })
+#define GEN_ENV_HELPER_PACKED_HORIZONTAL_OP(name, type, op, map) \
+    GEN_ENV_HELPER_PACKED_N(name, vec64_len(type) / 2, { \
+        int j = i * 2; \
+        dst.type[i                      ] = map(op(env, s1.type[j], s1.type[j + 1])); \
+        dst.type[i + vec64_len(type) / 2] = map(op(env, s2.type[j], s2.type[j + 1])); \
+    })
+
+GEN_ENV_HELPER_PACKED_OP(pfadds, uw, helper_fadds)
+GEN_ENV_HELPER_PACKED_OP(pfsubs, uw, helper_fsubs)
+GEN_ENV_HELPER_PACKED_OP(pfmuls, uw, helper_fmuls)
+GEN_ENV_HELPER_PACKED_OP(pfmaxs, uw, helper_fmaxs)
+GEN_ENV_HELPER_PACKED_OP(pfmins, uw, helper_fmins)
+GEN_ENV_HELPER_PACKED_HORIZONTAL_OP(pfhadds, uw, helper_fadds, ident)
+GEN_ENV_HELPER_PACKED_HORIZONTAL_OP(pfhsubs, uw, helper_fsubs, ident)
+
+GEN_ENV_HELPER_PACKED_OP(pfcmpeqs,  uw, helper_fcmpeqs)
+GEN_ENV_HELPER_PACKED_OP(pfcmplts,  uw, helper_fcmplts)
+GEN_ENV_HELPER_PACKED_OP(pfcmples,  uw, helper_fcmples)
+GEN_ENV_HELPER_PACKED_OP(pfcmpuods, uw, helper_fcmpuods)
+GEN_ENV_HELPER_PACKED_OP(pfcmpneqs, uw, helper_fcmpneqs)
+GEN_ENV_HELPER_PACKED_OP(pfcmpnlts, uw, helper_fcmpnlts)
+GEN_ENV_HELPER_PACKED_OP(pfcmpnles, uw, helper_fcmpnles)
+GEN_ENV_HELPER_PACKED_OP(pfcmpods,  uw, helper_fcmpods)
+
+GEN_ENV_HELPER_PACKED(pfaddsubs, uw, { \
+    if (i & 1) { \
+        dst.uw[i] = helper_fadds(env, s1.uw[i], s2.uw[i]); \
+    } else { \
+        dst.uw[i] = helper_fsubs(env, s1.uw[i], s2.uw[i]); \
+    } \
+})
+
+#define GEN_ENV_HELPER_PACKED_UNARY_N(name, n, code) \
+    uint64_t HELPER(name)(CPUE2KState *env, uint64_t src2) \
+    { \
+        size_t i = 0; \
+        vec64 s2 = { .ud[0] = src2 }; \
+        vec64 dst = { .ud[0] = 0 }; \
+        for (; i < n; i++) { \
+            code \
+        } \
+        return dst.ud[0]; \
+    }
+#define GEN_ENV_HELPER_PACKED_UNARY(name, type, code) \
+    GEN_ENV_HELPER_PACKED_UNARY_N(name, vec64_len(type), code)
+#define GEN_ENV_HELPER_PACKED_UNARY_OP(name, type, op) \
+    GEN_ENV_HELPER_PACKED_UNARY_N(name, vec64_len(type), { \
+        dst.type[i] = op(env, s2.type[i]); \
+    })
+
+#define GEN_ENV_HELPER_PACKED_OP_CVT(name, type, op) \
+    GEN_ENV_HELPER_PACKED_N(name, vec64_len(type), { \
+        dst.type[i] = op(env, s1.uw[0], s2.type[i]); \
+    })
+
+GEN_ENV_HELPER_PACKED_OP_CVT(pfstoifs, uw, helper_fstoifs)
+GEN_ENV_HELPER_PACKED_UNARY_OP(pistofs, uw, helper_istofs)
+GEN_ENV_HELPER_PACKED_UNARY_OP(pfstois, uw, helper_fstois)
+GEN_ENV_HELPER_PACKED_UNARY_OP(pfstoistr, uw, helper_fstoistr)

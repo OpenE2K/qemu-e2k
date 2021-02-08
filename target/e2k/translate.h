@@ -246,6 +246,7 @@ typedef enum {
     ALOPF21,
     ALOPF21_ICOMB,
     ALOPF21_FCOMB,
+    ALOPF21_PFCOMB,
     ALOPF21_LCOMB,
     ALOPF22,
 } Alopf;
@@ -253,6 +254,7 @@ typedef enum {
 typedef struct {
     Alopf format;
     uint32_t op;
+    const char *name;
 } Alop;
 
 typedef struct {

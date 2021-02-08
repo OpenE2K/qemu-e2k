@@ -6,6 +6,7 @@
 
 #include "alops.inc"
 
+#define glue3(a, b, c) glue(glue(a, b), c)
 #define glue4(a, b, c, d) glue(glue(a, b), glue(c, d))
 
 static int16_t alops_map[4][128][6];
@@ -2797,28 +2798,28 @@ static void gen_alopf1_mrgc_ddd(Instr *instr)
     tcg_temp_free_i32(t0);
 }
 
-static void gen_alopf21_i64(DisasContext *ctx, Instr *instr,
+static void gen_alopf21_i64(Instr *instr,
     void (*op)(TCGv_i64, TCGv_i64, TCGv_i64, TCGv_i64))
 {
     Src64 s1 = get_src1_i64(instr);
     Src64 s2 = get_src2_i64(instr);
     Src64 s3 = get_src3_i64(instr);
-    TCGv_i32 tag = e2k_get_temp_i32(ctx);
-    TCGv_i64 dst = e2k_get_temp_i64(ctx);
+    TCGv_i32 tag = get_temp_i32(instr);
+    TCGv_i64 dst = get_temp_i64(instr);
 
     gen_tag3_i64(tag, s1.tag, s2.tag, s3.tag);
     (*op)(dst, s1.value, s2.value, s3.value);
     gen_al_result_i64(instr, dst, tag);
 }
 
-static void gen_alopf21_i32(DisasContext *ctx, Instr *instr,
+static void gen_alopf21_i32(Instr *instr,
     void (*op)(TCGv_i32, TCGv_i32, TCGv_i32, TCGv_i32))
 {
     Src32 s1 = get_src1_i32(instr);
     Src32 s2 = get_src2_i32(instr);
     Src32 s3 = get_src3_i32(instr);
-    TCGv_i32 tag = e2k_get_temp_i32(ctx);
-    TCGv_i32 dst = e2k_get_temp_i32(ctx);
+    TCGv_i32 tag = get_temp_i32(instr);
+    TCGv_i32 dst = get_temp_i32(instr);
 
     gen_tag3_i32(tag, s1.tag, s2.tag, s3.tag);
     (*op)(dst, s1.value, s2.value, s3.value);
@@ -3249,6 +3250,7 @@ static void check_args(Alopf alopf, Instr *instr)
     case ALOPF21:
     case ALOPF21_ICOMB:
     case ALOPF21_FCOMB:
+    case ALOPF21_PFCOMB:
     case ALOPF21_LCOMB:
         check_reg_src(ctx, instr->src1);
         check_reg_src(ctx, instr->src2);
@@ -3403,6 +3405,22 @@ static void gen_alop_simple(Instr *instr, uint32_t op)
     case OP_FMAXD: gen_alopf1_dedd(instr, gen_helper_fmaxd); break;
     case OP_FMULS: gen_alopf1_sess(instr, gen_helper_fmuls); break;
     case OP_FMULD: gen_alopf1_dedd(instr, gen_helper_fmuld); break;
+    case OP_FCMPEQS: gen_alopf1_sess(instr, gen_helper_fcmpeqs); break;
+    case OP_FCMPLTS: gen_alopf1_sess(instr, gen_helper_fcmplts); break;
+    case OP_FCMPLES: gen_alopf1_sess(instr, gen_helper_fcmples); break;
+    case OP_FCMPUODS: gen_alopf1_sess(instr, gen_helper_fcmpuods); break;
+    case OP_FCMPNEQS: gen_alopf1_sess(instr, gen_helper_fcmpneqs); break;
+    case OP_FCMPNLTS: gen_alopf1_sess(instr, gen_helper_fcmpnlts); break;
+    case OP_FCMPNLES: gen_alopf1_sess(instr, gen_helper_fcmpnles); break;
+    case OP_FCMPODS: gen_alopf1_sess(instr, gen_helper_fcmpods); break;
+    case OP_FCMPEQD: gen_alopf1_dedd(instr, gen_helper_fcmpeqd); break;
+    case OP_FCMPLTD: gen_alopf1_dedd(instr, gen_helper_fcmpltd); break;
+    case OP_FCMPLED: gen_alopf1_dedd(instr, gen_helper_fcmpled); break;
+    case OP_FCMPUODD: gen_alopf1_dedd(instr, gen_helper_fcmpuodd); break;
+    case OP_FCMPNEQD: gen_alopf1_dedd(instr, gen_helper_fcmpneqd); break;
+    case OP_FCMPNLTD: gen_alopf1_dedd(instr, gen_helper_fcmpnltd); break;
+    case OP_FCMPNLED: gen_alopf1_dedd(instr, gen_helper_fcmpnled); break;
+    case OP_FCMPODD: gen_alopf1_dedd(instr, gen_helper_fcmpodd); break;
     case OP_FSTOIS: gen_alopf2_ses(instr, gen_helper_fstois); break;
     case OP_FSTOISTR: gen_alopf2_ses(instr, gen_helper_fstoistr); break;
     case OP_ISTOFS: gen_alopf2_ses(instr, gen_helper_istofs); break;
@@ -3626,6 +3644,41 @@ static void gen_alop_simple(Instr *instr, uint32_t op)
     case OP_PFDIVD: gen_alopf1_dedd(instr, gen_helper_fdivd); break;
     case OP_PFMIND: gen_alopf1_dedd(instr, gen_helper_fmind); break;
     case OP_PFMAXD: gen_alopf1_dedd(instr, gen_helper_fmaxd); break;
+    case OP_PFADDS: gen_alopf1_dedd(instr, gen_helper_pfadds); break;
+    case OP_PFSUBS: gen_alopf1_dedd(instr, gen_helper_pfsubs); break;
+    case OP_PFMULS: gen_alopf1_dedd(instr, gen_helper_pfmuls); break;
+    case OP_PFDIVS: gen_alopf1_sess(instr, gen_helper_fdivs); break;
+    case OP_PFMAXS: gen_alopf1_dedd(instr, gen_helper_pfmaxs); break;
+    case OP_PFMINS: gen_alopf1_dedd(instr, gen_helper_pfmins); break;
+    case OP_PFHADDS: gen_alopf1_dedd(instr, gen_helper_pfhadds); break;
+    case OP_PFHSUBS: gen_alopf1_dedd(instr, gen_helper_pfhsubs); break;
+    case OP_PFADDSUBS: gen_alopf1_dedd(instr, gen_helper_pfaddsubs); break;
+    case OP_PFSQRTS: gen_alopf2_ses(instr, gen_helper_fsqrts); break;
+    case OP_PFSTOIFS: gen_alopf1_dedd(instr, gen_helper_pfstoifs); break;
+    case OP_PISTOFS: gen_alopf2_ded(instr, gen_helper_pistofs); break;
+    case OP_PFSTOIS: gen_alopf2_ded(instr, gen_helper_pfstois); break;
+    case OP_PFSTOISTR: gen_alopf2_ded(instr, gen_helper_pfstoistr); break;
+    case OP_PFSTOFD: gen_alopf2_des(instr, gen_helper_fstofd); break;
+    case OP_PFDTOFS: gen_alopf2_sed(instr, gen_helper_fdtofs); break;
+    case OP_PFDTOIFD: gen_alopf1_dedd(instr, gen_helper_fdtoifd); break;
+    case OP_PFDTOIS: gen_alopf2_sed(instr, gen_helper_fdtois); break;
+    case OP_PFDTOISTR: gen_alopf2_sed(instr, gen_helper_fdtoistr); break;
+    case OP_PFCMPEQS: gen_alopf1_dedd(instr, gen_helper_pfcmpeqs); break;
+    case OP_PFCMPLTS: gen_alopf1_dedd(instr, gen_helper_pfcmplts); break;
+    case OP_PFCMPLES: gen_alopf1_dedd(instr, gen_helper_pfcmples); break;
+    case OP_PFCMPUODS: gen_alopf1_dedd(instr, gen_helper_pfcmpuods); break;
+    case OP_PFCMPNEQS: gen_alopf1_dedd(instr, gen_helper_pfcmpneqs); break;
+    case OP_PFCMPNLTS: gen_alopf1_dedd(instr, gen_helper_pfcmpnlts); break;
+    case OP_PFCMPNLES: gen_alopf1_dedd(instr, gen_helper_pfcmpnles); break;
+    case OP_PFCMPODS: gen_alopf1_dedd(instr, gen_helper_pfcmpods); break;
+    case OP_PFCMPEQD: gen_alopf1_dedd(instr, gen_helper_fcmpeqd); break;
+    case OP_PFCMPLTD: gen_alopf1_dedd(instr, gen_helper_fcmpltd); break;
+    case OP_PFCMPLED: gen_alopf1_dedd(instr, gen_helper_fcmpled); break;
+    case OP_PFCMPUODD: gen_alopf1_dedd(instr, gen_helper_fcmpuodd); break;
+    case OP_PFCMPNEQD: gen_alopf1_dedd(instr, gen_helper_fcmpneqd); break;
+    case OP_PFCMPNLTD: gen_alopf1_dedd(instr, gen_helper_fcmpnltd); break;
+    case OP_PFCMPNLED: gen_alopf1_dedd(instr, gen_helper_fcmpnled); break;
+    case OP_PFCMPODD: gen_alopf1_dedd(instr, gen_helper_fcmpodd); break;
     case OP_FSCALED: gen_alopf1_deds(instr, gen_helper_fscaled); break;
     case OP_FSCALES: gen_alopf1_sess(instr, gen_helper_fscales); break;
     case OP_FXSCALESX: gen_alopf1_xexi(instr, gen_helper_fxscalesx); break;
@@ -3644,13 +3697,15 @@ static void gen_alop_simple(Instr *instr, uint32_t op)
 #else
 #error Not implemented
 #endif
+    case OP_PFSQRTTD: /* fallthrough */
     case OP_FSQRTTD: gen_alopf1_dedd(instr, gen_helper_fsqrttd); break;
     case OP_FXSQRTTSX: gen_alopf1_xsx(instr, gen_helper_fxsqrttxx); break;
     case OP_FXSQRTTDX: gen_alopf1_xdx(instr, gen_helper_fxsqrttxx); break;
     case OP_FXSQRTTXX: gen_alopf1_xxx(instr, gen_helper_fxsqrttxx); break;
-    case OP_INSFS: gen_alopf21_i32(ctx, instr, gen_insfs); break;
+    case OP_INSFS: gen_alopf21_i32(instr, gen_insfs); break;
     case OP_INSFD: gen_insfd(instr); break;
-    case OP_PSHUFB: gen_alopf21_i64(ctx, instr, gen_helper_pshufb); break;
+    case OP_PSHUFB: gen_alopf21_i64(instr, gen_helper_pshufb); break;
+    case OP_PMERGE: gen_alopf21_i64(instr, gen_helper_pmerge); break;
     case OP_FXDIVTSS:
     case OP_FXDIVTDD:
     case OP_FXDIVTSX:
@@ -3684,13 +3739,6 @@ static void gen_alop_simple(Instr *instr, uint32_t op)
     case OP_MOVTRCS:
     case OP_MOVTRD:
     case OP_MOVTRCD:
-    case OP_PFDTOIS:
-    case OP_PFSTOIS:
-    case OP_PFDTOISTR:
-    case OP_PFSTOISTR:
-    case OP_PISTOFS:
-    case OP_PFSTOFD:
-    case OP_PFDTOFS:
     case OP_GETPL:
     case OP_GETSAP:
     case OP_CUDTOAP:
@@ -3736,53 +3784,14 @@ static void gen_alop_simple(Instr *instr, uint32_t op)
     case OP_AAURRD:
     case OP_AAURRQ:
     */
-    case OP_PFMULS:
-    case OP_PFADDS:
-    case OP_PFSUBS:
     case OP_APTOAP:
     case OP_APTOAPB:
     case OP_GETVA:
     case OP_LDRD:
     case OP_PUTTC:
-    case OP_PFDIVS:
-    case OP_PFMINS:
-    case OP_PFMAXS:
-    case OP_PFSQRTTD:
     case OP_CAST:
     case OP_TDTOMP:
     case OP_ODTOAP:
-    case OP_FCMPEQS:
-    case OP_FCMPLTS:
-    case OP_FCMPLES:
-    case OP_FCMPUODS:
-    case OP_FCMPNEQS:
-    case OP_FCMPNLTS:
-    case OP_FCMPNLES:
-    case OP_FCMPODS:
-    case OP_FCMPEQD:
-    case OP_FCMPLTD:
-    case OP_FCMPLED:
-    case OP_FCMPUODD:
-    case OP_FCMPNEQD:
-    case OP_FCMPNLTD:
-    case OP_FCMPNLED:
-    case OP_FCMPODD:
-    case OP_PFCMPEQS:
-    case OP_PFCMPLTS:
-    case OP_PFCMPLES:
-    case OP_PFCMPUODS:
-    case OP_PFCMPNEQS:
-    case OP_PFCMPNLTS:
-    case OP_PFCMPNLES:
-    case OP_PFCMPODS:
-    case OP_PFCMPEQD:
-    case OP_PFCMPLTD:
-    case OP_PFCMPLED:
-    case OP_PFCMPUODD:
-    case OP_PFCMPNEQD:
-    case OP_PFCMPNLTD:
-    case OP_PFCMPNLED:
-    case OP_PFCMPODD:
     case OP_LDGDB:
     case OP_LDGDH:
     case OP_LDGDW:
@@ -3819,7 +3828,6 @@ static void gen_alop_simple(Instr *instr, uint32_t op)
     case OP_LDFSQ:
     case OP_LDGSQ:
     case OP_LDSSQ:
-    case OP_PFSQRTS:
     case OP_GETTD:
     case OP_GETTC:
     case OP_INVTC:
@@ -3858,11 +3866,6 @@ static void gen_alop_simple(Instr *instr, uint32_t op)
     case OP_STODWW:
     case OP_MOVTRQ:
     case OP_MOVTRCQ:
-    case OP_PFHADDS:
-    case OP_PFHSUBS:
-    case OP_PFADDSUBS:
-    case OP_PFSTOIFS:
-    case OP_PFDTOIFD:
     case OP_PUTTST:
     case OP_STAAQP:
     case OP_QPAND:
@@ -4099,7 +4102,7 @@ static void gen_alop_simple(Instr *instr, uint32_t op)
     case OP_QPFMSAS:
     case OP_QPFMASD:
     case OP_QPFMSAD:
-        e2k_todo_illop(ctx, "unimplemented %d\n", op); break;
+        e2k_todo_illop(ctx, "unimplemented %d", op); break;
     }
 }
 
@@ -4174,13 +4177,24 @@ static inline bool icomb_check(Instr *instr, IComb opc1, IComb opc2)
 typedef enum {
     FCOMB_ADD = 0,
     FCOMB_SUB = 1,
+    FCOMB_HADD = 2,
+    FCOMB_HSUB = 3,
     FCOMB_MUL = 4,
     FCOMB_RSUB = 5,
+    FCOMB_ADDSUB = 7,
+    FCOMB_COUNT = 8,
 } FComb;
 
 static inline bool fcomb_is_add_unit(FComb op)
 {
-    return op != FCOMB_MUL;
+    switch (op) {
+    case FCOMB_ADD:
+    case FCOMB_SUB:
+    case FCOMB_RSUB:
+        return true;
+    default:
+        return false;
+    }
 }
 
 static inline bool fcomb_is_mul_unit(FComb op)
@@ -4192,15 +4206,86 @@ static inline bool fcomb_check(Instr *instr, FComb opc1, FComb opc2)
 {
     int ver = instr->ctx->version;
 
-    if (ver < 4 && is_chan_25(instr->chan)) {
+    if (opc1 == FCOMB_RSUB || (ver < 4 && is_chan_25(instr->chan))) {
         return false;
     }
 
     if (ver >= 2) {
-        return !(fcomb_is_mul_unit(opc1) && fcomb_is_mul_unit(opc2));
+        return (fcomb_is_add_unit(opc1) || fcomb_is_mul_unit(opc1))
+            && fcomb_is_add_unit(opc2);
     } else {
         return fcomb_is_add_unit(opc1) == fcomb_is_mul_unit(opc2);
     }
+}
+
+static bool pfcomb_map[FCOMB_COUNT][FCOMB_COUNT] = { false };
+
+static void pfcomb_init(DisasContext *ctx)
+{
+    pfcomb_map[FCOMB_MUL][FCOMB_ADD] = true;
+    pfcomb_map[FCOMB_MUL][FCOMB_SUB] = true;
+    pfcomb_map[FCOMB_MUL][FCOMB_RSUB] = true;
+
+    if (ctx->version == 1) {
+        pfcomb_map[FCOMB_ADD][FCOMB_MUL] = true;
+        pfcomb_map[FCOMB_SUB][FCOMB_MUL] = true;
+    }
+
+    if (ctx->version >= 2) {
+        pfcomb_map[FCOMB_ADD][FCOMB_ADD] = true;
+        pfcomb_map[FCOMB_ADD][FCOMB_SUB] = true;
+        pfcomb_map[FCOMB_ADD][FCOMB_RSUB] = true;
+
+        pfcomb_map[FCOMB_SUB][FCOMB_ADD] = true;
+        pfcomb_map[FCOMB_SUB][FCOMB_SUB] = true;
+        pfcomb_map[FCOMB_SUB][FCOMB_RSUB] = true;
+    }
+
+    if (ctx->version >= 3) {
+        pfcomb_map[FCOMB_HADD][FCOMB_ADD] = true;
+        pfcomb_map[FCOMB_HADD][FCOMB_SUB] = true;
+        pfcomb_map[FCOMB_HADD][FCOMB_RSUB] = true;
+        pfcomb_map[FCOMB_HADD][FCOMB_HADD] = true;
+        pfcomb_map[FCOMB_HADD][FCOMB_HSUB] = true;
+        pfcomb_map[FCOMB_HADD][FCOMB_ADDSUB] = true;
+
+        pfcomb_map[FCOMB_HSUB][FCOMB_ADD] = true;
+        pfcomb_map[FCOMB_HSUB][FCOMB_SUB] = true;
+        pfcomb_map[FCOMB_HSUB][FCOMB_RSUB] = true;
+        pfcomb_map[FCOMB_HSUB][FCOMB_HADD] = true;
+        pfcomb_map[FCOMB_HSUB][FCOMB_HSUB] = true;
+        pfcomb_map[FCOMB_HSUB][FCOMB_ADDSUB] = true;
+
+        pfcomb_map[FCOMB_ADDSUB][FCOMB_ADD] = true;
+        pfcomb_map[FCOMB_ADDSUB][FCOMB_SUB] = true;
+        pfcomb_map[FCOMB_ADDSUB][FCOMB_RSUB] = true;
+        pfcomb_map[FCOMB_ADDSUB][FCOMB_HADD] = true;
+        pfcomb_map[FCOMB_ADDSUB][FCOMB_HSUB] = true;
+        pfcomb_map[FCOMB_ADDSUB][FCOMB_ADDSUB] = true;
+
+        pfcomb_map[FCOMB_ADD][FCOMB_HADD] = true;
+        pfcomb_map[FCOMB_ADD][FCOMB_HSUB] = true;
+        pfcomb_map[FCOMB_ADD][FCOMB_ADDSUB] = true;
+
+        pfcomb_map[FCOMB_SUB][FCOMB_HADD] = true;
+        pfcomb_map[FCOMB_SUB][FCOMB_HSUB] = true;
+        pfcomb_map[FCOMB_SUB][FCOMB_ADDSUB] = true;
+
+        pfcomb_map[FCOMB_MUL][FCOMB_HADD] = true;
+        pfcomb_map[FCOMB_MUL][FCOMB_HSUB] = true;
+        pfcomb_map[FCOMB_MUL][FCOMB_ADDSUB] = true;
+    }
+}
+
+static inline bool pfcomb_check(Instr *instr, FComb opc1, FComb opc2)
+{
+    int ver = instr->ctx->version;
+
+    if (ver < 4 && is_chan_25(instr->chan)) {
+        return false;
+    }
+
+    return pfcomb_map[opc1][opc2];
 }
 
 #define IMPL_GEN_FCOMB_OP(S, T) \
@@ -4212,25 +4297,58 @@ static inline bool fcomb_check(Instr *instr, FComb opc1, FComb opc2)
         case FCOMB_SUB: glue(gen_helper_fsub, T)(ret, cpu_env, arg1, arg2); break; \
         case FCOMB_MUL: glue(gen_helper_fmul, T)(ret, cpu_env, arg1, arg2); break; \
         case FCOMB_RSUB: glue(gen_helper_fsub, T)(ret, cpu_env, arg2, arg1); break; \
-        default: g_assert_not_reached(); break; \
+        default: e2k_tr_gen_exception(instr->ctx, E2K_EXCP_ILLOPC); break; \
         } \
     }
 
 IMPL_GEN_FCOMB_OP(i64, d)
 IMPL_GEN_FCOMB_OP(i32, s)
 
-static inline int comb_opc1(Instr *instr)
+static void gen_pfcomb_op_i32(Instr *instr, FComb opc,
+    TCGv_i64 ret, TCGv_i64 arg1, TCGv_i64 arg2)
 {
-    return (instr->opc1 >> 1) & 0xf;
+    switch (opc) {
+    case FCOMB_ADD: gen_helper_pfadds(ret, cpu_env, arg1, arg2); break;
+    case FCOMB_SUB: gen_helper_pfsubs(ret, cpu_env, arg1, arg2); break;
+    case FCOMB_HADD: gen_helper_pfhadds(ret, cpu_env, arg1, arg2); break;
+    case FCOMB_HSUB: gen_helper_pfhsubs(ret, cpu_env, arg1, arg2); break;
+    case FCOMB_MUL: gen_helper_pfmuls(ret, cpu_env, arg1, arg2); break;
+    case FCOMB_RSUB: gen_helper_pfsubs(ret, cpu_env, arg2, arg1); break;
+    case FCOMB_ADDSUB: gen_helper_pfaddsubs(ret, cpu_env, arg1, arg2); break;
+    default: e2k_tr_gen_exception(instr->ctx, E2K_EXCP_ILLOPC); break;
+    }
 }
 
-static inline int comb_opc2(Instr *instr)
+static void gen_pfcomb_op_i64(Instr *instr, FComb opc,
+    TCGv_i64 ret, TCGv_i64 arg1, TCGv_i64 arg2)
 {
-    return ((instr->opc2 & 3) << 2) | ((instr->opc1 >> 5) & 3);
+    switch (opc) {
+    case FCOMB_ADD: gen_helper_faddd(ret, cpu_env, arg1, arg2); break;
+    case FCOMB_SUB: gen_helper_fsubd(ret, cpu_env, arg1, arg2); break;
+    case FCOMB_MUL: gen_helper_fmuld(ret, cpu_env, arg1, arg2); break;
+    case FCOMB_RSUB: gen_helper_fsubd(ret, cpu_env, arg2, arg1); break;
+    default: e2k_tr_gen_exception(instr->ctx, E2K_EXCP_ILLOPC); break;
+    }
 }
 
-#define IMPL_GEN_COMB(P, S, T) \
-    static void glue4(gen_, P, _, S)(Instr *instr, int opc1, int opc2) \
+static inline int comb_opc1(Instr *instr, int m1)
+{
+    return (instr->opc1 >> 1) & m1;
+}
+
+static inline int comb_opc2(Instr *instr, int m1, int m2)
+{
+    return ((instr->opc2 & m2) << 2) | ((instr->opc1 >> 5) & m1);
+}
+
+#define icomb_opc1(instr) comb_opc1(instr, 0xf)
+#define fcomb_opc1(instr) comb_opc1(instr, 0x7)
+
+#define icomb_opc2(instr) comb_opc2(instr, 0x3, 0x3)
+#define fcomb_opc2(instr) comb_opc2(instr, 0x3, 0x1)
+
+#define IMPL_GEN_COMB(NAME, P, S, T, OP) \
+    static void NAME(Instr *instr, int opc1, int opc2) \
     { \
         glue(Src, T) s1 = glue(get_src1_, S)(instr); \
         glue(Src, T) s2 = glue(get_src2_, S)(instr); \
@@ -4238,39 +4356,34 @@ static inline int comb_opc2(Instr *instr)
         TCGv_i32 tag = get_temp_i32(instr); \
         glue(TCGv_, S) dst = glue(get_temp_, S)(instr); \
         glue(gen_tag3_, S)(tag, s1.tag, s2.tag, s3.tag); \
-        glue4(gen_, P, _op_, S)(instr, opc1, dst, s1.value, s2.value); \
-        glue4(gen_, P, _op_, S)(instr, opc2, dst, s3.value, dst); \
+        OP(instr, opc1, dst, s1.value, s2.value); \
+        OP(instr, opc2, dst, s3.value, dst); \
         glue(gen_al_result_, S)(instr, dst, tag); \
     }
 
-IMPL_GEN_COMB(icomb, i64, 64)
-IMPL_GEN_COMB(icomb, i32, 32)
-IMPL_GEN_COMB(fcomb, i64, 64)
-IMPL_GEN_COMB(fcomb, i32, 32)
+IMPL_GEN_COMB(gen_icomb_i64, icomb, i64, 64, gen_icomb_op_i64)
+IMPL_GEN_COMB(gen_icomb_i32, icomb, i32, 32, gen_icomb_op_i32)
+IMPL_GEN_COMB(gen_fcomb_i64, fcomb, i64, 64, gen_fcomb_op_i64)
+IMPL_GEN_COMB(gen_fcomb_i32, fcomb, i32, 32, gen_fcomb_op_i32)
+IMPL_GEN_COMB(gen_pfcomb_i64, pfcomb, i64, 64, gen_pfcomb_op_i64)
+IMPL_GEN_COMB(gen_pfcomb_i32, pfcomb, i64, 64, gen_pfcomb_op_i32)
 
-static void gen_icomb(Instr *instr, uint32_t op)
-{
-    int opc1 = op & 0xffff;
-    int opc2 = op >> 16;
-
-    if (instr->opc1 & 1) {
-        gen_icomb_i64(instr, opc1, opc2);
-    } else {
-        gen_icomb_i32(instr, opc1, opc2);
+#define IMPL_GEN_COMB_SELECT(NAME) \
+    static void glue(gen_, NAME)(Instr *instr, uint32_t op) \
+    { \
+        int opc1 = op & 0xffff; \
+        int opc2 = op >> 16; \
+        \
+        if (instr->opc1 & 1) { \
+            glue3(gen_, NAME, _i64)(instr, opc1, opc2); \
+        } else { \
+            glue3(gen_, NAME, _i32)(instr, opc1, opc2); \
+        } \
     }
-}
 
-static void gen_fcomb(Instr *instr, uint32_t op)
-{
-    int opc1 = op & 0xffff;
-    int opc2 = op >> 16;
-
-    if (instr->opc1 & 1) {
-        gen_fcomb_i64(instr, opc1, opc2);
-    } else {
-        gen_fcomb_i32(instr, opc1, opc2);
-    }
-}
+IMPL_GEN_COMB_SELECT(icomb)
+IMPL_GEN_COMB_SELECT(fcomb)
+IMPL_GEN_COMB_SELECT(pfcomb)
 
 static void gen_lcomb_i64(Instr *instr, uint32_t base)
 {
@@ -4392,6 +4505,10 @@ static void alop_decode(Instr *instr)
 {
     Alop *alop = &instr->ctx->bundle2.alops[instr->chan];
 
+    alop->format = ALOPF_NONE;
+    alop->op = 0;
+    alop->name = "none";
+
     switch (instr->opc2) {
     case SHORT:
     case EXT:
@@ -4404,6 +4521,7 @@ static void alop_decode(Instr *instr)
         }
         alop->format = desc->alopf;
         alop->op = desc->op;
+        alop->name = desc->dsc;
         break;
     }
     case ICMB0:
@@ -4420,8 +4538,8 @@ static void alop_decode(Instr *instr)
             alop->format = ALOPF21;
             alop->op = instr->opc1 & 1 ? OP_INSFD : OP_INSFS;
         } else {
-            int opc1 = comb_opc1(instr);
-            int opc2 = comb_opc2(instr);
+            int opc1 = icomb_opc1(instr);
+            int opc2 = icomb_opc2(instr);
             if (!icomb_check(instr, opc1, opc2)) {
                 e2k_tr_gen_exception(instr->ctx, E2K_EXCP_ILLOPC);
                 return;
@@ -4430,10 +4548,16 @@ static void alop_decode(Instr *instr)
             alop->op = (opc2 << 16) | opc1;
         }
         break;
+    case FLB:
+    case FLH:
+    case FLW:
+    case FLD:
+        e2k_todo_illop(instr->ctx, "flags ops");
+        break;
     case FCMB0:
     case FCMB1: {
-        int opc1 = comb_opc1(instr);
-        int opc2 = comb_opc2(instr);
+        int opc1 = fcomb_opc1(instr);
+        int opc2 = fcomb_opc2(instr);
         if (!fcomb_check(instr, opc1, opc2)) {
             e2k_tr_gen_exception(instr->ctx, E2K_EXCP_ILLOPC);
             return;
@@ -4442,15 +4566,27 @@ static void alop_decode(Instr *instr)
         alop->op = (opc2 << 16) | opc1;
         break;
     }
+    case PFCMB0:
     case PFCMB1:
-        if (instr->opc1 == 0x4d
-            && is_chan_0134(instr->chan)
-            && instr->ctx->version >= 2)
+        if (instr->opc2 == PFCMB1 && is_chan_0134(instr->chan)
+            && instr->ctx->version >= 2 && instr->opc1 == 0x4d)
         {
             alop->format = ALOPF12_PSHUFH;
             alop->op = OP_PSHUFB;
+        } else if (instr->opc2 == PFCMB1 && is_chan_0134(instr->chan)
+            && instr->ctx->version >= 2 && instr->opc1 == 0x6d)
+        {
+            alop->format = ALOPF21;
+            alop->op = OP_PMERGE;
         } else {
-            e2k_tr_gen_exception(instr->ctx, E2K_EXCP_ILLOPC);
+            int opc1 = fcomb_opc1(instr);
+            int opc2 = fcomb_opc2(instr);
+            if (!pfcomb_check(instr, opc1, opc2)) {
+                e2k_tr_gen_exception(instr->ctx, E2K_EXCP_ILLOPC);
+                return;
+            }
+            alop->format = ALOPF21_PFCOMB;
+            alop->op = (opc2 << 16) | opc1;
         }
         break;
     case LCMBD0:
@@ -4461,6 +4597,14 @@ static void alop_decode(Instr *instr)
         } else {
             e2k_tr_gen_exception(instr->ctx, E2K_EXCP_ILLOPC);
         }
+        break;
+    case LCMBQ0:
+    case LCMBQ1:
+        e2k_todo_illop(instr->ctx, "logical combined ops");
+        break;
+    case QPFCMB0:
+    case QPFCMB1:
+        e2k_todo_illop(instr->ctx, "packed128 float combined ops");
         break;
     default:
         e2k_tr_gen_exception(instr->ctx, E2K_EXCP_ILLOPC);
@@ -4498,6 +4642,9 @@ static void gen_alop(Instr *instr, Alop *alop)
         break;
     case ALOPF21_FCOMB:
         gen_fcomb(instr, alop->op);
+        break;
+    case ALOPF21_PFCOMB:
+        gen_pfcomb(instr, alop->op);
         break;
     case ALOPF21_LCOMB:
         gen_lcomb_i64(instr, alop->op);
@@ -4700,6 +4847,8 @@ void alc_init(DisasContext *ctx)
     int i, j;
 
     memset(alops_map, -1, sizeof(alops_map));
+    memset(pfcomb_map, 0, sizeof(pfcomb_map));
+
     // TODO: symmetric alops table
     /* Most alops are symmetric and can be stored in a half table. */
     for (i = 0; i < ARRAY_SIZE(alops); i++) {
@@ -4714,4 +4863,6 @@ void alc_init(DisasContext *ctx)
             }
         }
     }
+
+    pfcomb_init(ctx);
 }

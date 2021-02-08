@@ -791,6 +791,7 @@ enum {
     OP_INSFS,
     OP_INSFD,
     OP_PSHUFB,
+    OP_PMERGE,
 };
 
 typedef enum {
@@ -925,8 +926,8 @@ typedef enum {
 } AlopExt;
 
 typedef struct {
-    uint16_t op;
     const char *dsc;
+    uint16_t op;
     uint8_t alopf;
     AlopArgs format;
     uint8_t opc2;
@@ -939,7 +940,7 @@ typedef struct {
     uint8_t extra2; /* opce2, implicit_nops, explicit_ales25_v4 */
 } AlopDesc;
 
-#define X(x) x, #x
+#define X(x) #x, x
 
 static AlopDesc alops[] = {
     { X(OP_ADDS),         ALOPF1,            ARGS_SSS,  SHORT, 0x10, 1, -1, CHAN_012345, { -1 } },
