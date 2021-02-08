@@ -122,6 +122,7 @@ DEF_HELPER_2(punpckhwd, i64, i64, i64)
 
 /* Packed shuffle */
 DEF_HELPER_3(pshufb, i64, i64, i64, i64)
+DEF_HELPER_3(pmerge, i64, i64, i64, i64)
 DEF_HELPER_2(pshufh, i64, i64, i32)
 DEF_HELPER_3(pshufw, i64, i64, i64, i32)
 
@@ -149,6 +150,30 @@ DEF_HELPER_2(frcps, i32, env, i32)
 DEF_HELPER_2(fsqrts, i32, env, i32)
 DEF_HELPER_2(frsqrts, i32, env, i32)
 DEF_HELPER_3(fsqrttd, i64, env, i64, i64)
+
+/* Packed Float ops */
+DEF_HELPER_3(pfadds, i64, env, i64, i64)
+DEF_HELPER_3(pfsubs, i64, env, i64, i64)
+DEF_HELPER_3(pfmuls, i64, env, i64, i64)
+DEF_HELPER_3(pfmaxs, i64, env, i64, i64)
+DEF_HELPER_3(pfmins, i64, env, i64, i64)
+DEF_HELPER_3(pfhadds, i64, env, i64, i64)
+DEF_HELPER_3(pfhsubs, i64, env, i64, i64)
+DEF_HELPER_3(pfaddsubs, i64, env, i64, i64)
+
+DEF_HELPER_3(pfstoifs, i64, env, i64, i64)
+DEF_HELPER_2(pistofs, i64, env, i64)
+DEF_HELPER_2(pfstois, i64, env, i64)
+DEF_HELPER_2(pfstoistr, i64, env, i64)
+
+DEF_HELPER_3(pfcmpeqs, i64, env, i64, i64)
+DEF_HELPER_3(pfcmplts, i64, env, i64, i64)
+DEF_HELPER_3(pfcmples, i64, env, i64, i64)
+DEF_HELPER_3(pfcmpuods, i64, env, i64, i64)
+DEF_HELPER_3(pfcmpneqs, i64, env, i64, i64)
+DEF_HELPER_3(pfcmpnlts, i64, env, i64, i64)
+DEF_HELPER_3(pfcmpnles, i64, env, i64, i64)
+DEF_HELPER_3(pfcmpods, i64, env, i64, i64)
 
 /* Float x80 ops */
 DEF_HELPER_3(fxaddxx, void, env, f80, f80)
