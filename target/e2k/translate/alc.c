@@ -3263,7 +3263,7 @@ static void check_args(Alopf alopf, Instr *instr)
     }
 }
 
-static void gen_alop_simple(Instr *instr, uint32_t op)
+static void gen_alop_simple(Instr *instr, uint32_t op, const char *name)
 {
     DisasContext *ctx = instr->ctx;
     int chan = instr->chan;
@@ -4102,7 +4102,7 @@ static void gen_alop_simple(Instr *instr, uint32_t op)
     case OP_QPFMSAS:
     case OP_QPFMASD:
     case OP_QPFMSAD:
-        e2k_todo_illop(ctx, "unimplemented %d", op); break;
+        e2k_todo_illop(ctx, "unimplemented %d (%s)", op, name); break;
     }
 }
 
@@ -4650,7 +4650,7 @@ static void gen_alop(Instr *instr, Alop *alop)
         gen_lcomb_i64(instr, alop->op);
         break;
     default:
-        gen_alop_simple(instr, alop->op);
+        gen_alop_simple(instr, alop->op, alop->name);
         break;
     }
 
