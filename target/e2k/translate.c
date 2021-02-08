@@ -624,6 +624,9 @@ static inline void gen_cs0(DisasContext *ctx)
         ctx->ct.type = CT_IBRANCH;
         ctx->ct.u.target = ctx->pc + cs0->ibranch.sdisp;
         break;
+    case CS0_PREF:
+        /* prefetch code */
+        break;
     case CS0_DISP: {
         uint64_t ctpr = ctpr_new_disp(ctx, &cs0->disp);
         gen_set_ctpr(cs0->disp.ctpr, ctpr);
