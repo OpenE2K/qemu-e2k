@@ -210,7 +210,7 @@ static void target_setup_frame(int sig, struct target_sigaction *ka,
     env->wd.psize = 0;
     env->usd.size = env->sbr - frame_addr;
     env->usd.base = frame_addr;
-    helper_signal_frame(env, 2, 0xe2ffffffffff);
+    helper_signal_frame(env, 2, E2K_SYSRET_ADDR_CTPR);
 
     env->ip = ka->_sa_handler;
     env->regs[0] = sig;
