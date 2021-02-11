@@ -98,11 +98,6 @@ static inline bool is_chan_0134(int c)
     return is_chan_03(c) || is_chan_14(c);
 }
 
-static inline bool is_chan_0235(int c)
-{
-    return is_chan_03(c) || is_chan_25(c);
-}
-
 static inline TCGv_i64 get_temp_i64(Instr *instr)
 {
     return e2k_get_temp_i64(instr->ctx);
@@ -410,16 +405,6 @@ static inline void gen_tag3(TCGv_i32 ret, int tag, TCGv_i32 arg1, TCGv_i32 arg2,
     tcg_temp_free_i32(t0);
     tcg_temp_free_i32(fail);
     tcg_temp_free_i32(zero);
-}
-
-static inline void gen_tag2(TCGv_i32 ret, int tag, TCGv_i32 arg1, TCGv_i32 arg2)
-{
-    gen_tag3(ret, tag, arg1, arg2, NULL);
-}
-
-static inline void gen_tag1(TCGv_i32 ret, int tag, TCGv_i32 arg1)
-{
-    gen_tag2(ret, tag, arg1, NULL);
 }
 
 /*
@@ -765,12 +750,6 @@ static inline void gen_xorn_i64(TCGv_i64 ret, TCGv_i64 src1, TCGv_i64 src2)
         glue(tcg_temp_free_, S)(t1); \
         glue(tcg_temp_free_, S)(t0); \
     } \
-    static inline void glue(gen_maski_, S)(T ret, int size) \
-    { \
-        T t0 = glue(tcg_const_, S)(size); \
-        glue(gen_mask_, S)(ret, t0); \
-        glue(tcg_temp_free_, S)(t0); \
-    }
 
 IMPL_GEN_MASK(i64, TCGv_i64, 64)
 IMPL_GEN_MASK(i32, TCGv_i32, 32)
@@ -1317,23 +1296,6 @@ static void gen_fcmp_f80(TCGv_i64 ret, int opc, Src80 src1, Src80 src2)
     tcg_temp_free_ptr(t1);
     tcg_temp_free_ptr(t0);
     tcg_temp_free_i64(dst);
-}
-
-/*
- * ret[31:0] = x[31:0]
- * ret[63:32] = y[63:32]
- */
-static inline void gen_movehl_i64(TCGv_i64 ret, TCGv_i64 x, TCGv_i64 y)
-{
-    TCGv_i32 lo = tcg_temp_new_i32();
-    TCGv_i32 hi = tcg_temp_new_i32();
-
-    tcg_gen_extrl_i64_i32(lo, x);
-    tcg_gen_extrh_i64_i32(hi, y);
-    tcg_gen_concat_i32_i64(ret, lo, hi);
-
-    tcg_temp_free_i32(hi);
-    tcg_temp_free_i32(lo);
 }
 
 static inline void gen_merge_i32(TCGv_i32 ret, TCGv_i32 src1, TCGv_i32 src2,
@@ -2193,7 +2155,7 @@ static void gen_aaurw_aad_lo_i64(Instr *instr, TCGv_i64 arg1, TCGv_i32 tag)
     TCGv_i64 t1 = tcg_temp_new_i64();
 
     tcg_gen_andi_i64(t0, arg1, 3UL << 57);
-    tcg_gen_andi_i64(lo, lo, !(0x1fUL << 54));
+    tcg_gen_andi_i64(lo, lo, ~(0x1fUL << 54));
     tcg_gen_or_i64(lo, lo, t0);
     tcg_gen_deposit_i64(lo, lo, arg1, 0, 48);
     tcg_gen_ori_i64(lo, lo, 3UL << 59);
@@ -2219,7 +2181,7 @@ static void gen_aaurw_aad_i32(Instr *instr, TCGv_i32 arg1, TCGv_i32 tag)
     tcg_gen_extu_i32_i64(t0, arg1);
     tcg_gen_deposit_i64(lo, lo, t0, 0, 48);
     tcg_gen_ori_i64(lo, lo, 3UL << 59);
-    tcg_gen_andi_i64(lo, lo, !(0x7UL << 54));
+    tcg_gen_andi_i64(lo, lo, ~(0x7UL << 54));
     gen_aad_tag(t1, tag);
     tcg_gen_or_i64(lo, lo, t1);
 
