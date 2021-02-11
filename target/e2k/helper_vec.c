@@ -99,7 +99,7 @@ GEN_HELPER_PACKED_MINMAX(pmax, sw, MAX)
 
 #define GEN_HELPER_PACKED_CMP(name, type, op) \
     GEN_HELPER_PACKED(name, type, { \
-        dst.type[i] = s1.type[i] op s2.type[i] ? -1UL : 0; \
+        dst.type[i] = s1.type[i] op s2.type[i] ? -1 : 0; \
     })
 
 GEN_HELPER_PACKED_CMP(pcmpeqb, ub, ==)

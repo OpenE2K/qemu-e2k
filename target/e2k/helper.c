@@ -177,14 +177,6 @@ static inline void do_call(CPUE2KState *env, int wbs, target_ulong ret_ip)
     reset_ctprs(env);
 }
 
-static inline void do_syscall(CPUE2KState *env, int wbs, target_ulong ret_ip)
-{
-    CPUState *cs = env_cpu(env);
-    do_call(env, wbs, ret_ip);
-    cs->exception_index = E2K_EXCP_SYSCALL;
-    cpu_loop_exit(cs);
-}
-
 void HELPER(syscall)(CPUE2KState *env)
 {
     CPUState *cs = env_cpu(env);
