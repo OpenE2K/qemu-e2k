@@ -117,15 +117,15 @@ GEN_HELPER_PACKED_CMP(pcmpgtd, sd, >)
         dst.type[i] = map((cast) s1.type[i] op s2.type[i]); \
     })
 
-GEN_HELPER_PACKED_BINOP_MAP(paddsb,  sb, +,  int16_t, satsb)
-GEN_HELPER_PACKED_BINOP_MAP(paddsh,  sh, +,  int32_t, satsh)
-GEN_HELPER_PACKED_BINOP_MAP(paddusb, ub, +, uint16_t, satub)
-GEN_HELPER_PACKED_BINOP_MAP(paddush, uh, +, uint32_t, satuh)
+GEN_HELPER_PACKED_BINOP_MAP(paddsb,  sb, +, int16_t, satsb)
+GEN_HELPER_PACKED_BINOP_MAP(paddsh,  sh, +, int32_t, satsh)
+GEN_HELPER_PACKED_BINOP_MAP(paddusb, ub, +, int16_t, satub)
+GEN_HELPER_PACKED_BINOP_MAP(paddush, uh, +, int32_t, satuh)
 
 GEN_HELPER_PACKED_BINOP_MAP(psubsb,  sb, -, int16_t, satsb)
 GEN_HELPER_PACKED_BINOP_MAP(psubsh,  sh, -, int32_t, satsh)
-GEN_HELPER_PACKED_BINOP_MAP(psubusb, ub, -, uint16_t, satub)
-GEN_HELPER_PACKED_BINOP_MAP(psubush, uh, -, uint32_t, satuh)
+GEN_HELPER_PACKED_BINOP_MAP(psubusb, ub, -, int16_t, satub)
+GEN_HELPER_PACKED_BINOP_MAP(psubush, uh, -, int32_t, satuh)
 
 #define GEN_HELPER_PACKED_HORIZONTAL_OP(name, type, op, map) \
     GEN_HELPER_PACKED_N(name, vec64_len(type) / 2, { \
