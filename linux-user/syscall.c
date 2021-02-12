@@ -11943,7 +11943,8 @@ static abi_long do_syscall1(void *cpu_env, int num, abi_long arg1,
         return ret;
 #endif
 #ifdef TARGET_NR_e2k_longjmp2
-    case TARGET_NR_e2k_longjmp2: {
+    case TARGET_NR_e2k_longjmp2:
+    {
         E2KCPU *e2k_cpu = E2K_CPU(cpu);
         CPUE2KState *env = &e2k_cpu->env;
         struct target_jmp_info ji;
@@ -11957,9 +11958,18 @@ static abi_long do_syscall1(void *cpu_env, int num, abi_long arg1,
 #endif
 #ifdef TARGET_NR_access_hw_stacks
     case TARGET_NR_access_hw_stacks:
+    {
+#if 0
+        abi_ulong mode = arg2;
+        abi_ulong frame_ptr = arg3; // __user (abi_ullong *)
+        abi_ulong buf = arg4; // __user (char *)
+        abi_ulong buf_size = arg5;
+        abi_ulong real_size = arg6; // __user (void *)
+#endif
+
         // TODO: e2k_sys_access_hw_stacks
-        qemu_log_mask(LOG_UNIMP, "syscall access_hw_stacks is not implemented yet\n");
-        return -TARGET_EPERM;
+        return -TARGET_ENOSYS;
+    }
 #endif
 #ifdef CONFIG_ATTR
 #ifdef TARGET_NR_setxattr
