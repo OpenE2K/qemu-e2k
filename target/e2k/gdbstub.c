@@ -25,6 +25,14 @@
 
 /* TODO: reverse engineer e2k-linux-gdb register ids */
 
+static uint64_t cr_read(CPUState *cs, CPUE2KState *env, size_t offset)
+{
+    target_ulong addr = env->pcsp.base + env->pcsp.index + offset;
+    uint64_t r;
+    cpu_memory_rw_debug(cs, addr, &r, sizeof(r), false);
+    return r;
+}
+
 int e2k_cpu_gdb_read_register(CPUState *cs, GByteArray *mem_buf, int n)
 {
     E2KCPU *cpu = E2K_CPU(cs);
@@ -62,12 +70,18 @@ int e2k_cpu_gdb_read_register(CPUState *cs, GByteArray *mem_buf, int n)
     case 51: return gdb_get_reg64(mem_buf, 0); // pshtp
     case 52: return gdb_get_reg64(mem_buf, env->pregs); // pregs
     case 53: return gdb_get_reg64(mem_buf, env->ip); // ip
-    case 54: return gdb_get_reg64(mem_buf, env->crs.cr1.lo); // cr1_lo
-    case 55: return gdb_get_reg64(mem_buf, env->crs.cr1.hi); // cr1_hi
+    case 54: { // cr1_lo
+        uint64_t cr1_lo = cr_read(cs, env, offsetof(E2KCrs, cr1.lo));
+        return gdb_get_reg64(mem_buf, cr1_lo);
+    }
+    case 55: { // cr1_hi
+        uint64_t cr1_hi = cr_read(cs, env, offsetof(E2KCrs, cr1.hi));
+        return gdb_get_reg64(mem_buf, cr1_hi);
+    }
     case 56: return gdb_get_reg64(mem_buf, 0); // cwd
     case 57: return gdb_get_reg64(mem_buf, e2k_state_pcsp_lo(env)); // pcsp_lo
     case 58: return gdb_get_reg64(mem_buf, e2k_state_pcsp_hi(env)); // pcsp_hi
-    case 59: return gdb_get_reg64(mem_buf, env->pcshtp); // pcshtp
+    case 59: return gdb_get_reg64(mem_buf, 0); // pcshtp
     case 60: return gdb_get_reg64(mem_buf, 0); // cud_lo
     case 61: return gdb_get_reg64(mem_buf, 0); // cud_hi
     case 62: return gdb_get_reg64(mem_buf, 0); // gd_lo
