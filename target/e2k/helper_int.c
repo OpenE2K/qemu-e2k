@@ -50,6 +50,7 @@ uint64_t helper_state_reg_read_i64(CPUE2KState *env, int idx)
     case 0x57: return cr_read(env, offsetof(E2KCrs, cr1.lo)); /* %cr1.lo */
     case 0x80: return env->upsr; /* %upsr */
     case 0x81: return env->ip; /* %ip */
+    case 0x84: return env->pfpfr; /* %pfpfr */
     case 0x85: return env->fpcr.raw; /* %fpcr */
     case 0x86: return env->fpsr.raw; /* %fpsr */
     case 0x8a: return env->idr; /* %idr */
@@ -81,7 +82,7 @@ void helper_state_reg_write_i64(CPUE2KState *env, int idx, uint64_t val)
         env->lsr_strmd = extract64(val, LSR_STRMD_OFF, LSR_STRMD_LEN);
         break;
     case 0x84: /* %pfpfr */
-        qemu_log_mask(LOG_UNIMP, "pfpfr write 0x%lx\n", val);
+        env->pfpfr = val;
         break;
     case 0x85: /* %fpcr */
         env->fpcr.raw = val;
@@ -104,7 +105,7 @@ void helper_state_reg_write_i32(CPUE2KState *env, int idx, uint32_t val)
         env->lsr_lcnt = val;
         break;
     case 0x84: /* %pfpfr */
-        qemu_log_mask(LOG_UNIMP, "pfpfr write 0x%x\n", val);
+        env->pfpfr = deposit64(env->pfpfr, 0, 32, val);
         break;
     case 0x85: /* %fpcr */
         env->fpcr.raw = val;

@@ -1714,43 +1714,32 @@ static void gen_movtcq(Instr *instr)
 
 static inline bool gen_ld_mas_mod(DisasContext *ctx, Instr *instr, uint8_t mod)
 {
-    TCGv_i32 size;
-    TCGv_i32 reg = tcg_temp_new_i32();
-    bool ret = true;
-
-    // FIXME: %empty
-    e2k_gen_reg_index(instr->ctx, reg, instr->dst);
-    size = tcg_const_i32(1 << (instr->opc1 - 0x64));
-
     switch (mod) {
     case 3:
         if (is_chan_25(instr->chan)) {
-            /* ld,{2,5} [ addr ], dst, mas=X (mod 3) */
+            // TODO: DAM
             if (ctx->mlock == NULL) {
                 ctx->mlock = e2k_get_temp_i32(ctx);
                 /* always go to fixing code */
                 tcg_gen_movi_i32(ctx->mlock, 1);
             }
-            goto ok_exit;
+            return true;
         }
         break;
     case 4:
         if (instr->sm && is_chan_03(instr->chan)) {
-            /* ld,{0,3},sm [ addr ], dst, mas=X (mod 4) */
+            // TODO: DAM
             /* always ignore lock load */
-            ret = false;
-            goto ok_exit;
+            return false;
+        } else if (!instr->sm && (is_chan_25(instr->chan) || is_chan_03(instr->chan))) {
+            // TODO
+            return true;
         }
         break;
     }
 
     e2k_todo(ctx, "opc %#x, chan %d, mod=%#x", instr->opc1, instr->chan, mod);
-
-ok_exit:
-    tcg_temp_free_i32(size);
-    tcg_temp_free_i32(reg);
-
-    return ret;
+    return true;
 }
 
 static MemOp gen_mas(Instr *instr, MemOp memop)
@@ -1763,16 +1752,18 @@ static MemOp gen_mas(Instr *instr, MemOp memop)
         // TODO: special mas
         switch (opc) {
         case 0:
-            /* flush cache */
-            memop |= MO_LE;
-            e2k_todo(ctx, "opc %#x, chan %d, flush cache", instr->opc1,
-                instr->chan);
+            // TODO: flush cache
+            return memop | MO_LE;
+        case 3:
+            if (!instr->sm && is_chan_25(instr->chan)) {
+                // TODO: unknown store MAS OPC 0x3
+                return 0;
+            }
             break;
-        default:
-            e2k_todo(ctx, "opc %#x, chan %d, mas=%#x (opc %#x)", instr->opc1,
-                instr->chan, mas, opc);
-            return 0;
         }
+        e2k_todo(ctx, "opc %#x, chan %d, mas=%#x (opc %#x)", instr->opc1,
+            instr->chan, mas, opc);
+        return 0;
     } else if (mas) {
         int mod = extract8(mas, 0, 3);
 //        int dc = extract8(mas, 5, 2);
@@ -1783,9 +1774,15 @@ static MemOp gen_mas(Instr *instr, MemOp memop)
                     return 0;
                 }
             } else {
-                // TODO: mas modes
-                e2k_todo(ctx, "opc %#x, chan %d, mas=%#x, mod=%#x", instr->opc1,
-                    instr->chan, mas, mod);
+                switch (mod) {
+                case 2:
+                    // TODO: DAM
+                    break;
+                default:
+                    e2k_todo(ctx, "opc %#x, chan %d, mas=%#x, mod=%#x", instr->opc1,
+                        instr->chan, mas, mod);
+                    break;
+                }
             }
         }
 

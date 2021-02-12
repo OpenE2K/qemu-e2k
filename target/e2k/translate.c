@@ -602,10 +602,10 @@ static inline void gen_cs1(DisasContext *ctx)
         ctx->ct.wbs = cs1->call_wbs;
         break;
     case CS1_WAIT:
-        e2k_todo(ctx, "wait");
+        // TODO: wait
         break;
     case CS1_FLUSH:
-        e2k_todo(ctx, "flush");
+        // TODO: flush
         break;
     default:
         e2k_todo_illop(ctx, "unimplemented %d", cs1->type);
