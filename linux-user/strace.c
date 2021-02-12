@@ -1411,6 +1411,7 @@ UNUSED static struct enums itimer_types[] = {
     ENUM_END,
 };
 
+#ifdef TARGET_E2K
 UNUSED static struct enums access_hw_stacks_reqs[] = {
     ENUM_GENERIC(READ_CHAIN_STACK),
     ENUM_GENERIC(READ_PROCEDURE_STACK),
@@ -1424,6 +1425,7 @@ UNUSED static struct enums access_hw_stacks_reqs[] = {
     ENUM_GENERIC(WRITE_CHAIN_STACK_EX),
     ENUM_END,
 };
+#endif
 
 /*
  * print_xxx utility functions.  These are used to print syscall
