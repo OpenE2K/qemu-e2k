@@ -633,12 +633,8 @@ typedef struct {
     /* DAM */
     E2KDamEntry dam[32];
 
-    // TODO: DO NOT USE! Will be removed!
-    E2KCrs crs;
-
     /* Procedure chain info = cr0_lo, cr0_hi, cr1_lo, cr1_hi */
     E2KPcsState pcsp;
-    uint64_t pcshtp;
 
     /* Procedure stack pointer (for regs)  */
     E2KPsState psp;
@@ -684,9 +680,6 @@ typedef struct {
     /* zeroing upper register half for 32-bit instructions */
     uint32_t wdbl;
 
-    target_ulong pcs_base;
-    target_ulong ps_base;
-
     /* Fields up to this point are cleared by a CPU reset */
     struct {} end_reset_fields;
 
@@ -725,7 +718,6 @@ void e2k_cpu_list(void);
 int e2k_cpu_signal_handler(int host_signum, void *pinfo, void *puc);
 int e2k_cpu_gdb_read_register(CPUState *cs, GByteArray *mem_buf, int n);
 int e2k_cpu_gdb_write_register(CPUState *cs, uint8_t *mem_buf, int n);
-void e2k_break_save_state(CPUE2KState *env);
 bool e2k_cpu_tlb_fill(CPUState *cpu, vaddr address, int size,
                  MMUAccessType access_type, int mmu_idx,
                  bool probe, uintptr_t retaddr);

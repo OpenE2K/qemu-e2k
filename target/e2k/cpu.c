@@ -43,8 +43,6 @@ static void e2k_cpu_reset(DeviceState *dev)
 
     memset(env, 0, offsetof(CPUE2KState, end_reset_fields));
 
-    env->crs.cr1.wpsz = 4;
-    env->crs.cr1.wbs = 4;
     env->wd.base = 0;
     env->wd.size = 16;
     env->wd.psize = 8;
@@ -150,10 +148,6 @@ void e2k_cpu_dump_state(CPUState *cs, FILE *f, int flags)
 
     qemu_fprintf(f, "       ip = 0x%016lx\n", env->ip);
     qemu_fprintf(f, "    pregs = 0x%016lx\n", env->pregs);
-    qemu_fprintf(f, "   cr0_lo = 0x%016lx\n", env->crs.cr0_lo);
-    qemu_fprintf(f, "   cr0_hi = 0x%016lx\n", env->crs.cr0_hi);
-    qemu_fprintf(f, "   cr1_lo = 0x%016lx\n", env->crs.cr1.lo);
-    qemu_fprintf(f, "   cr1_hi = 0x%016lx\n", env->crs.cr1.hi);
     qemu_fprintf(f, "  pcsp_lo = 0x%016lx\n", e2k_state_pcsp_lo(env));
     qemu_fprintf(f, "  pcsp_hi = 0x%016lx\n", e2k_state_pcsp_hi(env));
     qemu_fprintf(f, "   psp_lo = 0x%016lx\n", e2k_state_psp_lo(env));

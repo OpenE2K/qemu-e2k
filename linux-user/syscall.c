@@ -6808,32 +6808,43 @@ abi_long e2k_copy_to_user_crs(abi_ulong target_crs_addr, E2KCrs *crs)
 static abi_long do_e2k_longjmp2(CPUE2KState *env, struct target_jmp_info *jmp_info)
 {
     E2KPcsState jmp_pcsp;
-    E2KCrs crs = env->crs;
+    E2KCrs crs;
     int level; /* how many CRs need to restore */
-    int pcs_index = env->pcsp.index;
     int ps_index = env->psp.index;
     int psize = env->wd.psize;
     int ret, i;
+    target_ulong pcsp = env->pcsp.base + env->pcsp.index;
 
     jmp_pcsp.lo = jmp_info->pcsplo;
     jmp_pcsp.hi = jmp_info->pcsphi;
 
     level = (env->pcsp.index - jmp_pcsp.index) / CRS_SIZE;
     for (i = 0; i < level; i++) {
-        psize = crs.cr1.wpsz * 2;
-        ps_index -= crs.cr1.wbs * E2K_REG_LEN * (crs.cr1.wfx ? 4 : 2);
-        pcs_index -= CRS_SIZE;
-        ret = e2k_copy_from_user_crs(&crs, env->pcsp.base + pcs_index);
+        ret = e2k_copy_from_user_crs(&crs, pcsp);
         if (ret) {
             return ret;
         }
+        psize = crs.cr1.wpsz * 2;
+        ps_index -= crs.cr1.wbs * E2K_REG_LEN * (crs.cr1.wfx ? 4 : 2);
+        pcsp -= CRS_SIZE;
     }
 
-    env->crs.cr0_hi = jmp_info->cr0hi;
-    env->crs.cr1.lo = jmp_info->cr1lo;
-    env->crs.cr1.br = jmp_info->br;
-    env->crs.cr1.ussz = (env->sbr - extract64(jmp_info->usdlo, 0, 48)) >> 4;
-    env->pcsp.index = pcs_index;
+    ret = e2k_copy_from_user_crs(&crs, pcsp);
+    if (ret) {
+        return ret;
+    }
+
+    crs.cr0_hi = jmp_info->cr0hi;
+    crs.cr1.lo = jmp_info->cr1lo;
+    crs.cr1.br = jmp_info->br;
+    crs.cr1.ussz = (env->sbr - extract64(jmp_info->usdlo, 0, 48)) >> 4;
+
+    ret = e2k_copy_to_user_crs(pcsp, &crs);
+    if (ret) {
+        return ret;
+    }
+
+    env->pcsp.index = pcsp - env->pcsp.base;
     env->psp.index = ps_index;
     env->wd.psize = psize;
 

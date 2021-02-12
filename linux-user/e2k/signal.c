@@ -115,17 +115,25 @@ struct target_sigframe {
 void helper_signal_frame(CPUE2KState *env, int wbs, target_ulong ret_ip);
 void helper_signal_return(CPUE2KState *env);
 
-static void setup_sigcontext(CPUE2KState *env,
+static abi_long setup_sigcontext(CPUE2KState *env,
     struct target_sigcontext *sc, struct target_extra_ucontext *extra)
 {
-    int i;
+    E2KCrs crs;
+    int i, ret;
 
     // TODO: save binary compiler state (uspr, rpr, MLT)
+    __put_user(env->upsr, &sc->upsr);
 
-    __put_user(env->crs.cr0_lo, &sc->cr0_lo);
-    __put_user(env->crs.cr0_hi, &sc->cr0_hi);
-    __put_user(env->crs.cr1.lo, &sc->cr1_lo);
-    __put_user(env->crs.cr1.hi, &sc->cr1_hi);
+    ret = e2k_copy_from_user_crs(&crs, env->pcsp.base + env->pcsp.index);
+    if (ret) {
+        return ret;
+    }
+
+    __put_user(crs.cr0_lo, &sc->cr0_lo);
+    __put_user(crs.cr0_hi, &sc->cr0_hi);
+    __put_user(crs.cr1.lo, &sc->cr1_lo);
+    __put_user(crs.cr1.hi, &sc->cr1_hi);
+
     __put_user(env->sbr, &sc->sbr);
     __put_user(env->usd.lo, &sc->usd_lo);
     __put_user(env->usd.hi, &sc->usd_hi);
@@ -155,15 +163,17 @@ static void setup_sigcontext(CPUE2KState *env,
     for (i = 0; i < DAM_ENTRIES_NUM; i++) {
         __put_user(env->dam[i].raw, &sc->dam[i]);
     }
+
+    return 0;
 }
 
-static void setup_ucontext(struct target_ucontext *uc, CPUE2KState *env)
+static abi_long setup_ucontext(struct target_ucontext *uc, CPUE2KState *env)
 {
     __put_user(0, &uc->uc_flags);
     __put_user(0, &uc->uc_link);
 
     target_save_altstack(&uc->uc_stack, env);
-    setup_sigcontext(env, &uc->uc_mcontext, &uc->uc_extra);
+    return setup_sigcontext(env, &uc->uc_mcontext, &uc->uc_extra);
 }
 
 static abi_ulong get_sigframe(struct target_sigaction *ka, CPUE2KState *env,
@@ -191,8 +201,9 @@ static void target_setup_frame(int sig, struct target_sigaction *ka,
     if (!lock_user_struct(VERIFY_WRITE, frame, frame_addr, 0)) {
         force_sigsegv(sig);
     }
-
-    setup_ucontext(&frame->uc, env);
+    if (setup_ucontext(&frame->uc, env)) {
+        goto fail;
+    }
     copy_to_user((abi_ulong) &frame->uc.uc_sigmask, set, sizeof(*set));
     copy_to_user((abi_ulong) &frame->aau, &env->aau, sizeof(env->aau));
 
@@ -226,12 +237,26 @@ static void target_setup_frame(int sig, struct target_sigaction *ka,
     }
 
     unlock_user_struct(frame, frame_addr, 1);
+    return;
+
+fail:
+    unlock_user_struct(frame, frame_addr, 1);
+    force_sigsegv(sig);
 }
 
-static int target_restore_sigframe(CPUE2KState *env,
+static abi_long target_restore_sigframe(CPUE2KState *env,
     struct target_sigframe *frame)
 {
-    __get_user(env->crs.cr0_hi, &frame->uc.uc_mcontext.cr0_hi);
+    target_ulong crs_addr = env->pcsp.base + env->pcsp.index;
+    E2KCrs crs, *p;
+
+    if (!lock_user_struct(VERIFY_WRITE, p, crs_addr, 0)) {
+        return -TARGET_EFAULT;
+    }
+    __get_user(crs.cr0_hi, &frame->uc.uc_mcontext.cr0_hi);
+    __put_user(crs.cr0_hi, &p->cr0_hi);
+    unlock_user_struct(p, crs_addr, 1);
+
     __get_user(env->ctprs[0].raw, &frame->uc.uc_extra.ctpr1);
     __get_user(env->ctprs[1].raw, &frame->uc.uc_extra.ctpr2);
     __get_user(env->ctprs[2].raw, &frame->uc.uc_extra.ctpr3);
