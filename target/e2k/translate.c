@@ -1188,7 +1188,6 @@ static void e2k_tr_translate_insn(DisasContextBase *db, CPUState *cs)
     case E2K_SYSCALL_ADDR6:
         /* fake enter into syscall handler */
         ctx->base.is_jmp = DISAS_NORETURN;
-        e2k_gen_save_pc(E2K_SYSRET_ADDR);
         gen_helper_syscall(cpu_env);
         tcg_gen_exit_tb(NULL, TB_EXIT_IDX0);
         break;
