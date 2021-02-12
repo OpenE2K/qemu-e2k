@@ -44,18 +44,18 @@ void cpu_loop(CPUE2KState *env)
             // TODO: check what happens if env->wd.size is zero
             memcpy(args, env->regs, psize * sizeof(args[0]));
 
-            do {
-                ret = do_syscall(env, args[0], args[1], args[2], args[3],
-                    args[4], args[5], args[6], args[7], args[8]);
-                // FIXME: I don't know how to properly handle syscall restart
-            } while (ret == -TARGET_ERESTARTSYS);
+            ret = do_syscall(env, args[0], args[1], args[2], args[3],
+                args[4], args[5], args[6], args[7], args[8]);
 
-            if (ret != -TARGET_QEMU_ESIGRETURN && env->wd.psize > 0) {
+            if (ret == -TARGET_ERESTARTSYS) {
+                /* do not set sysret address and syscall will be restarted */
+            } else if (ret != -TARGET_QEMU_ESIGRETURN && env->wd.psize > 0) {
                 memset(env->tags, E2K_TAG_NON_NUMBER64,
                     psize * sizeof(env->tags[0]));
 
                 env->regs[0] = ret;
                 env->tags[0] = E2K_TAG_NUMBER64;
+                env->ip = E2K_SYSRET_ADDR;
             }
             break;
         }
