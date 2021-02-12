@@ -1158,7 +1158,6 @@ static void e2k_tr_translate_insn(DisasContextBase *db, CPUState *cs)
         ctx->base.is_jmp = DISAS_NORETURN;
         /* force non-zero tb size */
         pc_next = ctx->base.pc_next + 8;
-        e2k_gen_save_pc(E2K_SYSRET_ADDR);
         gen_helper_syscall(cpu_env);
         tcg_gen_exit_tb(NULL, TB_EXIT_IDX0);
         break;
