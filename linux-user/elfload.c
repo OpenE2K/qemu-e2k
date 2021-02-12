@@ -1595,7 +1595,7 @@ void e2k_pcs_new(E2KPcsState *pcs)
     pcs->is_readable = true;
     pcs->is_writable = true;
     pcs->index = 0;
-    pcs->size = TARGET_PAGE_SIZE;
+    pcs->size = E2K_DEFAULT_PCS_SIZE;
     pcs->base = e2k_mmap(pcs->size);
 }
 
@@ -1604,7 +1604,7 @@ void e2k_ps_new(E2KPsState *ps)
     ps->is_readable = true;
     ps->is_writable = true;
     ps->index = 0;
-    ps->size = TARGET_PAGE_SIZE * 8;
+    ps->size = E2K_DEFAULT_PS_SIZE;
     ps->base = e2k_mmap(ps->size);
     ps->base_tag = e2k_mmap(ps->size / 8);
 }

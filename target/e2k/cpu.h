@@ -25,6 +25,8 @@ void e2k_tcg_initialize(void);
 
 #define MMU_USER_IDX 1
 #define CPU_RESOLVING_TYPE TYPE_E2K_CPU
+#define E2K_DEFAULT_PCS_SIZE (TARGET_PAGE_SIZE * 4)
+#define E2K_DEFAULT_PS_SIZE (TARGET_PAGE_SIZE * 16)
 
 #define E2K_TAG_SIZE 2 /* 2-bit tag for 32-bit value */
 #define E2K_REG_LEN sizeof(uint64_t)
