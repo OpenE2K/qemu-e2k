@@ -18,12 +18,12 @@ static inline void cpu_clone_regs_child(CPUE2KState *env, target_ulong newsp,
     }
 
     if (flags & CLONE_VM) {
-        E2KPcsState pcs;
-        E2KPsState ps;
-        E2KCrs crs = { 0 };
+        E2KPcsState pcs = { 0 };
+        E2KPsState ps = { 0 };
+        E2KCrs crs;
         uint64_t *ps_old, *ps_new;
         size_t frame_size;
-        target_ulong pcs_base = env->pcsp.base + env->pcsp.index - sizeof(E2KCrs);
+        target_ulong pcsp = env->pcsp.base + env->pcsp.index;
         target_ulong ps_base = env->psp.base + env->psp.index;
         int i;
 
@@ -32,9 +32,11 @@ static inline void cpu_clone_regs_child(CPUE2KState *env, target_ulong newsp,
 
         // TODO: size checks and a way to report errors
 
-        e2k_copy_from_user_crs(&crs, pcs_base);
-        e2k_copy_to_user_crs(pcs.base, &crs);
+        // TODO: set a chain info to return to kernel
+
         pcs.index += sizeof(E2KCrs);
+        e2k_copy_from_user_crs(&crs, pcsp);
+        e2k_copy_to_user_crs(pcs.base + pcs.index, &crs);
 
         frame_size = crs.cr1.wbs * (crs.cr1.wfx ? 32 : 16);
         ps_base -= frame_size;

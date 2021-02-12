@@ -126,6 +126,8 @@ void target_cpu_copy_regs(CPUE2KState *env, struct target_pt_regs *regs)
     env->sbr = regs->sbr;
     env->elf_flags = info->elf_flags;
 
+    // TODO: set a chain info to return to kernel
+
     if (eflags & E2K_ELF_PM) {
         fprintf(stderr, "Protected mode is unsupported\n");
         exit(EXIT_FAILURE);
@@ -135,11 +137,6 @@ void target_cpu_copy_regs(CPUE2KState *env, struct target_pt_regs *regs)
         fprintf(stderr, "x86 recompiler is unsupported\n");
         exit(EXIT_FAILURE);
     }
-
-    e2k_break_save_state(env);
-
-    env->pcs_base = env->pcsp.base;
-    env->ps_base = env->psp.base;
 }
 
 const char *cpu_get_model(uint32_t eflags)
