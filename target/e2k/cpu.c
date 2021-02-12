@@ -175,16 +175,12 @@ static void e2k_cpu_set_pc(CPUState *cs, vaddr value)
 {
     E2KCPU *cpu = E2K_CPU(cs);
 
-    qemu_log_mask(LOG_UNIMP, "e2k_cpu_synchronize_from_tb: not implemented\n");
-
     cpu->env.ip = value;
 }
 
 static void e2k_cpu_synchronize_from_tb(CPUState *cs, const TranslationBlock *tb)
 {
     E2KCPU *cpu = E2K_CPU(cs);
-
-    qemu_log_mask(LOG_UNIMP, "e2k_cpu_synchronize_from_tb: not implemented\n");
 
     cpu->env.ip = tb->pc;
 }
