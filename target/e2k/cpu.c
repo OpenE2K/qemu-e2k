@@ -25,6 +25,7 @@
 #include "exec/exec-all.h"
 #include "hw/qdev-properties.h"
 #include "qapi/visitor.h"
+#include "hw/core/tcg-cpu-ops.h"
 
 //#define DEBUG_FEATURES
 
@@ -185,7 +186,7 @@ static void e2k_cpu_set_pc(CPUState *cs, vaddr value)
     cpu->env.ip = value;
 }
 
-static void e2k_cpu_synchronize_from_tb(CPUState *cs, TranslationBlock *tb)
+static void e2k_cpu_synchronize_from_tb(CPUState *cs, const TranslationBlock *tb)
 {
     E2KCPU *cpu = E2K_CPU(cs);
 
@@ -265,6 +266,14 @@ static gchar* e2k_cpu_gdb_arch_name(CPUState *cs)
     return g_strdup_printf("%s:%d", env->def.gdb_arch, TARGET_LONG_BITS);
 }
 
+static struct TCGCPUOps e2k_tcg_ops = {
+    .initialize = e2k_tcg_initialize,
+    .synchronize_from_tb = e2k_cpu_synchronize_from_tb,
+    .cpu_exec_interrupt = e2k_cpu_exec_interrupt,
+    .do_interrupt = e2k_cpu_do_interrupt,
+    .tlb_fill = e2k_cpu_tlb_fill,
+};
+
 static void e2k_cpu_class_init(ObjectClass *oc, void *data)
 {
     E2KCPUClass *ecc = E2K_CPU_CLASS(oc);
@@ -279,18 +288,15 @@ static void e2k_cpu_class_init(ObjectClass *oc, void *data)
     cc->has_work = e2k_cpu_has_work;
     cc->dump_state = e2k_cpu_dump_state;
     cc->set_pc = e2k_cpu_set_pc;
-    cc->do_interrupt = e2k_cpu_do_interrupt;
-    cc->cpu_exec_interrupt = e2k_cpu_exec_interrupt;
-    cc->synchronize_from_tb = e2k_cpu_synchronize_from_tb;
     cc->class_by_name = e2k_cpu_class_by_name;
     cc->disas_set_info = cpu_e2k_disas_set_info;
-    cc->tcg_initialize = e2k_tcg_initialize;
-    cc->tlb_fill = e2k_cpu_tlb_fill;
 
     cc->gdb_arch_name      = e2k_cpu_gdb_arch_name;
     cc->gdb_read_register  = e2k_cpu_gdb_read_register;
     cc->gdb_write_register = e2k_cpu_gdb_write_register;
     cc->gdb_num_core_regs  = 574;
+
+    cc->tcg_ops = &e2k_tcg_ops;
 }
 
 static const TypeInfo e2k_cpu_type_info = {
