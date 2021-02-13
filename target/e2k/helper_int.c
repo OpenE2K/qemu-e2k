@@ -50,6 +50,17 @@ uint64_t helper_state_reg_read_i64(CPUE2KState *env, int idx)
     case 0x57: return cr_read(env, offsetof(E2KCrs, cr1.lo)); /* %cr1.lo */
     case 0x80: return env->upsr; /* %upsr */
     case 0x81: return env->ip; /* %ip */
+    case 0x83: /* %lsr */
+    {
+        uint64_t lsr = env->lsr;
+        lsr = deposit64(lsr, LSR_LCNT_OFF, LSR_LCNT_LEN, env->lsr_lcnt);
+        lsr = deposit64(lsr, LSR_ECNT_OFF, LSR_ECNT_LEN, env->lsr_ecnt);
+        lsr = deposit64(lsr, LSR_VLC_OFF, 1, env->lsr_vlc);
+        lsr = deposit64(lsr, LSR_OVER_OFF, 1, env->lsr_over);
+        lsr = deposit64(lsr, LSR_PCNT_OFF, LSR_PCNT_LEN, env->lsr_pcnt);
+        lsr = deposit64(lsr, LSR_STRMD_OFF, LSR_STRMD_LEN, env->lsr_strmd);
+        return lsr;
+    }
     case 0x84: return env->pfpfr; /* %pfpfr */
     case 0x85: return env->fpcr.raw; /* %fpcr */
     case 0x86: return env->fpsr.raw; /* %fpsr */
