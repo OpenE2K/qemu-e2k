@@ -43,7 +43,7 @@ static inline void cpu_clone_regs_child(CPUE2KState *env, target_ulong newsp,
             return;
         }
 
-        frame_size = crs.cr1.wbs * (crs.cr1.wfx ? 32 : 16);
+        frame_size = crs.cr1.wbs * (crs.cr1.wfx || E2K_FORCE_FX ? 32 : 16);
         ps_base -= frame_size;
         ps.index += frame_size;
         ps_old = lock_user(VERIFY_READ, ps_base, frame_size, 1);

@@ -20,6 +20,14 @@ void e2k_tcg_initialize(void);
 
 /* #define TARGET_E2K_PRECISE_FSQRTID */
 
+
+/* FIXME: nfx window mode
+ * numas13: I don't know why elbrus always spill/fill in fx mode.
+ * If we enable 'nfx' mode It will break "finish" command in gdb because
+ * it will try to read registers from hell.
+ */
+#define E2K_FORCE_FX true
+
 #define GEN_MASK(start, len) (((1UL << (len)) - 1) << (start))
 #define GET_BIT(v, index) (((v) >> (index)) & 1)
 
