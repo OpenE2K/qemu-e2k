@@ -20,7 +20,7 @@ static inline void cpu_clone_regs_child(CPUE2KState *env, target_ulong newsp,
     if (flags & CLONE_VM) {
         E2KPcsState pcs = { 0 };
         E2KPsState ps = { 0 };
-        E2KCrs crs;
+        E2KCrs crs = { 0 };
         uint64_t *ps_old, *ps_new;
         size_t frame_size;
         target_ulong pcsp = env->pcsp.base + env->pcsp.index;
@@ -35,8 +35,13 @@ static inline void cpu_clone_regs_child(CPUE2KState *env, target_ulong newsp,
         // TODO: set a chain info to return to kernel
 
         pcs.index += sizeof(E2KCrs);
-        e2k_copy_from_user_crs(&crs, pcsp);
-        e2k_copy_to_user_crs(pcs.base + pcs.index, &crs);
+        if (e2k_copy_from_user_crs(&crs, pcsp)
+            || e2k_copy_to_user_crs(pcs.base + pcs.index, &crs))
+        {
+            qemu_log("qemu-e2k internal error: failed to copy parent frame\n");
+            env->ip = 0;
+            return;
+        }
 
         frame_size = crs.cr1.wbs * (crs.cr1.wfx ? 32 : 16);
         ps_base -= frame_size;
