@@ -1131,7 +1131,6 @@ static bool e2k_tr_breakpoint_check(DisasContextBase *db, CPUState *cs,
     {
         e2k_gen_save_pc(ctx->base.pc_next);
         gen_helper_debug(cpu_env);
-        tcg_gen_exit_tb(NULL, TB_EXIT_IDX0);
         ctx->base.is_jmp = DISAS_NORETURN;
         /*
          * The address covered by the breakpoint must be included in

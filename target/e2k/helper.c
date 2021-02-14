@@ -62,7 +62,7 @@ static void ps_spill(CPUE2KState *env, int n, bool fx)
     for (i = 0; i < n; i += 2) {
         ps_push(env, env->regs[i], env->tags[i]);
         ps_push(env, env->regs[i + 1], env->tags[i + 1]);
-        if (fx) {
+        if (fx || E2K_FORCE_FX) {
             ps_push(env, env->xregs[i + 0], 0);
             ps_push(env, env->xregs[i + 1], 0);
         }
@@ -73,7 +73,7 @@ static void ps_fill(CPUE2KState *env, int n, bool fx)
 {
     int i;
     for (i = n; i > 0; i -= 2) {
-        if (fx) {
+        if (fx || E2K_FORCE_FX) {
             env->xregs[i - 1] = ps_pop(env, NULL);
             env->xregs[i - 2] = ps_pop(env, NULL);
         }

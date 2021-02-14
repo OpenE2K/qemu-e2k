@@ -6825,7 +6825,8 @@ static abi_long do_e2k_longjmp2(CPUE2KState *env, struct target_jmp_info *jmp_in
             return ret;
         }
         psize = crs.cr1.wpsz * 2;
-        ps_index -= crs.cr1.wbs * E2K_REG_LEN * (crs.cr1.wfx ? 4 : 2);
+        ps_index -= crs.cr1.wbs * E2K_REG_LEN *
+            (crs.cr1.wfx || E2K_FORCE_FX ? 4 : 2);
         pcsp -= CRS_SIZE;
     }
 
