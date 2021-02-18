@@ -7,10 +7,14 @@
 #ifndef E2K_CPU_PARAM_H
 #define E2K_CPU_PARAM_H 1
 
+#ifdef TARGET_E2K32
+# define TARGET_LONG_BITS 32
+#else
 # define TARGET_LONG_BITS 64
-# define TARGET_PAGE_BITS 12 /* 4k */
-# define TARGET_PHYS_ADDR_SPACE_BITS 40
-# define TARGET_VIRT_ADDR_SPACE_BITS 48
-# define NB_MMU_MODES 4
+#endif
+#define TARGET_PAGE_BITS 12 /* 4k */
+#define TARGET_PHYS_ADDR_SPACE_BITS 40
+#define TARGET_VIRT_ADDR_SPACE_BITS 48
+#define NB_MMU_MODES 4
 
 #endif

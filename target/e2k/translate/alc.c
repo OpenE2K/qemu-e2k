@@ -197,7 +197,7 @@ static inline void gen_literal_i64(DisasContext *ctx, Src64 *ret, uint8_t arg)
     uint64_t lit = ctx->bundle.lts[i];
 
     if (!ctx->bundle.lts_present[i]) {
-        e2k_tr_gen_exception(ctx, E2K_EXCP_ILLOPN);
+        gen_tr_excp_illopn(ctx);
     } else if (IS_LIT16_LO(arg) && i < 2) {
         lit = ((int64_t) lit << 48) >> 48;
     } else if (IS_LIT16_HI(arg) && i < 2) {
@@ -206,11 +206,11 @@ static inline void gen_literal_i64(DisasContext *ctx, Src64 *ret, uint8_t arg)
         lit = ((int64_t) lit << 32) >> 32;
     } else if (IS_LIT64(arg) && i < 3) {
         if (!ctx->bundle.lts_present[i + 1]) {
-            e2k_tr_gen_exception(ctx, E2K_EXCP_ILLOPN);
+            gen_tr_excp_illopn(ctx);
         }
         lit |= (uint64_t) ctx->bundle.lts[i + 1] << 32;
     } else {
-        e2k_tr_gen_exception(ctx, E2K_EXCP_ILLOPN);
+        gen_tr_excp_illopn(ctx);
     }
 
     ret->tag = e2k_get_const_i32(ctx, 0);
@@ -223,7 +223,7 @@ static inline void gen_literal_i32(DisasContext *ctx, Src32 *ret, uint8_t arg)
     int32_t lit = ctx->bundle.lts[i];
 
     if (!ctx->bundle.lts_present[i]) {
-        e2k_tr_gen_exception(ctx, E2K_EXCP_ILLOPN);
+        gen_tr_excp_illopn(ctx);
     } else if (IS_LIT16_LO(arg) && i < 2) {
         lit = (lit << 16) >> 16;
     } else if (IS_LIT16_HI(arg) && i < 2) {
@@ -233,10 +233,10 @@ static inline void gen_literal_i32(DisasContext *ctx, Src32 *ret, uint8_t arg)
     } else if (IS_LIT64(arg) && i < 3) {
         // FIXME: check CPU behavior in such situation
         if (!ctx->bundle.lts_present[i + 1]) {
-            e2k_tr_gen_exception(ctx, E2K_EXCP_ILLOPN);
+            gen_tr_excp_illopn(ctx);
         }
     } else {
-        e2k_tr_gen_exception(ctx, E2K_EXCP_ILLOPN);
+        gen_tr_excp_illopn(ctx);
     }
 
     ret->tag = e2k_get_const_i32(ctx, 0);
@@ -912,7 +912,7 @@ static void gen_sm_i32(bool sm, TCGv_i32 ret, TCGv_i32 ret_tag, Exception excp)
         tcg_gen_movi_i32(ret_tag, E2K_TAG_NON_NUMBER32);
         tcg_gen_movi_i32(ret, 0);
     } else {
-        e2k_gen_exception(excp);
+        gen_exception(excp);
     }
 }
 
@@ -943,7 +943,7 @@ static void gen_brchecki_i32_i64(bool sm, TCGv_i32 ret, TCGv_i32 ret_tag,
         TCGv_i64 t0 = tcg_temp_new_i64(); \
         TCGv_i64 t1 = tcg_temp_local_new_i64(); \
         gen_brchecki_i32(sm, ret, ret_tag, \
-            TCG_COND_NE, src2, 0, l0, E2K_EXCP_DIV); \
+            TCG_COND_NE, src2, 0, l0, EXCP_DIV); \
         tcg_gen_extu_i32_i64(t0, src2); \
         op(t1, src1, t0); \
         checks \
@@ -955,13 +955,13 @@ static void gen_brchecki_i32_i64(bool sm, TCGv_i32 ret, TCGv_i32 ret_tag,
 
 GEN_OP_DIVX(udivx, tcg_gen_divu_i64, { \
     gen_brchecki_i32_i64(sm, ret, ret_tag, \
-        TCG_COND_LEU, t1, UINT32_MAX, l0, E2K_EXCP_DIV); \
+        TCG_COND_LEU, t1, UINT32_MAX, l0, EXCP_DIV); \
 })
 GEN_OP_DIVX(sdivx, tcg_gen_div_i64, { \
     gen_brchecki_i32_i64(sm, ret, ret_tag, \
-        TCG_COND_LE, t1, INT32_MAX, l0, E2K_EXCP_DIV); \
+        TCG_COND_LE, t1, INT32_MAX, l0, EXCP_DIV); \
     gen_brchecki_i32_i64(sm, ret, ret_tag, \
-        TCG_COND_GE, t1, INT32_MIN, l0, E2K_EXCP_DIV); \
+        TCG_COND_GE, t1, INT32_MIN, l0, EXCP_DIV); \
 })
 
 #define GEN_OP_MODX(name, op) \
@@ -971,7 +971,7 @@ GEN_OP_DIVX(sdivx, tcg_gen_div_i64, { \
         TCGv_i64 t0 = tcg_temp_new_i64(); \
         TCGv_i64 t1 = tcg_temp_new_i64(); \
         gen_brchecki_i32(sm, ret, ret_tag, \
-            TCG_COND_NE, src2, 0, l0, E2K_EXCP_DIV); \
+            TCG_COND_NE, src2, 0, l0, EXCP_DIV); \
         tcg_gen_extu_i32_i64(t0, src2); \
         /* FIXME: must gen exception/tag on overflow */ \
         op(t1, src1, t0); \
@@ -1151,7 +1151,7 @@ static inline void gen_cmpand_i64(TCGv_i64 ret, int opc, TCGv_i64 src1,
         tcg_gen_setcondi_i64(TCG_COND_LE, ret, t0, 0);
         break;
     default:
-        e2k_gen_exception(E2K_EXCP_ILLOPC);
+        g_assert_not_reached();
         break;
     }
 
@@ -1187,7 +1187,7 @@ static inline void gen_cmpand_i32(TCGv_i32 ret, int opc, TCGv_i32 src1,
         tcg_gen_setcondi_i32(TCG_COND_LE, ret, t0, 0);
         break;
     default:
-        e2k_gen_exception(E2K_EXCP_ILLOPC);
+        g_assert_not_reached();
         break;
     }
 
@@ -1244,7 +1244,7 @@ WRAP_FCMP_HELPER(fcmpod)
         f = glue4(pre, suf, cmpod, post); \
         break; \
     default: \
-        e2k_gen_exception(E2K_EXCP_ILLOPC); \
+        g_assert_not_reached(); \
         break; \
     }
 
@@ -1605,7 +1605,7 @@ static inline void gen_rr_i64(Instr *instr)
     TCGv_i64 dst = get_temp_i64(instr);
     TCGv_i32 t0 = tcg_const_i32(instr->src1);
 
-    e2k_gen_save_cpu_state(instr->ctx);
+    gen_save_cpu_state(instr->ctx);
     gen_helper_state_reg_read_i64(dst, cpu_env, t0);
     set_al_result_reg64(instr, dst);
     tcg_temp_free_i32(t0);
@@ -1616,7 +1616,7 @@ static inline void gen_rr_i32(Instr *instr)
     TCGv_i32 dst = get_temp_i32(instr);
     TCGv_i32 t0 = tcg_const_i32(instr->src1);
 
-    e2k_gen_save_cpu_state(instr->ctx);
+    gen_save_cpu_state(instr->ctx);
     gen_helper_state_reg_read_i32(dst, cpu_env, t0);
     set_al_result_reg32(instr, dst);
     tcg_temp_free_i32(t0);
@@ -1696,7 +1696,7 @@ static void gen_movtq_inner(Instr *instr, Src64 src)
     if (check_qr(instr->src2, instr->chan) && check_qr(instr->dst, instr->chan)) {
         set_al_result_reg64_tag(instr, src.value, src.tag, false);
     } else {
-        e2k_tr_gen_exception(instr->ctx, E2K_EXCP_ILLOPN);
+        gen_tr_excp_illopn(instr->ctx);
     }
 }
 
@@ -1710,6 +1710,23 @@ static void gen_movtcq(Instr *instr)
     Src64 s2 = get_src2_i64(instr);
     gen_tag_check(instr, s2.tag);
     gen_movtq_inner(instr, s2);
+}
+
+static void gen_getpl(Instr *instr)
+{
+#ifdef TARGET_E2K32
+    Src32 s2 = get_src2_i32(instr);
+    TCGv_i32 tag = get_temp_i32(instr);
+    TCGv_i64 dst = get_temp_i64(instr);
+
+    // TODO: CUD
+    gen_tag1_i64(tag, s2.tag);
+    tcg_gen_extu_i32_i64(dst, s2.value);
+    set_al_result_reg64_tag(instr, dst, tag, true);
+#else /* !TARGET_E2K32 */
+    // TODO: getpl 64-bit
+    e2k_todo_illop(instr->ctx, "getpl");
+#endif
 }
 
 static inline bool gen_ld_mas_mod(DisasContext *ctx, Instr *instr, uint8_t mod)
@@ -1795,84 +1812,122 @@ static MemOp gen_mas(Instr *instr, MemOp memop)
     return memop;
 }
 
-static void gen_ld(Instr *instr, MemOp memop)
+static void gen_ld_tl(Instr *instr, TCGv_i64 ret, TCGv_i32 ret_tag, TCGv addr,
+    MemOp memop)
 {
-    TCGv_i32 tag = get_temp_i32(instr);
-    TCGv_i64 dst = get_temp_i64(instr);
-
-    memop = gen_mas(instr, memop);
-
-    if (memop == 0) {
-        /* ignore load */
-        tcg_gen_movi_i32(tag, E2K_TAG_NON_NUMBER64);
-        tcg_gen_movi_i64(dst, E2K_LD_RESULT_INVALID);
-    } else {
+    if (instr->sm) {
         TCGLabel *l0 = gen_new_label();
         TCGLabel *l1 = gen_new_label();
-        Src64 s1 = get_src1_i64(instr);
-        Src64 s2 = get_src2_i64(instr);
-        TCGv_i64 t0 = tcg_temp_local_new_i64();
+        TCGv t0 = tcg_temp_local_new();
+        TCGv_i32 t1 = tcg_temp_new_i32();
 
-        gen_tag2_i64(tag, s1.tag, s2.tag);
-        tcg_gen_add_i64(t0, s1.value, s2.value);
+        tcg_gen_mov_tl(t0, addr);
+        gen_helper_probe_read_access(t1, cpu_env, t0);
+        tcg_gen_brcondi_i32(TCG_COND_EQ, t1, 1, l0);
 
-        if (instr->sm) {
-            TCGv_i32 t1 = tcg_temp_new_i32();
+        /* address is not available */
+        tcg_gen_movi_i32(ret_tag, E2K_TAG_NON_NUMBER64);
+        tcg_gen_movi_i64(ret, E2K_LD_RESULT_INVALID);
+        tcg_gen_br(l1);
 
-            gen_helper_probe_read_access(t1, cpu_env, t0);
-            tcg_gen_brcondi_i32(TCG_COND_EQ, t1, 1, l0);
-            tcg_gen_movi_i32(tag, E2K_TAG_NON_NUMBER64);
-            tcg_gen_movi_i64(dst, E2K_LD_RESULT_INVALID);
-            tcg_gen_br(l1);
-
-            tcg_temp_free_i32(t1);
-        }
-
+        /* address is available */
         gen_set_label(l0);
-        tcg_gen_qemu_ld_i64(dst, t0, instr->ctx->mmuidx, memop);
+        tcg_gen_qemu_ld_i64(ret, t0, instr->ctx->mmuidx, memop);
 
         gen_set_label(l1);
 
-        tcg_temp_free_i64(t0);
+        tcg_temp_free_i32(t1);
+        tcg_temp_free(t0);
+    } else {
+        tcg_gen_qemu_ld_i64(ret, addr, instr->ctx->mmuidx, memop);
     }
-
-    gen_al_result_i64(instr, dst, tag);
 }
 
-#define IMPL_ST(NAME, S) \
+#define IMPL_GEN_LD(name, S, cast) \
+    static void name(Instr *instr, TCGv_i64 ret, TCGv_i32 ret_tag, \
+        MemOp memop) \
+    { \
+        glue(Src, S) s1 = glue(get_src1_i, S)(instr); \
+        glue(Src, S) s2 = glue(get_src2_i, S)(instr); \
+        glue(TCGv_i, S) t0 = glue(tcg_temp_new_i, S)(); \
+        TCGv t1 = tcg_temp_local_new(); \
+        \
+        glue(gen_tag2_i, S)(ret_tag, s1.tag, s2.tag); \
+        glue(tcg_gen_add_i, S)(t0, s1.value, s2.value); \
+        cast(t1, t0); \
+        gen_ld_tl(instr, ret, ret_tag, t1, memop); \
+    }
+
+IMPL_GEN_LD(gen_ld_i64, 64, tcg_gen_trunc_i64_tl)
+
+#define IMPL_GEN_LD_MAS(name, load) \
+    static void name(Instr *instr, MemOp memop) \
+    { \
+        TCGv_i32 tag = get_temp_i32(instr); \
+        TCGv_i64 dst = get_temp_i64(instr); \
+        \
+        memop = gen_mas(instr, memop); \
+        \
+        if (memop == 0) { \
+            /* ignore load */ \
+            tcg_gen_movi_i32(tag, E2K_TAG_NON_NUMBER64); \
+            tcg_gen_movi_i64(dst, E2K_LD_RESULT_INVALID); \
+        } else { \
+            load(instr, dst, tag, memop); \
+        } \
+        \
+        gen_al_result_i64(instr, dst, tag); \
+    }
+
+IMPL_GEN_LD_MAS(gen_ld_mas_i64, gen_ld_i64)
+
+#ifdef TARGET_E2K32
+// TODO: ldgd ops must use GD.base
+IMPL_GEN_LD(gen_ld_i32, 32, tcg_gen_extu_i32_tl)
+IMPL_GEN_LD_MAS(gen_ld_mas_i32, gen_ld_i32)
+#endif
+
+#define IMPL_ST(NAME, S, N, cast) \
     static void NAME(Instr *instr, MemOp memop) \
     { \
         memop = gen_mas(instr, memop); \
         \
         if (memop != 0) { \
             TCGLabel *l0 = gen_new_label(); \
-            Src64 s1 = get_src1_i64(instr); \
-            Src64 s2 = get_src2_i64(instr); \
+            glue(Src, N) s1 = glue(get_src1_i, N)(instr); \
+            glue(Src, N) s2 = glue(get_src2_i, N)(instr); \
             glue(Src, S) s4 = glue(get_src4_i, S)(instr); \
-            TCGv_i64 t0 = tcg_temp_local_new_i64(); \
+            glue(TCGv_i, N) t0 = glue(tcg_temp_new_i, N)(); \
+            TCGv t1 = tcg_temp_local_new(); \
             \
             gen_loop_mode_st(instr->ctx, l0); \
             gen_tag_check(instr, s1.tag); \
             gen_tag_check(instr, s2.tag); \
             gen_tag_check(instr, s4.tag); \
-            tcg_gen_add_i64(t0, s1.value, s2.value); \
+            glue(tcg_gen_add_i, N)(t0, s1.value, s2.value); \
+            cast(t1, t0); \
             \
             if (instr->sm) { \
-                TCGv_i32 t1 = tcg_temp_new_i32(); \
-                gen_helper_probe_write_access(t1, cpu_env, t0); \
-                tcg_gen_brcondi_i32(TCG_COND_EQ, t1, 0, l0); \
-                tcg_temp_free_i32(t1); \
+                TCGv_i32 t2 = tcg_temp_new_i32(); \
+                gen_helper_probe_write_access(t2, cpu_env, t1); \
+                tcg_gen_brcondi_i32(TCG_COND_EQ, t2, 0, l0); \
+                tcg_temp_free_i32(t2); \
             } \
             \
-            glue(tcg_gen_qemu_st_i, S)(s4.value, t0, instr->ctx->mmuidx, memop); \
+            glue(tcg_gen_qemu_st_i, S)(s4.value, t1, instr->ctx->mmuidx, memop); \
             gen_set_label(l0); \
             \
-            tcg_temp_free_i64(t0); \
+            tcg_temp_free(t1); \
+            glue(tcg_temp_free_i, N)(t0); \
         } \
     }
 
-IMPL_ST(gen_st_ddd, 64)
-IMPL_ST(gen_st_dds, 32)
+IMPL_ST(gen_st_ddd, 64, 64, tcg_gen_trunc_i64_tl)
+IMPL_ST(gen_st_sdd, 32, 64, tcg_gen_trunc_i64_tl)
+
+// TODO: stgd ops must use GD.base
+IMPL_ST(gen_st_dss, 64, 32, tcg_gen_extu_i32_tl)
+IMPL_ST(gen_st_sss, 32, 32, tcg_gen_extu_i32_tl)
 
 static inline void gen_movfi(Instr *instr)
 {
@@ -2268,7 +2323,7 @@ static void gen_aad_ptr(DisasContext *ctx, TCGv ret, Instr *instr)
         if (ctx->bundle.lts_present[lts]) {
             lit = ctx->bundle.lts[lts];
         } else {
-            e2k_tr_gen_exception(ctx, E2K_EXCP_ILLOPN);
+            gen_tr_excp_illopn(ctx);
             return;
         }
     }
@@ -2318,8 +2373,7 @@ static void gen_staa_i64(Instr *instr)
         TCGv t0 = tcg_temp_local_new();
 
         if (mas != 0) {
-            qemu_log_mask(LOG_UNIMP,
-                "0x%lx: staad mas=%#x is not implemented\n", ctx->pc, mas);
+            e2k_todo(ctx, "staad mas=%#x is not implemented", mas);
         }
 
         gen_aad_ptr(ctx, t0, instr);
@@ -3197,8 +3251,6 @@ static void check_args(Alopf alopf, Instr *instr)
         check_reg_src(ctx, instr->src4);
         break;
     case ALOPF13:
-        // FIXME: not tested
-        e2k_todo(ctx, "check_args ALOPF13");
         check_reg_src(ctx, instr->src1);
         check_reg_src(ctx, instr->src2);
         check_reg_src(ctx, instr->src4);
@@ -3340,14 +3392,32 @@ static void gen_alop_simple(Instr *instr, uint32_t op, const char *name)
     case OP_FXCMPODXB:
         gen_alopf1_cmp_xx(instr);
         break;
-    case OP_STB: gen_st_dds(instr, MO_UB); break;
-    case OP_STH: gen_st_dds(instr, MO_UW); break;
-    case OP_STW: gen_st_dds(instr, MO_UL); break;
+    case OP_STB: gen_st_sdd(instr, MO_UB); break;
+    case OP_STH: gen_st_sdd(instr, MO_UW); break;
+    case OP_STW: gen_st_sdd(instr, MO_UL); break;
     case OP_STD: gen_st_ddd(instr, MO_Q); break;
-    case OP_LDB: gen_ld(instr, MO_UB); break;
-    case OP_LDH: gen_ld(instr, MO_UW); break;
-    case OP_LDW: gen_ld(instr, MO_UL); break;
-    case OP_LDD: gen_ld(instr, MO_Q); break;
+    case OP_STGDB: gen_st_sss(instr, MO_UB); break;
+    case OP_STGDH: gen_st_sss(instr, MO_UW); break;
+    case OP_STGDW: gen_st_sss(instr, MO_UL); break;
+    case OP_STGDD: gen_st_dss(instr, MO_Q); break;
+    case OP_STGDQ: e2k_todo_illop(instr->ctx, "stgdq"); break;
+    case OP_LDB: gen_ld_mas_i64(instr, MO_UB); break;
+    case OP_LDH: gen_ld_mas_i64(instr, MO_UW); break;
+    case OP_LDW: gen_ld_mas_i64(instr, MO_UL); break;
+    case OP_LDD: gen_ld_mas_i64(instr, MO_Q); break;
+#ifdef TARGET_E2K32
+    case OP_LDGDB: gen_ld_mas_i32(instr, MO_UB); break;
+    case OP_LDGDH: gen_ld_mas_i32(instr, MO_UW); break;
+    case OP_LDGDW: gen_ld_mas_i32(instr, MO_UL); break;
+    case OP_LDGDD: gen_ld_mas_i32(instr, MO_Q); break;
+    case OP_LDGDQ: e2k_todo_illop(instr->ctx, "ldgdq"); break;
+#else /* !TARGET_E2K32 */
+    case OP_LDGDB: /* fallthrough */
+    case OP_LDGDH: /* fallthrough */
+    case OP_LDGDW: /* fallthrough */
+    case OP_LDGDD: /* fallthrough */
+    case OP_LDGDQ: gen_tr_excp_array_bounds(instr->ctx); break;
+#endif
     case OP_BITREVS: gen_alopf2_ss(instr, gen_bitrevs); break;
     case OP_BITREVD: gen_alopf2_dd(instr, gen_bitrevd); break;
     case OP_LZCNTS: gen_alopf2_ss(instr, gen_lzcnts); break;
@@ -3404,14 +3474,7 @@ static void gen_alop_simple(Instr *instr, uint32_t op, const char *name)
     case OP_FXTOIDTR: gen_alopf2_xd(instr, gen_fxtoidtr); break;
     case OP_ISTOFX: gen_alopf2_sx(instr, gen_istofx); break;
     case OP_IDTOFX: gen_alopf2_dx(instr, gen_idtofx); break;
-    case OP_UDIVS:
-        if (instr->src2 == 0xc0) {
-            // FIXME: temp hack
-            e2k_tr_gen_exception_no_spill(ctx, 0);
-            return;
-        }
-        gen_alopf1_sttss(instr, gen_udivs);
-        break;
+    case OP_UDIVS: gen_alopf1_sttss(instr, gen_udivs); break;
     case OP_UDIVD: gen_alopf1_dttdd(instr, gen_udivd); break;
     case OP_SDIVS: gen_alopf1_sttss(instr, gen_sdivs); break;
     case OP_SDIVD: gen_alopf1_dttdd(instr, gen_sdivd); break;
@@ -3458,6 +3521,7 @@ static void gen_alop_simple(Instr *instr, uint32_t op, const char *name)
     case OP_MOVTCD: gen_movtcd(instr); break;
     case OP_MOVTQ: gen_movtq(instr); break;
     case OP_MOVTCQ: gen_movtcq(instr); break;
+    case OP_GETPL: gen_getpl(instr); break;
     case OP_PANDD: gen_alopf1_ddd(instr, tcg_gen_and_i64); break;
     case OP_PANDND: gen_alopf1_ddd(instr, gen_andn_i64); break;
     case OP_PORD: gen_alopf1_ddd(instr, tcg_gen_or_i64); break;
@@ -3562,7 +3626,7 @@ static void gen_alop_simple(Instr *instr, uint32_t op, const char *name)
             extract32(ctx->bundle.als[pair_chan], 24, 7) != 0x3f ||
             (instr->dst & 1) != (chan == 2 ? 0 : 1))
         {
-            e2k_tr_gen_exception(ctx, E2K_EXCP_ILLOPC);
+            gen_tr_excp_illopc(ctx);
             return;
         }
         gen_staa_i64(instr);
@@ -3698,7 +3762,6 @@ static void gen_alop_simple(Instr *instr, uint32_t op, const char *name)
     case OP_MOVTRCS:
     case OP_MOVTRD:
     case OP_MOVTRCD:
-    case OP_GETPL:
     case OP_GETSAP:
     case OP_CUDTOAP:
     case OP_GDTOAP:
@@ -3751,11 +3814,6 @@ static void gen_alop_simple(Instr *instr, uint32_t op, const char *name)
     case OP_CAST:
     case OP_TDTOMP:
     case OP_ODTOAP:
-    case OP_LDGDB:
-    case OP_LDGDH:
-    case OP_LDGDW:
-    case OP_LDGDD:
-    case OP_LDGDQ:
     case OP_LDCUDB:
     case OP_LDCUDH:
     case OP_LDCUDW:
@@ -3798,11 +3856,6 @@ static void gen_alop_simple(Instr *instr, uint32_t op, const char *name)
     case OP_STGSQ:
     case OP_STSSQ:
     case OP_STRD:
-    case OP_STGDB:
-    case OP_STGDH:
-    case OP_STGDW:
-    case OP_STGDD:
-    case OP_STGDQ:
     case OP_STAPB:
     case OP_STAPH:
     case OP_STAPW:
@@ -4256,7 +4309,7 @@ static inline bool pfcomb_check(Instr *instr, FComb opc1, FComb opc2)
         case FCOMB_SUB: glue(gen_helper_fsub, T)(ret, cpu_env, arg1, arg2); break; \
         case FCOMB_MUL: glue(gen_helper_fmul, T)(ret, cpu_env, arg1, arg2); break; \
         case FCOMB_RSUB: glue(gen_helper_fsub, T)(ret, cpu_env, arg2, arg1); break; \
-        default: e2k_tr_gen_exception(instr->ctx, E2K_EXCP_ILLOPC); break; \
+        default: gen_tr_excp_illopc(instr->ctx); break; \
         } \
     }
 
@@ -4274,7 +4327,7 @@ static void gen_pfcomb_op_i32(Instr *instr, FComb opc,
     case FCOMB_MUL: gen_helper_pfmuls(ret, cpu_env, arg1, arg2); break;
     case FCOMB_RSUB: gen_helper_pfsubs(ret, cpu_env, arg2, arg1); break;
     case FCOMB_ADDSUB: gen_helper_pfaddsubs(ret, cpu_env, arg1, arg2); break;
-    default: e2k_tr_gen_exception(instr->ctx, E2K_EXCP_ILLOPC); break;
+    default: gen_tr_excp_illopc(instr->ctx); break;
     }
 }
 
@@ -4286,7 +4339,7 @@ static void gen_pfcomb_op_i64(Instr *instr, FComb opc,
     case FCOMB_SUB: gen_helper_fsubd(ret, cpu_env, arg1, arg2); break;
     case FCOMB_MUL: gen_helper_fmuld(ret, cpu_env, arg1, arg2); break;
     case FCOMB_RSUB: gen_helper_fsubd(ret, cpu_env, arg2, arg1); break;
-    default: e2k_tr_gen_exception(instr->ctx, E2K_EXCP_ILLOPC); break;
+    default: gen_tr_excp_illopc(instr->ctx); break;
     }
 }
 
@@ -4421,7 +4474,7 @@ static void chan_check_preds(DisasContext *ctx, int chan, TCGLabel *l)
                 break;
             default:
                 if (ctx->strict) {
-                    e2k_tr_gen_exception(ctx, E2K_EXCP_ILLOPN);
+                    gen_tr_excp_illopc(ctx);
                 }
                 break;
             }
@@ -4475,7 +4528,7 @@ static void alop_decode(Instr *instr)
     case EXT2: {
         AlopDesc *desc = find_op(instr);
         if (!desc) {
-            e2k_tr_gen_exception(instr->ctx, E2K_EXCP_ILLOPC);
+            gen_tr_excp_illopc(instr->ctx);
             return;
         }
         alop->format = desc->alopf;
@@ -4491,7 +4544,7 @@ static void alop_decode(Instr *instr)
             && (instr->opc1 == 0x6c || instr->opc1 == 0x6d))
         {
             if (!is_chan_0134(instr->chan)) {
-                e2k_tr_gen_exception(instr->ctx, E2K_EXCP_ILLOPC);
+                gen_tr_excp_illopc(instr->ctx);
                 return;
             }
             alop->format = ALOPF21;
@@ -4500,7 +4553,7 @@ static void alop_decode(Instr *instr)
             int opc1 = icomb_opc1(instr);
             int opc2 = icomb_opc2(instr);
             if (!icomb_check(instr, opc1, opc2)) {
-                e2k_tr_gen_exception(instr->ctx, E2K_EXCP_ILLOPC);
+                gen_tr_excp_illopc(instr->ctx);
                 return;
             }
             alop->format = ALOPF21_ICOMB;
@@ -4518,7 +4571,7 @@ static void alop_decode(Instr *instr)
         int opc1 = fcomb_opc1(instr);
         int opc2 = fcomb_opc2(instr);
         if (!fcomb_check(instr, opc1, opc2)) {
-            e2k_tr_gen_exception(instr->ctx, E2K_EXCP_ILLOPC);
+            gen_tr_excp_illopc(instr->ctx);
             return;
         }
         alop->format = ALOPF21_FCOMB;
@@ -4541,7 +4594,7 @@ static void alop_decode(Instr *instr)
             int opc1 = fcomb_opc1(instr);
             int opc2 = fcomb_opc2(instr);
             if (!pfcomb_check(instr, opc1, opc2)) {
-                e2k_tr_gen_exception(instr->ctx, E2K_EXCP_ILLOPC);
+                gen_tr_excp_illopc(instr->ctx);
                 return;
             }
             alop->format = ALOPF21_PFCOMB;
@@ -4554,7 +4607,7 @@ static void alop_decode(Instr *instr)
             alop->format = ALOPF21_LCOMB;
             alop->op = instr->opc2 == LCMBD0 ? 0 : 0x80;
         } else {
-            e2k_tr_gen_exception(instr->ctx, E2K_EXCP_ILLOPC);
+            gen_tr_excp_illopc(instr->ctx);
         }
         break;
     case LCMBQ0:
@@ -4566,7 +4619,7 @@ static void alop_decode(Instr *instr)
         e2k_todo_illop(instr->ctx, "packed128 float combined ops");
         break;
     default:
-        e2k_tr_gen_exception(instr->ctx, E2K_EXCP_ILLOPC);
+        gen_tr_excp_illopc(instr->ctx);
         break;
     }
 }

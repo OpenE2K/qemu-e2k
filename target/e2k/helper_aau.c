@@ -26,8 +26,7 @@ void HELPER(aau_load_program)(CPUE2KState *env)
     E2KCtpr ctpr = env->ctprs[1];
 
     if (ctpr.tag != CTPR_TAG_DISP || ctpr.opc != CTPR_OPC_LDISP) {
-        helper_raise_exception(env, E2K_EXCP_ILLOPC);
-        return;
+        helper_raise_exception(env, EXCP_ILLEGAL_OPCODE);
     }
 
     for (i = 0; i < 32; i++) {
