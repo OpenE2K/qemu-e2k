@@ -53,33 +53,6 @@ static inline void gen_goto_tb(DisasContext *ctx, int tb_num,
     }
 }
 
-void e2k_tr_gen_exception(DisasContext *ctx, int which)
-{
-    TCGv_i32 t = tcg_const_i32(which);
-
-    e2k_gen_save_cpu_state(ctx);
-    gen_helper_raise_exception(cpu_env, t);
-    ctx->base.is_jmp = DISAS_NORETURN;
-
-    tcg_temp_free_i32(t);
-}
-
-void e2k_tr_gen_exception_no_spill(DisasContext *ctx, int excp)
-{
-    TCGv_i32 t0 = tcg_const_i32(excp);
-
-    e2k_gen_save_cpu_state(ctx);
-    gen_helper_raise_exception_no_spill(cpu_env, t0);
-    ctx->base.is_jmp = DISAS_NORETURN;
-
-    tcg_temp_free_i32(t0);
-}
-
-static inline void illop(DisasContext *ctx)
-{
-    e2k_tr_gen_exception(ctx, E2K_EXCP_ILLOPC);
-}
-
 ////////////////////////////////////////////////////////////////////
 //// Decode
 ////////////////////////////////////////////////////////////////////
@@ -303,7 +276,7 @@ static inline void decode_cs1(DisasContext *ctx, const UnpackedBundle *raw)
         if (opc == SETR0 || opc == SETR1) {
             uint32_t lts0 = raw->lts[0];
             if (!raw->lts_present[0]) {
-                illop(ctx);
+                gen_tr_excp_illopc(ctx);
                 return;
             }
             setr->type |= opc == SETR1 ? SETR_VFRPSZ : 0;
@@ -328,7 +301,7 @@ static inline void decode_cs1(DisasContext *ctx, const UnpackedBundle *raw)
     } else if (opc == SETEI) {
         if (extract32(cs1, 27, 1)) {
             if (ctx->version < 2) {
-                illop(ctx);
+                gen_tr_excp_illopc(ctx);
                 return;
             }
             ret->type = CS1_SETSFT;
@@ -368,7 +341,7 @@ static inline void decode_cs1(DisasContext *ctx, const UnpackedBundle *raw)
             int cs0_opc = extract32(raw->cs0, 28, 4);
             int disp = extract32(raw->cs0, 1, 5);
             if (cs1_ctopc != 2 || cs0_opc != 0 || !raw->cs0_present) {
-                illop(ctx);
+                gen_tr_excp_illopc(ctx);
                 return;
             }
             ret->type = CS1_HCALL;
@@ -391,7 +364,7 @@ static inline void decode_cs1(DisasContext *ctx, const UnpackedBundle *raw)
         ret->vfbg.dmask = extract32(cs1, 8, 8);
         ret->vfbg.chkm4 = extract32(cs1, 16, 1);
     } else {
-        illop(ctx);
+        gen_tr_excp_illopc(ctx);
     }
 }
 
@@ -412,7 +385,7 @@ static inline void decode_cs0(DisasContext *ctx, const UnpackedBundle *raw)
         case 0: // disp
         case 1: // ldisp
             if (ctp_opc == 1 && ctpr != 2) {
-                illop(ctx);
+                gen_tr_excp_illopc(ctx);
                 return;
             }
             ret->type = CS0_DISP;
@@ -464,7 +437,7 @@ static inline void decode_cs0(DisasContext *ctx, const UnpackedBundle *raw)
 
     switch(ret->type) {
     case CS0_NONE:
-        illop(ctx);
+        gen_tr_excp_illopc(ctx);
         break;
     case CS0_IBRANCH:
     case CS0_DONE:
@@ -477,7 +450,7 @@ static inline void decode_cs0(DisasContext *ctx, const UnpackedBundle *raw)
             || bundle->cs1.type == CS1_HCALL)
         {
             ret->type = CS0_NONE;
-            illop(ctx);
+            gen_tr_excp_illopc(ctx);
         }
         break;
     default:
@@ -634,7 +607,7 @@ static inline void gen_cs0(DisasContext *ctx)
     }
     case CS0_SDISP: {
         // TODO: real sdisp target address
-        target_ulong target = 0xe2UL << 40;
+        target_ulong target = E2K_FAKE_KERN_START;
         target = deposit64(target, 11, 17, cs0->sdisp.disp);
         uint64_t ctpr = ctpr_new(CTPR_TAG_SDISP, 0, cs0->sdisp.ipd, target);
         gen_set_ctpr(cs0->sdisp.ctpr, ctpr);
@@ -933,7 +906,7 @@ static inline target_ulong do_decode(DisasContext *ctx, CPUState *cs)
     len = unpack_bundle(env, ctx->pc, &ctx->bundle);
 
     if (len == 0) {
-        e2k_tr_gen_exception(ctx, E2K_EXCP_ILLOPC);
+        gen_tr_excp_illopc(ctx);
     }
 
     decode_cs1(ctx, &ctx->bundle);
@@ -944,11 +917,12 @@ static inline target_ulong do_decode(DisasContext *ctx, CPUState *cs)
     return ctx->pc + len;
 }
 
-static inline void gen_maperr_condi_i32(TCGCond cond, TCGv_i32 arg1, int arg2)
+static inline void gen_window_bounds_checki_i32(TCGCond cond, TCGv_i32 arg1,
+    int arg2)
 {
     TCGLabel *l0 = gen_new_label();
     tcg_gen_brcondi_i32(tcg_invert_cond(cond), arg1, arg2, l0);
-    e2k_gen_exception(E2K_EXCP_MAPERR);
+    gen_excp_window_bounds();
     gen_set_label(l0);
 }
 
@@ -960,45 +934,46 @@ static inline void do_checks(DisasContext *ctx)
     if (ctx->wd_size != DYNAMIC) {
         /* %rN src static check */
         if (ctx->wd_size <= ctx->max_r_src) {
-            e2k_tr_gen_exception(ctx, E2K_EXCP_MAPERR);
+            gen_tr_excp_window_bounds(ctx);
         }
         /* %rN dst static check */
         if (b->cs1.type == CS1_SETR && (setr->type & SETR_WD)) {
             if (setr->wsz * 2 <= ctx->max_r_dst) {
-                e2k_tr_gen_exception(ctx, E2K_EXCP_MAPERR);
+                gen_tr_excp_window_bounds(ctx);
             }
         } else if (ctx->wd_size <= ctx->max_r_dst) {
-            e2k_tr_gen_exception(ctx, E2K_EXCP_MAPERR);
+            gen_tr_excp_window_bounds(ctx);
         }
     } else if (b->cs1.type == CS1_SETR && (setr->type & SETR_WD)) {
         /* %rN src dynamic check */
         if (ctx->max_r < ctx->max_r_src) {
             ctx->max_r = ctx->max_r_src;
-            gen_maperr_condi_i32(TCG_COND_LE, e2k_cs.wd_size, ctx->max_r_src);
+            gen_window_bounds_checki_i32(TCG_COND_LE, e2k_cs.wd_size,
+                ctx->max_r_src);
         }
 
         /* %rN dst static check */
         if (setr->wsz * 2 <= ctx->max_r_dst) {
-            e2k_tr_gen_exception(ctx, E2K_EXCP_MAPERR);
+            gen_tr_excp_window_bounds(ctx);
         }
     } else {
         /* %rN src/dst dynamic check */
         int max = MAX(ctx->max_r_src, ctx->max_r_dst);
         if (ctx->max_r < max) {
             ctx->max_r = max;
-            gen_maperr_condi_i32(TCG_COND_LE, e2k_cs.wd_size, max);
+            gen_window_bounds_checki_i32(TCG_COND_LE, e2k_cs.wd_size, max);
         }
     }
 
     if (ctx->bsize != DYNAMIC) {
         /* %b[N] src/dst static check */
         if (ctx->bsize <= ctx->max_b_cur) {
-            e2k_tr_gen_exception(ctx, E2K_EXCP_MAPERR);
+            gen_tr_excp_window_bounds(ctx);
         }
     } else if (ctx->max_b < ctx->max_b_cur) {
         /* %b[N] src/dst dynamic check */
         ctx->max_b = ctx->max_b_cur;
-        gen_maperr_condi_i32(TCG_COND_LE, e2k_cs.bsize, ctx->max_b);
+        gen_window_bounds_checki_i32(TCG_COND_LE, e2k_cs.bsize, ctx->max_b);
     }
 }
 
@@ -1040,12 +1015,12 @@ static inline void do_branch(DisasContext *ctx, target_ulong pc_next)
 
     if (ctx->do_check_illtag) {
         tcg_gen_brcondi_i32(TCG_COND_EQ, ctx->illtag, 0, l0);
-        e2k_gen_exception(E2K_EXCP_ILLOPC);
+        gen_excp_illopc();
         gen_set_label(l0);
     }
 
     if (ctx->ct.type == CT_NONE) {
-        e2k_gen_save_pc(ctx->base.pc_next);
+        gen_save_pc(ctx->base.pc_next);
         return;
     }
 
@@ -1072,8 +1047,8 @@ static inline void do_branch(DisasContext *ctx, target_ulong pc_next)
         tcg_gen_brcondi_i64(TCG_COND_EQ, t0, CTPR_TAG_RETURN, l1);
         tcg_temp_free_i64(t0);
 
-        // TODO: ldisp, sdisp
-        e2k_gen_exception(0);
+        // TODO: ldisp or sdisp
+        gen_excp_illopc();
 
         gen_set_label(l1);
         gen_helper_return(cpu_env);
@@ -1129,7 +1104,7 @@ static bool e2k_tr_breakpoint_check(DisasContextBase *db, CPUState *cs,
     } else
 #endif
     {
-        e2k_gen_save_pc(ctx->base.pc_next);
+        gen_save_pc(ctx->base.pc_next);
         gen_helper_debug(cpu_env);
         ctx->base.is_jmp = DISAS_NORETURN;
         /*
@@ -1191,8 +1166,13 @@ static void e2k_tr_translate_insn(DisasContextBase *db, CPUState *cs)
 
     switch (ctx->base.pc_next) {
 #ifdef CONFIG_USER_ONLY
+# ifdef TARGET_E2K32
+    case E2K_SYSCALL_ADDR1:
+    case E2K_SYSCALL_ADDR4:
+# else /* !TARGET_E2K32 */
     case E2K_SYSCALL_ADDR3:
     case E2K_SYSCALL_ADDR6:
+# endif
         /* fake enter into syscall handler */
         ctx->base.is_jmp = DISAS_NORETURN;
         gen_helper_syscall(cpu_env);
@@ -1215,11 +1195,17 @@ static void e2k_tr_translate_insn(DisasContextBase *db, CPUState *cs)
         gen_helper_signal_return(cpu_env);
         tcg_gen_exit_tb(NULL, TB_EXIT_IDX0);
         break;
-#endif
+#endif /* CONFIG_USER_ONLY */
     default: {
         target_ulong pc_next;
 
         pc_next = do_decode(ctx, cs);
+#ifdef CONFIG_USER_ONLY
+        if (ctx->bundle2.cs1.type == CS1_CALL) {
+            gen_save_cpu_state(ctx);
+            gen_helper_expand_stacks(cpu_env);
+        }
+#endif /* CONFIG_USER_ONLY */
         do_execute(ctx);
         do_checks(ctx);
         do_commit(ctx);

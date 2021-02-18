@@ -23,11 +23,44 @@
 #include "cpu_loop-common.h"
 #include "target_elf.h"
 
+static void gen_signal(CPUE2KState *env, int signo, int code, abi_ulong addr)
+{
+    target_siginfo_t info = {
+        .si_signo = signo,
+        .si_code = code,
+        ._sifields._sigfault._addr = addr,
+        // TODO: ._sifields._sigfault._trapno = trapnr
+    };
+
+    queue_signal(env, signo, QEMU_SI_FAULT, &info);
+}
+
+static void stack_expand(CPUE2KState *env, E2KStackState *s)
+{
+    abi_ulong new_size, new_size_tag;
+    abi_long new_base, new_base_tag = 0;
+
+    new_size = s->size * 2;
+    new_size_tag = new_size / 8;
+    new_base = target_mremap(s->base, s->size, new_size, MREMAP_MAYMOVE, 0);
+    if (s->base_tag) {
+        new_base_tag = target_mremap(s->base_tag, s->size / 8, new_size_tag,
+            MREMAP_MAYMOVE, 0);
+    }
+    if (new_base == -1 || new_base_tag == -1) {
+        gen_signal(env, TARGET_SIGSEGV, TARGET_SEGV_MAPERR, env->ip);
+        return;
+    }
+
+    s->base = new_base;
+    s->base_tag = new_base_tag;
+    s->size = new_size;
+}
+
 void cpu_loop(CPUE2KState *env)
 {
     CPUState *cs = env_cpu(env);
     int trapnr;
-    target_siginfo_t info;
 
     while (1) {
         cpu_exec_start(cs);
@@ -36,7 +69,7 @@ void cpu_loop(CPUE2KState *env)
         process_queued_cpu_work(cs);
 
         switch (trapnr) {
-        case E2K_EXCP_SYSCALL: {
+        case EXCP_SYSCALL: {
             abi_ullong args[E2K_SYSCALL_MAX_ARGS] = { 0 };
             int psize = MIN(E2K_SYSCALL_MAX_ARGS, env->wd.size);
             abi_ulong ret;
@@ -59,41 +92,33 @@ void cpu_loop(CPUE2KState *env)
             }
             break;
         }
-        case E2K_EXCP_ILLOPC:
-        case E2K_EXCP_ILLOPN:
-            info.si_signo = TARGET_SIGILL;
-            info.si_errno = 0;
-            info.si_code = trapnr == E2K_EXCP_ILLOPC ?
-                TARGET_ILL_ILLOPC : TARGET_ILL_ILLOPN;
-            info._sifields._sigfault._addr = env->ip;
-            queue_signal(env, info.si_signo, QEMU_SI_FAULT, &info);
+        case EXCP_ILLEGAL_OPCODE:
+            gen_signal(env, TARGET_SIGILL, TARGET_ILL_ILLOPC, env->ip);
             break;
-        case E2K_EXCP_MAPERR:
-            info.si_signo = TARGET_SIGSEGV;
-            info.si_errno = 0;
-            info.si_code = TARGET_SEGV_MAPERR;
-            info._sifields._sigfault._addr = env->ip;
-            queue_signal(env, info.si_signo, QEMU_SI_FAULT, &info);
+        case EXCP_ILLEGAL_OPERAND:
+            gen_signal(env, TARGET_SIGILL, TARGET_ILL_ILLOPN, env->ip);
             break;
-        case E2K_EXCP_DIV:
-            info.si_signo = TARGET_SIGFPE;
-            info.si_errno = 0;
-            info.si_code = 0;
-            info._sifields._sigfault._addr = env->ip;
-            queue_signal(env, info.si_signo, QEMU_SI_FAULT, &info);
+        case EXCP_CHAIN_STACK_BOUNDS:
+            stack_expand(env, &env->pcsp);
+            break;
+        case EXCP_PROC_STACK_BOUNDS:
+            stack_expand(env, &env->psp);
+            break;
+        case EXCP_WINDOW_BOUNDS:
+        case EXCP_ARRAY_BOUNDS:
+        case EXCP_DATA_PAGE:
+            gen_signal(env, TARGET_SIGSEGV, TARGET_SEGV_MAPERR, env->ip);
+            break;
+        case EXCP_DIV:
+            gen_signal(env, TARGET_SIGFPE, 0, env->ip);
             break;
         /* QEMU common interrupts */
         case EXCP_INTERRUPT:
             /* just indicate that signals should be handled asap */
             break;
         case EXCP_DEBUG:
-        {
-            info.si_signo = TARGET_SIGTRAP;
-            info.si_errno = 0;
-            info.si_code = TARGET_TRAP_BRKPT;
-            queue_signal(env, info.si_signo, QEMU_SI_FAULT, &info);
+            gen_signal(env, TARGET_SIGTRAP, TARGET_TRAP_BRKPT, 0);
             break;
-        }
         case EXCP_ATOMIC:
             cpu_exec_step_atomic(cs);
             break;

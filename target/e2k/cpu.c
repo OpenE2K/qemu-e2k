@@ -146,7 +146,7 @@ void e2k_cpu_dump_state(CPUState *cs, FILE *f, int flags)
     CPUE2KState *env = &cpu->env;
     unsigned int i;
 
-    qemu_fprintf(f, "       ip = 0x%016lx\n", env->ip);
+    qemu_fprintf(f, "       ip = " TARGET_FMT_lx "\n", env->ip);
     qemu_fprintf(f, "    pregs = 0x%016lx\n", env->pregs);
     qemu_fprintf(f, "  pcsp_lo = 0x%016lx\n", e2k_state_pcsp_lo(env));
     qemu_fprintf(f, "  pcsp_hi = 0x%016lx\n", e2k_state_pcsp_hi(env));

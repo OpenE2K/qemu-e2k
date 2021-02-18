@@ -1639,17 +1639,17 @@ struct target_stat {
 
 #define TARGET_HAS_STRUCT_STAT64
 struct target_stat64 {
-    abi_ulong       st_dev;
-    abi_ulong       st_ino;
+    abi_ullong      st_dev;
+    abi_ullong      st_ino;
     abi_uint        st_mode;
     abi_uint        st_nlink;
     abi_uint        st_uid;
     abi_uint        st_gid;
-    abi_ulong       st_rdev;
-    abi_ulong       st_size;
+    abi_ullong      st_rdev;
+    abi_ullong      st_size;
     abi_uint        st_blksize;
     abi_uint        __unused1;
-    abi_ulong       st_blocks;
+    abi_ullong      st_blocks;
     abi_int         target_st_atime;
     abi_uint        target_st_atime_nsec;
     abi_int         target_st_mtime;

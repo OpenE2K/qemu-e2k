@@ -21,7 +21,7 @@ void e2k_gen_cond_i32(DisasContext *ctx, TCGv_i32 ret, uint8_t psrc)
             // %rndpred
             e2k_todo_illop(ctx, "%%rndpred");
         } else {
-            e2k_tr_gen_exception(ctx, E2K_EXCP_ILLOPN);
+            gen_tr_excp_illopn(ctx);
         }
     } else {
         int idx = extract8(psrc, 0, 5);

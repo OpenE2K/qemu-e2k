@@ -1,12 +1,8 @@
-#include "qemu/osdep.h"
+#include "helper-tcg.h"
 #include "qemu/log.h"
-#include "cpu.h"
-#include "exec/exec-all.h"
 #include "qemu/host-utils.h"
 #include "exec/helper-proto.h"
 #include "translate.h"
-
-#define PS_FORCE_FX true
 
 void helper_signal_frame(CPUE2KState *env, int wbs, target_ulong ret_ip);
 
@@ -19,41 +15,29 @@ static inline void reset_ctprs(CPUE2KState *env)
     }
 }
 
-static inline void stack_push(CPUE2KState *env, E2KStackState *s, uint64_t value)
-{
-    if ((s->index + 8) > s->size) {
-        helper_raise_exception(env, E2K_EXCP_MAPERR);
-        return;
-    }
-
-    cpu_stq_le_data_ra(env, s->base + s->index, value, GETPC());
-    s->index += 8;
-}
-
-static inline uint64_t stack_pop(CPUE2KState *env, E2KStackState *s)
-{
-    if (s->index < 8) {
-        helper_raise_exception(env, E2K_EXCP_MAPERR);
-        return 0;
-    }
-
-    s->index -= 8;
-    return cpu_ldq_le_data(env, s->base + s->index);
-}
-
 static inline void ps_push(CPUE2KState *env, uint64_t value, uint8_t tag)
 {
+#ifndef CONFIG_USER_ONLY
+    if ((env->psp.index + 8) > env->psp.size) {
+        raise_exception(env, EXCP_PROC_STACK_BOUNDS);
+    }
+#endif
+
+    cpu_stq_le_data(env, env->psp.base + env->psp.index, value);
     cpu_stb_data(env, env->psp.base_tag + env->psp.index / 8, tag);
-    stack_push(env, &env->psp, value);
+    env->psp.index += 8;
 }
 
 static inline uint64_t ps_pop(CPUE2KState *env, uint8_t *ret_tag)
 {
-    uint64_t ret = stack_pop(env, &env->psp);
+    if (env->psp.index < 8) {
+        raise_exception(env, EXCP_PROC_STACK_BOUNDS);
+    }
+    env->psp.index -= 8;
     if (ret_tag != NULL) {
         *ret_tag = cpu_ldub_data(env, env->psp.base_tag + env->psp.index / 8);
     }
-    return ret;
+    return cpu_ldq_le_data(env, env->psp.base + env->psp.index);
 }
 
 static void ps_spill(CPUE2KState *env, int n, bool fx)
@@ -119,11 +103,11 @@ static void crs_read(CPUE2KState *env, target_ulong addr, E2KCrs *crs)
 
 static void pcs_push(CPUE2KState *env, E2KCrs *crs)
 {
+#ifndef CONFIG_USER_ONLY
     if ((env->pcsp.index + sizeof(E2KCrs) * 2) > env->pcsp.size) {
-        // TODO: stack expand (switch to next stack)
-        qemu_log_mask(LOG_UNIMP, "e2k stack expand\n");
-        helper_raise_exception(env, E2K_EXCP_MAPERR);
+        raise_exception(env, EXCP_CHAIN_STACK_BOUNDS);
     }
+#endif
 
     env->pcsp.index += sizeof(E2KCrs);
     crs_write(env, env->pcsp.base + env->pcsp.index, crs);
@@ -134,8 +118,7 @@ static void pcs_pop(CPUE2KState *env, E2KCrs *crs)
     crs_read(env, env->pcsp.base + env->pcsp.index, crs);
 
     if (env->pcsp.index < sizeof(E2KCrs)) {
-        // TODO: stack shrink (switch to previous stack)
-        qemu_log_mask(LOG_UNIMP, "e2k stack shrink\n");
+        raise_exception(env, EXCP_CHAIN_STACK_BOUNDS);
     } else {
         env->pcsp.index -= sizeof(E2KCrs);
     }
@@ -203,7 +186,7 @@ static inline void do_call(CPUE2KState *env, int wbs, target_ulong ret_ip)
 void HELPER(syscall)(CPUE2KState *env)
 {
     CPUState *cs = env_cpu(env);
-    cs->exception_index = E2K_EXCP_SYSCALL;
+    cs->exception_index = EXCP_SYSCALL;
     cpu_loop_exit(cs);
 }
 
@@ -219,10 +202,23 @@ void HELPER(call)(CPUE2KState *env, uint64_t ctpr_raw, int call_wbs,
         env->ip = ctpr.base;
         break;
     default:
-        helper_raise_exception(env, E2K_EXCP_ILLOPC);
+        raise_exception(env, EXCP_ILLEGAL_OPCODE);
         break;
     }
 }
+
+#ifdef CONFIG_USER_ONLY
+void HELPER(expand_stacks)(CPUE2KState *env)
+{
+    if ((env->psp.size - env->psp.index) <= (E2K_REG_LEN * E2K_NR_COUNT * 4)) {
+        raise_exception_ra(env, EXCP_PROC_STACK_BOUNDS, GETPC());
+    }
+
+    if ((env->pcsp.size - env->pcsp.index) <= (sizeof(E2KCrs) * 2)) {
+        raise_exception_ra(env, EXCP_CHAIN_STACK_BOUNDS, GETPC());
+    }
+}
+#endif /* CONFIG_USER_ONLY */
 
 uint64_t HELPER(prep_return)(CPUE2KState *env, int ipd)
 {
@@ -252,11 +248,11 @@ void HELPER(return)(CPUE2KState *env)
         env->wd.psize = 2;
         env->regs[0] = 119; /* TARGET_NR_sigreturn */
         env->tags[0] = E2K_TAG_NUMBER64;
-        cs->exception_index = E2K_EXCP_SYSCALL;
+        cs->exception_index = EXCP_SYSCALL;
         cpu_loop_exit(cs);
     } else {
         if (opc != 0) {
-            qemu_log("%#lx: unknown return ctpr opc %d\n", env->ip, opc);
+            qemu_log(TARGET_FMT_lx ": unknown return ctpr opc %d\n", env->ip, opc);
         }
 
         proc_return(env, false);
@@ -264,31 +260,51 @@ void HELPER(return)(CPUE2KState *env)
     }
 }
 
-void HELPER(raise_exception)(CPUE2KState *env, int tt)
+void QEMU_NORETURN raise_exception(CPUE2KState *env, int exception_index)
 {
-    CPUState *cs = env_cpu(env);
-    cs->exception_index = tt;
-    proc_call(env, env->wd.size, env->ip, true);
-    cpu_loop_exit(cs);
+    raise_exception_ra(env, exception_index, 0);
 }
 
-void HELPER(raise_exception_no_spill)(CPUE2KState *env, int tt)
+void QEMU_NORETURN raise_exception_ra(CPUE2KState *env, int exception_index,
+    uintptr_t retaddr)
 {
     CPUState *cs = env_cpu(env);
-    cs->exception_index = tt;
-    cpu_loop_exit(cs);
+    switch (exception_index) {
+    case EXCP_PROC_STACK_BOUNDS:
+    case EXCP_CHAIN_STACK_BOUNDS:
+        /* ignore */
+        break;
+    default:
+        proc_call(env, env->wd.size, env->ip, true);
+        break;
+    }
+    cs->exception_index = exception_index;
+    cpu_loop_exit_restore(cs, retaddr);
+}
+
+void HELPER(raise_exception)(CPUE2KState *env, int exception_index)
+{
+    raise_exception(env, exception_index);
 }
 
 void HELPER(setwd)(CPUE2KState *env, int wsz, int nfx, int dbl)
 {
-    int i, size = wsz * 2;
+    int size, diff;
+
+    size = wsz * 2;
+    diff = size - env->wd.size;
 
     if (size < env->wd.psize) {
-        helper_raise_exception(env, E2K_EXCP_ILLOPN);
+        raise_exception(env, EXCP_ILLEGAL_OPCODE);
     }
 
-    for (i = env->wd.size; i < size; i++) {
-        env->tags[i] = E2K_TAG_NON_NUMBER64;
+    if (diff > 0) {
+// FIXME: zeroing registers is not needed, but useful for debugging
+#if 1
+        memset(&env->regs[env->wd.size], 0, diff * sizeof(env->regs[0]));
+        memset(&env->xregs[env->wd.size], 0, diff * sizeof(env->xregs[0]));
+#endif
+        memset(&env->tags[env->wd.size], E2K_TAG_NON_NUMBER64, diff);
     }
 
     env->wd.size = size;
@@ -303,8 +319,7 @@ bool e2k_cpu_tlb_fill(CPUState *cs, vaddr address, int size,
     CPUE2KState *env = &cpu->env;
 
     proc_call(env, env->wd.size, env->ip, true);
-
-    cs->exception_index = E2K_EXCP_MAPERR;
+    cs->exception_index = EXCP_DATA_PAGE;
     cpu_loop_exit_restore(cs, retaddr);
 }
 
@@ -321,19 +336,4 @@ void HELPER(debug)(CPUE2KState *env)
     proc_call(env, env->wd.size, env->ip, true);
     cs->exception_index = EXCP_DEBUG;
     cpu_loop_exit(cs);
-}
-
-void HELPER(debug_i32)(uint32_t x)
-{
-    qemu_log_mask(LOG_UNIMP, "log %#x\n", x);
-}
-
-void HELPER(debug_i64)(uint64_t x)
-{
-    qemu_log_mask(LOG_UNIMP, "log %#lx\n", x);
-}
-
-void HELPER(debug_ptr)(void *x)
-{
-    qemu_log_mask(LOG_UNIMP, "log %p\n", x);
 }
