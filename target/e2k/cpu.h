@@ -33,8 +33,6 @@ void e2k_tcg_initialize(void);
 
 #define MMU_USER_IDX 1
 #define CPU_RESOLVING_TYPE TYPE_E2K_CPU
-#define E2K_DEFAULT_PCS_SIZE (TARGET_PAGE_SIZE * 4)
-#define E2K_DEFAULT_PS_SIZE (TARGET_PAGE_SIZE * 16)
 
 #define E2K_TAG_SIZE 2 /* 2-bit tag for 32-bit value */
 #define E2K_REG_LEN sizeof(uint64_t)
@@ -90,15 +88,24 @@ typedef enum {
 } CtprOpc;
 
 #ifdef CONFIG_USER_ONLY
-#define E2K_SYSCALL_MAX_ARGS 10
+# define E2K_SYSCALL_MAX_ARGS 10
 /* fake kernel addresses */
-#define E2K_FAKE_KERN_START 0xe20000000000
-#define E2K_FAKE_KERN_END 0xe30000000000
-#define E2K_SYSCALL_ADDR3 0xe20000001800
-#define E2K_SYSCALL_ADDR6 0xe20000003000
-#define E2K_SYSRET_ADDR 0xe28000000000
-#define E2K_SYSRET_ADDR_CTPR 0xe2fffffffff8
-#define E2K_SIGRET_ADDR 0xe20000015800
+# if TARGET_LONG_BITS == 64
+#  define E2K_FAKE_KERN_START 0xe20000000000
+#  define E2K_FAKE_KERN_END 0xe30000000000
+#  define E2K_SYSRET_ADDR (E2K_FAKE_KERN_START + 0x8000000000)
+#  define E2K_SYSRET_ADDR_CTPR (E2K_FAKE_KERN_START + 0xfffffffff8)
+#  define E2K_SYSCALL_ADDR3 (E2K_FAKE_KERN_START + 0x800 * 3)
+#  define E2K_SYSCALL_ADDR6 (E2K_FAKE_KERN_START + 0x800 * 6)
+# else /* TARGET_LONG_BITS == 32 */
+#  define E2K_FAKE_KERN_START 0xe0000000
+#  define E2K_FAKE_KERN_END 0xe3000000
+#  define E2K_SYSRET_ADDR (E2K_FAKE_KERN_START + 0x800000)
+#  define E2K_SYSRET_ADDR_CTPR (E2K_FAKE_KERN_START + 0xfffff8)
+#  define E2K_SYSCALL_ADDR1 (E2K_FAKE_KERN_START + 0x800 * 1)
+#  define E2K_SYSCALL_ADDR4 (E2K_FAKE_KERN_START + 0x800 * 4)
+# endif
+# define E2K_SIGRET_ADDR (E2K_FAKE_KERN_START + 0x15800)
 #endif
 
 #define WD_BASE_OFF 0
@@ -280,11 +287,55 @@ typedef enum {
 #define IDR_WBL_TO_BYTES(wbl) ((wbl) ? (1 << ((wbs) + 4)) : 1)
 
 typedef enum {
-    E2K_EXCP_SYSCALL = 0x02,
-    E2K_EXCP_ILLOPC = 0x03,
-    E2K_EXCP_ILLOPN = 0x04,
-    E2K_EXCP_MAPERR = 0x05,
-    E2K_EXCP_DIV = 0x06,
+    EXCP_ILLEGAL_OPCODE = 0,
+    EXCP_PRIV_ACTION = 1,
+    EXCP_FP_DISABLED = 2,
+    EXCP_FP_STACK_U = 3,
+    EXCP_D_INTERRUPT = 4,
+    EXCP_DIAG_CT_COND = 5,
+    EXCP_DIAG_INSTR_ADDR = 6,
+    EXCP_ILLEGAL_INSTR_ADDR = 7,
+    EXCP_INSTR_DEBUG = 8,
+    EXCP_WINDOW_BOUNDS = 9,
+    EXCP_USER_STACK_BOUNDS = 10,
+    EXCP_PROC_STACK_BOUNDS = 11,
+    EXCP_CHAIN_STACK_BOUNDS = 12,
+    EXCP_FP_STACK_O = 13,
+    EXCP_DIAG_COND = 14,
+    EXCP_DIAG_OPERAND = 15,
+    EXCP_ILLEGAL_OPERAND = 16,
+    EXCP_ARRAY_BOUNDS = 17,
+    EXCP_ACCESS_RIGHTS = 18,
+    EXCP_ADDR_NOT_ALIGNED = 19,
+    EXCP_INSTR_PAGE_MISS = 20,
+    EXCP_INSTR_PAGE_PROT = 21,
+    EXCP_AINSTR_PAGE_MISS = 22,
+    EXCP_AINSTR_PAGE_PROT = 23,
+    EXCP_LAST_WISH = 24,
+    EXCP_BASE_NOT_ALIGNED = 25,
+
+    EXCP_DATA_DEBUG = 28,
+    EXCP_DATA_PAGE = 29,
+
+    EXCP_RECOVERY_POINT = 31,
+    EXCP_INTERRUPT = 32,
+    EXCP_NM_INTERRUPT = 33,
+    EXCP_DIV = 34,
+    EXCP_FP = 35,
+    EXCP_MEM_LOCK = 36,
+    EXCP_MEM_LOCK_AS = 37,
+    EXCP_MEM_ERROR_OUT_CPU = 38,
+    EXCP_MEM_ERROR_MAU = 39,
+    EXCP_MEM_ERROR_L2 = 40,
+    EXCP_MEM_ERROR_L1_35 = 41,
+    EXCP_MEM_ERROR_L1_02 = 42,
+    EXCP_MEM_ERROR_ICACHE = 43,
+
+    EXCP_MAX = 43,
+
+#ifdef CONFIG_USER_ONLY
+    EXCP_SYSCALL = 100,
+#endif
 } Exception;
 
 struct e2k_def_t {
@@ -384,8 +435,8 @@ typedef struct {
 
 typedef struct {
     int32_t base;
-    uint32_t size;
-    uint32_t psize;
+    int32_t size;
+    int32_t psize;
     bool fx;
 } E2KWdState;
 

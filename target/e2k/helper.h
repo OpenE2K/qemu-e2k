@@ -1,3 +1,5 @@
+// TODO: set helper call flags
+
 #define dh_alias_Reg ptr
 #define dh_alias_f80 ptr
 #define dh_ctype_Reg E2KReg *
@@ -6,17 +8,14 @@
 #define dh_is_signed_f80 dh_is_signed_ptr
 
 DEF_HELPER_2(raise_exception, noreturn, env, int)
-DEF_HELPER_2(raise_exception_no_spill, noreturn, env, int)
 DEF_HELPER_1(debug, void, env)
 DEF_HELPER_2(prep_return, i64, env, int)
 DEF_HELPER_1(return, void, env)
 DEF_HELPER_1(signal_return, void, env)
 DEF_HELPER_4(call, void, env, i64, int, tl)
+DEF_HELPER_1(expand_stacks, void, env)
 DEF_HELPER_1(syscall, void, env)
 DEF_HELPER_2(sxt, i64, i64, i32)
-DEF_HELPER_1(debug_i32, void, i32)
-DEF_HELPER_1(debug_i64, void, i64)
-DEF_HELPER_1(debug_ptr, void, ptr)
 DEF_HELPER_2(state_reg_read_i64, i64, env, int)
 DEF_HELPER_2(state_reg_read_i32, i32, env, int)
 DEF_HELPER_3(state_reg_write_i64, void, env, int, i64)

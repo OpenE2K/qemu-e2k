@@ -403,87 +403,62 @@ typedef struct DisasContext {
     ControlTransfer ct;
 } DisasContext;
 
-/* exception generated in translation time */
-void e2k_tr_gen_exception(DisasContext *dc, int which);
-void e2k_tr_gen_exception_no_spill(DisasContext *ctx, int excp);
+static inline void gen_save_pc(target_ulong pc)
+{
+    tcg_gen_movi_tl(e2k_cs.pc, pc);
+}
 
-/* exception generated in runtime */
-static inline void e2k_gen_exception(int excp)
+static inline void gen_save_cpu_state(DisasContext *ctx)
+{
+    gen_save_pc(ctx->pc);
+}
+
+static inline void gen_tr_exception(DisasContext *ctx, int exception_index)
+{
+    TCGv_i32 t0 = tcg_const_i32(exception_index);
+
+    ctx->base.is_jmp = DISAS_NORETURN;
+    gen_save_cpu_state(ctx);
+    gen_helper_raise_exception(cpu_env, t0);
+    tcg_temp_free_i32(t0);
+}
+
+#define IMPL_GEN_TR_EXCP(name, excp) \
+    static inline void name(DisasContext *ctx) \
+    { \
+        gen_tr_exception(ctx, excp); \
+    }
+
+IMPL_GEN_TR_EXCP(gen_tr_excp_illopc, EXCP_ILLEGAL_OPCODE)
+IMPL_GEN_TR_EXCP(gen_tr_excp_illopn, EXCP_ILLEGAL_OPERAND)
+IMPL_GEN_TR_EXCP(gen_tr_excp_window_bounds, EXCP_WINDOW_BOUNDS)
+IMPL_GEN_TR_EXCP(gen_tr_excp_array_bounds, EXCP_ARRAY_BOUNDS)
+
+static inline void gen_exception(int excp)
 {
     TCGv_i32 t0 = tcg_const_i32(excp);
 
     // TODO: check if need to save state
     gen_helper_raise_exception(cpu_env, t0);
-
     tcg_temp_free_i32(t0);
 }
 
+#define IMPL_GEN_EXCP(name, excp) \
+    static inline void name(void) \
+    { \
+        gen_exception(excp); \
+    }
+
+IMPL_GEN_EXCP(gen_excp_illopc, EXCP_ILLEGAL_OPCODE)
+IMPL_GEN_EXCP(gen_excp_window_bounds, EXCP_WINDOW_BOUNDS)
+
 #define e2k_todo(ctx, fmt, ...) \
-    qemu_log("%#lx: " fmt " (%s:%d)\n", ctx->pc, \
+    qemu_log(TARGET_FMT_lx ": " fmt " (%s:%d)\n", ctx->pc, \
         ## __VA_ARGS__, __FILE__, __LINE__)
 
 #define e2k_todo_illop(ctx, fmt, ...) \
     e2k_todo(ctx, fmt, ## __VA_ARGS__); \
-    e2k_tr_gen_exception(ctx, E2K_EXCP_ILLOPC)
-
-static inline void e2k_gen_mask_i64(TCGv_i64 ret, TCGv_i64 len)
-{
-    TCGv_i64 one = tcg_const_i64(1);
-    TCGv_i64 t0 = tcg_temp_new_i64();
-
-    tcg_gen_shl_i64(t0, one, len);
-    tcg_gen_subi_i64(ret, t0, 1);
-
-    tcg_temp_free_i64(t0);
-    tcg_temp_free_i64(one);
-}
-
-static inline void e2k_gen_maski_i64(TCGv_i64 ret, int len)
-{
-    TCGv_i64 t0 = tcg_const_i64(len);
-    e2k_gen_mask_i64(ret, t0);
-    tcg_temp_free_i64(t0);
-}
-
-static inline void e2k_gen_extract_i64(TCGv_i64 ret, TCGv_i64 arg1,
-    TCGv_i64 offset, TCGv_i64 len)
-{
-    TCGv_i64 t0 = tcg_temp_new_i64();
-    TCGv_i64 t1 = tcg_temp_new_i64();
-
-    tcg_gen_shr_i64(t0, arg1, offset);
-    e2k_gen_mask_i64(t1, len);
-    tcg_gen_and_i64(ret, t0, t1);
-
-    tcg_temp_free_i64(t1);
-    tcg_temp_free_i64(t0);
-}
-
-static inline void e2k_gen_deposit_i64(TCGv_i64 ret, TCGv_i64 arg1,
-    TCGv_i64 arg2, TCGv_i64 offset, TCGv_i64 len)
-{
-    TCGv_i64 t0 = tcg_temp_new_i64();
-    TCGv_i64 t1 = tcg_temp_new_i64();
-    TCGv_i64 t2 = tcg_temp_new_i64();
-    TCGv_i64 t3 = tcg_temp_new_i64();
-    TCGv_i64 t4 = tcg_temp_new_i64();
-    TCGv_i64 t5 = tcg_temp_new_i64();
-
-    e2k_gen_mask_i64(t0, len);
-    tcg_gen_shl_i64(t1, t0, offset);
-    tcg_gen_not_i64(t2, t1);
-    tcg_gen_and_i64(t3, arg1, t2);
-    tcg_gen_and_i64(t4, arg2, t0);
-    tcg_gen_shl_i64(t5, t4, offset);
-    tcg_gen_or_i64(ret, t3, t5);
-
-    tcg_temp_free_i64(t5);
-    tcg_temp_free_i64(t4);
-    tcg_temp_free_i64(t3);
-    tcg_temp_free_i64(t2);
-    tcg_temp_free_i64(t1);
-    tcg_temp_free_i64(t0);
-}
+    gen_tr_excp_illopc(ctx)
 
 static inline TCGv_i32 e2k_get_temp_i32(DisasContext *dc)
 {
@@ -515,14 +490,10 @@ static inline TCGv e2k_get_temp(DisasContext *dc)
     return dc->ttl[dc->ttl_len++] = tcg_temp_local_new();
 }
 
-static inline void e2k_gen_save_pc(target_ulong pc)
+static inline TCGv e2k_get_const(DisasContext *dc, target_ulong value)
 {
-    tcg_gen_movi_tl(e2k_cs.pc, pc);
-}
-
-static inline void e2k_gen_save_cpu_state(DisasContext *ctx)
-{
-    e2k_gen_save_pc(ctx->pc);
+    assert(dc->ttl_len < ARRAY_SIZE(dc->ttl));
+    return dc->ttl[dc->ttl_len++] = tcg_const_local_tl(value);
 }
 
 static inline void e2k_gen_lcntex(TCGv_i32 ret)
@@ -576,7 +547,7 @@ static inline void e2k_gen_reg_index(DisasContext *ctx, TCGv_i32 ret, uint8_t ar
     } else if (IS_GLOBAL(arg)) {
         e2k_gen_reg_index_from_gregi(ret, GET_GLOBAL(arg));
     } else {
-        e2k_tr_gen_exception(ctx, E2K_EXCP_ILLOPN);
+        gen_tr_exception(ctx, EXCP_ILLEGAL_OPERAND);
     }
 }
 

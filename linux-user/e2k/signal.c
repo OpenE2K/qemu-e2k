@@ -3,6 +3,7 @@
  *
  *  Copyright (c) 2003 Fabrice Bellard
  *  Copyright (c) 2020 Alibek Omarov
+ *  Copyright (c) 2021 Denis Drakhnya
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -204,8 +205,8 @@ static void target_setup_frame(int sig, struct target_sigaction *ka,
     if (setup_ucontext(&frame->uc, env)) {
         goto fail;
     }
-    copy_to_user((abi_ulong) &frame->uc.uc_sigmask, set, sizeof(*set));
-    copy_to_user((abi_ulong) &frame->aau, &env->aau, sizeof(env->aau));
+    copy_to_user((uintptr_t) &frame->uc.uc_sigmask, set, sizeof(*set));
+    copy_to_user((uintptr_t) &frame->aau, &env->aau, sizeof(env->aau));
 
     if (ka->sa_flags & TARGET_SA_RESTORER) {
         // TODO: sa_restorer?
@@ -261,7 +262,7 @@ static abi_long target_restore_sigframe(CPUE2KState *env,
     __get_user(env->ctprs[1].raw, &frame->uc.uc_extra.ctpr2);
     __get_user(env->ctprs[2].raw, &frame->uc.uc_extra.ctpr3);
 
-    copy_from_user(&env->aau, (abi_ulong) &frame->aau, sizeof(env->aau));
+    copy_from_user(&env->aau, (uintptr_t) &frame->aau, sizeof(env->aau));
 
     return 0;
 }

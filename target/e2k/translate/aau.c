@@ -108,7 +108,7 @@ static void gen_mova(DisasContext *ctx, Mova *instr)
         e2k_todo_illop(ctx, "movaqp");
         break;
     default:
-        e2k_tr_gen_exception(ctx, E2K_EXCP_ILLOPC);
+        gen_tr_excp_illopc(ctx);
         break;
     }
 
