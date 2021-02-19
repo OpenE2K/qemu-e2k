@@ -6851,6 +6851,47 @@ static abi_long do_e2k_longjmp2(CPUE2KState *env, struct target_jmp_info *jmp_in
 
     return 0;
 }
+
+static abi_long do_e2k_access_hw_stacks(CPUState *cpu, abi_ulong arg2,
+    abi_ulong arg3, abi_ulong arg4, abi_ulong arg5, abi_ulong arg6)
+{
+    E2KCPU *e2k_cpu = E2K_CPU(cpu);
+    CPUE2KState *env = &e2k_cpu->env;
+    int ret = 0;
+    abi_ulong mode = arg2;
+    abi_ulong frame_addr = arg3; // __user (abi_ullong *)
+//    abi_ulong buf_addr = arg4; // __user (char *)
+//    abi_ulong buf_size = arg5;
+    abi_ulong size_addr = arg6; // __user (void *)
+
+    switch (mode) {
+    case GET_PROCEDURE_STACK_SIZE:
+        ret = put_user(env->psp.index, size_addr, target_ulong);
+        break;
+    case GET_CHAIN_STACK_SIZE:
+        ret = put_user(env->pcsp.index, size_addr, target_ulong);
+        break;
+    case GET_CHAIN_STACK_OFFSET:
+        ret = -TARGET_ENOSYS;
+        break;
+    case READ_CHAIN_STACK_EX:
+    {
+        abi_ullong frame = 0;
+        copy_user();
+
+        break;
+    }
+    case READ_CHAIN_STACK:
+    case READ_PROCEDURE_STACK:
+    case WRITE_PROCEDURE_STACK:
+    case READ_PROCEDURE_STACK_EX:
+    case WRITE_PROCEDURE_STACK_EX:
+    case WRITE_CHAIN_STACK_EX:
+        return -TARGET_ENOSYS;
+    }
+    return ret;
+}
+
 #endif /* end of TARGET_E2K */
 
 static abi_long do_fcntl(int fd, int cmd, abi_ulong arg)
@@ -11953,24 +11994,16 @@ static abi_long do_syscall1(void *cpu_env, int num, abi_long arg1,
         if (ret) {
             break;
         }
-        do_e2k_longjmp2(env, &ji);
+        ret = do_e2k_longjmp2(env, &ji);
+        if (ret) {
+            break;
+        }
         return arg2;
     }
 #endif
 #ifdef TARGET_NR_access_hw_stacks
     case TARGET_NR_access_hw_stacks:
-    {
-#if 0
-        abi_ulong mode = arg2;
-        abi_ulong frame_ptr = arg3; // __user (abi_ullong *)
-        abi_ulong buf = arg4; // __user (char *)
-        abi_ulong buf_size = arg5;
-        abi_ulong real_size = arg6; // __user (void *)
-#endif
-
-        // TODO: e2k_sys_access_hw_stacks
-        return -TARGET_ENOSYS;
-    }
+        return do_e2k_access_hw_stacks(cpu, arg1, arg2, arg3, arg4, arg5);
 #endif
 #ifdef CONFIG_ATTR
 #ifdef TARGET_NR_setxattr
