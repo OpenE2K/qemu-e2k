@@ -6851,6 +6851,405 @@ static abi_long do_e2k_longjmp2(CPUE2KState *env, struct target_jmp_info *jmp_in
 
     return 0;
 }
+
+static abi_long copy_current_chain_stack(abi_ulong dst, abi_ulong src,
+    abi_ulong size)
+{
+    E2KCrs *from, *to;
+    abi_long ret = 0;
+    int i;
+
+    if (!QEMU_IS_ALIGNED(src, sizeof(*from)) ||
+        !QEMU_IS_ALIGNED(size, sizeof(*from)))
+    {
+        return -TARGET_EINVAL;
+    }
+
+    from = lock_user(VERIFY_READ, src, size, 1);
+    to = lock_user(VERIFY_WRITE, dst, size, 0);
+    if (!to || !from) {
+        ret = -TARGET_EFAULT;
+        goto exit;
+    }
+
+    for (i = 0; i < size; i += sizeof(E2KCrs), to++, from++) {
+        E2KCrs crs = *from;
+        target_ulong ip;
+
+        memset(to, 0, sizeof(*to));
+
+        to->cr0_lo = from->cr0_lo;
+        ip = crs.cr0_hi & ~7;
+        if (ip < TARGET_TASK_SIZE) {
+            to->cr0_hi = ip;
+            to->cr1.ussz = from->cr1.ussz;
+        }
+        // FIXME: check what exactly needs to be copied
+        to->cr1 = from->cr1;
+    }
+
+exit:
+    unlock_user(from, src, size);
+    unlock_user(to, dst, size);
+    return ret;
+}
+
+static abi_long copy_procedure_stack(abi_ulong dst, abi_ulong dst_tag, abi_ulong src,
+    abi_ulong size)
+{
+    abi_ullong *from, *to;
+    uint8_t *to_tag = NULL;
+    abi_long ret = 0;
+    int i;
+
+    from = lock_user(VERIFY_READ, src, size, 1);
+    to = lock_user(VERIFY_WRITE, dst, size, 0);
+    if (!to || !from) {
+        ret = -TARGET_EFAULT;
+        goto exit;
+    }
+
+    if (dst_tag) {
+        to_tag = lock_user(VERIFY_WRITE, dst_tag, size / 8, 0);
+        if (!to_tag) {
+            ret = -TARGET_EFAULT;
+            goto exit;
+        }
+
+        // TODO: what to do with tags?
+        memset(to_tag, 0, size / 8);
+    }
+
+    for (i = 0; i < size; i += sizeof(abi_ullong), to++, from++) {
+        *to = *from;
+    }
+
+exit:
+    unlock_user(from, src, size);
+    unlock_user(to_tag, dst_tag, size / 8);
+    unlock_user(to, dst, size);
+    return ret;
+}
+
+static abi_long do_e2k_access_hw_stacks(CPUState *cpu, abi_ulong arg2,
+    abi_ulong arg3, abi_ulong arg4, abi_ulong arg5, abi_ulong arg6)
+{
+    E2KCPU *e2k_cpu = E2K_CPU(cpu);
+    CPUE2KState *env = &e2k_cpu->env;
+    abi_ulong mode = arg2;
+    abi_ulong frame_addr = arg3; // __user (abi_ullong *)
+    abi_ulong buf_addr = arg4; // __user (char *)
+    abi_ulong buf_size = arg5;
+    abi_ulong size_addr = arg6; // __user (void *)
+    int ret = 0;
+
+    switch (mode) {
+    case GET_PROCEDURE_STACK_SIZE:
+        ret = put_user(env->psp.index, size_addr, target_ulong);
+        break;
+    case GET_CHAIN_STACK_SIZE:
+        ret = put_user(env->pcsp.index + sizeof(E2KCrs), size_addr, target_ulong);
+        break;
+    case GET_CHAIN_STACK_OFFSET:
+    {
+        abi_ullong frame, pcs_top;
+
+        ret = get_user(frame, frame_addr, abi_ullong);
+        if (ret) {
+            return ret;
+        }
+        pcs_top = env->pcsp.base + env->pcsp.size;
+        if (env->pcsp.base > frame || pcs_top <= frame) {
+            return -TARGET_ESRCH;
+        }
+        ret = put_user(frame - env->pcsp.base, size_addr, target_ulong);
+        break;
+    }
+    case READ_CHAIN_STACK:
+    {
+        abi_ullong frame, pcs_used_top;
+        abi_ulong used_size;
+
+        ret = get_user(frame, frame_addr, abi_ullong);
+        if (ret) {
+            return ret;
+        }
+        pcs_used_top = env->pcsp.base + env->pcsp.index;
+        if (frame < env->pcsp.base || frame > pcs_used_top) {
+            return -TARGET_EINVAL;
+        }
+        used_size = frame - env->pcsp.base;
+        if (size_addr) {
+            ret = put_user(used_size, size_addr, target_ulong);
+            if (ret) {
+                return ret;
+            }
+        }
+        if (used_size > buf_size) {
+            return -TARGET_ENOMEM;
+        }
+        ret = copy_current_chain_stack(buf_addr, env->pcsp.base,
+            used_size);
+        break;
+    }
+    case READ_CHAIN_STACK_EX:
+    case WRITE_CHAIN_STACK_EX:
+    {
+        abi_ullong frame;
+        abi_ulong dst, src;
+
+        ret = get_user(frame, frame_addr, abi_ullong);
+        if (ret) {
+            return ret;
+        }
+        if ((env->pcsp.index + sizeof(E2KCrs)) < (frame + buf_size)) {
+            return -TARGET_EFAULT;
+        }
+        if (mode == READ_CHAIN_STACK_EX) {
+            dst = buf_addr;
+            src = env->pcsp.base + frame;
+        } else {
+            dst = env->pcsp.base + frame;
+            src = buf_addr;
+        }
+        ret = copy_current_chain_stack(dst, src, buf_size);
+        break;
+    }
+    case READ_PROCEDURE_STACK:
+    case WRITE_PROCEDURE_STACK:
+    {
+        abi_ullong offset, ps_used_top;
+        abi_ulong used_size, dst, dst_tag, src;
+
+        ret = get_user(offset, frame_addr, abi_ullong);
+        if (ret) {
+            return ret;
+        }
+        ps_used_top = env->psp.base + env->psp.index;
+        if (offset < env->psp.base || offset > ps_used_top) {
+            return -TARGET_EINVAL;
+        }
+        used_size = offset - env->psp.base;
+        if (size_addr) {
+            ret = put_user(used_size, size_addr, target_ulong);
+            if (ret) {
+                return ret;
+            }
+        }
+        if (used_size > buf_size) {
+            return -TARGET_ENOMEM;
+        }
+        if (mode == READ_PROCEDURE_STACK) {
+            dst = buf_addr;
+            dst_tag = 0;
+            src = env->psp.base;
+        } else {
+            dst = env->psp.base;
+            dst_tag = env->psp.base_tag;
+            src = buf_addr;
+        }
+        ret = copy_procedure_stack(dst, dst_tag, src, used_size);
+        break;
+    }
+    case READ_PROCEDURE_STACK_EX:
+    case WRITE_PROCEDURE_STACK_EX:
+    {
+        abi_ullong offset;
+        abi_ulong dst, dst_tag, src;
+
+        ret = get_user(offset, frame_addr, abi_ullong);
+        if (ret) {
+            return ret;
+        }
+        if (env->psp.index < (offset + buf_size)) {
+            return -TARGET_EFAULT;
+        }
+        if (mode == READ_PROCEDURE_STACK_EX) {
+            dst = buf_addr;
+            dst_tag = 0;
+            src = env->psp.base + offset;
+        } else {
+            dst = env->psp.base + offset;
+            dst_tag = env->psp.base_tag + offset / 8;
+            src = buf_addr;
+        }
+        ret = copy_procedure_stack(dst, dst_tag, src, buf_size);
+        break;
+    }
+    default:
+        return -TARGET_ENOSYS;
+    }
+    return ret;
+}
+
+static bool is_privileged_return(target_ulong ip)
+{
+    return ip == E2K_SYSRET_BACKTRACE_ADDR;
+}
+
+static abi_long do_e2k_set_backtrace(CPUState *cpu, abi_ulong buf_addr,
+    abi_ulong count, abi_ulong skip, abi_ulong flags)
+{
+    E2KCPU *e2k_cpu = E2K_CPU(cpu);
+    CPUE2KState *env = &e2k_cpu->env;
+    E2KCrs *pcs_base, *frame;
+    target_ulong *buf;
+    abi_long ret = 0;
+    int nr_written = 0;
+    uint64_t cr0_hi;
+    E2KCr1 cr1;
+
+    if (flags) {
+        return -TARGET_EINVAL;
+    }
+
+    buf = lock_user(VERIFY_READ, buf_addr, count * sizeof(*buf), 1);
+    pcs_base = lock_user(VERIFY_WRITE, env->pcsp.base, env->pcsp.index, 1);
+    if (!buf || !pcs_base) {
+        ret = -TARGET_EFAULT;
+        goto exit;
+    }
+    frame = pcs_base + env->pcsp.index / sizeof(*frame);
+
+    while (nr_written < count) {
+        target_ulong prev_ip, ip;
+
+        frame -= 1;
+        if (frame < pcs_base) {
+            /* Not an error: we will just return the size */
+            break;
+        }
+
+        __get_user(ip, buf);
+        __get_user(cr0_hi, &frame->cr0_hi);
+        __get_user(cr1.lo, &frame->cr1.lo);
+
+        if (ip == -1) {
+            ip = E2K_SYSRET_BACKTRACE_ADDR;
+        }
+
+        prev_ip = cr0_hi & ~7;
+
+        /* skip fake kernel frames */
+        if (prev_ip >= TARGET_TASK_SIZE) {
+            continue;
+        }
+
+        /* Skip the requested number of frames */
+        if (skip) {
+            --skip;
+            continue;
+        }
+
+        if (!is_privileged_return(ip) && !access_ok(VERIFY_READ, ip, 8)) {
+            ret = -TARGET_EFAULT;
+            break;
+        }
+
+        /* Forbid changing of special return value into normal
+         * one - to avoid cases when user changes to special and
+         * back to normal function to avoid security checks. */
+        if (is_privileged_return(prev_ip) && !is_privileged_return(ip)) {
+            ret = -TARGET_EPERM;
+            break;
+        }
+
+        // TODO: ip/prev_ip page flags checks
+
+        cr0_hi = ip & ~7;
+
+        __put_user(cr0_hi, &frame->cr0_hi);
+        if (is_privileged_return(ip)) {
+            cr1.pm = 1;
+            cr1.ic = 0;
+            __put_user(cr1.lo, &frame->cr1.lo);
+        }
+
+        buf += 1;
+        nr_written += 1;
+    }
+
+    if (nr_written) {
+        ret = nr_written;
+    }
+
+exit:
+    unlock_user(pcs_base, env->pcsp.base, env->pcsp.index);
+    unlock_user(buf, buf_addr, count * sizeof(buf));
+    return ret;
+}
+
+static abi_long do_e2k_get_backtrace(CPUState *cpu, abi_ulong buf_addr,
+    abi_ulong count, abi_ulong skip, abi_ulong flags)
+{
+    E2KCPU *e2k_cpu = E2K_CPU(cpu);
+    CPUE2KState *env = &e2k_cpu->env;
+    E2KCrs *pcs_base, *frame;
+    target_ulong *buf;
+    abi_long ret = 0;
+    int nr_read = 0;
+    uint64_t cr0_hi;
+
+    if (flags) {
+        return -TARGET_EINVAL;
+    }
+
+    buf = lock_user(VERIFY_WRITE, buf_addr, count * sizeof(*buf), 0);
+    pcs_base = lock_user(VERIFY_READ, env->pcsp.base, env->pcsp.index, 1);
+    if (!buf || !pcs_base) {
+        ret = -TARGET_EFAULT;
+        goto exit;
+    }
+    frame = pcs_base + env->pcsp.index / sizeof(*frame);
+
+    while (nr_read < count) {
+        target_ulong ip;
+
+        frame -= 1;
+        if (frame < pcs_base) {
+            /* Not an error: we will just return the size */
+            break;
+        }
+
+        __get_user(cr0_hi, &frame->cr0_hi);
+        ip = cr0_hi & ~7;
+
+        /* skip fake kernel frames */
+        if (!is_privileged_return(ip) && ip >= TARGET_TASK_SIZE) {
+            continue;
+        }
+
+        /* Skip the requested number of frames */
+        if (skip) {
+            --skip;
+            continue;
+        }
+
+        if (!is_privileged_return(ip) && !access_ok(VERIFY_READ, ip, 8)) {
+            ret = -TARGET_EFAULT;
+            break;
+        }
+
+        /* Special case of "just return" function */
+        if (is_privileged_return(ip)) {
+            ip = -1;
+        }
+
+        __put_user(ip, buf);
+
+        buf += 1;
+        nr_read += 1;
+    }
+
+    if (nr_read) {
+        ret = nr_read;
+    }
+
+exit:
+    unlock_user(pcs_base, env->pcsp.base, env->pcsp.index);
+    unlock_user(buf, buf_addr, count * sizeof(buf));
+    return ret;
+}
 #endif /* end of TARGET_E2K */
 
 static abi_long do_fcntl(int fd, int cmd, abi_ulong arg)
@@ -11953,24 +12352,24 @@ static abi_long do_syscall1(void *cpu_env, int num, abi_long arg1,
         if (ret) {
             break;
         }
-        do_e2k_longjmp2(env, &ji);
+        ret = do_e2k_longjmp2(env, &ji);
+        if (ret) {
+            break;
+        }
         return arg2;
     }
 #endif
 #ifdef TARGET_NR_access_hw_stacks
     case TARGET_NR_access_hw_stacks:
-    {
-#if 0
-        abi_ulong mode = arg2;
-        abi_ulong frame_ptr = arg3; // __user (abi_ullong *)
-        abi_ulong buf = arg4; // __user (char *)
-        abi_ulong buf_size = arg5;
-        abi_ulong real_size = arg6; // __user (void *)
+        return do_e2k_access_hw_stacks(cpu, arg1, arg2, arg3, arg4, arg5);
 #endif
-
-        // TODO: e2k_sys_access_hw_stacks
-        return -TARGET_ENOSYS;
-    }
+#ifdef TARGET_NR_set_backtrace
+    case TARGET_NR_set_backtrace:
+        return do_e2k_set_backtrace(cpu, arg1, arg2, arg3, arg4);
+#endif
+#ifdef TARGET_NR_get_backtrace
+    case TARGET_NR_get_backtrace:
+        return do_e2k_get_backtrace(cpu, arg1, arg2, arg3, arg4);
 #endif
 #ifdef CONFIG_ATTR
 #ifdef TARGET_NR_setxattr
