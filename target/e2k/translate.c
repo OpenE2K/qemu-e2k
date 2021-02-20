@@ -1150,7 +1150,9 @@ static void e2k_tr_translate_insn(DisasContextBase *db, CPUState *cs)
         gen_helper_syscall(cpu_env);
         tcg_gen_exit_tb(NULL, TB_EXIT_IDX0);
         break;
-    case E2K_SYSRET_ADDR: {
+    case E2K_SYSRET_BACKTRACE_ADDR:
+    case E2K_SYSRET_ADDR:
+    {
         /* fake return from syscall handler */
         TCGv_i32 t0 = tcg_const_i32(0);
 
@@ -1170,7 +1172,8 @@ static void e2k_tr_translate_insn(DisasContextBase *db, CPUState *cs)
         tcg_gen_exit_tb(NULL, TB_EXIT_IDX0);
         break;
 #endif /* CONFIG_USER_ONLY */
-    default: {
+    default:
+    {
         pc_next = do_decode(ctx, cs);
 #ifdef CONFIG_USER_ONLY
         if (ctx->bundle2.cs1.type == CS1_CALL) {

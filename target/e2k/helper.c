@@ -226,15 +226,10 @@ uint64_t HELPER(prep_return)(CPUE2KState *env, int ipd)
     target_ulong addr = env->pcsp.base + env->pcsp.index + offsetof(E2KCrs, cr0_hi);
     uint64_t cr0_hi = cpu_ldq_le_data(env, addr) & ~7;
 
-    if (cr0_hi == E2K_SYSRET_ADDR_CTPR) {
-        ret.base = E2K_SIGRET_ADDR;
-        ret.opc = CTPR_OPC_SIGRET;
-    } else {
-        ret.base = cr0_hi;
-    }
-
-    ret.tag = CTPR_TAG_RETURN;
     ret.ipd = ipd;
+    ret.base = cr0_hi;
+    ret.tag = CTPR_TAG_RETURN;
+    ret.opc = cr0_hi == E2K_SIGRET_ADDR ? CTPR_OPC_SIGRET : 0;
 
     return ret.raw;
 }

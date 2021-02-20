@@ -70,7 +70,7 @@ struct target_pt_regs {
 #define TARGET_PAGE_OFFSET 0x0000d00000000000UL
 #define TARGET_TASK_SIZE TARGET_PAGE_OFFSET
 #else
-#define TARGET_TASK_SIZE 0xf0000000UL
+#define TARGET_TASK_SIZE 0xe0000000UL
 #endif
 
 /* modes for sys_access_hw_stacks */
