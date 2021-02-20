@@ -39,8 +39,10 @@ uint64_t helper_state_reg_read_i64(CPUE2KState *env, int idx)
 {
     switch (idx) {
     case 0x01: return e2k_state_wd(env); /* %wd */
-    case 0x0f: return e2k_state_pcsp_lo(env); /* %pcsp.lo */
+    case 0x07: return e2k_state_psp_hi(env); /* %psp.hi */
+    case 0x09: return e2k_state_psp_lo(env); /* %psp.lo */
     case 0x0d: return e2k_state_pcsp_hi(env); /* %pcsp.hi */
+    case 0x0f: return e2k_state_pcsp_lo(env); /* %pcsp.lo */
     case 0x13: return 0; /* %pcshtp */
     case 0x2c: return env->usd.hi; /* %usd.hi */
     case 0x2d: return env->usd.lo; /* %usd.lo */

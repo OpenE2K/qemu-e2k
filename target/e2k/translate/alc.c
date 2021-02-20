@@ -1617,6 +1617,7 @@ static inline void gen_rr_i32(Instr *instr)
     TCGv_i32 t0 = tcg_const_i32(instr->src1);
 
     gen_save_cpu_state(instr->ctx);
+    // FIXME: output size should be affected by wdbl
     gen_helper_state_reg_read_i32(dst, cpu_env, t0);
     set_al_result_reg32(instr, dst);
     tcg_temp_free_i32(t0);

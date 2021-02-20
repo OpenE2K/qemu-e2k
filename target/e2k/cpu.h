@@ -93,19 +93,17 @@ typedef enum {
 # if TARGET_LONG_BITS == 64
 #  define E2K_FAKE_KERN_START 0xe20000000000
 #  define E2K_FAKE_KERN_END 0xe30000000000
-#  define E2K_SYSRET_ADDR (E2K_FAKE_KERN_START + 0x8000000000)
-#  define E2K_SYSRET_ADDR_CTPR (E2K_FAKE_KERN_START + 0xfffffffff8)
-#  define E2K_SYSCALL_ADDR3 (E2K_FAKE_KERN_START + 0x800 * 3)
-#  define E2K_SYSCALL_ADDR6 (E2K_FAKE_KERN_START + 0x800 * 6)
 # else /* TARGET_LONG_BITS == 32 */
 #  define E2K_FAKE_KERN_START 0xe0000000
 #  define E2K_FAKE_KERN_END 0xe3000000
-#  define E2K_SYSRET_ADDR (E2K_FAKE_KERN_START + 0x800000)
-#  define E2K_SYSRET_ADDR_CTPR (E2K_FAKE_KERN_START + 0xfffff8)
-#  define E2K_SYSCALL_ADDR1 (E2K_FAKE_KERN_START + 0x800 * 1)
-#  define E2K_SYSCALL_ADDR4 (E2K_FAKE_KERN_START + 0x800 * 4)
 # endif
+# define E2K_SYSCALL_ADDR1 (E2K_FAKE_KERN_START + 0x800 * 1)
+# define E2K_SYSCALL_ADDR3 (E2K_FAKE_KERN_START + 0x800 * 3)
+# define E2K_SYSCALL_ADDR4 (E2K_FAKE_KERN_START + 0x800 * 4)
+# define E2K_SYSCALL_ADDR6 (E2K_FAKE_KERN_START + 0x800 * 6)
+# define E2K_SYSRET_ADDR (E2K_FAKE_KERN_START + 0x15700)
 # define E2K_SIGRET_ADDR (E2K_FAKE_KERN_START + 0x15800)
+# define E2K_SYSRET_BACKTRACE_ADDR (E2K_FAKE_KERN_START + 0x15900)
 #endif
 
 #define WD_BASE_OFF 0
@@ -373,7 +371,7 @@ typedef struct {
             uint64_t unused2: 40;
             uint64_t cui: 16;
             uint64_t ic: 1;
-            uint64_t pm: 1;
+            uint64_t pm: 1;         /* privileged mode */
             uint64_t ie: 1;
             uint64_t sge: 1;
             uint64_t lw: 1;

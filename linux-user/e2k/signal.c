@@ -222,7 +222,7 @@ static void target_setup_frame(int sig, struct target_sigaction *ka,
     env->wd.psize = 0;
     env->usd.size = env->sbr - frame_addr;
     env->usd.base = frame_addr;
-    helper_signal_frame(env, 2, E2K_SYSRET_ADDR_CTPR);
+    helper_signal_frame(env, 2, E2K_SIGRET_ADDR);
 
     env->ip = ka->_sa_handler;
     env->regs[0] = sig;
@@ -231,9 +231,9 @@ static void target_setup_frame(int sig, struct target_sigaction *ka,
 
     if (info && (ka->sa_flags & TARGET_SA_SIGINFO)) {
         tswap_siginfo(&frame->info, info);
-        env->regs[1] = (uint64_t) &frame->info;
+        env->regs[1] = frame_addr + offsetof(struct target_sigframe, info);
         env->tags[1] = E2K_TAG_NUMBER64;
-        env->regs[2] = (uint64_t) &frame->uc;
+        env->regs[2] = frame_addr + offsetof(struct target_sigframe, uc);
         env->tags[2] = E2K_TAG_NUMBER64;
     }
 
