@@ -715,11 +715,7 @@ static inline void gen_ct_cond(DisasContext *ctx)
             }
         } else {
             /* %MLOCK */
-            if (ctx->mlock) {
-                tcg_gen_mov_i32(e2k_cs.ct_cond, ctx->mlock);
-            } else {
-                tcg_gen_movi_i32(e2k_cs.ct_cond, 0);
-            }
+            tcg_gen_mov_i32(e2k_cs.ct_cond, ctx->mlock);
         }
         break;
     case 0x9: {
@@ -963,6 +959,16 @@ static inline void do_checks(DisasContext *ctx)
     }
 }
 
+static void gen_mlock_init(DisasContext *ctx)
+{
+    ControlTransfer *ct = &ctx->ct;
+
+    if (ct->type != CT_NONE && ct->cond_type == 0x8) {
+        ctx->mlock = e2k_get_temp_i32(ctx);
+        tcg_gen_movi_i32(ctx->mlock, 0);
+    }
+}
+
 /*
  * Executes instructions from a bundle and store the results to
  * temporary buffer.
@@ -970,8 +976,10 @@ static inline void do_checks(DisasContext *ctx)
 static inline void do_execute(DisasContext *ctx)
 {
     ctx->loop_mode = (ctx->bundle.hs & (1 << 10)) != 0;
+
     gen_cs0(ctx);
     gen_cs1(ctx);
+    gen_mlock_init(ctx);
     e2k_alc_execute(ctx);
     gen_ct_cond(ctx);
     e2k_aau_execute(ctx);
@@ -1115,6 +1123,7 @@ static void e2k_tr_insn_start(DisasContextBase *db, CPUState *cs)
     ctx->max_r_dst = -1;
     ctx->max_b_cur = -1;
 
+    ctx->mlock = NULL;
     ctx->do_check_illtag = false;
     ctx->illtag = e2k_get_temp_i32(ctx);
     tcg_gen_movi_i32(ctx->illtag, 0);
@@ -1173,8 +1182,6 @@ static void e2k_tr_translate_insn(DisasContextBase *db, CPUState *cs)
         do_checks(ctx);
         do_commit(ctx);
         do_branch(ctx, pc_next);
-
-        ctx->mlock = NULL;
         break;
     }
     }

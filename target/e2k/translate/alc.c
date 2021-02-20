@@ -1735,9 +1735,8 @@ static inline bool gen_ld_mas_mod(DisasContext *ctx, Instr *instr, uint8_t mod)
     case 3:
         if (is_chan_25(instr->chan)) {
             // TODO: DAM
-            if (ctx->mlock == NULL) {
-                ctx->mlock = e2k_get_temp_i32(ctx);
-                /* always go to fixing code */
+            /* always go to fixing code */
+            if (ctx->mlock) {
                 tcg_gen_movi_i32(ctx->mlock, 1);
             }
             return true;
