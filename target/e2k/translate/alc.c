@@ -1349,35 +1349,46 @@ static inline void gen_udivs(TCGv_i32 ret, TCGv_i32 ret_tag, TCGv_i32 tag,
     gen_set_label(l0);
 }
 
-static inline void gen_sdivd(TCGv_i64 ret, TCGv_i32 ret_tag, TCGv_i32 tag,
-    TCGv_i64 src1, TCGv_i64 src2)
-{
-    TCGLabel *l0 = gen_new_label();
-    TCGLabel *l1 = gen_new_label();
-    tcg_gen_brcondi_i64(TCG_COND_NE, src2, 0, l1);
-    tcg_gen_movi_i32(ret_tag, 5);
-    tcg_gen_movi_i64(ret, 0);
-    tcg_gen_br(l0);
-    gen_set_label(l1);
-    tcg_gen_mov_i32(ret_tag, tag);
-    tcg_gen_div_i64(ret, src1, src2);
-    gen_set_label(l0);
-}
+#define IMPL_GEN_SDIV(name, S, T, bad_tag) \
+    static inline void name(T ret, TCGv_i32 ret_tag, \
+        TCGv_i32 tag, T src1, T src2) \
+    { \
+        TCGLabel *l0 = gen_new_label(); \
+        TCGLabel *l1 = gen_new_label(); \
+        T t0 = glue(tcg_temp_new_i, S)(); \
+        T t1 = glue(tcg_temp_new_i, S)(); \
+        T t2 = glue(tcg_temp_new_i, S)(); \
+        T t3 = glue(tcg_temp_new_i, S)(); \
+        T t4 = glue(tcg_temp_new_i, S)(); \
+        \
+        glue(tcg_gen_brcondi_i, S)(TCG_COND_NE, src2, 0, l1); \
+        /* src2 is zero */ \
+        tcg_gen_movi_i32(ret_tag, bad_tag); \
+        glue(tcg_gen_movi_i, S)(ret, 0); \
+        tcg_gen_br(l0); \
+        \
+        /* src2 is not zero */ \
+        gen_set_label(l1); \
+        glue(tcg_gen_setcondi_i, S)(TCG_COND_EQ, t0, src1, 1ULL << (S - 1)); \
+        glue(tcg_gen_setcondi_i, S)(TCG_COND_EQ, t1, src2, -1); \
+        glue(tcg_gen_and_i, S)(t2, t0, t1); \
+        glue(tcg_gen_movi_i, S)(t3, 0); \
+        glue(tcg_gen_movcond_i, S)(TCG_COND_NE, t4, t2, t3, t2, src2); \
+        \
+        tcg_gen_mov_i32(ret_tag, tag); \
+        glue(tcg_gen_div_i, S)(ret, src1, t4); \
+        \
+        gen_set_label(l0); \
+        \
+        glue(tcg_temp_free_i, S)(t4); \
+        glue(tcg_temp_free_i, S)(t3); \
+        glue(tcg_temp_free_i, S)(t2); \
+        glue(tcg_temp_free_i, S)(t1); \
+        glue(tcg_temp_free_i, S)(t0); \
+    }
 
-static inline void gen_sdivs(TCGv_i32 ret, TCGv_i32 ret_tag, TCGv_i32 tag,
-    TCGv_i32 src1, TCGv_i32 src2)
-{
-    TCGLabel *l0 = gen_new_label();
-    TCGLabel *l1 = gen_new_label();
-    tcg_gen_brcondi_i32(TCG_COND_NE, src2, 0, l1);
-    tcg_gen_movi_i32(ret_tag, 5);
-    tcg_gen_movi_i32(ret, 0);
-    tcg_gen_br(l0);
-    gen_set_label(l1);
-    tcg_gen_mov_i32(ret_tag, tag);
-    tcg_gen_div_i32(ret, src1, src2);
-    gen_set_label(l0);
-}
+IMPL_GEN_SDIV(gen_sdivd, 64, TCGv_i64, E2K_TAG_NON_NUMBER64)
+IMPL_GEN_SDIV(gen_sdivs, 32, TCGv_i32, E2K_TAG_NON_NUMBER32)
 
 static inline void gen_gettag_i64(Instr *instr)
 {
