@@ -50,6 +50,7 @@ typedef struct CPUE2KStateTCG {
     TCGv_i64 pregs;
     TCGv_i32 psize; /* holds psz */
     TCGv_i32 pcur; /* holds pcur */
+    TCGv_i64 last_value;
     /* lsr */
     TCGv_i32 lsr_lcnt;
     TCGv_i32 lsr_ecnt;
