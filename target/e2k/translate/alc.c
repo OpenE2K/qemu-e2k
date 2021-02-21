@@ -1780,7 +1780,8 @@ static MemOp gen_mas(Instr *instr, MemOp memop)
         // TODO: special mas
         switch (opc) {
         case 0:
-            // TODO: flush cache
+            /* handled in a gen_ld_mas */
+            // TODO: only chan 0?
             return memop | MO_LE;
         case 3:
             if (!instr->sm && is_chan_25(instr->chan)) {
@@ -1804,7 +1805,8 @@ static MemOp gen_mas(Instr *instr, MemOp memop)
             } else {
                 switch (mod) {
                 case 2:
-                    // TODO: DAM
+                    /* handled in a gen_st */
+                    // TODO: only chan 2?
                     break;
                 default:
                     e2k_todo(ctx, "opc %#x, chan %d, mas=%#x, mod=%#x", instr->opc1,
@@ -1885,6 +1887,10 @@ IMPL_GEN_LD(gen_ld_i64, 64, tcg_gen_trunc_i64_tl)
             tcg_gen_movi_i64(dst, E2K_LD_RESULT_INVALID); \
         } else { \
             load(instr, dst, tag, memop); \
+            if (instr->chan == 0 && instr->mas == 7) { \
+                /* TODO: gen illop if called twice before st/mod=2 */ \
+                tcg_gen_mov_i64(e2k_cs.last_value, dst); \
+            } \
         } \
         \
         gen_al_result_i64(instr, dst, tag); \
@@ -1897,6 +1903,36 @@ IMPL_GEN_LD_MAS(gen_ld_mas_i64, gen_ld_i64)
 IMPL_GEN_LD(gen_ld_i32, 32, tcg_gen_extu_i32_tl)
 IMPL_GEN_LD_MAS(gen_ld_mas_i32, gen_ld_i32)
 #endif
+
+static void gen_atomic_cmpxchg_i64(Instr *instr, TCGv_i64 value, TCGv addr,
+    MemOp memop)
+{
+    TCGv_i64 t0 = tcg_temp_new_i64();
+    TCGv_i64 t1 = tcg_temp_new_i64();
+
+    tcg_gen_atomic_cmpxchg_i64(t0, addr, e2k_cs.last_value, value,
+        instr->ctx->mmuidx, memop);
+    tcg_gen_setcond_i64(TCG_COND_NE, t1, t0, e2k_cs.last_value);
+    tcg_gen_extrl_i64_i32(instr->ctx->mlock, t1);
+
+    tcg_temp_free_i64(t1);
+    tcg_temp_free_i64(t0);
+}
+
+static void gen_atomic_cmpxchg_i32(Instr *instr, TCGv_i32 value, TCGv addr,
+    MemOp memop)
+{
+    TCGv_i32 t0 = tcg_temp_new_i32();
+    TCGv_i32 t1 = tcg_temp_new_i32();
+
+    tcg_gen_extrl_i64_i32(t0, e2k_cs.last_value);
+    tcg_gen_atomic_cmpxchg_i32(t1, addr, t0, value,
+        instr->ctx->mmuidx, memop);
+    tcg_gen_setcond_i32(TCG_COND_NE, instr->ctx->mlock, t1, t0);
+
+    tcg_temp_free_i32(t1);
+    tcg_temp_free_i32(t0);
+}
 
 #define IMPL_ST(NAME, S, N, cast) \
     static void NAME(Instr *instr, MemOp memop) \
@@ -1925,7 +1961,15 @@ IMPL_GEN_LD_MAS(gen_ld_mas_i32, gen_ld_i32)
                 tcg_temp_free_i32(t2); \
             } \
             \
-            glue(tcg_gen_qemu_st_i, S)(s4.value, t1, instr->ctx->mmuidx, memop); \
+            if (instr->ctx->mlock && instr->chan == 2 \
+                && (instr->mas & 7) == 2) \
+            { \
+                /* FIXME: Does an any write before the st/mod=2 leads to a branch? */ \
+                glue(gen_atomic_cmpxchg_i, S)(instr, s4.value, t1, memop); \
+            } else { \
+                glue(tcg_gen_qemu_st_i, S)(s4.value, t1, \
+                    instr->ctx->mmuidx, memop); \
+            } \
             gen_set_label(l0); \
             \
             tcg_temp_free(t1); \
