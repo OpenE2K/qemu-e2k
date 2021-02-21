@@ -119,6 +119,17 @@ static inline Src80 temp_new_src80(void)
     return t;
 }
 
+static inline Src80 temp_local_new_src80(void)
+{
+    Src80 t = { 0 };
+
+    t.tag = tcg_temp_local_new_i32();
+    t.lo = tcg_temp_local_new_i64();
+    t.hi = tcg_temp_local_new_i32();
+
+    return t;
+}
+
 static inline void temp_free_src80(Src80 *t)
 {
     tcg_temp_free_i32(t->tag);
@@ -2809,7 +2820,7 @@ static void gen_alopf1_cmp_xx(Instr *instr)
 static void gen_alopf1_cmp_xd(Instr *instr)
 {
     Src64 s2 = get_src2_i64(instr);
-    Src80 t2 = temp_new_src80();
+    Src80 t2 = temp_local_new_src80();
 
     gen_fdtofx(&t2, s2.value);
     gen_alopf1_cmp_f80(instr, t2, s2.tag);
@@ -2820,7 +2831,7 @@ static void gen_alopf1_cmp_xd(Instr *instr)
 static void gen_alopf1_cmp_xs(Instr *instr)
 {
     Src32 s2 = get_src2_i32(instr);
-    Src80 t2 = temp_new_src80();
+    Src80 t2 = temp_local_new_src80();
 
     gen_fstofx(&t2, s2.value);
     gen_alopf1_cmp_f80(instr, t2, s2.tag);
