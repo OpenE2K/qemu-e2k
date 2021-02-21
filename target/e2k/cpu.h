@@ -737,6 +737,7 @@ typedef struct {
 
     /* internal use */
     uint32_t is_bp; /* breakpoint flag */
+    uint64_t last_value; /* ld mas=7 + st mas=2 */
 
     /* zeroing upper register half for 32-bit instructions */
     uint32_t wdbl;
