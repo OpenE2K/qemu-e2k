@@ -63,7 +63,7 @@ uint64_t helper_state_reg_read_i64(CPUE2KState *env, int idx)
         lsr = deposit64(lsr, LSR_STRMD_OFF, LSR_STRMD_LEN, env->lsr_strmd);
         return lsr;
     }
-    case 0x84: return env->pfpfr; /* %pfpfr */
+    case 0x84: return env->pfpfr.raw; /* %pfpfr */
     case 0x85: return env->fpcr.raw; /* %fpcr */
     case 0x86: return env->fpsr.raw; /* %fpsr */
     case 0x8a: return env->idr; /* %idr */
@@ -95,11 +95,12 @@ void helper_state_reg_write_i64(CPUE2KState *env, int idx, uint64_t val)
         env->lsr_strmd = extract64(val, LSR_STRMD_OFF, LSR_STRMD_LEN);
         break;
     case 0x84: /* %pfpfr */
-        env->pfpfr = val;
+        env->pfpfr.raw = val;
+        e2k_update_fp_status(env);
         break;
     case 0x85: /* %fpcr */
         env->fpcr.raw = val;
-        e2k_update_fp_status(env);
+        e2k_update_fx_status(env);
         break;
     case 0x86: env->fpsr.raw = val; break; /* %fpsr */
     default:
@@ -118,11 +119,12 @@ void helper_state_reg_write_i32(CPUE2KState *env, int idx, uint32_t val)
         env->lsr_lcnt = val;
         break;
     case 0x84: /* %pfpfr */
-        env->pfpfr = deposit64(env->pfpfr, 0, 32, val);
+        env->pfpfr.raw = val;
+        e2k_update_fp_status(env);
         break;
     case 0x85: /* %fpcr */
         env->fpcr.raw = val;
-        e2k_update_fp_status(env);
+        e2k_update_fx_status(env);
         break;
     case 0x86: env->fpsr.raw = val; break; /* %fpsr */
     default:

@@ -52,8 +52,11 @@ static void e2k_cpu_reset(DeviceState *dev)
     env->aau.incrs[0] = 1; /* always one */
     env->fpcr._one = 1; 
     env->fpcr.pc = FPCR_PC_XP;
-    
+    env->fpcr.em = FP_EM;
+    env->pfpfr.em = FP_EM;
+
     e2k_update_fp_status(env);
+    e2k_update_fx_status(env);
 
     // FIXME: testing
     env->idr = 0x3a207; /* mimic 8c */
