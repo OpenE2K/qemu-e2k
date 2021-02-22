@@ -226,21 +226,21 @@ void e2k_gen_reg_index_from_gregi(TCGv_i32 ret, int idx)
     tcg_gen_movi_i32(ret, E2K_NR_COUNT + idx);
 }
 
-static inline void gen_reg_ptr(TCGv_ptr ret, TCGv_i32 idx)
+static inline void gen_reg_lo_ptr(TCGv_ptr ret, TCGv_i32 idx)
 {
     TCGv_ptr t0 = tcg_temp_new_ptr();
 
     tcg_gen_addi_ptr(t0, cpu_env, offsetof(CPUE2KState, regs));
-    gen_ptr_from_index(ret, t0, idx, 8);
+    gen_ptr_from_index(ret, t0, idx, sizeof(E2KReg));
     tcg_temp_free_ptr(t0);
 }
 
-static inline void gen_xreg_ptr(TCGv_ptr ret, TCGv_i32 idx)
+static inline void gen_reg_hi_ptr(TCGv_ptr ret, TCGv_i32 idx)
 {
     TCGv_ptr t0 = tcg_temp_new_ptr();
 
-    tcg_gen_addi_ptr(t0, cpu_env, offsetof(CPUE2KState, xregs));
-    gen_ptr_from_index(ret, t0, idx, 8);
+    gen_reg_lo_ptr(t0, idx);
+    tcg_gen_addi_ptr(ret, t0, offsetof(E2KReg, hi));
     tcg_temp_free_ptr(t0);
 }
 
@@ -253,6 +253,12 @@ static inline void gen_xreg_ptr(TCGv_ptr ret, TCGv_i32 idx)
         tcg_temp_free_ptr(t0); \
     }
 
+GEN_REG_READ(e2k_gen_reg_lo_read_i64, TCGv_i64, gen_reg_lo_ptr, tcg_gen_ld_i64)
+GEN_REG_READ(e2k_gen_reg_lo_read_i32, TCGv_i32, gen_reg_lo_ptr, tcg_gen_ld_i32)
+GEN_REG_READ(e2k_gen_reg_hi_read_i64, TCGv_i64, gen_reg_hi_ptr, tcg_gen_ld_i64)
+GEN_REG_READ(e2k_gen_reg_hi_read_i32, TCGv_i32, gen_reg_hi_ptr, tcg_gen_ld_i32)
+GEN_REG_READ(e2k_gen_reg_hi_read16u_i32, TCGv_i32, gen_reg_hi_ptr, tcg_gen_ld16u_i32)
+
 #define GEN_REG_WRITE(name, ty, ptr_func, st_func) \
     void name(ty value, TCGv_i32 idx) \
     { \
@@ -262,14 +268,8 @@ static inline void gen_xreg_ptr(TCGv_ptr ret, TCGv_i32 idx)
         tcg_temp_free_ptr(t0); \
     }
 
-GEN_REG_READ(e2k_gen_reg_read_i64, TCGv_i64, gen_reg_ptr, tcg_gen_ld_i64)
-GEN_REG_READ(e2k_gen_reg_read_i32, TCGv_i32, gen_reg_ptr, tcg_gen_ld_i32)
-GEN_REG_WRITE(e2k_gen_reg_write_i64, TCGv_i64, gen_reg_ptr, tcg_gen_st_i64)
-GEN_REG_WRITE(e2k_gen_reg_write_i32, TCGv_i32, gen_reg_ptr, tcg_gen_st_i32)
-
-GEN_REG_READ(e2k_gen_xreg_read_i64, TCGv_i64, gen_xreg_ptr, tcg_gen_ld_i64)
-GEN_REG_READ(e2k_gen_xreg_read_i32, TCGv_i32, gen_xreg_ptr, tcg_gen_ld_i32)
-GEN_REG_READ(e2k_gen_xreg_read16u_i32, TCGv_i32, gen_xreg_ptr, tcg_gen_ld16u_i32)
-GEN_REG_WRITE(e2k_gen_xreg_write_i64, TCGv_i64, gen_xreg_ptr, tcg_gen_st_i64)
-GEN_REG_WRITE(e2k_gen_xreg_write_i32, TCGv_i32, gen_xreg_ptr, tcg_gen_st_i32)
-GEN_REG_WRITE(e2k_gen_xreg_write16u_i32, TCGv_i32, gen_xreg_ptr, tcg_gen_st16_i32)
+GEN_REG_WRITE(e2k_gen_reg_lo_write_i64, TCGv_i64, gen_reg_lo_ptr, tcg_gen_st_i64)
+GEN_REG_WRITE(e2k_gen_reg_lo_write_i32, TCGv_i32, gen_reg_lo_ptr, tcg_gen_st_i32)
+GEN_REG_WRITE(e2k_gen_reg_hi_write_i64, TCGv_i64, gen_reg_hi_ptr, tcg_gen_st_i64)
+GEN_REG_WRITE(e2k_gen_reg_hi_write_i32, TCGv_i32, gen_reg_hi_ptr, tcg_gen_st_i32)
+GEN_REG_WRITE(e2k_gen_reg_hi_write16u_i32, TCGv_i32, gen_reg_hi_ptr, tcg_gen_st16_i32)

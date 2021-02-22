@@ -552,17 +552,17 @@ static inline void e2k_gen_reg_index(DisasContext *ctx, TCGv_i32 ret, uint8_t ar
     }
 }
 
-void e2k_gen_reg_read_i64(TCGv_i64 ret, TCGv_i32 idx);
-void e2k_gen_reg_read_i32(TCGv_i32 ret, TCGv_i32 idx);
-void e2k_gen_reg_write_i64(TCGv_i64 value, TCGv_i32 idx);
-void e2k_gen_reg_write_i32(TCGv_i32 value, TCGv_i32 idx);
+void e2k_gen_reg_lo_read_i64(TCGv_i64 ret, TCGv_i32 idx);
+void e2k_gen_reg_lo_read_i32(TCGv_i32 ret, TCGv_i32 idx);
+void e2k_gen_reg_lo_write_i64(TCGv_i64 value, TCGv_i32 idx);
+void e2k_gen_reg_lo_write_i32(TCGv_i32 value, TCGv_i32 idx);
 
-void e2k_gen_xreg_read_i64(TCGv_i64 ret, TCGv_i32 idx);
-void e2k_gen_xreg_read_i32(TCGv_i32 ret, TCGv_i32 idx);
-void e2k_gen_xreg_read16u_i32(TCGv_i32 ret, TCGv_i32 idx);
-void e2k_gen_xreg_write_i64(TCGv_i64 value, TCGv_i32 idx);
-void e2k_gen_xreg_write_i32(TCGv_i32 value, TCGv_i32 idx);
-void e2k_gen_xreg_write16u_i32(TCGv_i32 value, TCGv_i32 idx);
+void e2k_gen_reg_hi_read_i64(TCGv_i64 ret, TCGv_i32 idx);
+void e2k_gen_reg_hi_read_i32(TCGv_i32 ret, TCGv_i32 idx);
+void e2k_gen_reg_hi_read16u_i32(TCGv_i32 ret, TCGv_i32 idx);
+void e2k_gen_reg_hi_write_i64(TCGv_i64 value, TCGv_i32 idx);
+void e2k_gen_reg_hi_write_i32(TCGv_i32 value, TCGv_i32 idx);
+void e2k_gen_reg_hi_write16u_i32(TCGv_i32 value, TCGv_i32 idx);
 
 void e2k_gen_preg_i32(TCGv_i32 ret, int reg);
 void e2k_gen_cond_i32(DisasContext *ctx, TCGv_i32 ret, uint8_t psrc);
