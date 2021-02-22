@@ -71,11 +71,13 @@ void cpu_loop(CPUE2KState *env)
         switch (trapnr) {
         case EXCP_SYSCALL: {
             abi_ullong args[E2K_SYSCALL_MAX_ARGS] = { 0 };
-            int psize = MIN(E2K_SYSCALL_MAX_ARGS, env->wd.size);
+            int i, psize = MIN(E2K_SYSCALL_MAX_ARGS, env->wd.size);
             abi_ulong ret;
 
             // TODO: check what happens if env->wd.size is zero
-            memcpy(args, env->regs, psize * sizeof(args[0]));
+            for (i = 0; i < psize; i++) {
+                args[i] = env->regs[i].lo;
+            }
 
             ret = do_syscall(env, args[0], args[1], args[2], args[3],
                 args[4], args[5], args[6], args[7], args[8]);
@@ -86,7 +88,7 @@ void cpu_loop(CPUE2KState *env)
                 memset(env->tags, E2K_TAG_NON_NUMBER64,
                     psize * sizeof(env->tags[0]));
 
-                env->regs[0] = ret;
+                env->regs[0].lo = ret;
                 env->tags[0] = E2K_TAG_NUMBER64;
                 env->ip = E2K_SYSRET_ADDR;
             }

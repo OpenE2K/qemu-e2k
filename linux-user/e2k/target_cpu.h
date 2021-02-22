@@ -61,7 +61,7 @@ static inline void cpu_clone_regs_child(CPUE2KState *env, target_ulong newsp,
         env->ip = E2K_SYSRET_ADDR;
         env->pcsp = pcs;
         env->psp = ps;
-        env->regs[0] = 0;
+        env->regs[0].lo = 0;
         env->tags[0] = 0;
     }
 }
@@ -72,12 +72,12 @@ static inline void cpu_clone_regs_parent(CPUE2KState *env, unsigned flags)
 
 static inline void cpu_set_tls(CPUE2KState *env, target_ulong newtls)
 {
-    env->regs[E2K_TLS_REG] = newtls;
+    env->regs[E2K_TLS_REG].lo = newtls;
 }
 
 static inline target_ulong cpu_get_tls(CPUE2KState *env)
 {
-    return env->regs[E2K_TLS_REG];
+    return env->regs[E2K_TLS_REG].lo;
 }
 
 static inline abi_ulong get_sp_from_cpustate(CPUE2KState *env)

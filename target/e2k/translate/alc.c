@@ -157,8 +157,8 @@ static inline void gen_reg_i80(DisasContext *ctx, Src80 *ret, uint8_t arg)
     ret->lo = e2k_get_temp_i64(ctx);
     ret->hi = e2k_get_temp_i32(ctx);
     e2k_gen_reg_tag_read_i64(ret->tag, t0);
-    e2k_gen_reg_read_i64(ret->lo, t0);
-    e2k_gen_xreg_read16u_i32(ret->hi, t0);
+    e2k_gen_reg_lo_read_i64(ret->lo, t0);
+    e2k_gen_reg_hi_read16u_i32(ret->hi, t0);
     tcg_temp_free_i32(t0);
 }
 
@@ -170,7 +170,7 @@ static inline void gen_reg_i64(DisasContext *ctx, Src64 *ret, uint8_t arg)
     ret->tag = e2k_get_temp_i32(ctx);
     ret->value = e2k_get_temp_i64(ctx);
     e2k_gen_reg_tag_read_i64(ret->tag, t0);
-    e2k_gen_reg_read_i64(ret->value, t0);
+    e2k_gen_reg_lo_read_i64(ret->value, t0);
 
     tcg_temp_free_i32(t0);
 }
@@ -183,7 +183,7 @@ static inline void gen_reg_i32(DisasContext *ctx, Src32 *ret, uint8_t arg)
     ret->tag = e2k_get_temp_i32(ctx);
     ret->value = e2k_get_temp_i32(ctx);
     e2k_gen_reg_tag_read_i32(ret->tag, t0);
-    e2k_gen_reg_read_i32(ret->value, t0);
+    e2k_gen_reg_lo_read_i32(ret->value, t0);
 
     tcg_temp_free_i32(t0);
 }
@@ -4769,7 +4769,7 @@ static inline void gen_al_result_commit_reg32(bool poison, TCGv_i32 index,
     } else {
         tcg_gen_mov_i32(t0, value);
     }
-    e2k_gen_reg_write_i32(t0, index);
+    e2k_gen_reg_lo_write_i32(t0, index);
 
     tcg_temp_free_i32(t0);
 }
@@ -4785,7 +4785,7 @@ static inline void gen_al_result_commit_reg64(bool poison, TCGv_i32 index,
     } else {
         tcg_gen_mov_i64(t0, value);
     }
-    e2k_gen_reg_write_i64(t0, index);
+    e2k_gen_reg_lo_write_i64(t0, index);
 
     tcg_temp_free_i64(t0);
 }
@@ -4837,12 +4837,12 @@ static inline void gen_al_result_commit_reg(AlResult *res)
     case AL_RESULT_80:
         gen_al_result_commit_reg64(res->poison, res->reg.index, res->reg.tag,
             res->reg.v64);
-        e2k_gen_xreg_write16u_i32(res->reg.x32, res->reg.index);
+        e2k_gen_reg_hi_write16u_i32(res->reg.x32, res->reg.index);
         break;
     case AL_RESULT_128:
         gen_al_result_commit_reg64(res->poison, res->reg.index, res->reg.tag,
             res->reg.v64);
-        e2k_gen_xreg_write_i64(res->reg.x64, res->reg.index);
+        e2k_gen_reg_hi_write_i64(res->reg.x64, res->reg.index);
         break;
     default:
         g_assert_not_reached();

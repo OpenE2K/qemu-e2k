@@ -694,18 +694,24 @@ typedef union {
     int16_t i16v[8];
     int32_t i32v[4];
     int64_t i64v[2];
+    struct {
+        uint64_t lo;
+        uint64_t hi;
+    };
 } E2KReg;
 
 typedef struct {
     /* register file */
     uint8_t tags[E2K_REG_COUNT]; /* registers tags */
-    uint64_t regs[E2K_REG_COUNT]; /* low parts of registers */
-    uint64_t xregs[E2K_REG_COUNT]; /* high parts of registers */
+    E2KReg regs[E2K_REG_COUNT]; /* low parts of registers */
     uint64_t pregs; /* predicate file */
     target_ulong ip; /* instruction address */
 
     /* temporaries for FX/SIMD ops */
     E2KReg t0, t1, t2, t3;
+
+    E2KReg tmp[3];
+    E2KReg al_result[6];
 
     /* DAM */
     E2KDamEntry dam[32];

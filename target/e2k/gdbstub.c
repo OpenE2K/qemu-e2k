@@ -47,7 +47,7 @@ int e2k_cpu_gdb_read_register(CPUState *cs, GByteArray *mem_buf, int n)
     }
 
     if (3 <= n && n < 35) {
-        return gdb_get_reg64(mem_buf, env->regs[E2K_NR_COUNT + n - 3]);
+        return gdb_get_reg64(mem_buf, env->regs[E2K_NR_COUNT + n - 3].lo);
     }
     
     switch (n) {

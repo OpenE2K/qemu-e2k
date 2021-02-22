@@ -216,7 +216,7 @@ static void target_setup_frame(int sig, struct target_sigaction *ka,
     }
 
     /* fake kernel frame */
-    env->regs[0] = frame_addr;
+    env->regs[0].lo = frame_addr;
     env->tags[0] = E2K_TAG_NUMBER64;
     env->wd.size = 2;
     env->wd.psize = 0;
@@ -225,15 +225,15 @@ static void target_setup_frame(int sig, struct target_sigaction *ka,
     helper_signal_frame(env, 2, E2K_SIGRET_ADDR);
 
     env->ip = ka->_sa_handler;
-    env->regs[0] = sig;
+    env->regs[0].lo = sig;
     env->tags[0] = E2K_TAG_NUMBER64;
     env->wd.size = 8;
 
     if (info && (ka->sa_flags & TARGET_SA_SIGINFO)) {
         tswap_siginfo(&frame->info, info);
-        env->regs[1] = frame_addr + offsetof(struct target_sigframe, info);
+        env->regs[1].lo = frame_addr + offsetof(struct target_sigframe, info);
         env->tags[1] = E2K_TAG_NUMBER64;
-        env->regs[2] = frame_addr + offsetof(struct target_sigframe, uc);
+        env->regs[2].lo = frame_addr + offsetof(struct target_sigframe, uc);
         env->tags[2] = E2K_TAG_NUMBER64;
     }
 
@@ -292,7 +292,7 @@ long do_rt_sigreturn(CPUE2KState *env)
 
     /* restore fake kernel frame */
     helper_signal_return(env);
-    frame_addr = env->regs[0];
+    frame_addr = env->regs[0].lo;
 
     trace_user_do_rt_sigreturn(env, frame_addr);
     if (!lock_user_struct(VERIFY_READ, frame, frame_addr, 1)) {

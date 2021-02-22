@@ -164,7 +164,7 @@ void e2k_cpu_dump_state(CPUState *cs, FILE *f, int flags)
         char name = i < E2K_NR_COUNT ? 'r' : 'g';
         int tag = env->tags[i];
         qemu_fprintf(f, "%%%c%d\t<%d%d> 0x%lx\n", name, i, tag >> 2, tag & 3,
-            env->regs[i]);
+            env->regs[i].lo);
     }
 
     for (i = 0; i < 32; i++) {

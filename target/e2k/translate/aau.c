@@ -174,7 +174,7 @@ void e2k_aau_commit(DisasContext *ctx)
         // TODO: aau.tags
         if (res->is_set) {
             e2k_gen_reg_tag_write_i64(res->tag, res->index);
-            e2k_gen_reg_write_i64(res->value, res->index);
+            e2k_gen_reg_lo_write_i64(res->value, res->index);
         }
     }
 
