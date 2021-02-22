@@ -1,6 +1,7 @@
 #include "qemu/osdep.h"
 #include "qemu/log.h"
 #include "cpu.h"
+#include "helper-tcg.h"
 #include "exec/exec-all.h"
 #include "qemu/host-utils.h"
 #include "exec/helper-proto.h"
@@ -37,7 +38,6 @@ typedef union {
     int64_t sd[vec64_ud];
 } vec64;
 
-#define ident(x) x
 #define shr16(x) ((x) >> 16)
 #define shr14_add1_shr1(x) ((((x) >> 14) + 1) >> 1)
 #define and16(x) ((x) & 0xffff)
