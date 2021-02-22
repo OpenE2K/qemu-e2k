@@ -44,11 +44,11 @@ static void ps_spill(CPUE2KState *env, int n, bool fx)
 {
     int i;
     for (i = 0; i < n; i += 2) {
-        ps_push(env, env->regs[i], env->tags[i]);
-        ps_push(env, env->regs[i + 1], env->tags[i + 1]);
+        ps_push(env, env->regs[i + 0].lo, env->tags[i]);
+        ps_push(env, env->regs[i + 1].lo, env->tags[i + 1]);
         if (fx || E2K_FORCE_FX) {
-            ps_push(env, env->xregs[i + 0], 0);
-            ps_push(env, env->xregs[i + 1], 0);
+            ps_push(env, env->regs[i + 0].hi, 0);
+            ps_push(env, env->regs[i + 1].hi, 0);
         }
     }
 }
@@ -58,11 +58,11 @@ static void ps_fill(CPUE2KState *env, int n, bool fx)
     int i;
     for (i = n; i > 0; i -= 2) {
         if (fx || E2K_FORCE_FX) {
-            env->xregs[i - 1] = ps_pop(env, NULL);
-            env->xregs[i - 2] = ps_pop(env, NULL);
+            env->regs[i - 1].hi = ps_pop(env, NULL);
+            env->regs[i - 2].hi = ps_pop(env, NULL);
         }
-        env->regs[i - 1] = ps_pop(env, &env->tags[i - 1]);
-        env->regs[i - 2] = ps_pop(env, &env->tags[i - 2]);
+        env->regs[i - 1].lo = ps_pop(env, &env->tags[i - 1]);
+        env->regs[i - 2].lo = ps_pop(env, &env->tags[i - 2]);
     }
 }
 
@@ -70,7 +70,6 @@ static void move_regs(CPUE2KState *env, int dst, int src, int n)
 {
     memmove(&env->regs[dst], &env->regs[src], n * sizeof(env->regs[0]));
     memmove(&env->tags[dst], &env->tags[src], n * sizeof(env->tags[0]));
-    memmove(&env->xregs[dst], &env->xregs[src], n * sizeof(env->xregs[0]));
 }
 
 static void callee_window(CPUE2KState *env, int base, int size, bool fx)
@@ -241,7 +240,7 @@ void HELPER(return)(CPUE2KState *env)
     if (opc == CTPR_OPC_SIGRET) {
         CPUState *cs = env_cpu(env);
         env->wd.psize = 2;
-        env->regs[0] = 119; /* TARGET_NR_sigreturn */
+        env->regs[0].lo = 119; /* TARGET_NR_sigreturn */
         env->tags[0] = E2K_TAG_NUMBER64;
         cs->exception_index = EXCP_SYSCALL;
         cpu_loop_exit(cs);
@@ -297,7 +296,6 @@ void HELPER(setwd)(CPUE2KState *env, int wsz, int nfx, int dbl)
 // FIXME: zeroing registers is not needed, but useful for debugging
 #if 1
         memset(&env->regs[env->wd.size], 0, diff * sizeof(env->regs[0]));
-        memset(&env->xregs[env->wd.size], 0, diff * sizeof(env->xregs[0]));
 #endif
         memset(&env->tags[env->wd.size], E2K_TAG_NON_NUMBER64, diff);
     }
