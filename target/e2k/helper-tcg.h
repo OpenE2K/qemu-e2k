@@ -29,6 +29,11 @@
 #include "cpu.h"
 #include "exec/exec-all.h"
 
+#define glue3(x, y, z) glue(glue(x, y), z)
+#define glue4(x, y, z, w) glue(glue3(x, y, z), w)
+#define deref(x) *(x)
+#define ident(x) (x)
+
 /* helper.c */
 void QEMU_NORETURN raise_exception(CPUE2KState *env, int exception_index);
 void QEMU_NORETURN raise_exception_ra(CPUE2KState *env, int exception_index,

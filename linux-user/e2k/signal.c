@@ -155,7 +155,7 @@ static abi_long setup_sigcontext(CPUE2KState *env,
 
     __put_user(env->fpcr.raw, &extra->fpcr);
     __put_user(env->fpsr.raw, &extra->fpsr);
-    __put_user(env->pfpfr, &extra->pfpfr);
+    __put_user(env->pfpfr.raw, &extra->pfpfr);
 
     __put_user(env->ctprs[0].raw, &extra->ctpr1);
     __put_user(env->ctprs[1].raw, &extra->ctpr2);
