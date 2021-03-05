@@ -5,9 +5,8 @@
 #include "exec/exec-all.h"
 #include "qemu/host-utils.h"
 #include "exec/helper-proto.h"
-#include "translate.h"
 
-uint64_t helper_sxt(uint64_t x, uint32_t y)
+uint64_t HELPER(sxt)(uint64_t x, uint32_t y)
 {
     int size;
 
@@ -36,7 +35,7 @@ static uint64_t cr_read(CPUE2KState *env, size_t offset)
     return cpu_ldq_le_data(env, addr);
 }
 
-uint64_t helper_state_reg_read_i64(CPUE2KState *env, int idx)
+uint64_t HELPER(rrd)(CPUE2KState *env, int idx)
 {
     switch (idx) {
     case 0x01: return e2k_state_wd(env); /* %wd */
@@ -75,12 +74,7 @@ uint64_t helper_state_reg_read_i64(CPUE2KState *env, int idx)
     }
 }
 
-uint32_t helper_state_reg_read_i32(CPUE2KState *env, int idx)
-{
-    return helper_state_reg_read_i64(env, idx);
-}
-
-void helper_state_reg_write_i64(CPUE2KState *env, int idx, uint64_t val)
+void HELPER(rwd)(CPUE2KState *env, int idx, uint64_t val)
 {
     switch(idx) {
     case 0x80: /* %upsr */
@@ -110,7 +104,7 @@ void helper_state_reg_write_i64(CPUE2KState *env, int idx, uint64_t val)
     }
 }
 
-void helper_state_reg_write_i32(CPUE2KState *env, int idx, uint32_t val)
+void HELPER(rws)(CPUE2KState *env, int idx, uint32_t val)
 {
     switch (idx) {
     case 0x80: /* %upsr */
@@ -134,7 +128,7 @@ void helper_state_reg_write_i32(CPUE2KState *env, int idx, uint32_t val)
     }
 }
 
-uint64_t helper_getsp(CPUE2KState *env, uint32_t src2)
+uint64_t HELPER(getsp)(CPUE2KState *env, uint32_t src2)
 {
     int32_t s2 = src2 & ~0xf;
 

@@ -75,276 +75,23 @@ void e2k_update_fp_status(CPUE2KState *env)
     set_float_rounding_mode(rm[env->pfpfr.rc], &env->fp_status);
 }
 
-#define GENERATE_SIMPLE_FLOAT2_OP(name, function, size) \
-    uint##size##_t HELPER(name)(CPUE2KState *env, uint##size##_t x, uint##size##_t y) \
-    { \
-        int old_flags = fp_save_exception_flags(env); \
-        float##size z = float##size##_##function (make_float##size (x), make_float##size (y), &env->fp_status); \
-        fp_merge_exception_flags(env, old_flags); \
-        return float##size##_val(z); \
-    }
-
-#define GENERATE_SIMPLE_FLOAT2_OPS_32_64(name, function) \
-    GENERATE_SIMPLE_FLOAT2_OP(glue(name, s), function, 32) \
-    GENERATE_SIMPLE_FLOAT2_OP(glue(name, d), function, 64)
-
-#define GENERATE_CMP_FLOAT2_OP(ret_type, name, expr, op, in_type, cvt_macro) \
-    ret_type HELPER(name)(CPUE2KState *env, in_type x, in_type y) \
-    { \
-        int old_flags = fp_save_exception_flags(env); \
-        ret_type z = expr op(cvt_macro(x), cvt_macro(y), &env->fp_status); \
-        fp_merge_exception_flags(env, old_flags); \
-        return z ? -1 : 0; \
-    }
-
-#define GENERATE_CMP_XFLOAT2_OP(ret_type, name, expr, op, in_type, cvt_macro) \
-    ret_type HELPER(name)(CPUE2KState *env, in_type x, in_type y) \
-    { \
-        int old_flags = fx_save_exception_flags(env); \
-        ret_type z = expr op(cvt_macro(x), cvt_macro(y), &env->fx_status); \
-        fx_merge_exception_flags(env, old_flags); \
-        return z ? -1 : 0; \
-    }
-
-#define GENERATE_CMP_FLOAT2_OPS_32_64_80(name, expr, op) \
-    GENERATE_CMP_FLOAT2_OP(uint32_t, glue3(f, name, s), expr, glue(float32_, op), uint32_t, make_float32) \
-    GENERATE_CMP_FLOAT2_OP(uint64_t, glue3(f, name, d), expr, glue(float64_, op), uint64_t, make_float32) \
-    GENERATE_CMP_XFLOAT2_OP(uint64_t, glue3(fx, name, x), expr, glue(floatx80_, op), floatx80*, deref)
-
-#define GENERATE_CVT_FLOAT1_OP(name, from_t, to_t, size_from, size_to, func_from, func_to) \
-    size_to HELPER(name)(CPUE2KState *env, size_from x) \
-    {\
-        int old_flags = fp_save_exception_flags(env); \
-        size_to z = func_to( glue3(from_t, _to_, to_t) (func_from(x), &env->fp_status) );\
-        fp_merge_exception_flags(env, old_flags); \
-        return z; \
-    }
-
-#define GENERATE_CVT_XFLOAT1_OP(name, from_t, to_t, size_from, size_to, func_from, func_to) \
-    size_to HELPER(name)(CPUE2KState *env, size_from x) \
-    {\
-        int old_flags = fx_save_exception_flags(env); \
-        size_to z = func_to( glue3(from_t, _to_, to_t) (func_from(x), &env->fx_status) );\
-        fx_merge_exception_flags(env, old_flags); \
-        return z; \
-    }
-
-GENERATE_SIMPLE_FLOAT2_OPS_32_64(fadd, add)
-GENERATE_SIMPLE_FLOAT2_OPS_32_64(fsub, sub)
-GENERATE_SIMPLE_FLOAT2_OPS_32_64(fmin, min)
-GENERATE_SIMPLE_FLOAT2_OPS_32_64(fmax, max)
-GENERATE_SIMPLE_FLOAT2_OPS_32_64(fmul, mul)
-GENERATE_SIMPLE_FLOAT2_OPS_32_64(fdiv, div)
-GENERATE_CMP_FLOAT2_OPS_32_64_80(cmpeq,   , eq)
-GENERATE_CMP_FLOAT2_OPS_32_64_80(cmpneq, !, eq)
-GENERATE_CMP_FLOAT2_OPS_32_64_80(cmple,   , le)
-GENERATE_CMP_FLOAT2_OPS_32_64_80(cmpnle, !, le)
-GENERATE_CMP_FLOAT2_OPS_32_64_80(cmplt,   , lt)
-GENERATE_CMP_FLOAT2_OPS_32_64_80(cmpnlt, !, lt)
-GENERATE_CMP_FLOAT2_OPS_32_64_80(cmpuod,  , unordered)
-GENERATE_CMP_FLOAT2_OPS_32_64_80(cmpod,  !, unordered)
-
-GENERATE_CVT_FLOAT1_OP(fstois,   float32, int32,   uint32_t, uint32_t, make_float32, ident)
-GENERATE_CVT_FLOAT1_OP(istofs,   int32,   float32, uint32_t, uint32_t, ident, float32_val)
-GENERATE_CVT_FLOAT1_OP(fstoistr, float32, int32_round_to_zero, uint32_t, uint32_t, make_float32, ident)
-
-GENERATE_CVT_FLOAT1_OP(fdtoid,   float64, int64,   uint64_t, uint64_t, make_float64, ident)
-GENERATE_CVT_FLOAT1_OP(idtofd,   int64,   float64, uint64_t, uint64_t, ident, float64_val)
-GENERATE_CVT_FLOAT1_OP(fdtoidtr, float64, int64_round_to_zero, uint64_t, uint64_t, make_float64, ident)
-
-GENERATE_CVT_FLOAT1_OP(fstofd,   float32, float64, uint32_t, uint64_t, make_float32, float64_val)
-GENERATE_CVT_FLOAT1_OP(fstoid,   float32, int64,   uint32_t, uint64_t, make_float32, ident)
-GENERATE_CVT_FLOAT1_OP(istofd,   int32,   float64, uint32_t, uint64_t, ident, float64_val)
-GENERATE_CVT_FLOAT1_OP(fstoidtr, float32, int64_round_to_zero, uint32_t, uint64_t, make_float32, ident)
-
-GENERATE_CVT_FLOAT1_OP(fdtofs,   float64, float32, uint64_t, uint32_t, make_float64, float32_val)
-GENERATE_CVT_FLOAT1_OP(fdtois,   float64, int32,   uint64_t, uint32_t, make_float64, ident)
-GENERATE_CVT_FLOAT1_OP(idtofs,   int64,   float32, uint64_t, uint32_t, ident, float32_val)
-GENERATE_CVT_FLOAT1_OP(fdtoistr, float64, int32_round_to_zero, uint64_t, uint32_t, make_float64, ident)
-
-GENERATE_CVT_XFLOAT1_OP(fxtofs,   floatx80, float32, floatx80*, uint32_t, deref, float32_val)
-GENERATE_CVT_XFLOAT1_OP(fxtois,   floatx80, int32, floatx80*, uint32_t, deref, ident)
-GENERATE_CVT_XFLOAT1_OP(fxtoistr, floatx80, int32_round_to_zero, floatx80*, uint32_t, deref, ident)
-
-GENERATE_CVT_XFLOAT1_OP(fxtofd,   floatx80, float64, floatx80*, uint64_t, deref, float64_val)
-GENERATE_CVT_XFLOAT1_OP(fxtoid,   floatx80, int64, floatx80*, uint64_t, deref, ident)
-GENERATE_CVT_XFLOAT1_OP(fxtoidtr, floatx80, int64_round_to_zero, floatx80*, uint64_t, deref, ident)
-
-void HELPER(fstofx)(floatx80 *ret, CPUE2KState *env, uint32_t x)
-{
-    int old_flags = fp_save_exception_flags(env);
-    *ret = float32_to_floatx80(make_float32(x), &env->fp_status);
-    fp_merge_exception_flags(env, old_flags);
-}
-
-void HELPER(fdtofx)(floatx80 *ret, CPUE2KState *env, uint64_t x)
-{
-    int old_flags = fp_save_exception_flags(env);
-    *ret = float64_to_floatx80(make_float64(x), &env->fp_status);
-    fp_merge_exception_flags(env, old_flags);
-}
-
-void HELPER(istofx)(floatx80 *ret, CPUE2KState *env, uint32_t x)
-{
-    int old_flags = fx_save_exception_flags(env);
-    *ret = int32_to_floatx80(x, &env->fx_status);
-    fx_merge_exception_flags(env, old_flags);
-}
-
-void HELPER(idtofx)(floatx80 *ret, CPUE2KState *env, uint64_t x)
-{
-    int old_flags = fx_save_exception_flags(env);
-    *ret = int64_to_floatx80(x, &env->fx_status);
-    fx_merge_exception_flags(env, old_flags);
-}
-
-#define GEN_OP2_XX(name, op) \
-    void HELPER(name)(CPUE2KState *env, floatx80 *x, floatx80 *y) \
-    { \
-        int old_flags = fx_save_exception_flags(env); \
-        *x = glue(floatx80_, op)(*x, *y, &env->fx_status); \
-        fx_merge_exception_flags(env, old_flags); \
-    }
-
-GEN_OP2_XX(fxaddxx, add)
-GEN_OP2_XX(fxsubxx, sub)
-GEN_OP2_XX(fxmulxx, mul)
-GEN_OP2_XX(fxdivxx, div)
-
-void HELPER(fxrsubxx)(CPUE2KState *env, floatx80 *x, floatx80 *y)
-{
-    int old_flags = fx_save_exception_flags(env);
-    *x = floatx80_sub(*y, *x, &env->fx_status);
-    fx_merge_exception_flags(env, old_flags);
-}
-
-#define GENERATE_FCMPODF(op, IN, F, cvt_macro, status, save_flags, merge_flags) \
-    uint32_t HELPER(op)(CPUE2KState *env, IN _x, IN _y) \
-    { \
-        int old_flags = save_flags(env); \
-        uint32_t ret; \
-        F x = cvt_macro(_x); \
-        F y = cvt_macro(_y); \
-        if (glue(F, _is_any_nan)(x) || glue(F, _is_any_nan)(y)) { \
-            ret = 0x45; \
-        } else { \
-            FloatRelation relation = glue(F, _compare_quiet)(x, y, status); \
-            switch(relation) \
-            { \
-            case float_relation_less: \
-                ret = 0x01; \
-                break; \
-            case float_relation_greater: \
-                ret = 0x00; \
-                break; \
-            case float_relation_equal: \
-                ret = 0x40; \
-                break; \
-            case float_relation_unordered: \
-            default: \
-                ret = 0x45; \
-                break; \
-            } \
-        } \
-        merge_flags(env, old_flags); \
-        return ret; \
-    }
-GENERATE_FCMPODF(fcmpodsf,  uint32_t, float32, make_float32, &env->fp_status,
-    fp_save_exception_flags, fp_merge_exception_flags)
-GENERATE_FCMPODF(fcmpoddf,  uint64_t, float64, make_float64, &env->fp_status,
-    fp_save_exception_flags, fp_merge_exception_flags)
-GENERATE_FCMPODF(fxcmpodxf, floatx80 *, floatx80, deref, &env->fx_status,
-    fx_save_exception_flags, fx_merge_exception_flags)
-
-/* didn't found any difference between these instruction
-   so keep it that way for now */
-uint32_t HELPER(fcmpudsf)(CPUE2KState *env, float32 x, float32 y)
-{
-    return HELPER(fcmpodsf)(env, x, y);
-}
-
-uint32_t HELPER(fcmpuddf)(CPUE2KState *env, float64 x, float64 y)
-{
-    return HELPER(fcmpoddf)(env, x, y);
-}
-
-uint32_t HELPER(fxcmpudxf)(CPUE2KState *env, floatx80 *x, floatx80 *y)
-{
-    return HELPER(fxcmpodxf)(env, x, y);
-}
-
 #define TOIF_RC_CURRENT        0x4
 #define TOIF_RC_IGNORE_INEXACT 0x8
 
-static inline void toif_set_round_mode(CPUE2KState *env, uint32_t flags,
-    float_status *s)
+static inline void toif_set_round_mode(uint32_t flags, float_status *s)
 {
     if ((flags & TOIF_RC_CURRENT) == 0) {
         set_float_rounding_mode(rm[flags & FP_RC_CHOP], s);
     }
 }
 
-static inline void toif_clear_inexact(CPUE2KState *env, uint32_t flags,
-    float_status *s)
+static inline void toif_clear_inexact(uint32_t flags, float_status *s)
 {
     if(flags & TOIF_RC_IGNORE_INEXACT) {
         int new_flags = get_float_exception_flags(s);
         new_flags = new_flags & (~float_flag_inexact);
         set_float_exception_flags(new_flags, s);
     }
-}
-
-uint32_t HELPER(fstoifs)(CPUE2KState *env, uint32_t flags, uint32_t f)
-{
-    int old_flags = fp_save_exception_flags(env);
-    FloatRoundMode oldrm = get_float_rounding_mode(&env->fp_status);
-    uint32_t ret;
-    toif_set_round_mode(env, flags, &env->fp_status);
-    ret = float32_val(float32_round_to_int(make_float32(f), &env->fp_status));
-    set_float_rounding_mode(oldrm, &env->fp_status);
-    toif_clear_inexact(env, flags, &env->fp_status);
-    fp_merge_exception_flags(env, old_flags);
-    return ret;
-}
-
-uint64_t HELPER(fdtoifd)(CPUE2KState *env, uint64_t flags, uint64_t f)
-{
-    int old_flags = fp_save_exception_flags(env);
-    FloatRoundMode oldrm = get_float_rounding_mode(&env->fp_status);
-    uint64_t ret;
-    toif_set_round_mode(env, flags, &env->fp_status);
-    ret = float64_val(float64_round_to_int(make_float64(f), &env->fp_status));
-    set_float_rounding_mode(oldrm, &env->fp_status);
-    toif_clear_inexact(env, flags, &env->fp_status);
-    fp_merge_exception_flags(env, old_flags);
-    return ret;
-}
-
-/* TODO: test if valid, test exception flags */
-uint32_t HELPER(frcps)(CPUE2KState *env, uint32_t x)
-{
-    int old_flags = fp_save_exception_flags(env);
-    uint32_t y = float32_div(float32_one, make_float32(x), &env->fp_status);
-    fp_merge_exception_flags(env, old_flags);
-    return float32_val(y);
-}
-
-uint32_t HELPER(fsqrts)(CPUE2KState *env, uint32_t x)
-{
-    int old_flags = fp_save_exception_flags(env);
-    uint32_t y = float32_sqrt(make_float32(x), &env->fp_status);
-    fp_merge_exception_flags(env, old_flags);
-    return float32_val(y);
-}
-
-uint32_t HELPER(frsqrts)(CPUE2KState *env, uint32_t x)
-{
-    int old_flags = fp_save_exception_flags(env);
-    uint32_t y = float32_div(float32_one,
-                             float32_sqrt(make_float32(x), &env->fp_status),
-                             &env->fp_status);
-    fp_merge_exception_flags(env, old_flags);
-    return float32_val(y);
 }
 
 #ifdef TARGET_E2K_PRECISE_FSQRTID
@@ -354,21 +101,6 @@ uint64 HELPER(fsqrtid)(CPUE2KState *env, uint64_t x)
     return x;
 }
 #endif
-
-uint64_t HELPER(fsqrttd)(CPUE2KState *env, uint64_t x, uint64_t unused)
-{
-    int old_flags = fp_save_exception_flags(env);
-    uint64_t y = float64_sqrt(make_float64(x), &env->fp_status);
-    fp_merge_exception_flags(env, old_flags);
-    return float64_val(y);
-}
-
-void HELPER(fxsqrttxx)(CPUE2KState *env, floatx80 *x, floatx80 *unused)
-{
-    int old_flags = fx_save_exception_flags(env);
-    *x = floatx80_sqrt(*x, &env->fx_status);
-    fx_merge_exception_flags(env, old_flags);
-}
 
 #define IMPL_FSCALE(name, ty, exp_len, exp_off, mul, cvt) \
     ty HELPER(name)(CPUE2KState *env, ty src1, uint32_t src2) \
@@ -398,26 +130,315 @@ void HELPER(fxsqrttxx)(CPUE2KState *env, floatx80 *x, floatx80 *unused)
 IMPL_FSCALE(fscaled, uint64_t, 11, 52, helper_fmuld, uint64_to_float64)
 IMPL_FSCALE(fscales, uint32_t, 8, 23, helper_fmuls, uint32_to_float32)
 
-void HELPER(fxscalesx)(CPUE2KState *env, floatx80 *src1, uint32_t src2)
+void HELPER(fxscalesx)(floatx80 *r, CPUE2KState *env, floatx80 *a, uint32_t b)
 {
-    floatx80 s2;
-    int32_t p = (int32_t) src2;
+    floatx80 v;
+    int32_t p = (int32_t) b;
     uint16_t max = (1 << 15) - 1;
     int16_t bias = max >> 1;
     if (p <= -bias) {
-        s2.high = 0;
+        v.high = 0;
         p += bias + 62;
         if (p >= 0 && p < 63) {
-            s2.low = 1ULL << p;
+            v.low = 1ULL << p;
         } else {
-            s2.low = p == -1;
+            v.low = p == -1;
         }
     } else if (p > bias) {
-        s2.low = 1UL << 63;
-        s2.high = max;
+        v.low = 1UL << 63;
+        v.high = max;
     } else {
-        s2.low = 1UL << 63;
-        s2.high = bias + p;
+        v.low = 1UL << 63;
+        v.high = bias + p;
     }
-    helper_fxmulxx(env, src1, &s2);
+    helper_fxmulxx(r, env, a, &v);
 }
+
+#define type_name_i32 int32
+#define type_name_i64 int64
+#define type_name_f32 float32
+#define type_name_f64 float64
+#define type_name_f80 floatx80
+#define type_name(S) glue(type_name_, S)
+
+#define arg_type_i32 uint32_t
+#define arg_type_i64 uint64_t
+#define arg_type_f32 uint32_t
+#define arg_type_f64 uint64_t
+#define arg_type_f80 floatx80 *
+#define arg_type(S) glue(arg_type_, S)
+
+#define ret_arg_i32
+#define ret_arg_i64
+#define ret_arg_f32
+#define ret_arg_f64
+#define ret_arg_f80 floatx80 *ret,
+#define ret_arg(S) glue(ret_arg_, S)
+
+#define ret_type_i32 uint32_t
+#define ret_type_i64 uint64_t
+#define ret_type_f32 uint32_t
+#define ret_type_f64 uint64_t
+#define ret_type_f80 void
+#define ret_type(S) glue(ret_type_, S)
+
+#define make_i32(v) (v)
+#define make_i64(v) (v)
+#define make_f32(v) make_float32(v)
+#define make_f64(v) make_float64(v)
+#define make_f80(v) (*(v))
+#define make(S, v) glue(make_, S)(v)
+
+#define type_i32 uint32_t
+#define type_i64 uint64_t
+#define type_f32 float32
+#define type_f64 float64
+#define type_f80 floatx80
+#define type(S) glue(type_, S)
+
+#define int32_to_int32(v, s) (v)
+#define int64_to_int64(v, s) (v)
+#define float32_to_float32(v, s) (v)
+#define float64_to_float64(v, s) (v)
+#define floatx80_to_floatx80(v, s) (v)
+#define convert(F, T, v, s) glue3(type_name(F), _to_, type_name(T))(v, s)
+
+#define ret_i32(v) return (v)
+#define ret_i64(v) return (v)
+#define ret_f32(v) return float32_val(v)
+#define ret_f64(v) return float64_val(v)
+#define ret_f80(v) *ret = v
+#define ret(S, v) glue(ret_, S)(v)
+
+#define fpu_mov(x, s) (x)
+#define ident(x) (x)
+#define not(x) (!(x))
+
+#define IMPL_ALOPF2_FPU_BASIC(FPU, name, S2, R, T2, TR, op) \
+    ret_type(R) HELPER(name)(ret_arg(R) CPUE2KState *env, arg_type(S2) s2) \
+    { \
+        int old_flags = glue(FPU, _save_exception_flags)(env); \
+        float_status *s = &env->glue(FPU, _status); \
+        type(T2) t2 = convert(S2, T2, make(S2, s2), s); \
+        type(TR) tr = op(t2, s); \
+        type(R) r = convert(TR, R, tr, s); \
+        glue(FPU, _merge_exception_flags)(env, old_flags); \
+        ret(R, r); \
+    }
+
+#define IMPL_ALOPF2_FPU(FPU, name, S2, R, op) \
+    IMPL_ALOPF2_FPU_BASIC(FPU, name, S2, R, S2, R, op)
+
+#define IMPL_ALOPF2_FP(name, S2, R, op) \
+    IMPL_ALOPF2_FPU_BASIC(fp, name, R, S2, R, S2, op)
+
+#define IMPL_ALOPF2_FPU_CVT(FPU, name, S2, R) \
+    IMPL_ALOPF2_FPU_BASIC(FPU, name, S2, R, R, R, fpu_mov)
+
+#define IMPL_ALOPF1_FPU(FPU, name, S1, S2, R, T1, T2, TR, op) \
+    ret_type(R) HELPER(name)(ret_arg(R) CPUE2KState *env, \
+        arg_type(S1) s1, arg_type(S2) s2) \
+    { \
+        int old_flags = glue(FPU, _save_exception_flags)(env); \
+        float_status *s = &env->glue(FPU, _status); \
+        type(T1) t1 = convert(S1, T1, make(S1, s1), s); \
+        type(T2) t2 = convert(S2, T2, make(S2, s2), s); \
+        type(TR) tr = op(t1, t2, s); \
+        type(R) r = convert(TR, R, tr, s); \
+        glue(FPU, _merge_exception_flags)(env, old_flags); \
+        ret(R, r); \
+    }
+
+#define IMPL_ALOPF1_FX(name, S1, S2, R, op) \
+    IMPL_ALOPF1_FPU(fx, name, S1, S2, R, f80, f80, f80, op)
+
+#define IMPL_ALOPF1_FP(name, S1, S2, R, op) \
+    IMPL_ALOPF1_FPU(fp, name, S1, S2, R, S1, S2, R, op)
+
+#define IMPL_ALOPF1_FPU_CMP_BASIC(FPU, name, S1, S2, R, T1, T2, TR, op1, op2) \
+    ret_type(R) HELPER(name)(ret_arg(R) CPUE2KState *env, \
+        arg_type(S1) s1, arg_type(S2) s2) \
+    { \
+        int old_flags = glue(FPU, _save_exception_flags)(env); \
+        float_status *s = &env->glue(FPU, _status); \
+        type(T1) t1 = convert(S1, T1, make(S1, s1), s); \
+        type(T2) t2 = convert(S2, T2, make(S2, s2), s); \
+        type(TR) tr = op2(op1(t1, t2, s)) ? -1 : 0; \
+        type(R) r = convert(TR, R, tr, s); \
+        glue(FPU, _merge_exception_flags)(env, old_flags); \
+        ret(R, r); \
+    }
+
+#define IMPL_ALOPF1_FPU_CMP(FPU, name, S1, S2, R, T, op1, op2) \
+    IMPL_ALOPF1_FPU_CMP_BASIC(FPU, name, S1, S2, R, T, T, R, op1, op2)
+
+#define IMPL_ALOPF1_FX_MANY(name, op) \
+    IMPL_ALOPF1_FX(glue3(fx, name, ss), f80, f32, f32, op) \
+    IMPL_ALOPF1_FX(glue3(fx, name, dd), f80, f64, f64, op) \
+    IMPL_ALOPF1_FX(glue3(fx, name, sx), f80, f32, f80, op) \
+    IMPL_ALOPF1_FX(glue3(fx, name, dx), f80, f64, f80, op) \
+    IMPL_ALOPF1_FX(glue3(fx, name, xx), f80, f80, f80, op) \
+    IMPL_ALOPF1_FX(glue3(fx, name, xd), f80, f80, f64, op) \
+    IMPL_ALOPF1_FX(glue3(fx, name, xs), f80, f80, f32, op)
+
+IMPL_ALOPF1_FX_MANY(add, floatx80_add)
+IMPL_ALOPF1_FX_MANY(sub, floatx80_sub)
+IMPL_ALOPF1_FX_MANY(mul, floatx80_mul)
+IMPL_ALOPF1_FX_MANY(div, floatx80_div)
+
+#define floatx80_rsub(x, y, s) floatx80_sub(y, x, s)
+
+IMPL_ALOPF1_FX(fxrsubss, f80, f32, f32, floatx80_rsub)
+IMPL_ALOPF1_FX(fxrsubdd, f80, f64, f64, floatx80_rsub)
+IMPL_ALOPF1_FX(fxrsubsx, f80, f32, f80, floatx80_rsub)
+IMPL_ALOPF1_FX(fxrsubdx, f80, f64, f80, floatx80_rsub)
+
+IMPL_ALOPF1_FX(fxdivtss, f32, f80, f32, floatx80_div)
+IMPL_ALOPF1_FX(fxdivtdd, f64, f80, f64, floatx80_div)
+IMPL_ALOPF1_FX(fxdivtsx, f32, f80, f80, floatx80_div)
+IMPL_ALOPF1_FX(fxdivtdx, f64, f80, f80, floatx80_div)
+
+static floatx80 fxsqrtt(floatx80 a, floatx80 b, float_status *s)
+{
+    // TODO: fxsqrtt
+    return floatx80_sqrt(a, s);
+}
+
+IMPL_ALOPF1_FX(fxsqrttsx, f32, f80, f80, fxsqrtt)
+IMPL_ALOPF1_FX(fxsqrttdx, f64, f80, f80, fxsqrtt)
+IMPL_ALOPF1_FX(fxsqrttxx, f80, f80, f80, fxsqrtt)
+
+#define CMPODF_BASIC(p, x, y, s) ({ \
+    uint32_t ret = 0x45; \
+    if (!glue(p, _is_any_nan)(x) && !glue(p, _is_any_nan)(y)) { \
+        FloatRelation relation = glue(p, _compare_quiet)(x, y, s); \
+        switch (relation) { \
+        case float_relation_greater: ret = 0x00; break; \
+        case float_relation_less: ret = 0x01; break; \
+        case float_relation_equal: ret = 0x40; break; \
+        case float_relation_unordered: ret = 0x45; break; \
+        } \
+    } \
+    ret;\
+})
+
+#define FXCMPODF(x, y, s) CMPODF_BASIC(floatx80, x, y, s)
+#define FCMPODDF(x, y, s) CMPODF_BASIC(float64, x, y, s)
+#define FCMPODSF(x, y, s) CMPODF_BASIC(float32, x, y, s)
+// TODO: cmpudf
+#define FXCMPUDF FXCMPODF
+#define FCMPUDSF FCMPODSF
+#define FCMPUDDF FCMPODDF
+
+#define IMPL_CMPF_FX(name, S1, S2, op) \
+    IMPL_ALOPF1_FPU(fx, name, S1, S2, i32, f80, f80, i32, op)
+
+IMPL_CMPF_FX(fxcmpodsf, f80, f32, FXCMPODF)
+IMPL_CMPF_FX(fxcmpoddf, f80, f64, FXCMPODF)
+IMPL_CMPF_FX(fxcmpodxf, f80, f80, FXCMPODF)
+
+IMPL_CMPF_FX(fxcmpudsf, f80, f32, FXCMPUDF)
+IMPL_CMPF_FX(fxcmpuddf, f80, f64, FXCMPUDF)
+IMPL_CMPF_FX(fxcmpudxf, f80, f80, FXCMPUDF)
+
+#define IMPL_CMPF_FP(name, T, R, op) \
+    IMPL_ALOPF1_FPU(fp, name, T, T, R, T, T, R, op)
+
+IMPL_CMPF_FP(fcmpodsf, f32, i32, FCMPODSF)
+IMPL_CMPF_FP(fcmpoddf, f64, i64, FCMPODDF)
+
+IMPL_CMPF_FP(fcmpudsf, f32, i32, FCMPUDSF)
+IMPL_CMPF_FP(fcmpuddf, f64, i64, FCMPUDDF)
+
+#define cmp_op(T, op) glue3(type_name(T), _, op)
+
+#define IMPL_ALOPF1_FPU_CMP_ALL(F, P, S, T, R, A, B) \
+    IMPL_ALOPF1_FPU_CMP(F, glue3(P, cmpeq,  S), A, B, R, T, cmp_op(T, eq), ident) \
+    IMPL_ALOPF1_FPU_CMP(F, glue3(P, cmpneq, S), A, B, R, T, cmp_op(T, eq), not) \
+    IMPL_ALOPF1_FPU_CMP(F, glue3(P, cmple,  S), A, B, R, T, cmp_op(T, le), ident) \
+    IMPL_ALOPF1_FPU_CMP(F, glue3(P, cmpnle, S), A, B, R, T, cmp_op(T, le), not) \
+    IMPL_ALOPF1_FPU_CMP(F, glue3(P, cmplt,  S), A, B, R, T, cmp_op(T, lt), ident) \
+    IMPL_ALOPF1_FPU_CMP(F, glue3(P, cmpnlt, S), A, B, R, T, cmp_op(T, lt), not) \
+    IMPL_ALOPF1_FPU_CMP(F, glue3(P, cmpuod, S), A, B, R, T, cmp_op(T, unordered), ident) \
+    IMPL_ALOPF1_FPU_CMP(F, glue3(P, cmpod,  S), A, B, R, T, cmp_op(T, unordered), not)
+
+IMPL_ALOPF1_FPU_CMP_ALL(fp, f,  s, f32, i32, f32, f32)
+IMPL_ALOPF1_FPU_CMP_ALL(fp, f,  d, f64, i64, f64, f64)
+IMPL_ALOPF1_FPU_CMP_ALL(fx, fx, s, f80, i64, f80, f32)
+IMPL_ALOPF1_FPU_CMP_ALL(fx, fx, d, f80, i64, f80, f64)
+IMPL_ALOPF1_FPU_CMP_ALL(fx, fx, x, f80, i64, f80, f80)
+
+IMPL_ALOPF2_FPU_CVT(fp, fstofd, f32, f64)
+IMPL_ALOPF2_FPU_CVT(fx, fstofx, f32, f80)
+IMPL_ALOPF2_FPU_CVT(fp, fstois, f32, i32)
+IMPL_ALOPF2_FPU_CVT(fp, fstoid, f32, i64)
+
+IMPL_ALOPF2_FPU_CVT(fp, fdtofs, f64, f32)
+IMPL_ALOPF2_FPU_CVT(fx, fdtofx, f64, f80)
+IMPL_ALOPF2_FPU_CVT(fp, fdtois, f64, i32)
+IMPL_ALOPF2_FPU_CVT(fp, fdtoid, f64, i64)
+
+IMPL_ALOPF2_FPU_CVT(fx, fxtofs, f80, f32)
+IMPL_ALOPF2_FPU_CVT(fx, fxtofd, f80, f64)
+IMPL_ALOPF2_FPU_CVT(fx, fxtois, f80, i32)
+IMPL_ALOPF2_FPU_CVT(fx, fxtoid, f80, i64)
+
+IMPL_ALOPF2_FPU_CVT(fp, istofs, i32, f32)
+IMPL_ALOPF2_FPU_CVT(fp, istofd, i32, f64)
+IMPL_ALOPF2_FPU_CVT(fx, istofx, i32, f80)
+
+IMPL_ALOPF2_FPU_CVT(fp, idtofs, i64, f32)
+IMPL_ALOPF2_FPU_CVT(fp, idtofd, i64, f64)
+IMPL_ALOPF2_FPU_CVT(fx, idtofx, i64, f80)
+
+IMPL_ALOPF2_FPU(fp, fstoistr, f32, i32, float32_to_int32_round_to_zero)
+IMPL_ALOPF2_FPU(fp, fstoidtr, f32, i64, float32_to_int64_round_to_zero)
+IMPL_ALOPF2_FPU(fp, fdtoistr, f64, i32, float64_to_int32_round_to_zero)
+IMPL_ALOPF2_FPU(fp, fdtoidtr, f64, i64, float64_to_int64_round_to_zero)
+IMPL_ALOPF2_FPU(fx, fxtoistr, f80, i32, floatx80_to_int32_round_to_zero)
+IMPL_ALOPF2_FPU(fx, fxtoidtr, f80, i64, floatx80_to_int64_round_to_zero)
+
+#define IMPL_FTOIF(name, A, B) \
+    static type(B) name(type(A) flags, type(B) f, float_status *s) \
+    { \
+        FloatRoundMode oldrm = get_float_rounding_mode(s); \
+        type(B) ret; \
+        \
+        toif_set_round_mode(flags, s); \
+        ret = glue(type_name(B), _round_to_int)(f, s); \
+        set_float_rounding_mode(oldrm, s); \
+        toif_clear_inexact(flags, s); \
+        return ret; \
+    }
+
+IMPL_FTOIF(fstoifs, i32, f32)
+IMPL_FTOIF(fdtoifd, i64, f64)
+
+IMPL_ALOPF1_FP(fstoifs, i32, f32, f32, fstoifs)
+IMPL_ALOPF1_FP(fdtoifd, i64, f64, f64, fdtoifd)
+
+/* TODO: frcps: test if valid, test exception flags */
+#define frcps(a, s) float32_div(float32_one, a, s)
+#define frsqrts(a, s) float32_div(float32_one, float32_sqrt(a, s), s)
+
+static float64 fsqrttd(float64 a, float64 b, float_status *s)
+{
+    // TODO: fxsqrtt
+    return float64_sqrt(a, s);
+}
+
+#define IMPL_ALOPF1_FP_MANY(S, T) \
+    IMPL_ALOPF1_FP(glue(fadd, S), T, T, T, glue(type_name(T), _add)) \
+    IMPL_ALOPF1_FP(glue(fsub, S), T, T, T, glue(type_name(T), _sub)) \
+    IMPL_ALOPF1_FP(glue(fmul, S), T, T, T, glue(type_name(T), _mul)) \
+    IMPL_ALOPF1_FP(glue(fdiv, S), T, T, T, glue(type_name(T), _div)) \
+    IMPL_ALOPF1_FP(glue(fmin, S), T, T, T, glue(type_name(T), _min)) \
+    IMPL_ALOPF1_FP(glue(fmax, S), T, T, T, glue(type_name(T), _max))
+
+IMPL_ALOPF1_FP_MANY(s, f32)
+IMPL_ALOPF1_FP_MANY(d, f64)
+
+IMPL_ALOPF2_FP(fsqrts,  f32, f32, float32_sqrt)
+IMPL_ALOPF2_FP(frcps,   f32, f32, frcps)
+IMPL_ALOPF2_FP(frsqrts, f32, f32, frsqrts)
+IMPL_ALOPF1_FP(fsqrttd, f64, f64, f64, fsqrttd)

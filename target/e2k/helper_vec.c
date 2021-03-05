@@ -5,7 +5,6 @@
 #include "exec/exec-all.h"
 #include "qemu/host-utils.h"
 #include "exec/helper-proto.h"
-#include "translate.h"
 
 static uint8_t reverse_bits(uint8_t b)
 {
@@ -143,7 +142,8 @@ GEN_HELPER_PACKED_HORIZONTAL_OP(phsubsh, sh, sub, satsh)
 
 #define GEN_HELPER_PACKED_SCALAR_BINOP(name, type, op) \
     GEN_HELPER_PACKED_SCALAR(name, type, { \
-        dst.type[i] = s1.type[i] op s2; \
+        int max = sizeof(s1.type[0]) * 8 - 1; \
+        dst.type[i] = s2 < s1.type[i] op ( s2 < max ? s2 : max); \
     })
 
 GEN_HELPER_PACKED_SCALAR_BINOP(psllh, uh, <<)
@@ -153,25 +153,26 @@ GEN_HELPER_PACKED_SCALAR_BINOP(psrlw, uw, >>)
 
 #define GEN_HELPER_PACKED_SRA(name, type, t) \
     GEN_HELPER_PACKED_SCALAR(name, type, { \
-        dst.type[i] = (t) s1.type[i] >> s2; \
+        int max = sizeof(s1.type[0]) * 8 - 1; \
+        dst.type[i] = (t) s1.type[i] >> (s2 < max ? s2 : max); \
     })
 
 GEN_HELPER_PACKED_SRA(psrah, sh, int32_t)
 GEN_HELPER_PACKED_SRA(psraw, sw, int64_t)
 
-#define GEN_HELPER_PACKED_MAD(name, dst_type, type, cast, op) \
+#define GEN_HELPER_PACKED_MAD(name, dst_type, t0, t1, cast, op) \
     GEN_HELPER_PACKED(name, dst_type, { \
         int j = i * 2; \
         dst.dst_type[i] = op( \
-            (cast) s1.type[j + 1] * s2.type[j + 1] + \
-            (cast) s1.type[j    ] * s2.type[j    ] \
+            (cast) s1.t0[j + 1] * s2.t1[j + 1] + \
+            (cast) s1.t0[j    ] * s2.t1[j    ] \
         ); \
     })
 
-GEN_HELPER_PACKED_MAD(pmaddh, sw, sh, int32_t, ident)
-GEN_HELPER_PACKED_MAD(pmaddubsh, sh, ub, int16_t, satsh)
+GEN_HELPER_PACKED_MAD(pmaddh, sw, sh, sh, int32_t, ident)
+GEN_HELPER_PACKED_MAD(pmaddubsh, sh, sb, ub, int32_t, satsh)
 
-GEN_HELPER_PACKED(psadbw, ub, { dst.uw[0] += s1.ub[i] - s2.ub[i]; })
+GEN_HELPER_PACKED(psadbw, ub, { dst.uw[0] += abs(s1.ub[i] - s2.ub[i]); })
 
 GEN_HELPER_PACKED(pavgusb, ub, { dst.ub[i] = (s1.ub[i] + s2.ub[i] + 1) >> 1; })
 GEN_HELPER_PACKED(pavgush, uh, { dst.uh[i] = (s1.uh[i] + s2.uh[i] + 1) >> 1; })
@@ -187,7 +188,7 @@ GEN_HELPER_PACKED_MULH(pmulhuh,  uh, uint32_t, shr16)
 GEN_HELPER_PACKED_MULH(pmulhrsh, sh,  int32_t, shr14_add1_shr1)
 
 GEN_HELPER_PACKED(pmulubhh, uh, { \
-    dst.uh[i] = (((int16_t) s1.ub[i] * s2.sh[i]) + s1.ub[i]) >> 8; \
+    dst.uh[i] = ((int16_t) s1.ub[i] * s2.sh[i] + 0x80) >> 8; \
 })
 
 GEN_HELPER_PACKED(mpsadbh, uh, { \
@@ -246,28 +247,19 @@ uint64_t HELPER(pshufb)(uint64_t src1, uint64_t src2, uint64_t src3)
 
     for (i = 0; i < 8; i++) {
         uint8_t desc = s3.ub[i];
-        int index = extract8(desc, 0, 3);
-        uint8_t byte;
+        int index = desc & 7;
+        uint8_t byte = desc & 8 ? s1.ub[index] : s2.ub[index];
 
-        if (desc < 0x80) {
-            byte = desc & 0x08 ? s1.ub[index] : s2.ub[index];
+        byte = desc & 0x10 ? ~byte : byte;
+        byte = desc & 0x20 ? reverse_bits(byte) : byte;
+        byte = desc & 0x40 ? (byte & 0x80 ? 0xff : 0) : byte;
 
-            switch(desc >> 5) {
-            case 0x1: byte = reverse_bits(byte); break;
-            case 0x2: byte = (byte & 0x80) != 0 ? 0xff : 0; break;
-            case 0x3: byte = (byte & 1) != 0 ? 0xff : 0; break;
-            default: break;
-            }
-
-            if (desc & 0x10) {
-                byte = ~byte;
-            }
-        } else {
-            switch(desc >> 6) {
-            case 0xa: byte = 0x7f; break;
-            case 0xc: byte = 0x80; break;
-            case 0xe: byte = 0xff; break;
-            default: byte = 0; break;
+        if (desc & 0x80) {
+            switch ((desc & 0x70) >> 4) {
+                case 2: byte = 0x7f; break;
+                case 4: byte = 0x80; break;
+                case 6: byte = 0xff; break;
+                default: byte = 0; break;
             }
         }
 

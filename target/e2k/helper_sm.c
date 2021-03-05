@@ -4,7 +4,6 @@
 #include "exec/exec-all.h"
 #include "qemu/host-utils.h"
 #include "exec/helper-proto.h"
-#include "translate.h"
 
 int HELPER(probe_read_access)(CPUE2KState *env, target_ulong addr)
 {

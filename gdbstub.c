@@ -2375,7 +2375,7 @@ static void handle_query_e2k_tags_read(GArray *params, void *user_ctx)
     }
 
     for (i = 0; i < len; i++) {
-        int tag = (tags >> i * E2K_TAG_SIZE) & 0x3;
+        int tag = (tags >> (i * 2)) & 0x3;
         g_string_append_c(gdbserver_state.str_buf, tag);
     }
 
