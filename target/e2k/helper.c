@@ -2,7 +2,6 @@
 #include "qemu/log.h"
 #include "qemu/host-utils.h"
 #include "exec/helper-proto.h"
-#include "translate.h"
 
 void helper_signal_frame(CPUE2KState *env, int wbs, target_ulong ret_ip);
 

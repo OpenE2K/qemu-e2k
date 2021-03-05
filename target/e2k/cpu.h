@@ -34,10 +34,13 @@ void e2k_tcg_initialize(void);
 #define MMU_USER_IDX 1
 #define CPU_RESOLVING_TYPE TYPE_E2K_CPU
 
-#define E2K_TAG_SIZE 2 /* 2-bit tag for 32-bit value */
 #define E2K_REG_LEN sizeof(uint64_t)
 #define E2K_REG_SIZE (E2K_REG_LEN * 8)
-#define E2K_REG_TAGS_SIZE (E2K_TAG_SIZE * 2) /* two tags for 32-bit halves */
+
+#define E2K_TAG_MASK_32 0x03
+#define E2K_TAG_MASK_64 0x0f
+#define E2K_TAG_MASK_80 E2K_TAG_MASK_64
+#define E2K_TAG_MASK_128 0xff
 
 #define E2K_WR_COUNT 64     /* %rN      [0, 64) */
 #define E2K_BR_COUNT 128    /* %b[N]    [0, 128) */
@@ -710,7 +713,7 @@ typedef struct {
     /* temporaries for FX/SIMD ops */
     E2KReg t0, t1, t2, t3;
 
-    E2KReg tmp[3];
+    E2KReg tmp[8];
     E2KReg al_result[6];
 
     /* DAM */
