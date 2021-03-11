@@ -6894,13 +6894,12 @@ exit:
     return ret;
 }
 
-static abi_long copy_procedure_stack(abi_ulong dst, abi_ulong dst_tag, abi_ulong src,
-    abi_ulong size)
+static abi_long copy_procedure_stack(CPUE2KState *env, abi_ulong dst,
+    abi_ulong dst_tag, abi_ulong src, abi_ulong size)
 {
     abi_ullong *from, *to;
     uint8_t *to_tag = NULL;
     abi_long ret = 0;
-    int i;
 
     from = lock_user(VERIFY_READ, src, size, 1);
     to = lock_user(VERIFY_WRITE, dst, size, 0);
@@ -6920,8 +6919,26 @@ static abi_long copy_procedure_stack(abi_ulong dst, abi_ulong dst_tag, abi_ulong
         memset(to_tag, 0, size / 8);
     }
 
-    for (i = 0; i < size; i += sizeof(abi_ullong), to++, from++) {
-        *to = *from;
+    /* v5+ has different stack layout and we need to shuffle registers
+     * for backward compatibility. */
+    if (env->version >= 5) {
+        int i, j;
+        bool to_ps = dst >= env->psp.base
+            && dst < (env->psp.base + env->psp.size);
+
+        i = ((to_ps ? dst : src) - env->psp.base) / sizeof(abi_ullong);
+
+        if (to_ps) {
+            for (j = 0; j < size / sizeof(abi_ullong); j++, i++) {
+                to[j + ((i & 3) == 1 ? 1 : ((i & 3) == 2 ? -1 : 0))] = from[j];
+            }
+        } else {
+            for (j = 0; j < size / sizeof(abi_ullong); j++, i++) {
+                to[j] = from[j + ((i & 3) == 1 ? 1 : ((i & 3) == 2 ? -1 : 0))];
+            }
+        }
+    } else {
+        memcpy(to, from, size);
     }
 
 exit:
@@ -7048,7 +7065,7 @@ static abi_long do_e2k_access_hw_stacks(CPUState *cpu, abi_ulong arg2,
             dst_tag = env->psp.base_tag;
             src = buf_addr;
         }
-        ret = copy_procedure_stack(dst, dst_tag, src, used_size);
+        ret = copy_procedure_stack(env, dst, dst_tag, src, used_size);
         break;
     }
     case READ_PROCEDURE_STACK_EX:
@@ -7073,7 +7090,7 @@ static abi_long do_e2k_access_hw_stacks(CPUState *cpu, abi_ulong arg2,
             dst_tag = env->psp.base_tag + offset / 8;
             src = buf_addr;
         }
-        ret = copy_procedure_stack(dst, dst_tag, src, buf_size);
+        ret = copy_procedure_stack(env, dst, dst_tag, src, buf_size);
         break;
     }
     default:
