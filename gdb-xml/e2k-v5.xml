@@ -1,0 +1,86 @@
+<feature name="org.mcst.gdb.elbrus-v5.linux">
+
+  <!-- This type seems to be common for %lsr1 and %ilcr1  -->
+  <!-- lsr1  -->
+  <struct id="lsr1_bits" size="8">
+    <field name="lcnt_lo" start="0" end="31"/>
+    <field name="lcnt_hi" start="32" end="63"/>
+  </struct>
+
+  <union id="lsr1">
+    <field name="dword" type="uint64"/>
+    <field name="" type="lsr1_bits"/>
+  </union>
+
+
+  <reg name="lsr1" bitsize="64" type="lsr1"/>
+  <reg name="ilcr1" bitsize="64" type="lsr1"/>
+
+  <reg name="_gext_v5_0" bitsize="16" type="uint64"/>
+  <reg name="_gext_v5_1" bitsize="16" type="uint64"/>
+  <reg name="_gext_v5_2" bitsize="16" type="uint64"/>
+  <reg name="_gext_v5_3" bitsize="16" type="uint64"/>
+  <reg name="_gext_v5_4" bitsize="16" type="uint64"/>
+  <reg name="_gext_v5_5" bitsize="16" type="uint64"/>
+  <reg name="_gext_v5_6" bitsize="16" type="uint64"/>
+  <reg name="_gext_v5_7" bitsize="16" type="uint64"/>
+  <reg name="_gext_v5_8" bitsize="16" type="uint64"/>
+  <reg name="_gext_v5_9" bitsize="16" type="uint64"/>
+  <reg name="_gext_v5_10" bitsize="16" type="uint64"/>
+  <reg name="_gext_v5_11" bitsize="16" type="uint64"/>
+  <reg name="_gext_v5_12" bitsize="16" type="uint64"/>
+  <reg name="_gext_v5_13" bitsize="16" type="uint64"/>
+  <reg name="_gext_v5_14" bitsize="16" type="uint64"/>
+  <reg name="_gext_v5_15" bitsize="16" type="uint64"/>
+  <reg name="_gext_v5_16" bitsize="16" type="uint64"/>
+  <reg name="_gext_v5_17" bitsize="16" type="uint64"/>
+  <reg name="_gext_v5_18" bitsize="16" type="uint64"/>
+  <reg name="_gext_v5_19" bitsize="16" type="uint64"/>
+  <reg name="_gext_v5_20" bitsize="16" type="uint64"/>
+  <reg name="_gext_v5_21" bitsize="16" type="uint64"/>
+  <reg name="_gext_v5_22" bitsize="16" type="uint64"/>
+  <reg name="_gext_v5_23" bitsize="16" type="uint64"/>
+  <reg name="_gext_v5_24" bitsize="16" type="uint64"/>
+  <reg name="_gext_v5_25" bitsize="16" type="uint64"/>
+  <reg name="_gext_v5_26" bitsize="16" type="uint64"/>
+  <reg name="_gext_v5_27" bitsize="16" type="uint64"/>
+  <reg name="_gext_v5_28" bitsize="16" type="uint64"/>
+  <reg name="_gext_v5_29" bitsize="16" type="uint64"/>
+  <reg name="_gext_v5_30" bitsize="16" type="uint64"/>
+  <reg name="_gext_v5_31" bitsize="16" type="uint64"/>
+
+  <reg name="_gtag_v5_0" bitsize="8" type="uint8"/>
+  <reg name="_gtag_v5_1" bitsize="8" type="uint8"/>
+  <reg name="_gtag_v5_2" bitsize="8" type="uint8"/>
+  <reg name="_gtag_v5_3" bitsize="8" type="uint8"/>
+  <reg name="_gtag_v5_4" bitsize="8" type="uint8"/>
+  <reg name="_gtag_v5_5" bitsize="8" type="uint8"/>
+  <reg name="_gtag_v5_6" bitsize="8" type="uint8"/>
+  <reg name="_gtag_v5_7" bitsize="8" type="uint8"/>
+  <reg name="_gtag_v5_8" bitsize="8" type="uint8"/>
+  <reg name="_gtag_v5_9" bitsize="8" type="uint8"/>
+  <reg name="_gtag_v5_10" bitsize="8" type="uint8"/>
+  <reg name="_gtag_v5_11" bitsize="8" type="uint8"/>
+  <reg name="_gtag_v5_12" bitsize="8" type="uint8"/>
+  <reg name="_gtag_v5_13" bitsize="8" type="uint8"/>
+  <reg name="_gtag_v5_14" bitsize="8" type="uint8"/>
+  <reg name="_gtag_v5_15" bitsize="8" type="uint8"/>
+  <reg name="_gtag_v5_16" bitsize="8" type="uint8"/>
+  <reg name="_gtag_v5_17" bitsize="8" type="uint8"/>
+  <reg name="_gtag_v5_18" bitsize="8" type="uint8"/>
+  <reg name="_gtag_v5_19" bitsize="8" type="uint8"/>
+  <reg name="_gtag_v5_20" bitsize="8" type="uint8"/>
+  <reg name="_gtag_v5_21" bitsize="8" type="uint8"/>
+  <reg name="_gtag_v5_22" bitsize="8" type="uint8"/>
+  <reg name="_gtag_v5_23" bitsize="8" type="uint8"/>
+  <reg name="_gtag_v5_24" bitsize="8" type="uint8"/>
+  <reg name="_gtag_v5_25" bitsize="8" type="uint8"/>
+  <reg name="_gtag_v5_26" bitsize="8" type="uint8"/>
+  <reg name="_gtag_v5_27" bitsize="8" type="uint8"/>
+  <reg name="_gtag_v5_28" bitsize="8" type="uint8"/>
+  <reg name="_gtag_v5_29" bitsize="8" type="uint8"/>
+  <reg name="_gtag_v5_30" bitsize="8" type="uint8"/>
+  <reg name="_gtag_v5_31" bitsize="8" type="uint8"/>
+
+
+</feature>

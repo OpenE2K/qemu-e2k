@@ -1,0 +1,2464 @@
+<feature name="org.mcst.gdb.e2k.linux">
+
+  <!-- Instruction syllables  -->
+
+  <!-- HS  -->
+  <struct id="hs_bits" size="4">
+    <field name="mdl" start="0" end="3"/>
+    <field name="lng" start="4" end="6"/>
+    <field name="nop" start="7" end="9"/>
+    <field name="lm" start="10" end="10"/>
+    <!-- There is a 1 bit hole here. Should I introduce a nameless bitfield
+      into this struct?  -->
+    <field name="s" start="12" end="12"/>
+    <field name="sw" start="13" end="13"/>
+    <field name="c" start="14" end="15"/>
+    <field name="cd" start="16" end="17"/>
+    <field name="pl" start="18" end="19"/>
+    <field name="ale" start="20" end="25"/>
+    <field name="al" start="26" end="31"/>
+  </struct>
+
+  <union id="hs">
+    <field name="word" type="uint32"/>
+    <field name="" type="hs_bits"/>
+  </union>
+
+  <!-- ALF2  -->
+  <struct id="alf2_bits" size="4">
+    <field name="dst" start="0" end="7"/>
+    <field name="src2" start="8" end="15"/>
+    <field name="opce" start="16" end="23"/>
+    <field name="opc" start="24" end="31"/>
+  </struct>
+
+  <union id="alf2">
+    <field name="word" type="uint32"/>
+    <field name="" type="alf2_bits"/>
+  </union>
+
+
+  <!-- C1F1  -->
+  <struct id="c1f1_bits" size="4">
+    <field name="param" start="0" end="27"/>
+    <field name="opc" start="28" end="31"/>
+  </struct>
+
+  <union id="c1f1">
+    <field name="word" type="uint32"/>
+    <field name="" type="c1f1_bits"/>
+  </union>
+
+  <!-- CS0_DUMMY  -->
+  <struct id="cs0_dummy_bits" size="4">
+    <field name="disp" start="0" end="27"/>
+    <field name="opc" start="28" end="31"/>
+  </struct>
+
+  <union id="cs0_dummy">
+    <field name="word" type="uint32"/>
+    <field name="" type="cs0_dummy_bits"/>
+  </union>
+
+
+  <!-- CS1_SETWD  -->
+  <struct id="cs1_setwd_bits" size="4">
+    <field name="rbs" start="0" end="5"/>
+    <field name="rsz" start="6" end="11"/>
+    <field name="rcur" start="12" end="17"/>
+    <field name="psz" start="18" end="22"/>
+    <field name="settr" start="25" end="25"/>
+    <field name="setbn" start="26" end="26"/>
+    <field name="setbp" start="27" end="27"/>
+    <field name="opc" start="28" end="31"/>
+  </struct>
+
+  <union id="cs1_setwd">
+    <field name="word" type="uint32"/>
+    <field name="" type="cs1_setwd_bits"/>
+  </union>
+
+
+  <!-- CS1_CALL  -->
+  <struct id="cs1_call_bits" size="4">
+    <field name="wbs" start="0" end="6"/>
+    <field name="opc" start="28" end="31"/>
+  </struct>
+
+  <union id="cs1_call">
+    <field name="word" type="uint32"/>
+    <field name="" type="cs1_call_bits"/>
+  </union>
+
+
+  <!-- LTS0_SETWD  -->
+  <struct id="lts0_setwd_bits" size="4">
+    <field name="nfx" start="4" end="4"/>
+    <field name="wsz" start="5" end="11"/>
+    <field name="rpsz" start="12" end="16"/>
+    <field name="type" start="17" end="31"/>
+  </struct>
+
+  <union id="lts0_setwd">
+    <field name="word" type="uint32"/>
+    <field name="" type="lts0_setwd_bits"/>
+  </union>
+  <!-- SS  -->
+  <struct id="ss_bits" size="4">
+    <field name="ctcond" start="0" end="8"/>
+    <field name="ctop" start="10" end="11"/>
+    <field name="aa" start="12" end="15"/>
+    <field name="alc" start="16" end="17"/>
+    <field name="abp" start="18" end="19"/>
+    <field name="abn" start="21" end="22"/>
+    <field name="abg" start="23" end="24"/>
+    <field name="vfdi" start="26" end="26"/>
+    <field name="srp" start="27" end="27"/>
+    <field name="bap" start="28" end="28"/>
+    <field name="eap" start="29" end="29"/>
+    <field name="ipd" start="30" end="31"/>
+  </struct>
+
+  <union id="ss">
+    <field name="word" type="uint32"/>
+    <field name="" type="ss_bits"/>
+  </union>
+
+
+  <!-- All sorts of tagged types.  -->
+
+  <struct id="etags" size="1">
+    <field name="tag0" start="0" end="1"/>
+    <field name="tag1" start="2" end="3"/>
+  </struct>
+
+  <struct id="tagged32">
+    <field name="word" type="uint32"/>
+    <field name="" type="etags"/>
+  </struct>
+
+
+  <struct id="tagged64">
+    <field name="dword" type="uint64"/>
+    <field name="" type="etags"/>
+  </struct>
+
+  <struct id="tagged80">
+    <field name="dword" type="uint64"/>
+    <field name="ext" type="uint16"/>
+    <field name="" type="etags"/>
+  </struct>
+
+  <!-- FIXME: here I probably need a special `etags32' type: `etags' contains
+    too many tags for a 32-bit value . . .  -->
+  <struct id="signed_tagged32">
+    <field name="word" type="int32"/>
+    <field name="" type="etags"/>
+  </struct>
+
+
+  <struct id="signed_tagged64">
+    <field name="dword" type="int64"/>
+    <field name="" type="etags"/>
+  </struct>
+
+
+  <!-- The underlying two types are used for `%qprX' registers.  -->
+  <struct id="etags128" size="1">
+    <field name="tag0" start="0" end="1"/>
+    <field name="tag1" start="2" end="3"/>
+    <field name="tag2" start="4" end="5"/>
+    <field name="tag3" start="6" end="7"/>
+  </struct>
+
+  <struct id="tagged128">
+    <field name="d0" type="uint64"/>
+    <field name="d1" type="uint64"/>
+    <field name="" type="etags128"/>
+  </struct>
+  <!-- Other register types. They are mostly used implicitly rather than
+    explicitly by the code of E2K backend.  -->
+
+  <!-- PRED. Do I need a WORD field here at all? My backend currently makes
+    use of it . . .  -->
+  <struct id="pred_bits" size="4">
+    <field name="bval" start="0" end="0" type="uint32"/>
+    <field name="t" start="1" end="1" type="uint32"/>
+  </struct>
+
+  <union id="pred">
+    <field name="word" type="uint32"/>
+    <field name="" type="pred_bits"/>
+  </union>
+
+
+  <!-- PSR FIXME: according to our interface with the Kernel (see
+    `ptrace_offsets[]' in `e2k-linux-nat.c' and `reg-e2k.dat') this
+    register and UPSR should be treated as 64-bit ones, though obviously
+    32 (or even 8) bits will do to store there contents. Find out whether
+    RRs or RRd is actually used to access them. This should be done in all
+    analogous cases.  -->
+  <struct id="psr_bits" size="8">
+    <field name="pm" start="0" end="0"/>
+    <field name="ie" start="1" end="1"/>
+    <field name="sge" start="2" end="2"/>
+    <field name="lw" start="3" end="3"/>
+    <field name="uie" start="4" end="4"/>
+    <field name="nmie" start="5" end="5"/>
+    <field name="unmie" start="6" end="6"/>
+  </struct>
+
+  <union id="psr">
+    <field name="dword" type="uint64"/>
+    <field name="" type="psr_bits"/>
+  </union>
+
+
+  <!-- UPSR  -->
+  <struct id="upsr_bits" size="8">
+    <field name="fe" start="0" end="0"/>
+    <field name="se" start="1" end="1"/>
+    <field name="ac" start="2" end="2"/>
+    <field name="di" start="3" end="3"/>
+    <field name="wp" start="4" end="4"/>
+    <field name="ie" start="5" end="5"/>
+    <field name="a20" start="6" end="6"/>
+    <field name="nmie" start="7" end="7"/>
+  </struct>
+
+  <union id="upsr">
+    <field name="dword" type="uint64"/>
+    <field name="" type="upsr_bits"/>
+  </union>
+
+  <!-- RWAP_LO  -->
+  <struct id="rwap_lo_bits" size="8">
+    <field name="base" start="0" end="47"/>
+    <field name="stub3" start="56" end="56"/>
+    <field name="stub2" start="57" end="57"/>
+    <field name="stub1" start="58" end="58"/>
+    <field name="rw" start="59" end="60"/>
+  </struct>
+
+  <union id="rwap_lo">
+    <field name="dword" type="uint64"/>
+    <field name="" type="rwap_lo_bits"/>
+  </union>
+
+  <!-- RWAP_HI  -->
+  <struct id="rwap_hi_bits" size="8">
+    <field name="curptr" start="0" end="31"/>
+    <field name="size" start="32" end="63"/>
+  </struct>
+
+  <union id="rwap_hi">
+    <field name="dword" type="uint64"/>
+    <field name="" type="rwap_hi_bits"/>
+  </union>
+
+  <!-- USD_RWAP_LO -->
+  <struct id="usd_rwap_lo_bits" size="8">
+    <field name="base" start="0" end="47"/>
+    <field name="p" start="58" end="58"/>
+    <field name="rw" start="59" end="60"/>
+  </struct>
+
+  <union id="usd_rwap_lo">
+    <field name="dword" type="uint64"/>
+    <field name="" type="usd_rwap_lo_bits"/>
+  </union>
+
+  <!-- USD_RWAP_HI  -->
+  <struct id="usd_rwap_hi_bits" size="8">
+    <!-- What did I mean by saying "Should be 0" here???  -->
+    <field name="curptr" start="0" end="31"/>
+    <field name="size" start="32" end="63"/>
+  </struct>
+
+  <union id="usd_rwap_hi">
+    <field name="dword" type="uint64"/>
+    <field name="" type="usd_rwap_hi_bits"/>
+  </union>
+
+  <!-- OSCUD_RWAP_LO  -->
+  <struct id="oscud_rwap_lo_bits" size="8">
+    <field name="base" start="0" end="47"/>
+    <!-- This comes instead of stub1. What about the values of stub{2,3}]? -->
+    <field name="c" start="58" end="58"/>
+    <!-- What did I mean by saying `Should be "r"'? -->
+    <field name="rw" start="59" end="60"/>
+  </struct>
+
+  <union id="oscud_rwap_lo">
+    <field name="dword" type="uint64"/>
+    <field name="" type="oscud_rwap_lo_bits"/>
+  </union>
+
+  <!-- OSCUD_RWAP_HI  -->
+  <struct id="oscud_rwap_hi_bits" size="8">
+    <field name="curptr" start="0" end="31"/>
+    <field name="size" start="32" end="63"/>
+  </struct>
+
+  <union id="oscud_rwap_hi">
+    <field name="dword" type="uint64"/>
+    <field name="" type="oscud_rwap_hi_bits"/>
+  </union>
+
+  <!-- OSGD_RWAP_LO  -->
+  <struct id="osgd_rwap_lo_bits" size="8">
+    <field name="base" start="0" end="47"/>
+    <!-- What did I mean by saying `Should be "rw"'?  -->
+    <field name="rw" start="59" end="60"/>
+  </struct>
+
+  <union id="osgd_rwap_lo">
+    <field name="dword" type="uint64"/>
+    <field name="" type="osgd_rwap_lo_bits"/>
+  </union>
+
+  <!-- OSGD_RWAP_HI  -->
+  <struct id="osgd_rwap_hi_bits" size="8">
+    <!-- What did I mean by saying "Should be 0"?  -->
+    <field name="curptr" start="0" end="31"/>
+    <field name="size" start="32" end="63"/>
+  </struct>
+
+  <union id="osgd_rwap_hi">
+    <field name="dword" type="uint64"/>
+    <field name="" type="osgd_rwap_hi_bits"/>
+  </union>
+
+  <!-- INTEL_RWAP_LO  -->
+  <struct id="intel_rwap_lo_bits" size="8">
+    <field name="base" start="0" end="47"/>
+    <field name="tag" start="56" end="56"/>
+    <field name="mb" start="57" end="57"/>
+    <field name="ed" start="58" end="58"/>
+    <field name="rw" start="59" end="60"/>
+  </struct>
+
+  <union id="intel_rwap_lo">
+    <field name="dword" type="uint64"/>
+    <field name="" type="intel_rwap_lo_bits"/>
+  </union>
+
+  <!-- INTEL_RWAP_HI  -->
+  <struct id="intel_rwap_hi_bits" size="8">
+    <!-- What did I mean by saying "Should be 0"?  -->
+    <field name="curptr" start="0" end="31"/>
+    <field name="limit" start="32" end="63"/>
+  </struct>
+
+  <union id="intel_rwap_hi">
+    <field name="dword" type="uint64"/>
+    <field name="" type="intel_rwap_hi_bits"/>
+  </union>
+
+  <!-- AAD_LO  -->
+  <struct id="aad_lo_bits" size="8">
+    <field name="base" start="0" end="47"/>
+    <field name="tag" start="54" end="56"/>
+    <field name="mb" start="57" end="57"/>
+    <field name="ed" start="58" end="58"/>
+    <field name="rw" start="59" end="60"/>
+    <field name="itag" start="61" end="63"/>
+  </struct>
+
+  <union id="aad_lo">
+    <field name="dword" type="uint64"/>
+    <field name="" type="aad_lo_bits"/>
+  </union>
+
+  <!-- AAD_HI  -->
+  <struct id="aad_hi_bits" size="8">
+    <field name="size" start="32" end="63"/>
+  </struct>
+
+  <union id="aad_hi">
+    <field name="dword" type="uint64"/>
+    <field name="" type="aad_hi_bits"/>
+  </union>
+
+
+  <!-- All these aa's (aainds, aaincrs and so on) seem to be tagged values.
+    But as far as I understand the kernel doesn't provide tags via
+    ptrace . . . Probably they are 32-bit (see struct e2k_aau_context in
+    the Kernel). It's such a bore to find this out in iset.single. . .  -->
+
+  <!-- AAIND  -->
+  <struct id="aaind_bits" size="8">
+    <field name="ind" start="0" end="31"/>
+  </struct>
+
+  <union id="aaind">
+    <field name="dword" type="uint64"/>
+    <field name="" type="aaind_bits"/>
+  </union>
+
+
+  <!-- AAINCR  -->
+  <struct id="aaincr_bits" size="8">
+    <field name="incr" start="0" end="31"/>
+  </struct>
+
+  <union id="aaincr">
+    <field name="dword" type="uint64"/>
+    <field name="" type="aaincr_bits"/>
+  </union>
+
+
+  <!-- AALDI  -->
+  <struct id="aaldi_bits" size="8">
+    <field name="ind" start="0" end="31"/>
+  </struct>
+
+  <union id="aaldi">
+    <field name="dword" type="uint64"/>
+    <field name="" type="aaldi_bits"/>
+  </union>
+
+  <!-- AALDV:  "This one seems to be 64 bits long"  -->
+  <struct id="aaldv_bits" size="8">
+    <field name="mask" start="0" end="63"/>
+  </struct>
+
+  <union id="aaldv">
+    <field name="dword" type="uint64"/>
+    <field name="" type="aaldv_bits"/>
+  </union>
+
+
+  <!-- AALDA  -->
+  <!-- This one is actually an 8-bit value but the kernel passes it to us via
+    ptrace as a 64-bit value.  -->
+  <struct id="aalda_bits" size="8">
+    <field name="exc" start="0" end="1"/>
+    <field name="cincr" start="2" end="2"/>
+    <!-- "Should be 0": a 1 bit wide zero field.  -->
+    <field name="root" start="4" end="4"/>
+    <!-- "Should be 0" probably means that the corresponding field always
+      contains 0. We have a 3 bit wide zero field here. -->
+  </struct>
+
+  <union id="aalda">
+    <field name="dword" type="uint64"/>
+    <field name="" type="aalda_bits"/>
+  </union>
+
+  <!-- AALDM  -->
+  <struct id="aaldm_bits" size="8">
+    <field name="mask" start="0" end="63"/>
+  </struct>
+
+  <union id="aaldm">
+    <field name="dword" type="uint64"/>
+    <field name="" type="aaldm_bits"/>
+  </union>
+
+  <!-- AASR:  "A 32-bit sp. . cy in fact"  -->
+  <struct id="aasr_bits" size="8">
+    <!-- Should be 0 (a 5-bit log zero field)  -->
+    <field name="stb" start="5" end="5"/>
+    <field name="iab" start="6" end="6"/>
+    <field name="lds" start="7" end="9"/>
+  </struct>
+
+  <union id="aasr">
+    <field name="dword" type="uint64"/>
+    <field name="" type="aasr_bits"/>
+  </union>
+
+  <!-- AAFSTR:  "A 32-bit sp. . cy in fact"  -->
+  <struct id="aafstr_bits" size="8">
+    <!-- Should be 0 (v0 is a 1-bit log zero field)  -->
+    <field name="v0" start="0" end="0"/>
+    <field name="area0" start="1" end="6"/>
+    <field name="v1" start="8" end="8"/>
+    <field name="area1" start="9" end="14"/>
+    <field name="v2" start="16" end="16"/>
+    <field name="area2" start="17" end="22"/>
+    <field name="v3" start="24" end="24"/>
+    <field name="area3" start="25" end="30"/>
+  </struct>
+
+  <union id="aafstr">
+    <field name="dword" type="uint64"/>
+    <field name="" type="aafstr_bits"/>
+  </union>
+
+  <!-- AASTI: these are also 32-bit and tagged, but tags are not provided
+    by the Kernel via ptrace either.  -->
+  <struct id="aasti_bits" size="8">
+    <field name="ind" start="0" end="31"/>
+  </struct>
+
+  <union id="aasti">
+    <field name="dword" type="uint64"/>
+    <field name="" type="aasti_bits"/>
+  </union>
+
+
+  <!-- PFPFR  -->
+  <struct id="pfpfr_bits" size="8">
+    <field name="ie" start="0" end="0"/>
+    <field name="de" start="1" end="1"/>
+    <field name="ze" start="2" end="2"/>
+    <field name="oe" start="3" end="3"/>
+    <field name="ue" start="4" end="4"/>
+    <field name="pe" start="5" end="5"/>
+    <!-- Probably there should be a hole for "0" here? -->
+    <field name="zero1" start="6" end="6"/>
+    <field name="im" start="7" end="7"/>
+    <field name="dm" start="8" end="8"/>
+    <field name="zm" start="9" end="9"/>
+    <field name="om" start="10" end="10"/>
+    <field name="um" start="11" end="11"/>
+    <field name="pm" start="12" end="12"/>
+    <field name="rc" start="13" end="14"/>
+    <field name="fz" start="15" end="15"/>
+    <field name="zero0" start="16" end="25"/>
+    <field name="die" start="26" end="26"/>
+    <field name="dde" start="27" end="27"/>
+    <field name="dze" start="28" end="28"/>
+    <field name="doe" start="29" end="29"/>
+    <field name="due" start="30" end="30"/>
+    <field name="dpe" start="31" end="31"/>
+  </struct>
+
+  <union id="pfpfr">
+    <field name="dword" type="uint64"/>
+    <field name="" type="pfpfr_bits"/>
+  </union>
+
+
+  <!-- FPCR  -->
+  <struct id="fpcr_bits" size="8">
+    <field name="im" start="0" end="0"/>
+    <field name="dm" start="1" end="1"/>
+    <field name="zm" start="2" end="2"/>
+    <field name="om" start="3" end="3"/>
+    <field name="um" start="4" end="4"/>
+    <field name="pm" start="5" end="5"/>
+    <!-- Probably there should be a hole for "1" here.  -->
+    <field name="once_0" start="6" end="6"/>
+    <field name="zero_1" start="7" end="7"/>
+    <field name="pc" start="8" end="9"/>
+    <field name="rc" start="10" end="11"/>
+    <field name="ic" start="12" end="12"/>
+    <field name="zero_0" start="13" end="15"/>
+  </struct>
+
+  <union id="fpcr">
+    <field name="dword" type="uint64"/>
+    <field name="" type="fpcr_bits"/>
+  </union>
+
+
+  <!-- FPSR  -->
+  <struct id="fpsr_bits" size="8">
+    <field name="ie" start="0" end="0"/>
+    <field name="de" start="1" end="1"/>
+    <field name="ze" start="2" end="2"/>
+    <field name="oe" start="3" end="3"/>
+    <field name="ue" start="4" end="4"/>
+    <field name="pe" start="5" end="5"/>
+    <field name="zero_2" start="6" end="6"/>
+    <field name="es" start="7" end="7"/>
+    <field name="zero_1" start="8" end="8"/>
+    <field name="c1" start="9" end="9"/>
+    <field name="zero_0" start="10" end="14"/>
+    <field name="bf" start="15" end="15"/>
+  </struct>
+
+  <union id="fpsr">
+    <field name="dword" type="uint64"/>
+    <field name="" type="fpsr_bits"/>
+  </union>
+
+  <!-- RWSAP_LO  -->
+  <struct id="rwsap_lo_bits" size="8">
+    <field name="base" start="0" end="31"/>
+    <field name="psl" start="32" end="47"/>
+    <field name="stub3" start="56" end="56"/>
+    <field name="stub2" start="57" end="57"/>
+    <field name="stub1" start="58" end="58"/>
+    <field name="rw" start="59" end="60"/>
+  </struct>
+
+  <union id="rwsap_lo">
+    <field name="dword" type="uint64"/>
+    <field name="" type="rwsap_lo_bits"/>
+  </union>
+
+  <!-- RWSAP_HI  -->
+  <struct id="rwsap_hi_bits" size="8">
+    <field name="curptr" start="0" end="31"/>
+    <field name="size" start="32" end="63"/>
+  </struct>
+
+  <union id="rwsap_hi">
+    <field name="dword" type="uint64"/>
+    <field name="" type="rwsap_hi_bits"/>
+  </union>
+
+  <!-- PUSD_RWSAP_LO  -->
+  <struct id="pusd_rwsap_lo_bits" size="8">
+    <field name="base" start="0" end="31"/>
+    <field name="psl" start="32" end="47"/>
+    <!-- RWSAP.stub1 = PUSD.p  -->
+    <field name="p" start="58" end="58"/>
+    <!-- Should be  "rw"  -->
+    <field name="rw" start="59" end="60"/>
+  </struct>
+
+  <union id="pusd_rwsap_lo">
+    <field name="dword" type="uint64"/>
+    <field name="" type="pusd_rwsap_lo_bits"/>
+  </union>
+
+  <!-- PUSD_RWSAP_HI  -->
+  <struct id="pusd_rwsap_hi_bits" size="8">
+    <!-- Should be zero  -->
+    <field name="zero_0" start="0" end="31"/>
+    <field name="size" start="32" end="63"/>
+  </struct>
+
+  <union id="pusd_rwsap_hi">
+    <field name="dword" type="uint64"/>
+    <field name="" type="pusd_rwsap_hi_bits"/>
+  </union>
+
+
+  <!-- PSP_RWAP_LO  -->
+  <struct id="psp_rwap_lo_bits" size="8">
+    <field name="base" start="0" end="47"/>
+    <!-- Should be "rw"  -->
+    <field name="rw" start="59" end="60"/>
+  </struct>
+
+  <union id="psp_rwap_lo">
+    <field name="dword" type="uint64"/>
+    <field name="" type="psp_rwap_lo_bits"/>
+  </union>
+
+  <!-- PSP_RWAP_HI  -->
+  <struct id="psp_rwap_hi_bits" size="8">
+    <field name="ind" start="0" end="31"/>
+    <field name="size" start="32" end="63"/>
+  </struct>
+
+  <union id="psp_rwap_hi">
+    <field name="dword" type="uint64"/>
+    <field name="" type="psp_rwap_hi_bits"/>
+  </union>
+
+  <!-- PSHTP  -->
+  <struct id="pshtp_bits" size="8">
+    <field name="ind" start="0" end="11"/>
+    <field name="fixind" start="16" end="27"/>
+    <field name="tind" start="32" end="43"/>
+    <field name="fx" start="48" end="48"/>
+  </struct>
+
+  <union id="pshtp">
+    <field name="dword" type="uint64"/>
+    <field name="" type="pshtp_bits"/>
+  </union>
+
+  <!-- CR0_LO  -->
+  <struct id="cr0_lo_bits" size="8">
+    <field name="pf" start="0" end="63"/>
+  </struct>
+
+  <union id="cr0_lo">
+    <field name="dword" type="uint64"/>
+    <field name="" type="cr0_lo_bits"/>
+  </union>
+
+  <!-- CR0_HI  -->
+  <struct id="cr0_hi_bits" size="8">
+    <field name="ip" start="3" end="47"/>
+  </struct>
+
+  <union id="cr0_hi">
+    <field name="dword" type="uint64"/>
+    <field name="" type="cr0_hi_bits"/>
+  </union>
+
+
+  <!-- CR1_LO  -->
+  <struct id="cr1_lo_bits" size="8">
+    <field name="tr" start="0" end="14"/>
+    <field name="eir" start="16" end="23"/>
+    <field name="wfx" start="25" end="25"/>
+    <field name="wpsz" start="26" end="32"/>
+    <field name="wbs" start="33" end="39"/>
+    <field name="cur_ind" start="40" end="55"/>
+    <field name="cur_ic" start="56" end="56"/>
+    <field name="psr_pm" start="57" end="57"/>
+    <field name="psr_ie" start="58" end="58"/>
+    <field name="psr_sge" start="59" end="59"/>
+    <field name="psr_lw" start="60" end="60"/>
+    <field name="psr_uie" start="61" end="61"/>
+    <field name="psr_nmie" start="62" end="62"/>
+    <field name="psr_unmie" start="63" end="63"/>
+  </struct>
+
+  <union id="cr1_lo">
+    <field name="dword" type="uint64"/>
+    <field name="" type="cr1_lo_bits"/>
+  </union>
+
+  <!-- CR1_HI  -->
+  <struct id="cr1_hi_bits" size="8">
+    <field name="br" start="0" end="27"/>
+    <field name="ussz" start="36" end="63"/>
+  </struct>
+
+  <union id="cr1_hi">
+    <field name="dword" type="uint64"/>
+    <field name="" type="cr1_hi_bits"/>
+  </union>
+
+  <!-- CWD: this is a 32 bit value! Is it? See what our interface with the
+    Kernel says.  -->
+  <struct id="cwd_bits" size="8">
+    <field name="base" start="0" end="9"/>
+  </struct>
+
+  <union id="cwd">
+    <field name="dword" type="uint64"/>
+    <field name="" type="cwd_bits"/>
+  </union>
+
+
+  <!-- PCSP_RWAP_LO  -->
+  <struct id="pcsp_rwap_lo_bits" size="8">
+    <field name="base" start="0" end="47"/>
+    <!-- This should contain "rw".  -->
+    <field name="rw" start="59" end="60"/>
+  </struct>
+
+  <union id="pcsp_rwap_lo">
+    <field name="dword" type="uint64"/>
+    <field name="" type="pcsp_rwap_lo_bits"/>
+  </union>
+
+  <!-- PCSP_RWAP_HI  -->
+  <struct id="pcsp_rwap_hi_bits" size="8">
+    <field name="ind" start="0" end="31"/>
+    <field name="size" start="32" end="63"/>
+  </struct>
+
+  <union id="pcsp_rwap_hi">
+    <field name="dword" type="uint64"/>
+    <field name="" type="pcsp_rwap_hi_bits"/>
+  </union>
+
+  <!-- PCSHTP: see 5.13.2, `value' field is invented by these idiots in
+    gdb-5.2  -->
+  <struct id="pcshtp_bits" size="8">
+    <field name="value" start="4" end="10"/>
+  </struct>
+
+  <union id="pcshtp">
+    <field name="dword" type="uint64"/>
+    <field name="" type="pcshtp_bits"/>
+  </union>
+
+
+  <!-- WD  -->
+  <struct id="wd_bits" size="8">
+    <field name="base" start="0" end="10"/>
+    <field name="size" start="16" end="26"/>
+    <field name="psize" start="32" end="42"/>
+    <field name="fx" start="48" end="48"/>
+  </struct>
+
+  <union id="wd">
+    <field name="dword" type="uint64"/>
+    <field name="" type="wd_bits"/>
+  </union>
+
+
+  <!-- BR: this should be a 32-bit value in fact!  -->
+  <struct id="br_bits" size="8">
+    <field name="rbs" start="0" end="5"/>
+    <field name="rsz" start="6" end="11"/>
+    <field name="rcur" start="12" end="17"/>
+    <field name="psz" start="18" end="22"/>
+    <field name="pcur" start="23" end="27"/>
+  </struct>
+
+  <union id="br">
+    <field name="dword" type="uint64"/>
+    <field name="" type="br_bits"/>
+  </union>
+
+
+  <!-- BGR: this is also a 32-bit value.  -->
+  <struct id="bgr_bits" size="8">
+    <field name="val" start="0" end="7"/>
+    <field name="cur" start="8" end="10"/>
+  </struct>
+
+  <union id="bgr">
+    <field name="dword" type="uint64"/>
+    <field name="" type="bgr_bits"/>
+  </union>
+
+  <!-- RWP  -->
+  <struct id="rwp_bits" size="8">
+    <field name="base" start="0" end="47"/>
+    <field name="stub5" start="54" end="54"/>
+    <field name="stub4" start="55" end="55"/>
+    <field name="stub3" start="56" end="56"/>
+    <field name="stub2" start="57" end="57"/>
+    <field name="stub1" start="58" end="58"/>
+    <field name="rw" start="59" end="60"/>
+  </struct>
+
+  <union id="rwp">
+    <field name="dword" type="uint64"/>
+    <field name="" type="rwp_bits"/>
+  </union>
+
+
+  <!-- IP_RWP  -->
+  <struct id="ip_rwp_bits" size="8">
+    <field name="base" start="0" end="47"/>
+  </struct>
+
+  <union id="ip_rwp">
+    <field name="dword" type="uint64"/>
+    <field name="" type="ip_rwp_bits"/>
+  </union>
+
+  <!-- CTPR_RWP  -->
+  <struct id="ctpr_rwp_bits" size="8">
+    <field name="ta_base" start="0" end="47"/>
+    <field name="ta_tag" start="54" end="56"/>
+    <field name="opc" start="57" end="58"/>
+    <field name="ipd" start="59" end="60"/>
+  </struct>
+
+  <union id="ctpr_rwp">
+    <field name="dword" type="uint64"/>
+    <field name="" type="ctpr_rwp_bits"/>
+  </union>
+
+  <!-- TIR_LO  -->
+  <struct id="tir_lo_bits" size="8">
+    <field name="ip" start="0" end="47"/>
+  </struct>
+
+  <union id="tir_lo">
+    <field name="dword" type="uint64"/>
+    <field name="" type="tir_lo_bits"/>
+  </union>
+
+  <!-- TIR_HI  -->
+  <struct id="tir_hi_bits" size="8">
+    <field name="exc" start="0" end="43"/>
+    <field name="al" start="44" end="49"/>
+    <field name="aa" start="52" end="55"/>
+    <field name="j" start="56" end="63"/>
+  </struct>
+
+  <union id="tir_hi">
+    <field name="dword" type="uint64"/>
+    <field name="" type="tir_hi_bits"/>
+  </union>
+
+  <!-- PF: this type lets me access Predicate File saved in %cr0.lo. I wonder
+    if arrays of bitfields are supported in any way . . .  -->
+  <struct id="pf_bits" size="8">
+    <field name="val0" start="0" end="0" type="uint64"/>
+    <field name="tag0" start="1" end="1" type="uint64"/>
+    <field name="val1" start="2" end="2" type="uint64"/>
+    <field name="tag1" start="3" end="3" type="uint64"/>
+    <field name="val2" start="4" end="4" type="uint64"/>
+    <field name="tag2" start="5" end="5" type="uint64"/>
+    <field name="val3" start="6" end="6" type="uint64"/>
+    <field name="tag3" start="7" end="7" type="uint64"/>
+    <field name="val4" start="8" end="8" type="uint64"/>
+    <field name="tag4" start="9" end="9" type="uint64"/>
+    <field name="val5" start="10" end="10" type="uint64"/>
+    <field name="tag5" start="11" end="11" type="uint64"/>
+    <field name="val6" start="12" end="12" type="uint64"/>
+    <field name="tag6" start="13" end="13" type="uint64"/>
+    <field name="val7" start="14" end="14" type="uint64"/>
+    <field name="tag7" start="15" end="15" type="uint64"/>
+    <field name="val8" start="16" end="16" type="uint64"/>
+    <field name="tag8" start="17" end="17" type="uint64"/>
+    <field name="val9" start="18" end="18" type="uint64"/>
+    <field name="tag9" start="19" end="19" type="uint64"/>
+    <field name="val10" start="20" end="20" type="uint64"/>
+    <field name="tag10" start="21" end="21" type="uint64"/>
+    <field name="val11" start="22" end="22" type="uint64"/>
+    <field name="tag11" start="23" end="23" type="uint64"/>
+    <field name="val12" start="24" end="24" type="uint64"/>
+    <field name="tag12" start="25" end="25" type="uint64"/>
+    <field name="val13" start="26" end="26" type="uint64"/>
+    <field name="tag13" start="27" end="27" type="uint64"/>
+    <field name="val14" start="28" end="28" type="uint64"/>
+    <field name="tag14" start="29" end="29" type="uint64"/>
+    <field name="val15" start="30" end="30" type="uint64"/>
+    <field name="tag15" start="31" end="31" type="uint64"/>
+    <field name="val16" start="32" end="32" type="uint64"/>
+    <field name="tag16" start="33" end="33" type="uint64"/>
+    <field name="val17" start="34" end="34" type="uint64"/>
+    <field name="tag17" start="35" end="35" type="uint64"/>
+    <field name="val18" start="36" end="36" type="uint64"/>
+    <field name="tag18" start="37" end="37" type="uint64"/>
+    <field name="val19" start="38" end="38" type="uint64"/>
+    <field name="tag19" start="39" end="39" type="uint64"/>
+    <field name="val20" start="40" end="40" type="uint64"/>
+    <field name="tag20" start="41" end="41" type="uint64"/>
+    <field name="val21" start="42" end="42" type="uint64"/>
+    <field name="tag21" start="43" end="43" type="uint64"/>
+    <field name="val22" start="44" end="44" type="uint64"/>
+    <field name="tag22" start="45" end="45" type="uint64"/>
+    <field name="val23" start="46" end="46" type="uint64"/>
+    <field name="tag23" start="47" end="47" type="uint64"/>
+    <field name="val24" start="48" end="48" type="uint64"/>
+    <field name="tag24" start="49" end="49" type="uint64"/>
+    <field name="val25" start="50" end="50" type="uint64"/>
+    <field name="tag25" start="51" end="51" type="uint64"/>
+    <field name="val26" start="52" end="52" type="uint64"/>
+    <field name="tag26" start="53" end="53" type="uint64"/>
+    <field name="val27" start="54" end="54" type="uint64"/>
+    <field name="tag27" start="55" end="55" type="uint64"/>
+    <field name="val28" start="56" end="56" type="uint64"/>
+    <field name="tag28" start="57" end="57" type="uint64"/>
+    <field name="val29" start="58" end="58" type="uint64"/>
+    <field name="tag29" start="59" end="59" type="uint64"/>
+    <field name="val30" start="60" end="60" type="uint64"/>
+    <field name="tag30" start="61" end="61" type="uint64"/>
+    <field name="val31" start="62" end="62" type="uint64"/>
+    <field name="tag31" start="63" end="63" type="uint64"/>
+  </struct>
+
+  <union id="pf">
+    <field name="dword" type="uint64"/>
+    <field name="" type="pf_bits"/>
+  </union>
+
+  <!-- DIBCR  -->
+  <struct id="dibcr_bits" size="8">
+    <field name="v0" start="0" end="0"/>
+    <field name="t0" start="1" end="1"/>
+    <field name="v1" start="2" end="2"/>
+    <field name="t1" start="3" end="3"/>
+    <field name="v2" start="4" end="4"/>
+    <field name="t2" start="5" end="5"/>
+    <field name="v3" start="6" end="6"/>
+    <field name="t3" start="7" end="7"/>
+    <field name="bt" start="8" end="8"/>
+    <field name="stop" start="9" end="9"/>
+  </struct>
+
+  <union id="dibcr">
+    <field name="dword" type="uint64"/>
+    <field name="" type="dibcr_bits"/>
+  </union>
+
+
+  <!-- DDBCR  -->
+  <struct id="ddbcr_bits" size="8">
+    <field name="v0" start="0" end="0"/>
+    <field name="root0" start="1" end="1"/>
+    <field name="rw0" start="2" end="3"/>
+    <field name="lng0" start="4" end="6"/>
+    <field name="sync0" start="7" end="7"/>
+    <field name="spec0" start="8" end="8"/>
+    <field name="ap0" start="9" end="9"/>
+    <field name="sf0" start="10" end="10"/>
+    <field name="hw0" start="11" end="11"/>
+    <field name="t0" start="12" end="12"/>
+    <field name="v1" start="14" end="14"/>
+    <field name="root1" start="15" end="15"/>
+    <field name="rw1" start="16" end="17"/>
+    <field name="lng1" start="18" end="20"/>
+    <field name="sync1" start="21" end="21"/>
+    <field name="spec1" start="22" end="22"/>
+    <field name="ap1" start="23" end="23"/>
+    <field name="sf1" start="24" end="24"/>
+    <field name="hw1" start="25" end="25"/>
+    <field name="t1" start="26" end="26"/>
+    <field name="v2" start="28" end="28"/>
+    <field name="root2" start="29" end="29"/>
+    <field name="rw2" start="30" end="31"/>
+    <field name="lng2" start="32" end="34"/>
+    <field name="sync2" start="35" end="35"/>
+    <field name="spec2" start="36" end="36"/>
+    <field name="ap2" start="37" end="37"/>
+    <field name="sf2" start="38" end="38"/>
+    <field name="hw2" start="39" end="39"/>
+    <field name="t2" start="40" end="40"/>
+    <field name="v3" start="42" end="42"/>
+    <field name="root3" start="43" end="43"/>
+    <field name="rw3" start="44" end="45"/>
+    <field name="lng3" start="46" end="48"/>
+    <field name="sync3" start="49" end="49"/>
+    <field name="spec3" start="50" end="50"/>
+    <field name="ap3" start="51" end="51"/>
+    <field name="sf3" start="52" end="52"/>
+    <field name="hw3" start="53" end="53"/>
+    <field name="t3" start="54" end="54"/>
+  </struct>
+
+  <union id="ddbcr">
+    <field name="dword" type="uint64"/>
+    <field name="" type="ddbcr_bits"/>
+  </union>
+
+  <!-- DIBAR  -->
+  <struct id="dibar_bits" size="8">
+    <field name="base" start="0" end="47"/>
+  </struct>
+
+  <union id="dibar">
+    <field name="dword" type="uint64"/>
+    <field name="" type="dibar_bits"/>
+  </union>
+
+
+  <!-- DDBAR  -->
+  <struct id="ddbar_bits" size="8">
+    <field name="base" start="0" end="47"/>
+  </struct>
+
+  <union id="ddbar">
+    <field name="dword" type="uint64"/>
+    <field name="" type="ddbar_bits"/>
+  </union>
+
+  <!-- DIBSR: this is 32 bits wide in fact . . .  -->
+  <struct id="dibsr_bits" size="8">
+    <field name="b0" start="0" end="0"/>
+    <field name="b1" start="1" end="1"/>
+    <field name="b2" start="2" end="2"/>
+    <field name="b3" start="3" end="3"/>
+    <field name="bt" start="4" end="4"/>
+    <field name="m0" start="5" end="5"/>
+    <field name="m1" start="6" end="6"/>
+  </struct>
+
+  <union id="dibsr">
+    <field name="dword" type="uint64"/>
+    <field name="" type="dibsr_bits"/>
+  </union>
+
+
+  <!-- DDBSR: this is a 32-bit value.  -->
+  <struct id="ddbsr_bits" size="8">
+    <field name="sprg0" start="0" end="0"/>
+    <field name="spec0" start="1" end="1"/>
+    <field name="aprg0" start="2" end="2"/>
+    <field name="psf0" start="3" end="3"/>
+    <field name="csf0" start="4" end="4"/>
+    <field name="cut0" start="5" end="5"/>
+    <field name="pt0" start="6" end="6"/>
+    <field name="clw0" start="7" end="7"/>
+    <field name="sprg1" start="12" end="12"/>
+    <field name="spec1" start="13" end="13"/>
+    <field name="aprg1" start="14" end="14"/>
+    <field name="psf1" start="15" end="15"/>
+    <field name="csf1" start="16" end="16"/>
+    <field name="cut1" start="17" end="17"/>
+    <field name="pt1" start="18" end="18"/>
+    <field name="clw1" start="19" end="19"/>
+    <field name="sprg2" start="24" end="24"/>
+    <field name="spec2" start="25" end="25"/>
+    <field name="aprg2" start="26" end="26"/>
+    <field name="psf2" start="27" end="27"/>
+    <field name="csf2" start="28" end="28"/>
+    <field name="cut2" start="29" end="29"/>
+    <field name="pt2" start="30" end="30"/>
+    <field name="clw2" start="31" end="31"/>
+    <field name="sprg3" start="36" end="36"/>
+    <field name="spec3" start="37" end="37"/>
+    <field name="aprg3" start="38" end="38"/>
+    <field name="psf3" start="39" end="39"/>
+    <field name="csf3" start="40" end="40"/>
+    <field name="cut3" start="41" end="41"/>
+    <field name="pt3" start="42" end="42"/>
+    <field name="clw3" start="43" end="43"/>
+    <field name="m0" start="49" end="49"/>
+    <field name="m1" start="50" end="50"/>
+  </struct>
+
+  <union id="ddbsr">
+    <field name="dword" type="uint64"/>
+    <field name="" type="ddbsr_bits"/>
+  </union>
+
+  <!-- DIMCR  -->
+  <struct id="dimcr_bits" size="8">
+    <field name="vu0" start="0" end="0"/>
+    <field name="vs0" start="1" end="1"/>
+    <field name="to0" start="2" end="2"/>
+    <field name="es0" start="16" end="22"/>
+    <field name="vu1" start="32" end="32"/>
+    <field name="vs1" start="33" end="33"/>
+    <field name="to1" start="34" end="34"/>
+    <field name="es1" start="48" end="54"/>
+  </struct>
+
+  <union id="dimcr">
+    <field name="dword" type="uint64"/>
+    <field name="" type="dimcr_bits"/>
+  </union>
+
+  <!-- DDMCR  -->
+  <struct id="ddmcr_bits" size="8">
+    <field name="vu0" start="0" end="0"/>
+    <field name="vs0" start="1" end="1"/>
+    <field name="to0" start="2" end="2"/>
+    <field name="es0" start="16" end="22"/>
+    <field name="vu1" start="32" end="32"/>
+    <field name="vs1" start="33" end="33"/>
+    <field name="to1" start="34" end="34"/>
+    <field name="es1" start="48" end="54"/>
+  </struct>
+
+  <union id="ddmcr">
+    <field name="dword" type="uint64"/>
+    <field name="" type="ddmcr_bits"/>
+  </union>
+
+  <!-- DTCR: it seems that it's 32 bits long whereas only two bits are
+    actually used . . .  -->
+  <struct id="dtcr_bits" size="8">
+    <field name="vu" start="0" end="0"/>
+    <field name="vs" start="1" end="1"/>
+  </struct>
+
+  <union id="dtcr">
+    <field name="dword" type="uint64"/>
+    <field name="" type="dtcr_bits"/>
+  </union>
+
+  <!-- DTARF_RWP  -->
+  <struct id="dtarf_rwp_bits" size="8">
+    <field name="base" start="0" end="47"/>
+  </struct>
+
+  <union id="dtarf_rwp">
+    <field name="dword" type="uint64"/>
+    <field name="" type="dtarf_rwp_bits"/>
+  </union>
+
+  <!-- DTART_RWP  -->
+  <struct id="dtart_rwp_bits" size="8">
+    <field name="base" start="0" end="47"/>
+  </struct>
+
+  <union id="dtart_rwp">
+    <field name="dword" type="uint64"/>
+    <field name="" type="dtart_rwp_bits"/>
+  </union>
+
+  <!-- TR  -->
+  <struct id="tr_bits" size="8">
+    <field name="value" start="0" end="14"/>
+  </struct>
+
+  <union id="tr">
+    <field name="dword" type="uint64"/>
+    <field name="" type="tr_bits"/>
+  </union>
+
+  <!-- CUTD_RWP  -->
+  <struct id="cutd_rwp_bits" size="8">
+    <field name="base" start="0" end="47"/>
+  </struct>
+
+  <union id="cutd_rwp">
+    <field name="dword" type="uint64"/>
+    <field name="" type="cutd_rwp_bits"/>
+  </union>
+
+  <!-- CUIR  -->
+  <struct id="cuir_bits" size="8">
+    <field name="ind" start="0" end="15"/>
+    <field name="ic" start="16" end="16"/>
+  </struct>
+
+  <union id="cuir">
+    <field name="dword" type="uint64"/>
+    <field name="" type="cuir_bits"/>
+  </union>
+
+  <!-- TSD  -->
+  <struct id="tsd_bits" size="8">
+    <field name="base" start="0" end="14"/>
+    <field name="size" start="32" end="46"/>
+  </struct>
+
+  <union id="tsd">
+    <field name="dword" type="uint64"/>
+    <field name="" type="tsd_bits"/>
+  </union>
+
+  <!-- CUIR  -->
+  <struct id="cuir_bits" size="8">
+    <field name="ind" start="0" end="15"/>
+    <field name="ic" start="16" end="16"/>
+  </struct>
+
+  <union id="cuir">
+    <field name="dword" type="uint64"/>
+    <field name="" type="cuir_bits"/>
+  </union>
+
+
+  <!-- LSR  -->
+  <struct id="lsr_bits" size="8">
+    <field name="lcnt" start="0" end="31"/>
+    <field name="ecnt" start="32" end="36"/>
+    <field name="vlc" start="37" end="37"/>
+    <field name="over" start="38" end="38"/>
+    <field name="ldmc" start="39" end="39"/>
+    <field name="ldovl" start="40" end="47"/>
+    <field name="pcnt" start="48" end="52"/>
+    <field name="strmd" start="53" end="59"/>
+    <field name="semc" start="60" end="60"/>
+  </struct>
+
+  <union id="lsr">
+    <field name="dword" type="uint64"/>
+    <field name="" type="lsr_bits"/>
+  </union>
+
+
+  <!-- ILCR  -->
+  <struct id="ilcr_bits" size="8">
+    <field name="lcnt" start="0" end="31"/>
+    <field name="ecnt" start="32" end="36"/>
+    <field name="pcnt" start="48" end="52"/>
+  </struct>
+
+  <union id="ilcr">
+    <field name="dword" type="uint64"/>
+    <field name="" type="ilcr_bits"/>
+  </union>
+
+  <!-- RET: this type is used in `e2k_return_value' when filling
+    in return buffers of different sizes (1, 2, 4, 8).
+
+FIXME: introduce new cooked registers having appropriate types
+for return values of different sizes.  -->
+  <struct id="ret_bits" size="8">
+    <field name="b0" start="0" end="7"/>
+    <field name="b1" start="8" end="15"/>
+    <field name="b2" start="16" end="23"/>
+    <field name="b3" start="24" end="31"/>
+    <field name="b4" start="32" end="39"/>
+    <field name="b5" start="40" end="47"/>
+    <field name="b6" start="48" end="55"/>
+    <field name="b7" start="56" end="63"/>
+  </struct>
+
+  <union id="ret">
+    <field name="dword" type="uint64"/>
+    <field name="" type="ret_bits"/>
+  </union>
+
+
+  <!-- DAM  -->
+  <struct id="dam_bits" size="8">
+    <field name="l1col" start="0" end="1"/>
+    <field name="l1msb" start="2" end="3"/>
+    <field name="word" start="4" end="12"/>
+    <field name="page" start="13" end="40"/>
+    <field name="mask" start="41" end="48"/>
+    <field name="rg" start="49" end="56"/>
+    <field name="quadro" start="57" end="57"/>
+    <field name="val" start="58" end="58"/>
+  </struct>
+
+  <union id="dam">
+    <field name="dword" type="uint64"/>
+    <field name="" type="dam_bits"/>
+  </union>
+
+
+  <!-- MLT  -->
+  <struct id="mlt_bits_0" size="8">
+    <field name="resc" start="0" end="3"/>
+    <field name="mask" start="4" end="11"/>
+    <field name="page" start="12" end="39"/>
+    <field name="opcod_size" start="40" end="42"/>
+    <field name="rg" start="43" end="50"/>
+    <field name="st_ld_lock" start="51" end="51"/>
+    <field name="hit" start="52" end="52"/>
+    <field name="val" start="53" end="53"/>
+  </struct>
+
+  <struct id="mlt_bits_1" size="8">
+    <field name="byte" start="0" end="2"/>
+    <field name="word" start="3" end="11"/>
+    <field name="virt_page" start="12" end="47"/>
+  </struct>
+
+  <struct id="mlt_bits_2" size="8">
+    <field name="sec_resc" start="0" end="3"/>
+    <field name="mask_sec" start="4" end="11"/>
+    <field name="next" start="12" end="20"/>
+    <field name="sec_page" start="21" end="22"/>
+    <field name="second" start="23" end="23"/>
+    <field name="pbv" start="24" end="24"/>
+  </struct>
+
+  <union id="mlt_0">
+    <field name="" type="uint64"/>
+    <field name="" type="mlt_bits_0"/>
+  </union>
+
+  <union id="mlt_1">
+    <field name="" type="uint64"/>
+    <field name="" type="mlt_bits_1"/>
+  </union>
+
+  <union id="mlt_2">
+    <field name="" type="uint64"/>
+    <field name="" type="mlt_bits_2"/>
+  </union>
+
+
+  <struct id="mlt">
+    <field name="" type="mlt_0"/>
+    <field name="" type="mlt_1"/>
+    <field name="" type="mlt_2"/>
+  </struct>
+
+
+  <!-- These types are used by PM-target when dealing with CUT.  -->
+
+  <!-- CUT_ZERO  -->
+  <struct id="cut_zero_bits" size="8">
+    <field name="cud_base" start="0" end="47"/>
+    <field name="cud_c" start="58" end="58"/>
+  </struct>
+
+  <union id="cut_zero">
+    <field name="dword" type="uint64"/>
+    <field name="" type="cut_zero_bits"/>
+  </union>
+
+
+  <!-- CUT_TWO  -->
+  <struct id="cut_two_bits" size="8">
+    <field name="gd_base" start="0" end="47"/>
+  </struct>
+
+  <union id="cut_two">
+    <field name="dword" type="uint64"/>
+    <field name="" type="cut_two_bits"/>
+  </union>
+
+  <struct id="dbl_param">
+    <field name="set" type="uint64"/>
+    <field name="offset" type="uint64"/>
+    <field name="val" type="uint64"/>
+    <field name="tags" type="uint8"/>
+  </struct>
+
+  <struct id="quad_param">
+    <field name="set" type="uint64"/>
+    <field name="offset" type="uint64"/>
+    <field name="val1" type="uint64"/>
+    <field name="val2" type="uint64"/>
+    <field name="tags" type="uint8"/>
+  </struct>
+
+
+  <!-- 0  -->
+  <reg name="_sizeof" bitsize="64" type="uint64"/>
+
+  <!-- 1 - 64  -->
+  <reg name="_r0" bitsize="64" type="tagged64"/>
+  <reg name="_r1" bitsize="64" type="tagged64"/>
+  <reg name="_r2" bitsize="64" type="tagged64"/>
+  <reg name="_r3" bitsize="64" type="tagged64"/>
+  <reg name="_r4" bitsize="64" type="tagged64"/>
+  <reg name="_r5" bitsize="64" type="tagged64"/>
+  <reg name="_r6" bitsize="64" type="tagged64"/>
+  <reg name="_r7" bitsize="64" type="tagged64"/>
+  <reg name="_r8" bitsize="64" type="tagged64"/>
+  <reg name="_r9" bitsize="64" type="tagged64"/>
+  <reg name="_r10" bitsize="64" type="tagged64"/>
+  <reg name="_r11" bitsize="64" type="tagged64"/>
+  <reg name="_r12" bitsize="64" type="tagged64"/>
+  <reg name="_r13" bitsize="64" type="tagged64"/>
+  <reg name="_r14" bitsize="64" type="tagged64"/>
+  <reg name="_r15" bitsize="64" type="tagged64"/>
+  <reg name="_r16" bitsize="64" type="tagged64"/>
+  <reg name="_r17" bitsize="64" type="tagged64"/>
+  <reg name="_r18" bitsize="64" type="tagged64"/>
+  <reg name="_r19" bitsize="64" type="tagged64"/>
+  <reg name="_r20" bitsize="64" type="tagged64"/>
+  <reg name="_r21" bitsize="64" type="tagged64"/>
+  <reg name="_r22" bitsize="64" type="tagged64"/>
+  <reg name="_r23" bitsize="64" type="tagged64"/>
+  <reg name="_r24" bitsize="64" type="tagged64"/>
+  <reg name="_r25" bitsize="64" type="tagged64"/>
+  <reg name="_r26" bitsize="64" type="tagged64"/>
+  <reg name="_r27" bitsize="64" type="tagged64"/>
+  <reg name="_r28" bitsize="64" type="tagged64"/>
+  <reg name="_r29" bitsize="64" type="tagged64"/>
+  <reg name="_r30" bitsize="64" type="tagged64"/>
+  <reg name="_r31" bitsize="64" type="tagged64"/>
+  <reg name="_r32" bitsize="64" type="tagged64"/>
+  <reg name="_r33" bitsize="64" type="tagged64"/>
+  <reg name="_r34" bitsize="64" type="tagged64"/>
+  <reg name="_r35" bitsize="64" type="tagged64"/>
+  <reg name="_r36" bitsize="64" type="tagged64"/>
+  <reg name="_r37" bitsize="64" type="tagged64"/>
+  <reg name="_r38" bitsize="64" type="tagged64"/>
+  <reg name="_r39" bitsize="64" type="tagged64"/>
+  <reg name="_r40" bitsize="64" type="tagged64"/>
+  <reg name="_r41" bitsize="64" type="tagged64"/>
+  <reg name="_r42" bitsize="64" type="tagged64"/>
+  <reg name="_r43" bitsize="64" type="tagged64"/>
+  <reg name="_r44" bitsize="64" type="tagged64"/>
+  <reg name="_r45" bitsize="64" type="tagged64"/>
+  <reg name="_r46" bitsize="64" type="tagged64"/>
+  <reg name="_r47" bitsize="64" type="tagged64"/>
+  <reg name="_r48" bitsize="64" type="tagged64"/>
+  <reg name="_r49" bitsize="64" type="tagged64"/>
+  <reg name="_r50" bitsize="64" type="tagged64"/>
+  <reg name="_r51" bitsize="64" type="tagged64"/>
+  <reg name="_r52" bitsize="64" type="tagged64"/>
+  <reg name="_r53" bitsize="64" type="tagged64"/>
+  <reg name="_r54" bitsize="64" type="tagged64"/>
+  <reg name="_r55" bitsize="64" type="tagged64"/>
+  <reg name="_r56" bitsize="64" type="tagged64"/>
+  <reg name="_r57" bitsize="64" type="tagged64"/>
+  <reg name="_r58" bitsize="64" type="tagged64"/>
+  <reg name="_r59" bitsize="64" type="tagged64"/>
+  <reg name="_r60" bitsize="64" type="tagged64"/>
+  <reg name="_r61" bitsize="64" type="tagged64"/>
+  <reg name="_r62" bitsize="64" type="tagged64"/>
+  <reg name="_r63" bitsize="64" type="tagged64"/>
+
+
+  <!-- 65 - 192 -->
+
+  <reg name="_b0" bitsize="64" type="tagged64"/>
+  <reg name="_b1" bitsize="64" type="tagged64"/>
+  <reg name="_b2" bitsize="64" type="tagged64"/>
+  <reg name="_b3" bitsize="64" type="tagged64"/>
+  <reg name="_b4" bitsize="64" type="tagged64"/>
+  <reg name="_b5" bitsize="64" type="tagged64"/>
+  <reg name="_b6" bitsize="64" type="tagged64"/>
+  <reg name="_b7" bitsize="64" type="tagged64"/>
+  <reg name="_b8" bitsize="64" type="tagged64"/>
+  <reg name="_b9" bitsize="64" type="tagged64"/>
+  <reg name="_b10" bitsize="64" type="tagged64"/>
+  <reg name="_b11" bitsize="64" type="tagged64"/>
+  <reg name="_b12" bitsize="64" type="tagged64"/>
+  <reg name="_b13" bitsize="64" type="tagged64"/>
+  <reg name="_b14" bitsize="64" type="tagged64"/>
+  <reg name="_b15" bitsize="64" type="tagged64"/>
+  <reg name="_b16" bitsize="64" type="tagged64"/>
+  <reg name="_b17" bitsize="64" type="tagged64"/>
+  <reg name="_b18" bitsize="64" type="tagged64"/>
+  <reg name="_b19" bitsize="64" type="tagged64"/>
+  <reg name="_b20" bitsize="64" type="tagged64"/>
+  <reg name="_b21" bitsize="64" type="tagged64"/>
+  <reg name="_b22" bitsize="64" type="tagged64"/>
+  <reg name="_b23" bitsize="64" type="tagged64"/>
+  <reg name="_b24" bitsize="64" type="tagged64"/>
+  <reg name="_b25" bitsize="64" type="tagged64"/>
+  <reg name="_b26" bitsize="64" type="tagged64"/>
+  <reg name="_b27" bitsize="64" type="tagged64"/>
+  <reg name="_b28" bitsize="64" type="tagged64"/>
+  <reg name="_b29" bitsize="64" type="tagged64"/>
+  <reg name="_b30" bitsize="64" type="tagged64"/>
+  <reg name="_b31" bitsize="64" type="tagged64"/>
+  <reg name="_b32" bitsize="64" type="tagged64"/>
+  <reg name="_b33" bitsize="64" type="tagged64"/>
+  <reg name="_b34" bitsize="64" type="tagged64"/>
+  <reg name="_b35" bitsize="64" type="tagged64"/>
+  <reg name="_b36" bitsize="64" type="tagged64"/>
+  <reg name="_b37" bitsize="64" type="tagged64"/>
+  <reg name="_b38" bitsize="64" type="tagged64"/>
+  <reg name="_b39" bitsize="64" type="tagged64"/>
+  <reg name="_b40" bitsize="64" type="tagged64"/>
+  <reg name="_b41" bitsize="64" type="tagged64"/>
+  <reg name="_b42" bitsize="64" type="tagged64"/>
+  <reg name="_b43" bitsize="64" type="tagged64"/>
+  <reg name="_b44" bitsize="64" type="tagged64"/>
+  <reg name="_b45" bitsize="64" type="tagged64"/>
+  <reg name="_b46" bitsize="64" type="tagged64"/>
+  <reg name="_b47" bitsize="64" type="tagged64"/>
+  <reg name="_b48" bitsize="64" type="tagged64"/>
+  <reg name="_b49" bitsize="64" type="tagged64"/>
+  <reg name="_b50" bitsize="64" type="tagged64"/>
+  <reg name="_b51" bitsize="64" type="tagged64"/>
+  <reg name="_b52" bitsize="64" type="tagged64"/>
+  <reg name="_b53" bitsize="64" type="tagged64"/>
+  <reg name="_b54" bitsize="64" type="tagged64"/>
+  <reg name="_b55" bitsize="64" type="tagged64"/>
+  <reg name="_b56" bitsize="64" type="tagged64"/>
+  <reg name="_b57" bitsize="64" type="tagged64"/>
+  <reg name="_b58" bitsize="64" type="tagged64"/>
+  <reg name="_b59" bitsize="64" type="tagged64"/>
+  <reg name="_b60" bitsize="64" type="tagged64"/>
+  <reg name="_b61" bitsize="64" type="tagged64"/>
+  <reg name="_b62" bitsize="64" type="tagged64"/>
+  <reg name="_b63" bitsize="64" type="tagged64"/>
+  <reg name="_b64" bitsize="64" type="tagged64"/>
+  <reg name="_b65" bitsize="64" type="tagged64"/>
+  <reg name="_b66" bitsize="64" type="tagged64"/>
+  <reg name="_b67" bitsize="64" type="tagged64"/>
+  <reg name="_b68" bitsize="64" type="tagged64"/>
+  <reg name="_b69" bitsize="64" type="tagged64"/>
+  <reg name="_b70" bitsize="64" type="tagged64"/>
+  <reg name="_b71" bitsize="64" type="tagged64"/>
+  <reg name="_b72" bitsize="64" type="tagged64"/>
+  <reg name="_b73" bitsize="64" type="tagged64"/>
+  <reg name="_b74" bitsize="64" type="tagged64"/>
+  <reg name="_b75" bitsize="64" type="tagged64"/>
+  <reg name="_b76" bitsize="64" type="tagged64"/>
+  <reg name="_b77" bitsize="64" type="tagged64"/>
+  <reg name="_b78" bitsize="64" type="tagged64"/>
+  <reg name="_b79" bitsize="64" type="tagged64"/>
+  <reg name="_b80" bitsize="64" type="tagged64"/>
+  <reg name="_b81" bitsize="64" type="tagged64"/>
+  <reg name="_b82" bitsize="64" type="tagged64"/>
+  <reg name="_b83" bitsize="64" type="tagged64"/>
+  <reg name="_b84" bitsize="64" type="tagged64"/>
+  <reg name="_b85" bitsize="64" type="tagged64"/>
+  <reg name="_b86" bitsize="64" type="tagged64"/>
+  <reg name="_b87" bitsize="64" type="tagged64"/>
+  <reg name="_b88" bitsize="64" type="tagged64"/>
+  <reg name="_b89" bitsize="64" type="tagged64"/>
+  <reg name="_b90" bitsize="64" type="tagged64"/>
+  <reg name="_b91" bitsize="64" type="tagged64"/>
+  <reg name="_b92" bitsize="64" type="tagged64"/>
+  <reg name="_b93" bitsize="64" type="tagged64"/>
+  <reg name="_b94" bitsize="64" type="tagged64"/>
+  <reg name="_b95" bitsize="64" type="tagged64"/>
+  <reg name="_b96" bitsize="64" type="tagged64"/>
+  <reg name="_b97" bitsize="64" type="tagged64"/>
+  <reg name="_b98" bitsize="64" type="tagged64"/>
+  <reg name="_b99" bitsize="64" type="tagged64"/>
+  <reg name="_b100" bitsize="64" type="tagged64"/>
+  <reg name="_b101" bitsize="64" type="tagged64"/>
+  <reg name="_b102" bitsize="64" type="tagged64"/>
+  <reg name="_b103" bitsize="64" type="tagged64"/>
+  <reg name="_b104" bitsize="64" type="tagged64"/>
+  <reg name="_b105" bitsize="64" type="tagged64"/>
+  <reg name="_b106" bitsize="64" type="tagged64"/>
+  <reg name="_b107" bitsize="64" type="tagged64"/>
+  <reg name="_b108" bitsize="64" type="tagged64"/>
+  <reg name="_b109" bitsize="64" type="tagged64"/>
+  <reg name="_b110" bitsize="64" type="tagged64"/>
+  <reg name="_b111" bitsize="64" type="tagged64"/>
+  <reg name="_b112" bitsize="64" type="tagged64"/>
+  <reg name="_b113" bitsize="64" type="tagged64"/>
+  <reg name="_b114" bitsize="64" type="tagged64"/>
+  <reg name="_b115" bitsize="64" type="tagged64"/>
+  <reg name="_b116" bitsize="64" type="tagged64"/>
+  <reg name="_b117" bitsize="64" type="tagged64"/>
+  <reg name="_b118" bitsize="64" type="tagged64"/>
+  <reg name="_b119" bitsize="64" type="tagged64"/>
+  <reg name="_b120" bitsize="64" type="tagged64"/>
+  <reg name="_b121" bitsize="64" type="tagged64"/>
+  <reg name="_b122" bitsize="64" type="tagged64"/>
+  <reg name="_b123" bitsize="64" type="tagged64"/>
+  <reg name="_b124" bitsize="64" type="tagged64"/>
+  <reg name="_b125" bitsize="64" type="tagged64"/>
+  <reg name="_b126" bitsize="64" type="tagged64"/>
+  <reg name="_b127" bitsize="64" type="tagged64"/>
+
+
+  <!-- 193 - 224 -->
+
+  <reg name="_pred0" bitsize="64" type="pred"/>
+  <reg name="_pred1" bitsize="64" type="pred"/>
+  <reg name="_pred2" bitsize="64" type="pred"/>
+  <reg name="_pred3" bitsize="64" type="pred"/>
+  <reg name="_pred4" bitsize="64" type="pred"/>
+  <reg name="_pred5" bitsize="64" type="pred"/>
+  <reg name="_pred6" bitsize="64" type="pred"/>
+  <reg name="_pred7" bitsize="64" type="pred"/>
+  <reg name="_pred8" bitsize="64" type="pred"/>
+  <reg name="_pred9" bitsize="64" type="pred"/>
+  <reg name="_pred10" bitsize="64" type="pred"/>
+  <reg name="_pred11" bitsize="64" type="pred"/>
+  <reg name="_pred12" bitsize="64" type="pred"/>
+  <reg name="_pred13" bitsize="64" type="pred"/>
+  <reg name="_pred14" bitsize="64" type="pred"/>
+  <reg name="_pred15" bitsize="64" type="pred"/>
+  <reg name="_pred16" bitsize="64" type="pred"/>
+  <reg name="_pred17" bitsize="64" type="pred"/>
+  <reg name="_pred18" bitsize="64" type="pred"/>
+  <reg name="_pred19" bitsize="64" type="pred"/>
+  <reg name="_pred20" bitsize="64" type="pred"/>
+  <reg name="_pred21" bitsize="64" type="pred"/>
+  <reg name="_pred22" bitsize="64" type="pred"/>
+  <reg name="_pred23" bitsize="64" type="pred"/>
+  <reg name="_pred24" bitsize="64" type="pred"/>
+  <reg name="_pred25" bitsize="64" type="pred"/>
+  <reg name="_pred26" bitsize="64" type="pred"/>
+  <reg name="_pred27" bitsize="64" type="pred"/>
+  <reg name="_pred28" bitsize="64" type="pred"/>
+  <reg name="_pred29" bitsize="64" type="pred"/>
+  <reg name="_pred30" bitsize="64" type="pred"/>
+  <reg name="_pred31" bitsize="64" type="pred"/>
+
+
+  <!-- 225 - 256 -->
+  <reg name="_g0" bitsize="64" type="uint64"/>
+  <reg name="_g1" bitsize="64" type="uint64"/>
+  <reg name="_g2" bitsize="64" type="uint64"/>
+  <reg name="_g3" bitsize="64" type="uint64"/>
+  <reg name="_g4" bitsize="64" type="uint64"/>
+  <reg name="_g5" bitsize="64" type="uint64"/>
+  <reg name="_g6" bitsize="64" type="uint64"/>
+  <reg name="_g7" bitsize="64" type="uint64"/>
+  <reg name="_g8" bitsize="64" type="uint64"/>
+  <reg name="_g9" bitsize="64" type="uint64"/>
+  <reg name="_g10" bitsize="64" type="uint64"/>
+  <reg name="_g11" bitsize="64" type="uint64"/>
+  <reg name="_g12" bitsize="64" type="uint64"/>
+  <reg name="_g13" bitsize="64" type="uint64"/>
+  <reg name="_g14" bitsize="64" type="uint64"/>
+  <reg name="_g15" bitsize="64" type="uint64"/>
+  <reg name="_g16" bitsize="64" type="uint64"/>
+  <reg name="_g17" bitsize="64" type="uint64"/>
+  <reg name="_g18" bitsize="64" type="uint64"/>
+  <reg name="_g19" bitsize="64" type="uint64"/>
+  <reg name="_g20" bitsize="64" type="uint64"/>
+  <reg name="_g21" bitsize="64" type="uint64"/>
+  <reg name="_g22" bitsize="64" type="uint64"/>
+  <reg name="_g23" bitsize="64" type="uint64"/>
+  <reg name="_g24" bitsize="64" type="uint64"/>
+  <reg name="_g25" bitsize="64" type="uint64"/>
+  <reg name="_g26" bitsize="64" type="uint64"/>
+  <reg name="_g27" bitsize="64" type="uint64"/>
+  <reg name="_g28" bitsize="64" type="uint64"/>
+  <reg name="_g29" bitsize="64" type="uint64"/>
+  <reg name="_g30" bitsize="64" type="uint64"/>
+  <reg name="_g31" bitsize="64" type="uint64"/>
+
+  <!-- 257  -->
+  <reg name="psr" bitsize="64" type="psr"/>
+
+  <!-- 258  -->
+  <reg name="upsr" bitsize="64" type="upsr"/>
+
+  <!-- 259  -->
+  <reg name="oscud_lo" bitsize="64" type="oscud_rwap_lo"/>
+
+  <!-- 260  -->
+  <reg name="oscud_hi" bitsize="64" type="oscud_rwap_hi"/>
+
+  <!-- 261  -->
+  <reg name="osgd_lo" bitsize="64" type="osgd_rwap_lo"/>
+
+  <!-- 262  -->
+  <reg name="osgd_hi" bitsize="64" type="osgd_rwap_hi"/>
+
+  <!-- 263  -->
+  <reg name="osem" bitsize="64" type="uint64"/>
+
+  <!-- 264  -->
+  <reg name="osr0" bitsize="64" type="uint64"/>
+
+  <!-- 265  -->
+  <reg name="pfpfr" bitsize="64" type="pfpfr"/>
+
+  <!-- 266  -->
+  <reg name="fpcr" bitsize="64" type="fpcr"/>
+
+  <!-- 267  -->
+  <reg name="fpsr" bitsize="64" type="fpsr"/>
+
+  <!-- 268  -->
+  <reg name="usbr" bitsize="64" type="uint64"/>
+
+  <!-- 269: The format of %(P)USD depends on  whether the protected mode is
+ *" on or off. What am I going to do with this?  -->
+
+  <reg name="usd_lo" bitsize="64" type="usd_rwap_lo"/>
+
+  <!-- 270  -->
+  <reg name="usd_hi" bitsize="64" type="usd_rwap_hi"/>
+
+  <!-- 271  -->
+  <reg name="_psp_lo" bitsize="64" type="psp_rwap_lo"/>
+
+  <!-- 272  -->
+  <reg name="_psp_hi" bitsize="64" type="psp_rwap_hi"/>
+
+  <!-- 273  -->
+  <reg name="pshtp" bitsize="64" type="pshtp"/>
+
+  <!-- 274  -->
+  <reg name="_cr0_lo" bitsize="64" type="cr0_lo"/>
+
+  <!-- 275  -->
+  <reg name="_cr0_hi" bitsize="64" type="cr0_hi"/>
+
+  <!-- 276  -->
+  <reg name="_cr1_lo" bitsize="64" type="cr1_lo"/>
+
+  <!-- 277  -->
+  <reg name="_cr1_hi" bitsize="64" type="cr1_hi"/>
+
+  <!-- 278  -->
+  <reg name="cwd" bitsize="64" type="cwd"/>
+
+  <!-- 279  -->
+  <reg name="_pcsp_lo" bitsize="64" type="pcsp_rwap_lo"/>
+
+  <!-- 280  -->
+  <reg name="_pcsp_hi" bitsize="64" type="pcsp_rwap_hi"/>
+
+  <!-- 281  -->
+  <reg name="pcshtp" bitsize="64" type="pcshtp"/>
+
+  <!-- 282  -->
+  <reg name="cud_lo" bitsize="64" type="rwap_lo"/>
+
+  <!-- 283  -->
+  <reg name="cud_hi" bitsize="64" type="rwap_hi"/>
+
+  <!-- 284  -->
+  <reg name="gd_lo" bitsize="64" type="rwap_lo"/>
+
+  <!-- 285  -->
+  <reg name="gd_hi" bitsize="64" type="rwap_hi"/>
+
+  <!-- 286  -->
+  <reg name="cs_lo" bitsize="64" type="intel_rwap_lo"/>
+
+  <!-- 287  -->
+  <reg name="cs_hi" bitsize="64" type="intel_rwap_hi"/>
+
+  <!-- 288  -->
+  <reg name="ds_lo" bitsize="64" type="intel_rwap_lo"/>
+
+  <!-- 289  -->
+  <reg name="ds_hi" bitsize="64" type="intel_rwap_hi"/>
+
+  <!-- 290  -->
+  <reg name="es_lo" bitsize="64" type="intel_rwap_lo"/>
+
+  <!-- 291  -->
+  <reg name="es_hi" bitsize="64" type="intel_rwap_hi"/>
+
+  <!-- 292  -->
+  <reg name="fs_lo" bitsize="64" type="intel_rwap_lo"/>
+
+  <!-- 293  -->
+  <reg name="fs_hi" bitsize="64" type="intel_rwap_hi"/>
+
+  <!-- 294  -->
+  <reg name="gs_lo" bitsize="64" type="intel_rwap_lo"/>
+
+  <!-- 295  -->
+  <reg name="gs_hi" bitsize="64" type="intel_rwap_hi"/>
+
+  <!-- 296  -->
+  <reg name="ss_lo" bitsize="64" type="intel_rwap_lo"/>
+
+  <!-- 297  -->
+  <reg name="ss_hi" bitsize="64" type="intel_rwap_hi"/>
+
+  <!-- 298 - 361  -->
+  <reg name="aad0_lo" bitsize="64" type="aad_lo"/>
+  <reg name="aad0_hi" bitsize="64" type="aad_hi"/>
+  <reg name="aad1_lo" bitsize="64" type="aad_lo"/>
+  <reg name="aad1_hi" bitsize="64" type="aad_hi"/>
+  <reg name="aad2_lo" bitsize="64" type="aad_lo"/>
+  <reg name="aad2_hi" bitsize="64" type="aad_hi"/>
+  <reg name="aad3_lo" bitsize="64" type="aad_lo"/>
+  <reg name="aad3_hi" bitsize="64" type="aad_hi"/>
+  <reg name="aad4_lo" bitsize="64" type="aad_lo"/>
+  <reg name="aad4_hi" bitsize="64" type="aad_hi"/>
+  <reg name="aad5_lo" bitsize="64" type="aad_lo"/>
+  <reg name="aad5_hi" bitsize="64" type="aad_hi"/>
+  <reg name="aad6_lo" bitsize="64" type="aad_lo"/>
+  <reg name="aad6_hi" bitsize="64" type="aad_hi"/>
+  <reg name="aad7_lo" bitsize="64" type="aad_lo"/>
+  <reg name="aad7_hi" bitsize="64" type="aad_hi"/>
+  <reg name="aad8_lo" bitsize="64" type="aad_lo"/>
+  <reg name="aad8_hi" bitsize="64" type="aad_hi"/>
+  <reg name="aad9_lo" bitsize="64" type="aad_lo"/>
+  <reg name="aad9_hi" bitsize="64" type="aad_hi"/>
+  <reg name="aad10_lo" bitsize="64" type="aad_lo"/>
+  <reg name="aad10_hi" bitsize="64" type="aad_hi"/>
+  <reg name="aad11_lo" bitsize="64" type="aad_lo"/>
+  <reg name="aad11_hi" bitsize="64" type="aad_hi"/>
+  <reg name="aad12_lo" bitsize="64" type="aad_lo"/>
+  <reg name="aad12_hi" bitsize="64" type="aad_hi"/>
+  <reg name="aad13_lo" bitsize="64" type="aad_lo"/>
+  <reg name="aad13_hi" bitsize="64" type="aad_hi"/>
+  <reg name="aad14_lo" bitsize="64" type="aad_lo"/>
+  <reg name="aad14_hi" bitsize="64" type="aad_hi"/>
+  <reg name="aad15_lo" bitsize="64" type="aad_lo"/>
+  <reg name="aad15_hi" bitsize="64" type="aad_hi"/>
+  <reg name="aad16_lo" bitsize="64" type="aad_lo"/>
+  <reg name="aad16_hi" bitsize="64" type="aad_hi"/>
+  <reg name="aad17_lo" bitsize="64" type="aad_lo"/>
+  <reg name="aad17_hi" bitsize="64" type="aad_hi"/>
+  <reg name="aad18_lo" bitsize="64" type="aad_lo"/>
+  <reg name="aad18_hi" bitsize="64" type="aad_hi"/>
+  <reg name="aad19_lo" bitsize="64" type="aad_lo"/>
+  <reg name="aad19_hi" bitsize="64" type="aad_hi"/>
+  <reg name="aad20_lo" bitsize="64" type="aad_lo"/>
+  <reg name="aad20_hi" bitsize="64" type="aad_hi"/>
+  <reg name="aad21_lo" bitsize="64" type="aad_lo"/>
+  <reg name="aad21_hi" bitsize="64" type="aad_hi"/>
+  <reg name="aad22_lo" bitsize="64" type="aad_lo"/>
+  <reg name="aad22_hi" bitsize="64" type="aad_hi"/>
+  <reg name="aad23_lo" bitsize="64" type="aad_lo"/>
+  <reg name="aad23_hi" bitsize="64" type="aad_hi"/>
+  <reg name="aad24_lo" bitsize="64" type="aad_lo"/>
+  <reg name="aad24_hi" bitsize="64" type="aad_hi"/>
+  <reg name="aad25_lo" bitsize="64" type="aad_lo"/>
+  <reg name="aad25_hi" bitsize="64" type="aad_hi"/>
+  <reg name="aad26_lo" bitsize="64" type="aad_lo"/>
+  <reg name="aad26_hi" bitsize="64" type="aad_hi"/>
+  <reg name="aad27_lo" bitsize="64" type="aad_lo"/>
+  <reg name="aad27_hi" bitsize="64" type="aad_hi"/>
+  <reg name="aad28_lo" bitsize="64" type="aad_lo"/>
+  <reg name="aad28_hi" bitsize="64" type="aad_hi"/>
+  <reg name="aad29_lo" bitsize="64" type="aad_lo"/>
+  <reg name="aad29_hi" bitsize="64" type="aad_hi"/>
+  <reg name="aad30_lo" bitsize="64" type="aad_lo"/>
+  <reg name="aad30_hi" bitsize="64" type="aad_hi"/>
+  <reg name="aad31_lo" bitsize="64" type="aad_lo"/>
+  <reg name="aad31_hi" bitsize="64" type="aad_hi"/>
+
+  <!-- 362 - 377  -->
+  <reg name="aaind0" bitsize="64" type="aaind"/>
+  <reg name="aaind1" bitsize="64" type="aaind"/>
+  <reg name="aaind2" bitsize="64" type="aaind"/>
+  <reg name="aaind3" bitsize="64" type="aaind"/>
+  <reg name="aaind4" bitsize="64" type="aaind"/>
+  <reg name="aaind5" bitsize="64" type="aaind"/>
+  <reg name="aaind6" bitsize="64" type="aaind"/>
+  <reg name="aaind7" bitsize="64" type="aaind"/>
+  <reg name="aaind8" bitsize="64" type="aaind"/>
+  <reg name="aaind9" bitsize="64" type="aaind"/>
+  <reg name="aaind10" bitsize="64" type="aaind"/>
+  <reg name="aaind11" bitsize="64" type="aaind"/>
+  <reg name="aaind12" bitsize="64" type="aaind"/>
+  <reg name="aaind13" bitsize="64" type="aaind"/>
+  <reg name="aaind14" bitsize="64" type="aaind"/>
+  <reg name="aaind15" bitsize="64" type="aaind"/>
+
+  <!-- 378 - 385  -->
+  <reg name="aaincr0" bitsize="64" type="aaincr"/>
+  <reg name="aaincr1" bitsize="64" type="aaincr"/>
+  <reg name="aaincr2" bitsize="64" type="aaincr"/>
+  <reg name="aaincr3" bitsize="64" type="aaincr"/>
+  <reg name="aaincr4" bitsize="64" type="aaincr"/>
+  <reg name="aaincr5" bitsize="64" type="aaincr"/>
+  <reg name="aaincr6" bitsize="64" type="aaincr"/>
+  <reg name="aaincr7" bitsize="64" type="aaincr"/>
+
+  <!-- 386 - 449  -->
+  <reg name="aaldi0" bitsize="64" type="aaldi"/>
+  <reg name="aaldi1" bitsize="64" type="aaldi"/>
+  <reg name="aaldi2" bitsize="64" type="aaldi"/>
+  <reg name="aaldi3" bitsize="64" type="aaldi"/>
+  <reg name="aaldi4" bitsize="64" type="aaldi"/>
+  <reg name="aaldi5" bitsize="64" type="aaldi"/>
+  <reg name="aaldi6" bitsize="64" type="aaldi"/>
+  <reg name="aaldi7" bitsize="64" type="aaldi"/>
+  <reg name="aaldi8" bitsize="64" type="aaldi"/>
+  <reg name="aaldi9" bitsize="64" type="aaldi"/>
+  <reg name="aaldi10" bitsize="64" type="aaldi"/>
+  <reg name="aaldi11" bitsize="64" type="aaldi"/>
+  <reg name="aaldi12" bitsize="64" type="aaldi"/>
+  <reg name="aaldi13" bitsize="64" type="aaldi"/>
+  <reg name="aaldi14" bitsize="64" type="aaldi"/>
+  <reg name="aaldi15" bitsize="64" type="aaldi"/>
+  <reg name="aaldi16" bitsize="64" type="aaldi"/>
+  <reg name="aaldi17" bitsize="64" type="aaldi"/>
+  <reg name="aaldi18" bitsize="64" type="aaldi"/>
+  <reg name="aaldi19" bitsize="64" type="aaldi"/>
+  <reg name="aaldi20" bitsize="64" type="aaldi"/>
+  <reg name="aaldi21" bitsize="64" type="aaldi"/>
+  <reg name="aaldi22" bitsize="64" type="aaldi"/>
+  <reg name="aaldi23" bitsize="64" type="aaldi"/>
+  <reg name="aaldi24" bitsize="64" type="aaldi"/>
+  <reg name="aaldi25" bitsize="64" type="aaldi"/>
+  <reg name="aaldi26" bitsize="64" type="aaldi"/>
+  <reg name="aaldi27" bitsize="64" type="aaldi"/>
+  <reg name="aaldi28" bitsize="64" type="aaldi"/>
+  <reg name="aaldi29" bitsize="64" type="aaldi"/>
+  <reg name="aaldi30" bitsize="64" type="aaldi"/>
+  <reg name="aaldi31" bitsize="64" type="aaldi"/>
+  <reg name="aaldi32" bitsize="64" type="aaldi"/>
+  <reg name="aaldi33" bitsize="64" type="aaldi"/>
+  <reg name="aaldi34" bitsize="64" type="aaldi"/>
+  <reg name="aaldi35" bitsize="64" type="aaldi"/>
+  <reg name="aaldi36" bitsize="64" type="aaldi"/>
+  <reg name="aaldi37" bitsize="64" type="aaldi"/>
+  <reg name="aaldi38" bitsize="64" type="aaldi"/>
+  <reg name="aaldi39" bitsize="64" type="aaldi"/>
+  <reg name="aaldi40" bitsize="64" type="aaldi"/>
+  <reg name="aaldi41" bitsize="64" type="aaldi"/>
+  <reg name="aaldi42" bitsize="64" type="aaldi"/>
+  <reg name="aaldi43" bitsize="64" type="aaldi"/>
+  <reg name="aaldi44" bitsize="64" type="aaldi"/>
+  <reg name="aaldi45" bitsize="64" type="aaldi"/>
+  <reg name="aaldi46" bitsize="64" type="aaldi"/>
+  <reg name="aaldi47" bitsize="64" type="aaldi"/>
+  <reg name="aaldi48" bitsize="64" type="aaldi"/>
+  <reg name="aaldi49" bitsize="64" type="aaldi"/>
+  <reg name="aaldi50" bitsize="64" type="aaldi"/>
+  <reg name="aaldi51" bitsize="64" type="aaldi"/>
+  <reg name="aaldi52" bitsize="64" type="aaldi"/>
+  <reg name="aaldi53" bitsize="64" type="aaldi"/>
+  <reg name="aaldi54" bitsize="64" type="aaldi"/>
+  <reg name="aaldi55" bitsize="64" type="aaldi"/>
+  <reg name="aaldi56" bitsize="64" type="aaldi"/>
+  <reg name="aaldi57" bitsize="64" type="aaldi"/>
+  <reg name="aaldi58" bitsize="64" type="aaldi"/>
+  <reg name="aaldi59" bitsize="64" type="aaldi"/>
+  <reg name="aaldi60" bitsize="64" type="aaldi"/>
+  <reg name="aaldi61" bitsize="64" type="aaldi"/>
+  <reg name="aaldi62" bitsize="64" type="aaldi"/>
+  <reg name="aaldi63" bitsize="64" type="aaldi"/>
+
+  <!-- 450  -->
+  <reg name="aaldv" bitsize="64" type="aaldi"/>
+
+  <!-- 451 - 514  -->
+  <reg name="aalda0" bitsize="64" type="aalda"/>
+  <reg name="aalda1" bitsize="64" type="aalda"/>
+  <reg name="aalda2" bitsize="64" type="aalda"/>
+  <reg name="aalda3" bitsize="64" type="aalda"/>
+  <reg name="aalda4" bitsize="64" type="aalda"/>
+  <reg name="aalda5" bitsize="64" type="aalda"/>
+  <reg name="aalda6" bitsize="64" type="aalda"/>
+  <reg name="aalda7" bitsize="64" type="aalda"/>
+  <reg name="aalda8" bitsize="64" type="aalda"/>
+  <reg name="aalda9" bitsize="64" type="aalda"/>
+  <reg name="aalda10" bitsize="64" type="aalda"/>
+  <reg name="aalda11" bitsize="64" type="aalda"/>
+  <reg name="aalda12" bitsize="64" type="aalda"/>
+  <reg name="aalda13" bitsize="64" type="aalda"/>
+  <reg name="aalda14" bitsize="64" type="aalda"/>
+  <reg name="aalda15" bitsize="64" type="aalda"/>
+  <reg name="aalda16" bitsize="64" type="aalda"/>
+  <reg name="aalda17" bitsize="64" type="aalda"/>
+  <reg name="aalda18" bitsize="64" type="aalda"/>
+  <reg name="aalda19" bitsize="64" type="aalda"/>
+  <reg name="aalda20" bitsize="64" type="aalda"/>
+  <reg name="aalda21" bitsize="64" type="aalda"/>
+  <reg name="aalda22" bitsize="64" type="aalda"/>
+  <reg name="aalda23" bitsize="64" type="aalda"/>
+  <reg name="aalda24" bitsize="64" type="aalda"/>
+  <reg name="aalda25" bitsize="64" type="aalda"/>
+  <reg name="aalda26" bitsize="64" type="aalda"/>
+  <reg name="aalda27" bitsize="64" type="aalda"/>
+  <reg name="aalda28" bitsize="64" type="aalda"/>
+  <reg name="aalda29" bitsize="64" type="aalda"/>
+  <reg name="aalda30" bitsize="64" type="aalda"/>
+  <reg name="aalda31" bitsize="64" type="aalda"/>
+  <reg name="aalda32" bitsize="64" type="aalda"/>
+  <reg name="aalda33" bitsize="64" type="aalda"/>
+  <reg name="aalda34" bitsize="64" type="aalda"/>
+  <reg name="aalda35" bitsize="64" type="aalda"/>
+  <reg name="aalda36" bitsize="64" type="aalda"/>
+  <reg name="aalda37" bitsize="64" type="aalda"/>
+  <reg name="aalda38" bitsize="64" type="aalda"/>
+  <reg name="aalda39" bitsize="64" type="aalda"/>
+  <reg name="aalda40" bitsize="64" type="aalda"/>
+  <reg name="aalda41" bitsize="64" type="aalda"/>
+  <reg name="aalda42" bitsize="64" type="aalda"/>
+  <reg name="aalda43" bitsize="64" type="aalda"/>
+  <reg name="aalda44" bitsize="64" type="aalda"/>
+  <reg name="aalda45" bitsize="64" type="aalda"/>
+  <reg name="aalda46" bitsize="64" type="aalda"/>
+  <reg name="aalda47" bitsize="64" type="aalda"/>
+  <reg name="aalda48" bitsize="64" type="aalda"/>
+  <reg name="aalda49" bitsize="64" type="aalda"/>
+  <reg name="aalda50" bitsize="64" type="aalda"/>
+  <reg name="aalda51" bitsize="64" type="aalda"/>
+  <reg name="aalda52" bitsize="64" type="aalda"/>
+  <reg name="aalda53" bitsize="64" type="aalda"/>
+  <reg name="aalda54" bitsize="64" type="aalda"/>
+  <reg name="aalda55" bitsize="64" type="aalda"/>
+  <reg name="aalda56" bitsize="64" type="aalda"/>
+  <reg name="aalda57" bitsize="64" type="aalda"/>
+  <reg name="aalda58" bitsize="64" type="aalda"/>
+  <reg name="aalda59" bitsize="64" type="aalda"/>
+  <reg name="aalda60" bitsize="64" type="aalda"/>
+  <reg name="aalda61" bitsize="64" type="aalda"/>
+  <reg name="aalda62" bitsize="64" type="aalda"/>
+  <reg name="aalda63" bitsize="64" type="aalda"/>
+
+  <!-- 515  -->
+  <reg name="aaldm" bitsize="64" type="aaldm"/>
+
+  <!-- 516  -->
+  <reg name="aasr" bitsize="64" type="aasr"/>
+
+  <!-- 517  -->
+  <reg name="aafstr" bitsize="64" type="aafstr"/>
+
+  <!-- 518 - 533  -->
+  <reg name="aasti0" bitsize="64" type="aasti"/>
+  <reg name="aasti1" bitsize="64" type="aasti"/>
+  <reg name="aasti2" bitsize="64" type="aasti"/>
+  <reg name="aasti3" bitsize="64" type="aasti"/>
+  <reg name="aasti4" bitsize="64" type="aasti"/>
+  <reg name="aasti5" bitsize="64" type="aasti"/>
+  <reg name="aasti6" bitsize="64" type="aasti"/>
+  <reg name="aasti7" bitsize="64" type="aasti"/>
+  <reg name="aasti8" bitsize="64" type="aasti"/>
+  <reg name="aasti9" bitsize="64" type="aasti"/>
+  <reg name="aasti10" bitsize="64" type="aasti"/>
+  <reg name="aasti11" bitsize="64" type="aasti"/>
+  <reg name="aasti12" bitsize="64" type="aasti"/>
+  <reg name="aasti13" bitsize="64" type="aasti"/>
+  <reg name="aasti14" bitsize="64" type="aasti"/>
+  <reg name="aasti15" bitsize="64" type="aasti"/>
+
+  <!-- 534  -->
+  <reg name="clkr" bitsize="64" type="uint64"/>
+
+  <!-- 535  -->
+  <reg name="dibcr" bitsize="64" type="dibcr"/>
+
+  <!-- 536  -->
+  <reg name="ddbcr" bitsize="64" type="ddbcr"/>
+
+  <!-- 537 - 540  -->
+  <reg name="dibar0" bitsize="64" type="dibar"/>
+  <reg name="dibar1" bitsize="64" type="dibar"/>
+  <reg name="dibar2" bitsize="64" type="dibar"/>
+  <reg name="dibar3" bitsize="64" type="dibar"/>
+
+  <!-- 541 - 544  -->
+  <reg name="ddbar0" bitsize="64" type="ddbar"/>
+  <reg name="ddbar1" bitsize="64" type="ddbar"/>
+  <reg name="ddbar2" bitsize="64" type="ddbar"/>
+  <reg name="ddbar3" bitsize="64" type="ddbar"/>
+
+  <!-- 545  -->
+  <reg name="dimcr" bitsize="64" type="dimcr"/>
+
+  <!-- 546  -->
+  <reg name="ddmcr" bitsize="64" type="ddmcr"/>
+
+  <!-- 547 - 548  -->
+  <reg name="dimar0" bitsize="64" type="uint64"/>
+  <reg name="dimar1" bitsize="64" type="uint64"/>
+
+  <!-- 549 - 550  -->
+  <reg name="ddmar0" bitsize="64" type="uint64"/>
+  <reg name="ddmar1" bitsize="64" type="uint64"/>
+
+  <!-- 551  -->
+  <reg name="dibsr" bitsize="64" type="dibsr"/>
+
+  <!-- 552  -->
+  <reg name="ddbsr" bitsize="64" type="ddbsr"/>
+
+  <!-- 553  -->
+  <reg name="dtcr" bitsize="64" type="dtcr"/>
+
+  <!-- 554  -->
+  <reg name="dtarf" bitsize="64" type="dtarf_rwp"/>
+
+  <!-- 555  -->
+  <reg name="dtart" bitsize="64" type="dtart_rwp"/>
+
+  <!-- 556  -->
+  <reg name="_wd" bitsize="64" type="wd"/>
+
+  <!-- 557  -->
+  <reg name="_br" bitsize="64" type="br"/>
+
+  <!-- 558  -->
+  <reg name="bgr" bitsize="64" type="bgr"/>
+
+  <!-- 559  -->
+  <reg name="_ip" bitsize="64" type="ip_rwp"/>
+
+  <!-- 560  -->
+  <reg name="nip" bitsize="64" type="ip_rwp"/>
+
+  <!-- 561 - 563  -->
+  <reg name="ctpr1" bitsize="64" type="ctpr_rwp"/>
+  <reg name="ctpr2" bitsize="64" type="ctpr_rwp"/>
+  <reg name="ctpr3" bitsize="64" type="ctpr_rwp"/>
+
+  <!-- 564  -->
+  <reg name="eir" bitsize="64" type="uint64"/>
+
+  <!-- 565  -->
+  <reg name="tr" bitsize="64" type="tr"/>
+
+  <!-- 566  -->
+  <reg name="cutd" bitsize="64" type="cutd_rwp"/>
+
+  <!-- 567  -->
+  <reg name="cuir" bitsize="64" type="cuir"/>
+
+  <!-- 568  -->
+  <reg name="tsd" bitsize="64" type="tsd"/>
+
+  <!-- 569  -->
+  <reg name="lsr" bitsize="64" type="lsr"/>
+
+  <!-- 570  -->
+  <reg name="ilcr" bitsize="64" type="ilcr"/>
+
+  <!-- 571 - 578  -->
+  <reg name="_sys_rval" bitsize="64" type="uint64"/>
+  <reg name="_sys_rnum" bitsize="64" type="uint64"/>
+  <reg name="_arg1" bitsize="64" type="uint64"/>
+  <reg name="_arg2" bitsize="64" type="uint64"/>
+  <reg name="_arg3" bitsize="64" type="uint64"/>
+  <reg name="_arg4" bitsize="64" type="uint64"/>
+  <reg name="_arg5" bitsize="64" type="uint64"/>
+  <reg name="_arg6" bitsize="64" type="uint64"/>
+
+  <!-- 579 - 610  -->
+  <reg name="_gtag0" bitsize="8" type="uint8"/>
+  <reg name="_gtag1" bitsize="8" type="uint8"/>
+  <reg name="_gtag2" bitsize="8" type="uint8"/>
+  <reg name="_gtag3" bitsize="8" type="uint8"/>
+  <reg name="_gtag4" bitsize="8" type="uint8"/>
+  <reg name="_gtag5" bitsize="8" type="uint8"/>
+  <reg name="_gtag6" bitsize="8" type="uint8"/>
+  <reg name="_gtag7" bitsize="8" type="uint8"/>
+  <reg name="_gtag8" bitsize="8" type="uint8"/>
+  <reg name="_gtag9" bitsize="8" type="uint8"/>
+  <reg name="_gtag10" bitsize="8" type="uint8"/>
+  <reg name="_gtag11" bitsize="8" type="uint8"/>
+  <reg name="_gtag12" bitsize="8" type="uint8"/>
+  <reg name="_gtag13" bitsize="8" type="uint8"/>
+  <reg name="_gtag14" bitsize="8" type="uint8"/>
+  <reg name="_gtag15" bitsize="8" type="uint8"/>
+  <reg name="_gtag16" bitsize="8" type="uint8"/>
+  <reg name="_gtag17" bitsize="8" type="uint8"/>
+  <reg name="_gtag18" bitsize="8" type="uint8"/>
+  <reg name="_gtag19" bitsize="8" type="uint8"/>
+  <reg name="_gtag20" bitsize="8" type="uint8"/>
+  <reg name="_gtag21" bitsize="8" type="uint8"/>
+  <reg name="_gtag22" bitsize="8" type="uint8"/>
+  <reg name="_gtag23" bitsize="8" type="uint8"/>
+  <reg name="_gtag24" bitsize="8" type="uint8"/>
+  <reg name="_gtag25" bitsize="8" type="uint8"/>
+  <reg name="_gtag26" bitsize="8" type="uint8"/>
+  <reg name="_gtag27" bitsize="8" type="uint8"/>
+  <reg name="_gtag28" bitsize="8" type="uint8"/>
+  <reg name="_gtag29" bitsize="8" type="uint8"/>
+  <reg name="_gtag30" bitsize="8" type="uint8"/>
+  <reg name="_gtag31" bitsize="8" type="uint8"/>
+
+  <!-- 611 - 642  -->
+  <reg name="_gext0" bitsize="16" type="uint16"/>
+  <reg name="_gext1" bitsize="16" type="uint16"/>
+  <reg name="_gext2" bitsize="16" type="uint16"/>
+  <reg name="_gext3" bitsize="16" type="uint16"/>
+  <reg name="_gext4" bitsize="16" type="uint16"/>
+  <reg name="_gext5" bitsize="16" type="uint16"/>
+  <reg name="_gext6" bitsize="16" type="uint16"/>
+  <reg name="_gext7" bitsize="16" type="uint16"/>
+  <reg name="_gext8" bitsize="16" type="uint16"/>
+  <reg name="_gext9" bitsize="16" type="uint16"/>
+  <reg name="_gext10" bitsize="16" type="uint16"/>
+  <reg name="_gext11" bitsize="16" type="uint16"/>
+  <reg name="_gext12" bitsize="16" type="uint16"/>
+  <reg name="_gext13" bitsize="16" type="uint16"/>
+  <reg name="_gext14" bitsize="16" type="uint16"/>
+  <reg name="_gext15" bitsize="16" type="uint16"/>
+  <reg name="_gext16" bitsize="16" type="uint16"/>
+  <reg name="_gext17" bitsize="16" type="uint16"/>
+  <reg name="_gext18" bitsize="16" type="uint16"/>
+  <reg name="_gext19" bitsize="16" type="uint16"/>
+  <reg name="_gext20" bitsize="16" type="uint16"/>
+  <reg name="_gext21" bitsize="16" type="uint16"/>
+  <reg name="_gext22" bitsize="16" type="uint16"/>
+  <reg name="_gext23" bitsize="16" type="uint16"/>
+  <reg name="_gext24" bitsize="16" type="uint16"/>
+  <reg name="_gext25" bitsize="16" type="uint16"/>
+  <reg name="_gext26" bitsize="16" type="uint16"/>
+  <reg name="_gext27" bitsize="16" type="uint16"/>
+  <reg name="_gext28" bitsize="16" type="uint16"/>
+  <reg name="_gext29" bitsize="16" type="uint16"/>
+  <reg name="_gext30" bitsize="16" type="uint16"/>
+  <reg name="_gext31" bitsize="16" type="uint16"/>
+
+  <!-- 643  -->
+  <reg name="rpr_hi" bitsize="64" type="uint64"/>
+
+  <!-- 644  -->
+  <reg name="rpr_lo" bitsize="64" type="uint64"/>
+
+  <!-- 645 - 663  -->
+  <reg name="tir_0_lo" bitsize="64" type="tir_lo"/>
+  <reg name="tir_1_lo" bitsize="64" type="tir_lo"/>
+  <reg name="tir_2_lo" bitsize="64" type="tir_lo"/>
+  <reg name="tir_3_lo" bitsize="64" type="tir_lo"/>
+  <reg name="tir_4_lo" bitsize="64" type="tir_lo"/>
+  <reg name="tir_5_lo" bitsize="64" type="tir_lo"/>
+  <reg name="tir_6_lo" bitsize="64" type="tir_lo"/>
+  <reg name="tir_7_lo" bitsize="64" type="tir_lo"/>
+  <reg name="tir_8_lo" bitsize="64" type="tir_lo"/>
+  <reg name="tir_9_lo" bitsize="64" type="tir_lo"/>
+  <reg name="tir_10_lo" bitsize="64" type="tir_lo"/>
+  <reg name="tir_11_lo" bitsize="64" type="tir_lo"/>
+  <reg name="tir_12_lo" bitsize="64" type="tir_lo"/>
+  <reg name="tir_13_lo" bitsize="64" type="tir_lo"/>
+  <reg name="tir_14_lo" bitsize="64" type="tir_lo"/>
+  <reg name="tir_15_lo" bitsize="64" type="tir_lo"/>
+  <reg name="tir_16_lo" bitsize="64" type="tir_lo"/>
+  <reg name="tir_17_lo" bitsize="64" type="tir_lo"/>
+  <reg name="tir_18_lo" bitsize="64" type="tir_lo"/>
+
+  <!-- 664 - 682  -->
+  <reg name="tir_0_hi" bitsize="64" type="tir_hi"/>
+  <reg name="tir_1_hi" bitsize="64" type="tir_hi"/>
+  <reg name="tir_2_hi" bitsize="64" type="tir_hi"/>
+  <reg name="tir_3_hi" bitsize="64" type="tir_hi"/>
+  <reg name="tir_4_hi" bitsize="64" type="tir_hi"/>
+  <reg name="tir_5_hi" bitsize="64" type="tir_hi"/>
+  <reg name="tir_6_hi" bitsize="64" type="tir_hi"/>
+  <reg name="tir_7_hi" bitsize="64" type="tir_hi"/>
+  <reg name="tir_8_hi" bitsize="64" type="tir_hi"/>
+  <reg name="tir_9_hi" bitsize="64" type="tir_hi"/>
+  <reg name="tir_10_hi" bitsize="64" type="tir_hi"/>
+  <reg name="tir_11_hi" bitsize="64" type="tir_hi"/>
+  <reg name="tir_12_hi" bitsize="64" type="tir_hi"/>
+  <reg name="tir_13_hi" bitsize="64" type="tir_hi"/>
+  <reg name="tir_14_hi" bitsize="64" type="tir_hi"/>
+  <reg name="tir_15_hi" bitsize="64" type="tir_hi"/>
+  <reg name="tir_16_hi" bitsize="64" type="tir_hi"/>
+  <reg name="tir_17_hi" bitsize="64" type="tir_hi"/>
+  <reg name="tir_18_hi" bitsize="64" type="tir_hi"/>
+
+  <!-- 683 - 692  -->
+  <reg name="trap_cell_addr_0" bitsize="64" type="uint64"/>
+  <reg name="trap_cell_addr_1" bitsize="64" type="uint64"/>
+  <reg name="trap_cell_addr_2" bitsize="64" type="uint64"/>
+  <reg name="trap_cell_addr_3" bitsize="64" type="uint64"/>
+  <reg name="trap_cell_addr_4" bitsize="64" type="uint64"/>
+  <reg name="trap_cell_addr_5" bitsize="64" type="uint64"/>
+  <reg name="trap_cell_addr_6" bitsize="64" type="uint64"/>
+  <reg name="trap_cell_addr_7" bitsize="64" type="uint64"/>
+  <reg name="trap_cell_addr_8" bitsize="64" type="uint64"/>
+  <reg name="trap_cell_addr_9" bitsize="64" type="uint64"/>
+
+  <!-- 693 - 702  -->
+  <reg name="trap_cell_val_0" bitsize="64" type="uint64"/>
+  <reg name="trap_cell_val_1" bitsize="64" type="uint64"/>
+  <reg name="trap_cell_val_2" bitsize="64" type="uint64"/>
+  <reg name="trap_cell_val_3" bitsize="64" type="uint64"/>
+  <reg name="trap_cell_val_4" bitsize="64" type="uint64"/>
+  <reg name="trap_cell_val_5" bitsize="64" type="uint64"/>
+  <reg name="trap_cell_val_6" bitsize="64" type="uint64"/>
+  <reg name="trap_cell_val_7" bitsize="64" type="uint64"/>
+  <reg name="trap_cell_val_8" bitsize="64" type="uint64"/>
+  <reg name="trap_cell_val_9" bitsize="64" type="uint64"/>
+
+  <!-- 703 - 712  -->
+  <reg name="trap_cell_tag_0" bitsize="8" type="uint8"/>
+  <reg name="trap_cell_tag_1" bitsize="8" type="uint8"/>
+  <reg name="trap_cell_tag_2" bitsize="8" type="uint8"/>
+  <reg name="trap_cell_tag_3" bitsize="8" type="uint8"/>
+  <reg name="trap_cell_tag_4" bitsize="8" type="uint8"/>
+  <reg name="trap_cell_tag_5" bitsize="8" type="uint8"/>
+  <reg name="trap_cell_tag_6" bitsize="8" type="uint8"/>
+  <reg name="trap_cell_tag_7" bitsize="8" type="uint8"/>
+  <reg name="trap_cell_tag_8" bitsize="8" type="uint8"/>
+  <reg name="trap_cell_tag_9" bitsize="8" type="uint8"/>
+
+  <!-- 713 - 718: are dummy registers required for proper alignment?  -->
+  <reg name="_dummy_1" bitsize="8" type="uint8"/>
+  <reg name="_dummy_2" bitsize="8" type="uint8"/>
+  <reg name="_dummy_3" bitsize="8" type="uint8"/>
+  <reg name="_dummy_4" bitsize="8" type="uint8"/>
+  <reg name="_dummy_5" bitsize="8" type="uint8"/>
+  <reg name="_dummy_6" bitsize="8" type="uint8"/>
+
+  <!-- 719 - 728  -->
+  <reg name="trap_cell_info_0" bitsize="64" type="uint64"/>
+  <reg name="trap_cell_info_1" bitsize="64" type="uint64"/>
+  <reg name="trap_cell_info_2" bitsize="64" type="uint64"/>
+  <reg name="trap_cell_info_3" bitsize="64" type="uint64"/>
+  <reg name="trap_cell_info_4" bitsize="64" type="uint64"/>
+  <reg name="trap_cell_info_5" bitsize="64" type="uint64"/>
+  <reg name="trap_cell_info_6" bitsize="64" type="uint64"/>
+  <reg name="trap_cell_info_7" bitsize="64" type="uint64"/>
+  <reg name="trap_cell_info_8" bitsize="64" type="uint64"/>
+  <reg name="trap_cell_info_9" bitsize="64" type="uint64"/>
+
+  <!-- 729 - 760  -->
+  <reg name="dam_0" bitsize="64" type="dam"/>
+  <reg name="dam_1" bitsize="64" type="dam"/>
+  <reg name="dam_2" bitsize="64" type="dam"/>
+  <reg name="dam_3" bitsize="64" type="dam"/>
+  <reg name="dam_4" bitsize="64" type="dam"/>
+  <reg name="dam_5" bitsize="64" type="dam"/>
+  <reg name="dam_6" bitsize="64" type="dam"/>
+  <reg name="dam_7" bitsize="64" type="dam"/>
+  <reg name="dam_8" bitsize="64" type="dam"/>
+  <reg name="dam_9" bitsize="64" type="dam"/>
+  <reg name="dam_10" bitsize="64" type="dam"/>
+  <reg name="dam_11" bitsize="64" type="dam"/>
+  <reg name="dam_12" bitsize="64" type="dam"/>
+  <reg name="dam_13" bitsize="64" type="dam"/>
+  <reg name="dam_14" bitsize="64" type="dam"/>
+  <reg name="dam_15" bitsize="64" type="dam"/>
+  <reg name="dam_16" bitsize="64" type="dam"/>
+  <reg name="dam_17" bitsize="64" type="dam"/>
+  <reg name="dam_18" bitsize="64" type="dam"/>
+  <reg name="dam_19" bitsize="64" type="dam"/>
+  <reg name="dam_20" bitsize="64" type="dam"/>
+  <reg name="dam_21" bitsize="64" type="dam"/>
+  <reg name="dam_22" bitsize="64" type="dam"/>
+  <reg name="dam_23" bitsize="64" type="dam"/>
+  <reg name="dam_24" bitsize="64" type="dam"/>
+  <reg name="dam_25" bitsize="64" type="dam"/>
+  <reg name="dam_26" bitsize="64" type="dam"/>
+  <reg name="dam_27" bitsize="64" type="dam"/>
+  <reg name="dam_28" bitsize="64" type="dam"/>
+  <reg name="dam_29" bitsize="64" type="dam"/>
+  <reg name="dam_30" bitsize="64" type="dam"/>
+  <reg name="dam_31" bitsize="64" type="dam"/>
+
+  <!-- 761 - 792  -->
+  <reg name="sbbp_0" bitsize="64" type="uint64"/>
+  <reg name="sbbp_1" bitsize="64" type="uint64"/>
+  <reg name="sbbp_2" bitsize="64" type="uint64"/>
+  <reg name="sbbp_3" bitsize="64" type="uint64"/>
+  <reg name="sbbp_4" bitsize="64" type="uint64"/>
+  <reg name="sbbp_5" bitsize="64" type="uint64"/>
+  <reg name="sbbp_6" bitsize="64" type="uint64"/>
+  <reg name="sbbp_7" bitsize="64" type="uint64"/>
+  <reg name="sbbp_8" bitsize="64" type="uint64"/>
+  <reg name="sbbp_9" bitsize="64" type="uint64"/>
+  <reg name="sbbp_10" bitsize="64" type="uint64"/>
+  <reg name="sbbp_11" bitsize="64" type="uint64"/>
+  <reg name="sbbp_12" bitsize="64" type="uint64"/>
+  <reg name="sbbp_13" bitsize="64" type="uint64"/>
+  <reg name="sbbp_14" bitsize="64" type="uint64"/>
+  <reg name="sbbp_15" bitsize="64" type="uint64"/>
+  <reg name="sbbp_16" bitsize="64" type="uint64"/>
+  <reg name="sbbp_17" bitsize="64" type="uint64"/>
+  <reg name="sbbp_18" bitsize="64" type="uint64"/>
+  <reg name="sbbp_19" bitsize="64" type="uint64"/>
+  <reg name="sbbp_20" bitsize="64" type="uint64"/>
+  <reg name="sbbp_21" bitsize="64" type="uint64"/>
+  <reg name="sbbp_22" bitsize="64" type="uint64"/>
+  <reg name="sbbp_23" bitsize="64" type="uint64"/>
+  <reg name="sbbp_24" bitsize="64" type="uint64"/>
+  <reg name="sbbp_25" bitsize="64" type="uint64"/>
+  <reg name="sbbp_26" bitsize="64" type="uint64"/>
+  <reg name="sbbp_27" bitsize="64" type="uint64"/>
+  <reg name="sbbp_28" bitsize="64" type="uint64"/>
+  <reg name="sbbp_29" bitsize="64" type="uint64"/>
+  <reg name="sbbp_30" bitsize="64" type="uint64"/>
+  <reg name="sbbp_31" bitsize="64" type="uint64"/>
+
+  <!-- 793 - 808  -->
+  <reg name="mlt_0" bitsize="64" type="mlt"/>
+  <reg name="mlt_1" bitsize="64" type="mlt"/>
+  <reg name="mlt_2" bitsize="64" type="mlt"/>
+  <reg name="mlt_3" bitsize="64" type="mlt"/>
+  <reg name="mlt_4" bitsize="64" type="mlt"/>
+  <reg name="mlt_5" bitsize="64" type="mlt"/>
+  <reg name="mlt_6" bitsize="64" type="mlt"/>
+  <reg name="mlt_7" bitsize="64" type="mlt"/>
+  <reg name="mlt_8" bitsize="64" type="mlt"/>
+  <reg name="mlt_9" bitsize="64" type="mlt"/>
+  <reg name="mlt_10" bitsize="64" type="mlt"/>
+  <reg name="mlt_11" bitsize="64" type="mlt"/>
+  <reg name="mlt_12" bitsize="64" type="mlt"/>
+  <reg name="mlt_13" bitsize="64" type="mlt"/>
+  <reg name="mlt_14" bitsize="64" type="mlt"/>
+  <reg name="mlt_15" bitsize="64" type="mlt"/>
+
+
+  <!-- 809 - 821: these are fake registers, they are introduced here because
+    of their types  -->
+  <reg name="_hs" bitsize="32" type="hs"/>
+  <reg name="_alf2" bitsize="32" type="alf2"/>
+  <reg name="_c1f1" bitsize="32" type="c1f1"/>
+  <reg name="_cs0_dummy" bitsize="32" type="cs0_dummy"/>
+  <reg name="_cs1_setwd" bitsize="32" type="cs1_setwd"/>
+  <reg name="_cs1_call" bitsize="32" type="cs1_call"/>
+  <reg name="_lts0_setwd" bitsize="32" type="lts0_setwd"/>
+  <reg name="_ss" bitsize="32" type="ss"/>
+  <reg name="_ctpr_rwp" bitsize="64" type="ctpr_rwp"/>
+  <reg name="_tagged32" bitsize="64" type="tagged32"/>
+  <reg name="_tagged80" bitsize="128" type="tagged80"/>
+  <reg name="_cut_zero" bitsize="64" type="cut_zero"/>
+  <reg name="_cut_two" bitsize="128" type="cut_two"/>
+
+  <!-- 822  -->
+  <reg name="pusd_lo" bitsize="64" type="pusd_rwsap_lo"/>
+
+  <!-- 823  -->
+  <reg name="pusd_hi" bitsize="64" type="pusd_rwsap_hi"/>
+
+  <!-- 824 - 825: refresh, on what grounds BITSIZE value is selected. Should
+    it take tags into account? May I set it to 32 for `_signed_tagged32'?
+    Why is it set to 64 for `_r0, . . ., _r63'?   -->
+  <reg name="_signed_tagged32" bitsize="64" type="signed_tagged32"/>
+  <reg name="_signed_tagged64" bitsize="64" type="signed_tagged64"/>
+
+  <!-- 826 -->
+  <reg name="pcsp_base" bitsize="64" type="uint64"/>
+
+  <!-- 827 -->
+  <reg name="_pcsp_offset" bitsize="64" type="uint64"/>
+
+  <!-- 828 -->
+  <reg name="_fake_pf" bitsize="64" type="pf"/>
+
+  <!-- 829 -->
+  <reg name="_tagged128" bitsize="192" type="tagged128"/>
+
+  <!-- 830 -->
+  <reg name="_e2k_arch_idx" bitsize="64" type="uint64"/>
+
+  <!-- 831 -->
+  <reg name="_e2k_entry_point" bitsize="64" type="uint64"/>
+
+  <!-- 832 -->
+  <reg name="_e2k_call_dummy" bitsize="64" type="uint64"/>
+
+  <!-- 833 -->
+  <reg name="_e2k_prologue" bitsize="64" type="uint64"/>
+
+  <!-- 834 -->
+  <reg name="_e2k_call_target" bitsize="64" type="uint64"/>
+
+  <!-- 835 -->
+  <reg name="_e2k_dbl_reg" bitsize="64" type="dbl_param"/>
+
+  <!-- 836 -->
+  <reg name="_e2k_dbl_stack" bitsize="64" type="dbl_param"/>
+
+  <!-- 837 -->
+  <reg name="_e2k_quad_reg" bitsize="64" type="quad_param"/>
+
+  <!-- 838 -->
+  <reg name="_e2k_quad_stack" bitsize="64" type="quad_param"/>
+
+  <!-- FIXME: this register has been placed here for now so as not to forget
+    about it. It should be probably moved somewhere else . . .  -->
+  <!-- 839 -->
+  <reg name="psp_base" bitsize="64" type="uint64"/>
+
+</feature>

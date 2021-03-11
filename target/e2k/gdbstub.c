@@ -295,3 +295,78 @@ int e2k_cpu_gdb_write_register(CPUState *cs, uint8_t *mem_buf, int n)
     // TODO: e2k_cpu_gdb_write_register
     return 0;
 }
+
+static int gdb_get_v2(CPUE2KState *env, GByteArray *buf, int n)
+{
+    if (n == 0) {
+        /* idr */
+        return gdb_get_reg64(buf, env->idr);
+    }
+
+    return 0;
+}
+
+static int gdb_set_v2(CPUE2KState *env, uint8_t *mem_buf, int n)
+{
+    fprintf(stderr, "%s: unknown register %d\n", __FUNCTION__, n);
+    return 0;
+}
+
+static int gdb_get_v3(CPUE2KState *env, GByteArray *buf, int n)
+{
+    if (n == 0) {
+        /* TODO: core_mode */
+        return gdb_get_reg64(buf, 0);
+    }
+
+    return 0;
+}
+
+static int gdb_set_v3(CPUE2KState *env, uint8_t *mem_buf, int n)
+{
+    fprintf(stderr, "%s: unknown register %d\n", __FUNCTION__, n);
+    return 0;
+}
+
+static int gdb_get_v5(CPUE2KState *env, GByteArray *buf, int n)
+{
+    if (n == 0) {
+        return gdb_get_reg64(buf, env->lsr_lcnt);
+    } else if (n == 1) {
+        // TODO: ilcr1
+        return gdb_get_reg64(buf, 0);
+    } else if (n >= 2 && n < 34) {
+        return gdb_get_reg64(buf, env->regs[E2K_NR_COUNT + n - 2].hi);
+    } else if (n >= 34 && n < 66) {
+        return gdb_get_reg8(buf, env->tags[E2K_NR_COUNT + n - 34]);
+    }
+
+    return 0;
+}
+
+static int gdb_set_v5(CPUE2KState *env, uint8_t *mem_buf, int n)
+{
+    fprintf(stderr, "%s: unknown register %d\n", __FUNCTION__, n);
+    return 0;
+}
+
+void e2k_cpu_register_gdb_regs_for_features(CPUState *cs)
+{
+    E2KCPU *cpu = E2K_CPU(cs);
+    CPUE2KState *env = &cpu->env;
+
+    if (env->version >= 2) {
+        gdb_register_coprocessor(cs, gdb_get_v2, gdb_set_v2,
+            1, "e2k-v2.xml", 574);
+    }
+
+    if (env->version >= 3) {
+        gdb_register_coprocessor(cs, gdb_get_v3, gdb_set_v3,
+            1, "e2k-v3.xml", 575);
+    }
+
+    if (env->version >= 5) {
+        gdb_register_coprocessor(cs, gdb_get_v5, gdb_set_v5,
+            66, "e2k-v5.xml", 576);
+    }
+}
