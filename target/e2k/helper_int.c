@@ -67,6 +67,7 @@ uint64_t HELPER(rrd)(CPUE2KState *env, int idx)
     case 0x86: return env->fpsr.raw; /* %fpsr */
     case 0x8a: return env->idr; /* %idr */
     case 0x90: return cpu_get_host_ticks(); /* %clkr */
+    case 0xc3: return env->lsr_lcnt; /* %lsr1 */
     default:
         qemu_log_mask(LOG_UNIMP, "read unknown state register 0x%x\n", idx);
         return 0;
@@ -97,6 +98,7 @@ void HELPER(rwd)(CPUE2KState *env, int idx, uint64_t val)
         e2k_update_fx_status(env);
         break;
     case 0x86: env->fpsr.raw = val; break; /* %fpsr */
+    case 0xc3: env->lsr_lcnt = val; break; /* %lsr1 */
     default:
         qemu_log_mask(LOG_UNIMP, "rwd unknown state register 0x%x\n", idx);
         break;

@@ -28,6 +28,8 @@ void e2k_tcg_initialize(void);
  */
 #define E2K_FORCE_FX true
 
+//#define E2K_TAGS_ENABLE
+
 #define GEN_MASK(start, len) (((1UL << (len)) - 1) << (start))
 #define GET_BIT(v, index) (((v) >> (index)) & 1)
 
@@ -55,12 +57,17 @@ void e2k_tcg_initialize(void);
 typedef enum {
     E2K_TAG_NUMBER32 = 0,
     E2K_TAG_NUMBER64 = 0,
-    E2K_TAG_NON_NUMBER32 = 1,
-    E2K_TAG_NON_NUMBER64 = 5,
+    E2K_TAG_NUMBER80 = 0,
+    E2K_TAG_NUMBER128 = 0,
+
+    E2K_TAG_NON_NUMBER32 = 0x01,
+    E2K_TAG_NON_NUMBER64 = 0x05,
+    E2K_TAG_NON_NUMBER80 = 0x05,
+    E2K_TAG_NON_NUMBER128 = 0x55,
 } E2kRegisterTag;
 
 #define E2K_MOVA_RESULT_INVALID 0xeaed0f70eaed0f70
-#define E2K_LD_RESULT_INVALID 0x0afafafa0afafafa
+#define E2K_LD_RESULT_INVALID 0x4afafafa4afafafa
 
 #define CRS_SIZE (sizeof(E2KCrs))
 
@@ -689,14 +696,17 @@ typedef union {
     uint32_t u32;
     uint64_t u64;
     floatx80 f80;
-    uint8_t u8v[16];
-    uint16_t u16v[8];
-    uint32_t u32v[4];
-    uint64_t u64v[2];
-    int8_t i8v[16];
-    int16_t i16v[8];
-    int32_t i32v[4];
-    int64_t i64v[2];
+
+    uint8_t ub[16];
+    uint16_t uh[8];
+    uint32_t uw[4];
+    uint64_t ud[2];
+
+    int8_t sb[16];
+    int16_t sh[8];
+    int32_t sw[4];
+    int64_t sd[2];
+
     struct {
         uint64_t lo;
         uint64_t hi;
@@ -714,7 +724,7 @@ typedef struct {
     E2KReg t0, t1, t2, t3;
 
     E2KReg tmp[8];
-    E2KReg al_result[6];
+    E2KReg al_result[16];
 
     /* DAM */
     E2KDamEntry dam[32];
@@ -731,7 +741,7 @@ typedef struct {
 
     /* loop status register */
     uint64_t lsr;
-    uint32_t lsr_lcnt;
+    uint64_t lsr_lcnt;
     uint32_t lsr_ecnt;
     uint32_t lsr_vlc;
     uint32_t lsr_over;
@@ -763,7 +773,8 @@ typedef struct {
 
     /* internal use */
     uint32_t is_bp; /* breakpoint flag */
-    uint64_t last_value; /* ld mas=7 + st mas=2 */
+    uint64_t last_val0; /* ld mas=7 + st mas=2 */
+    uint64_t last_val1; /* ld mas=7 + st mas=2 */
 
     /* zeroing upper register half for 32-bit instructions */
     uint32_t wdbl;
@@ -806,6 +817,7 @@ void e2k_cpu_list(void);
 int e2k_cpu_signal_handler(int host_signum, void *pinfo, void *puc);
 int e2k_cpu_gdb_read_register(CPUState *cs, GByteArray *mem_buf, int n);
 int e2k_cpu_gdb_write_register(CPUState *cs, uint8_t *mem_buf, int n);
+void e2k_cpu_register_gdb_regs_for_features(CPUState *cs);
 bool e2k_cpu_tlb_fill(CPUState *cpu, vaddr address, int size,
                  MMUAccessType access_type, int mmu_idx,
                  bool probe, uintptr_t retaddr);
@@ -873,7 +885,7 @@ static inline uint32_t e2k_state_br(CPUE2KState *env)
     ret = deposit32(ret, BR_RSZ_OFF, BR_RSZ_LEN, bn->size / 2 - 1);
     ret = deposit32(ret, BR_RCUR_OFF, BR_RCUR_LEN, bn->cur / 2);
 
-    ret = deposit32(ret, BR_PSZ_OFF, BR_PSZ_LEN, bp->size);
+    ret = deposit32(ret, BR_PSZ_OFF, BR_PSZ_LEN, bp->size - 1);
     ret = deposit32(ret, BR_PCUR_OFF, BR_PCUR_LEN, bp->cur);
 
     return ret;
@@ -888,7 +900,7 @@ static inline void e2k_state_br_set(CPUE2KState *env, uint32_t br)
     bn->size = extract32(br, BR_RSZ_OFF, BR_RSZ_LEN) * 2 + 2;
     bn->cur = extract32(br, BR_RCUR_OFF, BR_RCUR_LEN) * 2;
 
-    bp->size = extract32(br, BR_PSZ_OFF, BR_PSZ_LEN);
+    bp->size = extract32(br, BR_PSZ_OFF, BR_PSZ_LEN) + 1;
     bp->cur = extract32(br, BR_PCUR_OFF, BR_PCUR_LEN);
 }
 

@@ -233,6 +233,8 @@ static void e2k_cpu_realizefn(DeviceState *dev, Error **errp)
         return;
     }
 
+    e2k_cpu_register_gdb_regs_for_features(cs);
+
     qemu_init_vcpu(cs);
 
     ecc->parent_realize(dev, errp);
@@ -284,6 +286,7 @@ static void e2k_cpu_class_init(ObjectClass *oc, void *data)
     cc->class_by_name = e2k_cpu_class_by_name;
     cc->disas_set_info = cpu_e2k_disas_set_info;
 
+    cc->gdb_core_xml_file  = "e2k-v1.xml";
     cc->gdb_arch_name      = e2k_cpu_gdb_arch_name;
     cc->gdb_read_register  = e2k_cpu_gdb_read_register;
     cc->gdb_write_register = e2k_cpu_gdb_write_register;

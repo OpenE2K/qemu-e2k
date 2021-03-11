@@ -23,7 +23,9 @@ static inline void ps_push(CPUE2KState *env, uint64_t value, uint8_t tag)
 #endif
 
     cpu_stq_le_data(env, env->psp.base + env->psp.index, value);
+#ifdef E2K_TAGS_ENABLE
     cpu_stb_data(env, env->psp.base_tag + env->psp.index / 8, tag);
+#endif
     env->psp.index += 8;
 }
 
@@ -34,20 +36,37 @@ static inline uint64_t ps_pop(CPUE2KState *env, uint8_t *ret_tag)
     }
     env->psp.index -= 8;
     if (ret_tag != NULL) {
+#ifdef E2K_TAGS_ENABLE
         *ret_tag = cpu_ldub_data(env, env->psp.base_tag + env->psp.index / 8);
+#else
+        *ret_tag = 0;
+#endif
     }
     return cpu_ldq_le_data(env, env->psp.base + env->psp.index);
 }
 
+
 static void ps_spill(CPUE2KState *env, int n, bool fx)
 {
     int i;
-    for (i = 0; i < n; i += 2) {
-        ps_push(env, env->regs[i + 0].lo, env->tags[i]);
-        ps_push(env, env->regs[i + 1].lo, env->tags[i + 1]);
-        if (fx || E2K_FORCE_FX) {
-            ps_push(env, env->regs[i + 0].hi, 0);
-            ps_push(env, env->regs[i + 1].hi, 0);
+
+    if (env->version >= 5) {
+        for (i = 0; i < n; i++) {
+            ps_push(env, env->regs[i].lo, env->tags[i]);
+            if (fx || E2K_FORCE_FX) {
+                ps_push(env, env->regs[i].hi, 0);
+            }
+        }
+    } else{
+        for (i = 0; i < n; i += 2) {
+            E2KReg r0 = env->regs[i + 0];
+            E2KReg r1 = env->regs[i + 1];
+            ps_push(env, r0.lo, env->tags[i]);
+            ps_push(env, r1.lo, env->tags[i + 1]);
+            if (fx || E2K_FORCE_FX) {
+                ps_push(env, r0.hi, 0);
+                ps_push(env, r1.hi, 0);
+            }
         }
     }
 }
@@ -55,20 +74,34 @@ static void ps_spill(CPUE2KState *env, int n, bool fx)
 static void ps_fill(CPUE2KState *env, int n, bool fx)
 {
     int i;
-    for (i = n; i > 0; i -= 2) {
-        if (fx || E2K_FORCE_FX) {
-            env->regs[i - 1].hi = ps_pop(env, NULL);
-            env->regs[i - 2].hi = ps_pop(env, NULL);
+
+    if (env->version >= 5) {
+        for (i = n; i-- > 0;) {
+            if (fx || E2K_FORCE_FX) {
+                env->regs[i].hi = ps_pop(env, NULL);
+            }
+            env->regs[i].lo = ps_pop(env, &env->tags[i]);
         }
-        env->regs[i - 1].lo = ps_pop(env, &env->tags[i - 1]);
-        env->regs[i - 2].lo = ps_pop(env, &env->tags[i - 2]);
+    } else {
+        for (i = n; i > 0; i -= 2) {
+            E2KReg *r0 = &env->regs[i - 1];
+            E2KReg *r1 = &env->regs[i - 2];
+            if (fx || E2K_FORCE_FX) {
+                r0->hi = ps_pop(env, NULL);
+                r1->hi = ps_pop(env, NULL);
+            }
+            r0->lo = ps_pop(env, &env->tags[i - 1]);
+            r1->lo = ps_pop(env, &env->tags[i - 2]);
+        }
     }
 }
 
 static void move_regs(CPUE2KState *env, int dst, int src, int n)
 {
     memmove(&env->regs[dst], &env->regs[src], n * sizeof(env->regs[0]));
+#ifdef E2K_TAGS_ENABLE
     memmove(&env->tags[dst], &env->tags[src], n * sizeof(env->tags[0]));
+#endif
 }
 
 static void callee_window(CPUE2KState *env, int base, int size, bool fx)
@@ -293,10 +326,12 @@ void HELPER(setwd)(CPUE2KState *env, int wsz, int nfx, int dbl)
 
     if (diff > 0) {
 // FIXME: zeroing registers is not needed, but useful for debugging
-#if 1
+#if 0
         memset(&env->regs[env->wd.size], 0, diff * sizeof(env->regs[0]));
 #endif
+#ifdef E2K_TAGS_ENABLE
         memset(&env->tags[env->wd.size], E2K_TAG_NON_NUMBER64, diff);
+#endif
     }
 
     env->wd.size = size;

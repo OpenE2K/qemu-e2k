@@ -1,10 +1,8 @@
-// TODO: set helper call flags
-
-#define dh_alias_Reg ptr
+#define dh_alias_vec ptr
 #define dh_alias_f80 ptr
-#define dh_ctype_Reg E2KReg *
+#define dh_ctype_vec E2KReg *
 #define dh_ctype_f80 floatx80 *
-#define dh_is_signed_Reg dh_is_signed_ptr
+#define dh_is_signed_vec dh_is_signed_ptr
 #define dh_is_signed_f80 dh_is_signed_ptr
 
 DEF_HELPER_2(raise_exception, noreturn, env, int)
@@ -66,10 +64,18 @@ DEF_HELPER_FLAGS_2(phaddh,  TCG_CALL_NO_RWG_SE, i64, i64, i64)
 DEF_HELPER_FLAGS_2(phaddw,  TCG_CALL_NO_RWG_SE, i64, i64, i64)
 DEF_HELPER_FLAGS_2(phaddsh, TCG_CALL_NO_RWG_SE, i64, i64, i64)
 
+DEF_HELPER_FLAGS_3(qphaddh,  TCG_CALL_NO_RWG, void, vec, vec, vec)
+DEF_HELPER_FLAGS_3(qphaddw,  TCG_CALL_NO_RWG, void, vec, vec, vec)
+DEF_HELPER_FLAGS_3(qphaddsh, TCG_CALL_NO_RWG, void, vec, vec, vec)
+
 /* Packed Horizontal Sub */
 DEF_HELPER_FLAGS_2(phsubh,  TCG_CALL_NO_RWG_SE, i64, i64, i64)
 DEF_HELPER_FLAGS_2(phsubw,  TCG_CALL_NO_RWG_SE, i64, i64, i64)
 DEF_HELPER_FLAGS_2(phsubsh, TCG_CALL_NO_RWG_SE, i64, i64, i64)
+
+DEF_HELPER_FLAGS_3(qphsubh,  TCG_CALL_NO_RWG, void, vec, vec, vec)
+DEF_HELPER_FLAGS_3(qphsubw,  TCG_CALL_NO_RWG, void, vec, vec, vec)
+DEF_HELPER_FLAGS_3(qphsubsh, TCG_CALL_NO_RWG, void, vec, vec, vec)
 
 /* Packed Add using saturation */
 DEF_HELPER_FLAGS_2(paddsb,  TCG_CALL_NO_RWG_SE, i64, i64, i64)
@@ -86,8 +92,10 @@ DEF_HELPER_FLAGS_2(psubush, TCG_CALL_NO_RWG_SE, i64, i64, i64)
 /* Packed shifts */
 DEF_HELPER_FLAGS_2(psllh, TCG_CALL_NO_RWG_SE, i64, i64, i64)
 DEF_HELPER_FLAGS_2(psllw, TCG_CALL_NO_RWG_SE, i64, i64, i64)
+DEF_HELPER_FLAGS_2(pslld, TCG_CALL_NO_RWG_SE, i64, i64, i64)
 DEF_HELPER_FLAGS_2(psrlh, TCG_CALL_NO_RWG_SE, i64, i64, i64)
 DEF_HELPER_FLAGS_2(psrlw, TCG_CALL_NO_RWG_SE, i64, i64, i64)
+DEF_HELPER_FLAGS_2(psrld, TCG_CALL_NO_RWG_SE, i64, i64, i64)
 
 /* Packed shifts with sign */
 DEF_HELPER_FLAGS_2(psrah, TCG_CALL_NO_RWG_SE, i64, i64, i64)
@@ -140,6 +148,14 @@ DEF_HELPER_FLAGS_2(phminposuh, TCG_CALL_NO_RWG_SE, i64, i64, i64)
 DEF_HELPER_FLAGS_2(mpsadbh,    TCG_CALL_NO_RWG_SE, i64, i64, i64)
 DEF_HELPER_FLAGS_4(plog,       TCG_CALL_NO_RWG_SE, i64, i32, i64, i64, i64)
 
+DEF_HELPER_FLAGS_3(qpmpsadbh,   TCG_CALL_NO_RWG,    void, vec, vec, i32)
+DEF_HELPER_FLAGS_3(qpmulubhh,   TCG_CALL_NO_RWG,    void, vec, i64, vec)
+DEF_HELPER_FLAGS_2(qphminposuh, TCG_CALL_NO_RWG_SE,       i64, vec, vec)
+DEF_HELPER_FLAGS_1(qpsgn2mskb,  TCG_CALL_NO_RWG_SE,       i32, vec)
+DEF_HELPER_FLAGS_3(qpmsk2sgnb,  TCG_CALL_NO_RWG,    void, vec, vec, i32)
+DEF_HELPER_FLAGS_4(qppermb,     TCG_CALL_NO_RWG,    void, vec, vec, vec, vec)
+DEF_HELPER_FLAGS_4(qpshufb,     TCG_CALL_NO_RWG,    void, vec, vec, vec, vec)
+
 /* Float 32/64 Ops */
 DEF_HELPER_FLAGS_3(fadds,     TCG_CALL_NO_RWG, i32, env, i32, i32)
 DEF_HELPER_FLAGS_3(fsubs,     TCG_CALL_NO_RWG, i32, env, i32, i32)
@@ -171,11 +187,23 @@ DEF_HELPER_FLAGS_3(pfmins,    TCG_CALL_NO_RWG, i64, env, i64, i64)
 DEF_HELPER_FLAGS_3(pfhadds,   TCG_CALL_NO_RWG, i64, env, i64, i64)
 DEF_HELPER_FLAGS_3(pfhsubs,   TCG_CALL_NO_RWG, i64, env, i64, i64)
 DEF_HELPER_FLAGS_3(pfaddsubs, TCG_CALL_NO_RWG, i64, env, i64, i64)
+DEF_HELPER_FLAGS_4(qpfhadds,  TCG_CALL_NO_RWG, void, vec, env, vec, vec)
+DEF_HELPER_FLAGS_4(qpfhsubs,  TCG_CALL_NO_RWG, void, vec, env, vec, vec)
 
 DEF_HELPER_FLAGS_3(pfstoifs,  TCG_CALL_NO_RWG, i64, env, i64, i64)
 DEF_HELPER_FLAGS_2(pistofs,   TCG_CALL_NO_RWG, i64, env, i64)
 DEF_HELPER_FLAGS_2(pfstois,   TCG_CALL_NO_RWG, i64, env, i64)
 DEF_HELPER_FLAGS_2(pfstoistr, TCG_CALL_NO_RWG, i64, env, i64)
+
+DEF_HELPER_FLAGS_3(qpfstoid,   TCG_CALL_NO_RWG, void, vec, env, i64)
+DEF_HELPER_FLAGS_3(qpfstoidtr, TCG_CALL_NO_RWG, void, vec, env, i64)
+DEF_HELPER_FLAGS_3(qpistofd,   TCG_CALL_NO_RWG, void, vec, env, i64)
+DEF_HELPER_FLAGS_3(qpfstofd,   TCG_CALL_NO_RWG, void, vec, env, i64)
+
+DEF_HELPER_FLAGS_2(qpfdtois,   TCG_CALL_NO_RWG, i64, env, vec)
+DEF_HELPER_FLAGS_2(qpfdtoistr, TCG_CALL_NO_RWG, i64, env, vec)
+DEF_HELPER_FLAGS_2(qpidtofs,   TCG_CALL_NO_RWG, i64, env, vec)
+DEF_HELPER_FLAGS_2(qpfdtofs,   TCG_CALL_NO_RWG, i64, env, vec)
 
 DEF_HELPER_FLAGS_3(pfcmpeqs,  TCG_CALL_NO_RWG, i64, env, i64, i64)
 DEF_HELPER_FLAGS_3(pfcmplts,  TCG_CALL_NO_RWG, i64, env, i64, i64)

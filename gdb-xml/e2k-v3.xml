@@ -1,0 +1,6 @@
+<feature name="org.mcst.gdb.elbrus-v3.linux">
+
+  <!-- 841 -->
+  <reg name="core_mode" bitsize="64" type="uint64"/>
+
+</feature>

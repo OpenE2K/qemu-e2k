@@ -399,7 +399,59 @@
 #define TARGET_NR_process_vm_readv	380
 #define TARGET_NR_process_vm_writev	381
 #define TARGET_NR_kcmp		382
-#define TARGET_NR_finit_module	383 
-#define TARGET_NR_syscalls 384
+#define TARGET_NR_finit_module	383
+#define TARGET_NR_renameat2      384
+#define TARGET_NR_getrandom      385
+#define TARGET_NR_memfd_create   386
+#define TARGET_NR_bpf        387
+#define TARGET_NR_execveat       388
+#define TARGET_NR_userfaultfd    389
+#define TARGET_NR_membarrier     390
+#define TARGET_NR_mlock2     391
+#define TARGET_NR_seccomp        392
+#define TARGET_NR_shutdown           393
+#define TARGET_NR_copy_file_range    394
+#define TARGET_NR_preadv2        395
+#define TARGET_NR_pwritev2       396
+#define TARGET_NR_pkey_mprotect  397
+#define TARGET_NR_pkey_alloc     398
+#define TARGET_NR_pkey_free      399
+#define TARGET_NR_name_to_handle_at  400
+#define TARGET_NR_open_by_handle_at  401
+#define TARGET_NR_statx      402
+/* added for compatibility with x86_64 */
+#define TARGET_NR_socket     403
+#define TARGET_NR_connect        404
+#define TARGET_NR_accept     405
+#define TARGET_NR_sendto     406
+#define TARGET_NR_recvfrom       407
+#define TARGET_NR_sendmsg        408
+#define TARGET_NR_recvmsg        409
+#define TARGET_NR_bind       410
+#define TARGET_NR_listen     411
+#define TARGET_NR_getsockname    412
+#define TARGET_NR_getpeername    413
+#define TARGET_NR_socketpair     414
+#define TARGET_NR_setsockopt     415
+#define TARGET_NR_getsockopt     416
+/* free (unused) entries - reserve 417 - 418 */
+/* TODO: #define TARGET_NR_arch_prctl     419 */
+/* added for combability of protected system calls v1-v5 & v6 */
+#define TARGET_NR_newuselib      420
+#define TARGET_NR_rt_sigaction_ex    421
+/* protected Mode specific memory allocation syscall number */
+#define TARGET_NR_get_mem        422
+#define TARGET_NR_free_mem       423
+/* protected mode specific clean memory from old invalid descriptors */
+#define TARGET_NR_clean_descriptors  424
+/* protected mode specific unloading module from memory */
+#define TARGET_NR_unuselib       425
+#define TARGET_NR_clone3     426
+#define TARGET_NR_fsopen     427
+#define TARGET_NR_fsconfig       428
+#define TARGET_NR_fsmount        429
+#define TARGET_NR_fspick     430
+
+#define TARGET_syscalls     431
 
 #endif /* E2K_SYSCALL_NR_H */
