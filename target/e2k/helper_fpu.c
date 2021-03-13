@@ -189,6 +189,10 @@ void HELPER(fxscalesx)(floatx80 *r, CPUE2KState *env, floatx80 *a, uint32_t b)
 #define make_f80(v) (*(v))
 #define make(S, v) glue(make_, S)(v)
 
+#define float_val_f32(v) float32_val(v)
+#define float_val_f64(v) float64_val(v)
+#define float_val(S, v) glue(float_val_, S)(v)
+
 #define type_i32 uint32_t
 #define type_i64 uint64_t
 #define type_f32 float32
@@ -271,6 +275,24 @@ void HELPER(fxscalesx)(floatx80 *r, CPUE2KState *env, floatx80 *a, uint32_t b)
 
 #define IMPL_ALOPF1_FPU_CMP(FPU, name, S1, S2, R, T, op1, op2) \
     IMPL_ALOPF1_FPU_CMP_BASIC(FPU, name, S1, S2, R, T, T, R, op1, op2)
+
+#define IMPL_ALOPF21_FPU(FPU, name, S1, S2, S3, R, T1, T2, T3, TR, op) \
+    ret_type(R) HELPER(name)(ret_arg(R) CPUE2KState *env, \
+        arg_type(S1) s1, arg_type(S2) s2, arg_type(S3) s3) \
+    { \
+        int old_flags = glue(FPU, _save_exception_flags)(env); \
+        float_status *s = &env->glue(FPU, _status); \
+        type(T1) t1 = convert(S1, T1, make(S1, s1), s); \
+        type(T2) t2 = convert(S2, T2, make(S2, s2), s); \
+        type(T3) t3 = convert(S3, T3, make(S3, s3), s); \
+        type(TR) tr = op(t1, t2, t3, s); \
+        type(R) r = convert(TR, R, tr, s); \
+        glue(FPU, _merge_exception_flags)(env, old_flags); \
+        ret(R, r); \
+    }
+
+#define IMPL_ALOPF21_FP(name, T, op) \
+    IMPL_ALOPF21_FPU(fp, name, T, T, T, T, T, T, T, T, op)
 
 #define IMPL_ALOPF1_FX_MANY(name, op) \
     IMPL_ALOPF1_FX(glue3(fx, name, ss), f80, f32, f32, op) \
@@ -442,3 +464,70 @@ IMPL_ALOPF2_FP(fsqrts,  f32, f32, float32_sqrt)
 IMPL_ALOPF2_FP(frcps,   f32, f32, frcps)
 IMPL_ALOPF2_FP(frsqrts, f32, f32, frsqrts)
 IMPL_ALOPF1_FP(fsqrttd, f64, f64, f64, fsqrttd)
+
+#define FMA(T, x, y, z, f, s) \
+    glue(type_name(T), _muladd)(x, y, z, f, s)
+
+#define FMAS(x, y, z, s) FMA(f32, x, y, z, 0, s)
+#define FMAD(x, y, z, s) FMA(f64, x, y, z, 0, s)
+#define FMSS(x, y, z, s) FMA(f32, x, y, z, float_muladd_negate_c, s)
+#define FMSD(x, y, z, s) FMA(f64, x, y, z, float_muladd_negate_c, s)
+#define FNMAS(x, y, z, s) FMA(f32, x, y, z, float_muladd_negate_product, s)
+#define FNMAD(x, y, z, s) FMA(f64, x, y, z, float_muladd_negate_product, s)
+#define FNMSS(x, y, z, s) FMA(f32, x, y, z, float_muladd_negate_product | float_muladd_negate_c, s)
+#define FNMSD(x, y, z, s) FMA(f64, x, y, z, float_muladd_negate_product | float_muladd_negate_c, s)
+
+IMPL_ALOPF21_FP(fmas,  f32, FMAS)
+IMPL_ALOPF21_FP(fmss,  f32, FMSS)
+IMPL_ALOPF21_FP(fnmas, f32, FNMAS)
+IMPL_ALOPF21_FP(fnmss, f32, FNMSS)
+IMPL_ALOPF21_FP(fmad,  f64, FMAD)
+IMPL_ALOPF21_FP(fmsd,  f64, FMSD)
+IMPL_ALOPF21_FP(fnmad, f64, FNMAD)
+IMPL_ALOPF21_FP(fnmsd, f64, FNMSD)
+
+#define qp_len_uw 4
+#define qp_len_ud 2
+#define qp_len(T) glue(qp_len_, T)
+
+#define IMPL_OP3_QP_ENV(name, T, F, code) \
+    void HELPER(name)(E2KReg *r, CPUE2KState *env, E2KReg *s1, \
+        E2KReg *s2, E2KReg *s3) \
+    { \
+        int old_flags = fp_save_exception_flags(env); \
+        int i; \
+        \
+        for (i = 0; i < qp_len(T); i++) { \
+            type(F) a = make(F, s1->T[i]); \
+            type(F) b = make(F, s2->T[i]); \
+            type(F) c = make(F, s3->T[i]); \
+            { code; } \
+        } \
+        \
+        fp_merge_exception_flags(env, old_flags); \
+    }
+
+#define IMPL_OP3_QP_ENV_OP(name, T, F, op) \
+    IMPL_OP3_QP_ENV(name, T, F, { \
+        r->T[i] = float_val(F, op(a, b, c, &env->fp_status)); \
+    })
+
+IMPL_OP3_QP_ENV_OP(qpfmas,  uw, f32, FMAS)
+IMPL_OP3_QP_ENV_OP(qpfmss,  uw, f32, FMSS)
+IMPL_OP3_QP_ENV_OP(qpfnmas, uw, f32, FNMAS)
+IMPL_OP3_QP_ENV_OP(qpfnmss, uw, f32, FNMSS)
+IMPL_OP3_QP_ENV_OP(qpfmad,  ud, f64, FMAD)
+IMPL_OP3_QP_ENV_OP(qpfmsd,  ud, f64, FMSD)
+IMPL_OP3_QP_ENV_OP(qpfnmad, ud, f64, FNMAD)
+IMPL_OP3_QP_ENV_OP(qpfnmsd, ud, f64, FNMSD)
+
+#define IMPL_OP3_QP_ENV_OP_ALT(name, T, F, op1, op2) \
+    IMPL_OP3_QP_ENV(name, T, F, { \
+        r->T[i] = float_val(F, i & 1 ? op2(a, b, c, &env->fp_status) : \
+            op1(a, b, c, &env->fp_status)); \
+    })
+
+IMPL_OP3_QP_ENV_OP_ALT(qpfmass, uw, f32, FMAS, FMSS)
+IMPL_OP3_QP_ENV_OP_ALT(qpfmsas, uw, f32, FMSS, FMAS)
+IMPL_OP3_QP_ENV_OP_ALT(qpfmasd, ud, f64, FMAD, FMSD)
+IMPL_OP3_QP_ENV_OP_ALT(qpfmsad, ud, f64, FMSD, FMAD)

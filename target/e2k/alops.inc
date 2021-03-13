@@ -799,6 +799,7 @@ enum {
     OP_PLOG_0x80,
     OP_QPLOG_0x00,
     OP_QPLOG_0x80,
+    OP_QPSRAD,
 };
 
 typedef enum {
@@ -1777,6 +1778,7 @@ static AlopDesc alops[] = {
     { X(OP_CLMULL),       ALOPF11,           ARGS_DDD,  ALOP_EXT2,  0x14, 6, -1, CHAN_0134, { -1 }, 0xc0, 0 },
     { X(OP_IBRANCHD),     ALOPF12_IBRANCHD,  ARGS_DD,   ALOP_EXT,   0x53, 6, -1, CHAN_0, { -1 }, 0xc0, 0xc0 },
     { X(OP_ICALLD),       ALOPF12_ICALLD,    ARGS_DD,   ALOP_EXT,   0x54, 6, -1, CHAN_0, { -1 }, 0xc0, 0xc0 },
+    { X(OP_QPSRAD),       ALOPF11,           ARGS_PDP,  ALOP_EXT1,  0x25, 6, -1, CHAN_0134, { -1 }, 0xc0, 0 },
     { X(OP_QPCEXT_0X00),  ALOPF12,           ARGS_DP,   ALOP_EXT1,  0x35, 6, -1, CHAN_0134, { -1 }, 0xc0, 0xc0 },
     { X(OP_QPCEXT_0X7F),  ALOPF12,           ARGS_DP,   ALOP_EXT1,  0x35, 6, -1, CHAN_0134, { -1 }, 0xc0, 0xc2 },
     { X(OP_QPCEXT_0X80),  ALOPF12,           ARGS_DP,   ALOP_EXT1,  0x35, 6, -1, CHAN_0134, { -1 }, 0xc0, 0xc4 },
