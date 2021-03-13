@@ -34,6 +34,8 @@ DEF_HELPER_3(rwd, void, env, int, i64)
 DEF_HELPER_3(rws, void, env, int, i32)
 
 DEF_HELPER_FLAGS_2(sxt, TCG_CALL_NO_RWG_SE, i64, i64, i32)
+DEF_HELPER_FLAGS_2(clmull, TCG_CALL_NO_RWG_SE, i64, i64, i64)
+DEF_HELPER_FLAGS_2(clmulh, TCG_CALL_NO_RWG_SE, i64, i64, i64)
 
 /* Packed Min/Max */
 DEF_HELPER_FLAGS_2(pminub, TCG_CALL_NO_RWG_SE, i64, i64, i64)
@@ -214,6 +216,31 @@ DEF_HELPER_FLAGS_3(pfcmpnlts, TCG_CALL_NO_RWG, i64, env, i64, i64)
 DEF_HELPER_FLAGS_3(pfcmpnles, TCG_CALL_NO_RWG, i64, env, i64, i64)
 DEF_HELPER_FLAGS_3(pfcmpods,  TCG_CALL_NO_RWG, i64, env, i64, i64)
 
+/* FMA */
+DEF_HELPER_FLAGS_4(fmas,      TCG_CALL_NO_RWG, i32, env, i32, i32, i32)
+DEF_HELPER_FLAGS_4(fmss,      TCG_CALL_NO_RWG, i32, env, i32, i32, i32)
+DEF_HELPER_FLAGS_4(fnmas,     TCG_CALL_NO_RWG, i32, env, i32, i32, i32)
+DEF_HELPER_FLAGS_4(fnmss,     TCG_CALL_NO_RWG, i32, env, i32, i32, i32)
+
+DEF_HELPER_FLAGS_4(fmad,      TCG_CALL_NO_RWG, i64, env, i64, i64, i64)
+DEF_HELPER_FLAGS_4(fmsd,      TCG_CALL_NO_RWG, i64, env, i64, i64, i64)
+DEF_HELPER_FLAGS_4(fnmad,     TCG_CALL_NO_RWG, i64, env, i64, i64, i64)
+DEF_HELPER_FLAGS_4(fnmsd,     TCG_CALL_NO_RWG, i64, env, i64, i64, i64)
+
+DEF_HELPER_FLAGS_5(qpfmas,    TCG_CALL_NO_RWG, void, vec, env, vec, vec, vec)
+DEF_HELPER_FLAGS_5(qpfmss,    TCG_CALL_NO_RWG, void, vec, env, vec, vec, vec)
+DEF_HELPER_FLAGS_5(qpfnmas,   TCG_CALL_NO_RWG, void, vec, env, vec, vec, vec)
+DEF_HELPER_FLAGS_5(qpfnmss,   TCG_CALL_NO_RWG, void, vec, env, vec, vec, vec)
+DEF_HELPER_FLAGS_5(qpfmass,   TCG_CALL_NO_RWG, void, vec, env, vec, vec, vec)
+DEF_HELPER_FLAGS_5(qpfmsas,   TCG_CALL_NO_RWG, void, vec, env, vec, vec, vec)
+
+DEF_HELPER_FLAGS_5(qpfmad,    TCG_CALL_NO_RWG, void, vec, env, vec, vec, vec)
+DEF_HELPER_FLAGS_5(qpfmsd,    TCG_CALL_NO_RWG, void, vec, env, vec, vec, vec)
+DEF_HELPER_FLAGS_5(qpfnmad,   TCG_CALL_NO_RWG, void, vec, env, vec, vec, vec)
+DEF_HELPER_FLAGS_5(qpfnmsd,   TCG_CALL_NO_RWG, void, vec, env, vec, vec, vec)
+DEF_HELPER_FLAGS_5(qpfmasd,   TCG_CALL_NO_RWG, void, vec, env, vec, vec, vec)
+DEF_HELPER_FLAGS_5(qpfmsad,   TCG_CALL_NO_RWG, void, vec, env, vec, vec, vec)
+
 /* Float x80 ops */
 #define DEF_FX_OP2(op) \
     DEF_HELPER_FLAGS_3(glue(op, ss), TCG_CALL_NO_RWG,       i32, env, f80, i32) \
@@ -270,6 +297,8 @@ DEF_HELPER_FP_CMP(f,  d, i64, i64, i64)
 DEF_HELPER_FP_CMP(fx, s, i64, f80, i32)
 DEF_HELPER_FP_CMP(fx, d, i64, f80, i64)
 DEF_HELPER_FP_CMP(fx, x, i64, f80, f80)
+
+#undef DEF_HELPER_FP_CMP
 
 /* Float Flag Comparisons */
 DEF_HELPER_FLAGS_3(fcmpodsf, TCG_CALL_NO_RWG, i32, env, i32, i32)

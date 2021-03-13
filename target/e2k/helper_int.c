@@ -149,3 +149,25 @@ int HELPER(dam_unlock_addr)(CPUE2KState *env, uint64_t addr, int size, int reg)
     // TODO: helper_dam_unlock_addr
     return 1;
 }
+
+uint64_t HELPER(clmull)(uint64_t s1, uint64_t s2)
+{
+    uint64_t r = 0;
+
+    for (; s1; s1 >>= 1, s2 <<= 1) {
+        r ^= s1 & 1 ? s2 : 0;
+    }
+
+    return r;
+}
+
+uint64_t HELPER(clmulh)(uint64_t s1, uint64_t s2)
+{
+    uint64_t r = 0;
+
+    for (s2 >>= 1; s1; s1 <<= 1, s2 >>= 1) {
+        r ^= s1 & (1ULL << 63) ? s2 : 0;
+    }
+
+    return r;
+}
