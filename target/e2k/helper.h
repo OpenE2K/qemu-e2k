@@ -18,11 +18,11 @@ DEF_HELPER_1(signal_return, void, env)
 
 DEF_HELPER_4(setwd, void, env, int, int, int)
 
-DEF_HELPER_FLAGS_2(probe_read_access,  TCG_CALL_NO_RWG, int, env, tl)
-DEF_HELPER_FLAGS_2(probe_write_access, TCG_CALL_NO_RWG, int, env, tl)
+DEF_HELPER_FLAGS_4(probe_read_access,  TCG_CALL_NO_RWG, int, env, tl, int, int)
+DEF_HELPER_FLAGS_4(probe_write_access, TCG_CALL_NO_RWG, int, env, tl, int, int)
 
 DEF_HELPER_1(aau_load_program, void, env)
-DEF_HELPER_4(mova_ptr, tl, env, int, int, int)
+DEF_HELPER_6(mova_ptr, tl, env, int, int, int, int, int)
 DEF_HELPER_3(aau_am, void, env, int, int)
 DEF_HELPER_4(dam_lock_addr, void, env, i64, int, int)
 DEF_HELPER_4(dam_unlock_addr, int, env, i64, int, int)
