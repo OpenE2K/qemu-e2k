@@ -3672,6 +3672,30 @@ static MemOp scan_st_mas(Instr *instr, MemOp memop, bool *skip, bool *check)
     return memop;
 }
 
+static void gen_probe_read_access(TCGv_i32 ret, TCGv addr, int size,
+    int mmu_idx)
+{
+    TCGv_i32 t0 = tcg_const_i32(size);
+    TCGv_i32 t1 = tcg_const_i32(mmu_idx);
+
+    gen_helper_probe_read_access(ret, cpu_env, addr, t0, t1);
+
+    tcg_temp_free_i32(t1);
+    tcg_temp_free_i32(t0);
+}
+
+static void gen_probe_write_access(TCGv_i32 ret, TCGv addr, int size,
+    int mmu_idx)
+{
+    TCGv_i32 t0 = tcg_const_i32(size);
+    TCGv_i32 t1 = tcg_const_i32(mmu_idx);
+
+    gen_helper_probe_write_access(ret, cpu_env, addr, t0, t1);
+
+    tcg_temp_free_i32(t1);
+    tcg_temp_free_i32(t0);
+}
+
 static void gen_ld_raw_i64(Instr *instr, TCGv_i32 tag, TCGv addr,
     MemOp memop, bool skip, bool save)
 {
@@ -3682,7 +3706,7 @@ static void gen_ld_raw_i64(Instr *instr, TCGv_i32 tag, TCGv addr,
         TCGLabel *l1 = gen_new_label();
         TCGv_i32 t0 = tcg_temp_new_i32();
 
-        gen_helper_probe_read_access(t0, cpu_env, addr);
+        gen_probe_read_access(t0, addr, memop_size(memop), instr->ctx->mmuidx);
         tcg_gen_brcondi_i32(TCG_COND_NE, t0, 0, l1);
 
         /* address is not available */
@@ -3742,7 +3766,7 @@ static void gen_ld_raw_i128(Instr *instr, TCGv_i32 tag, TCGv addr,
         TCGLabel *l1 = gen_new_label();
         TCGv_i32 t3 = tcg_temp_new_i32();
 
-        gen_helper_probe_read_access(t3, cpu_env, addr);
+        gen_probe_read_access(t3, addr, 16, instr->ctx->mmuidx);
         tcg_gen_brcondi_i32(TCG_COND_NE, t3, 0, l1);
 
         /* address is not available */
@@ -3851,7 +3875,8 @@ static void gen_atomic_cmpxchg_i32(Instr *instr, TCGv_i32 value, TCGv addr,
             if (instr->sm) { \
                 TCGv_i32 t0 = tcg_temp_new_i32(); \
                 \
-                gen_helper_probe_write_access(t0, cpu_env, addr); \
+                gen_probe_write_access(t0, addr, memop_size(memop), \
+                    instr->ctx->mmuidx); \
                 tcg_gen_brcondi_i32(TCG_COND_EQ, t0, 0, l0); \
                 \
                 tcg_temp_free_i32(t0); \
@@ -3904,7 +3929,7 @@ static void gen_st_raw_i128(Instr *instr, TCGv addr,
         if (instr->sm) {
             TCGv_i32 t0 = tcg_temp_new_i32();
 
-            gen_helper_probe_write_access(t0, cpu_env, addr);
+            gen_probe_write_access(t0, addr, 16, instr->ctx->mmuidx);
             tcg_gen_brcondi_i32(TCG_COND_EQ, t0, 0, l0);
 
             tcg_temp_free_i32(t0);
@@ -3985,7 +4010,7 @@ static void gen_stm_raw_i128(Instr *instr, TCGv addr,
         if (instr->sm) {
             TCGv_i32 t0 = tcg_temp_new_i32();
 
-            gen_helper_probe_write_access(t0, cpu_env, addr);
+            gen_probe_write_access(t0, addr, 16, instr->ctx->mmuidx);
             tcg_gen_brcondi_i32(TCG_COND_EQ, t0, 0, l0);
 
             tcg_temp_free_i32(t0);
@@ -4349,7 +4374,7 @@ static void gen_staaqp(Instr *instr)
 
         if (instr->sm) {
             TCGv_i32 t1 = tcg_temp_new_i32();
-            gen_helper_probe_write_access(t1, cpu_env, t0);
+            gen_probe_write_access(t1, t0, 16, instr->ctx->mmuidx);
             tcg_gen_brcondi_i32(TCG_COND_EQ, t1, 0, l0);
             tcg_temp_free_i32(t1);
         }
@@ -4403,7 +4428,7 @@ static void gen_staa_i64(Instr *instr)
 
         if (instr->sm) {
             TCGv_i32 t1 = tcg_temp_new_i32();
-            gen_helper_probe_write_access(t1, cpu_env, t0);
+            gen_probe_write_access(t1, t0, memop_size(memop), instr->ctx->mmuidx);
             tcg_gen_brcondi_i32(TCG_COND_EQ, t1, 0, l0);
             tcg_temp_free_i32(t1);
         }
@@ -4457,7 +4482,7 @@ static void gen_staa_i32(Instr *instr, MemOp memop)
 
         if (instr->sm) {
             TCGv_i32 t1 = tcg_temp_new_i32();
-            gen_helper_probe_write_access(t1, cpu_env, t0);
+            gen_probe_write_access(t1, t0, memop_size(memop), instr->ctx->mmuidx);
             tcg_gen_brcondi_i32(TCG_COND_EQ, t1, 0, l0);
             tcg_temp_free_i32(t1);
         }
@@ -6784,12 +6809,17 @@ static void gen_checked_ld_qp(DisasContext *ctx, Mova *instr, TCGv addr)
     tagged_free_ptr(r);
 }
 
-static inline void gen_mova_ptr(TCGv ret, Mova *instr)
+static void gen_mova_ptr(TCGv ret, Mova *instr, int size, int mmu_idx)
 {
     TCGv_i32 t0 = tcg_const_i32(instr->chan);
     TCGv_i32 t1 = tcg_const_i32(instr->area);
     TCGv_i32 t2 = tcg_const_i32(instr->ind);
-    gen_helper_mova_ptr(ret, cpu_env, t0, t1, t2);
+    TCGv_i32 t3 = tcg_const_i32(size);
+    TCGv_i32 t4 = tcg_const_i32(mmu_idx);
+
+    gen_helper_mova_ptr(ret, cpu_env, t0, t1, t2, t3, t4);
+    tcg_temp_free_i32(t4);
+    tcg_temp_free_i32(t3);
     tcg_temp_free_i32(t2);
     tcg_temp_free_i32(t1);
     tcg_temp_free_i32(t0);
@@ -6803,19 +6833,20 @@ static void gen_mova(DisasContext *ctx, Mova *instr)
     ctx->aau_am[instr->chan] = instr->am ? instr->area : -1;
     // TODO: check ind has proper alignment
     // TODO: check ind is less than mrng
-    gen_mova_ptr(t0, instr);
 
     switch(instr->opc) {
     case 1: /* movab */
     case 2: /* movah */
     case 3: /* movaw */
     case 4: /* movad */
+        gen_mova_ptr(t0, instr, 1 << (instr->opc - 1), ctx->mmuidx);
         gen_checked_ld(ctx, instr, t0);
         break;
     case 5: /* movaq */
         e2k_todo_illop(ctx, "movaq");
         break;
     case 7: /* movaqp */
+        gen_mova_ptr(t0, instr, 16, ctx->mmuidx);
         gen_checked_ld_qp(ctx, instr, t0);
         break;
     default:

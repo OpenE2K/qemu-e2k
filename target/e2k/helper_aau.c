@@ -45,7 +45,8 @@ void HELPER(aau_load_program)(CPUE2KState *env)
     }
 }
 
-target_ulong HELPER(mova_ptr)(CPUE2KState *env, int chan, int area, int ind)
+target_ulong HELPER(mova_ptr)(CPUE2KState *env, int chan, int area, int ind,
+    int size, int mmu_idx)
 {
     E2KAauPrefState *ps = chan < 2 ? &env->aau.pl : &env->aau.pr;
     E2KAauAreaState *as = &ps->area[area];
@@ -55,7 +56,7 @@ target_ulong HELPER(mova_ptr)(CPUE2KState *env, int chan, int area, int ind)
     target_ulong page = ptr & ~(TARGET_PAGE_SIZE - 1);
 
     if (as->last_page == 0 || page != as->last_page) {
-        if (!helper_probe_read_access(env, page)) {
+        if (!helper_probe_read_access(env, ptr, size, mmu_idx)) {
             return 0;
         }
         as->last_page = page;
