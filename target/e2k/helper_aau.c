@@ -55,9 +55,11 @@ target_ulong HELPER(mova_ptr)(CPUE2KState *env, int chan, int area, int ind,
     target_ulong ptr = aad.base + as->cdi + instr.disp + ind;
     target_ulong page = ptr & ~(TARGET_PAGE_SIZE - 1);
 
-    if (as->last_page == 0 || page != as->last_page) {
-        if (!helper_probe_read_access(env, ptr, size, mmu_idx)) {
-            return 0;
+    if (ptr & (size - 1)) {
+        ptr = 0;
+    } else if (as->last_page == 0 || page != as->last_page) {
+        if (!helper_probe_read_access(env, page, size, mmu_idx)) {
+            ptr = 0;
         }
         as->last_page = page;
     }

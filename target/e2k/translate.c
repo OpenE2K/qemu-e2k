@@ -5,6 +5,10 @@
 #include "tcg/tcg-op.h"
 #include "tcg/tcg-op-gvec.h"
 
+//#define FORCE_SAVE_PLU_PREG
+//#define FORCE_SAVE_ALC_REG
+//#define FORCE_SAVE_ALC_PREG
+
 #define glue3(a, b, c) glue(glue(a, b), c)
 #define glue4(a, b, c, d) glue(glue(a, b), glue(c, d))
 
@@ -20,6 +24,17 @@
 #define IS_LIT32(i) (((i) & 0x0c) == 0x08)
 #define IS_LIT64(i) (((i) & 0x0c) == 0x0c)
 #define IS_GLOBAL(i) (((i) & 0xe0) == 0xe0)
+#define IS_REG(i) ((i) < 192 || (i) >= 224)
+#if 0
+/* these registers are safe not to keep the old value
+ * %r[0..8], %b[56..128], %g[0..32] */
+# define IS_REG_SAVE_SAFE(i) \
+    (((i) >= 56 && (i) < 136) || (i) >= 224)
+#else
+/* this could potentially create an RAW conflict for next ops in a bundle */
+#define IS_REG_SAVE_SAFE(i) (true)
+#endif
+#define IS_CTPR(i) (((i) & 0xfc) == 0xd0 && ((i) & 3) != 0)
 
 #define GET_BASED(i) ((i) & 0x7f)
 #define GET_REGULAR(i) ((i) & 0x3f)
@@ -27,6 +42,7 @@
 #define GET_IMM4(i) ((i) & 0x0f)
 #define GET_LIT(i) ((i) & 0x03)
 #define GET_GLOBAL(i) ((i) & 0x1f)
+#define GET_CTPR(i) ((i) & 3)
 
 #define type_name_q ptr
 #define type_name_x ptr
@@ -69,14 +85,14 @@
 
 #define gen_result_init_s(i, r)
 #define gen_result_init_d(i, r)
-#define gen_result_init_x(i, r) gen_temp_result_ptr(r.val, i->chan)
-#define gen_result_init_q(i, r) gen_temp_result_ptr(r.val, i->chan)
+#define gen_result_init_x(i, r) gen_result_reg_ptr(i->ctx, r.val, i->als.dst, i->chan)
+#define gen_result_init_q(i, r) gen_result_reg_ptr(i->ctx, r.val, i->als.dst, i->chan)
 #define gen_result_init(R, i, r) glue(gen_result_init_, R)(i, r)
 
 #define gen_result_init2_s(i, r)
 #define gen_result_init2_d(i, r)
-#define gen_result_init2_x(i, r) gen_temp_result_ptr(r.val, i->chan + 6)
-#define gen_result_init2_q(i, r) gen_temp_result_ptr(r.val, i->chan + 6)
+#define gen_result_init2_x(i, r) gen_temp_result_ptr(r.val, i->chan)
+#define gen_result_init2_q(i, r) gen_temp_result_ptr(r.val, i->chan)
 #define gen_result_init2(R, i, r) glue(gen_result_init2_, R)(i, r)
 
 #define gen_al_result(R, instr, r) glue(gen_al_result_, R)(instr, r)
@@ -303,17 +319,93 @@ typedef enum {
     ALOPF22,
 } Alopf;
 
-typedef struct {
-    Alopf format;
-    uint32_t op;
-    const char *name;
-} Alop;
+#include "alops.inc"
 
 typedef struct {
-    Cs0 cs0;
-    Cs1 cs1;
-    Alop alops[6];
-} Bundle;
+    TCGv_i32 tag;
+    TCGv_ptr val;
+} Tagged_ptr;
+
+typedef struct {
+    TCGv_i32 tag;
+    TCGv_i32 val;
+} Tagged_i32;
+
+typedef struct {
+    TCGv_i32 tag;
+    TCGv_i64 val;
+} Tagged_i64;
+
+typedef enum {
+    TAGGED_S,
+    TAGGED_D,
+    TAGGED_X,
+    TAGGED_Q,
+} TaggedKind;
+
+typedef struct {
+    TaggedKind kind;
+    union {
+        Tagged_i32 t32;
+        Tagged_i64 t64;
+        Tagged_ptr tptr;
+    };
+} Tagged;
+
+typedef struct DisasContext DisasContext;
+
+typedef struct {
+    DisasContext *ctx;
+    Alopf format;
+    AlopArgs args;
+    uint32_t op;
+    const char *name;
+    int chan;
+    uint8_t mas;
+    union {
+        struct {
+            uint32_t src4: 8;
+            uint32_t src2: 8;
+            uint32_t src1: 8;
+            uint32_t opc1: 7;
+            uint32_t sm: 1;
+        };
+        struct {
+            uint32_t dst: 8;
+            uint32_t opce2: 8;
+            uint32_t opce1: 8;
+            uint32_t unused1: 8;
+        };
+        struct {
+            uint32_t dst_preg: 5;
+            uint32_t opc_cmp: 3;
+            uint32_t unused2: 24;
+        };
+        /* staa/ldaa/aaurw/aaurr */
+        struct {
+            uint32_t unused3: 8;
+            uint32_t aalit: 2;
+            uint32_t aaopc: 2;
+            uint32_t aaincr: 3;
+            /* aaind/aasti/aaincr for aaurw/aaurr */
+            uint32_t aaind: 4;
+            uint32_t aad: 5;
+            uint32_t unused4: 8;
+        };
+        uint32_t raw;
+    } als;
+    union {
+        struct {
+            uint16_t src3: 8;
+            uint16_t opc2: 8;
+        };
+        struct {
+            uint16_t opce3: 8;
+            uint16_t unused5: 8;
+        };
+        uint16_t raw;
+    } ales;
+} Alop;
 
 typedef struct {
     int reg; // -1 means do not write
@@ -389,59 +481,24 @@ typedef enum {
 } MasSpecialOpc;
 
 typedef struct {
-    TCGv_i32 tag;
-    TCGv_ptr val;
-} Tagged_ptr;
-
-typedef struct {
-    TCGv_i32 tag;
-    TCGv_i32 val;
-} Tagged_i32;
-
-typedef struct {
-    TCGv_i32 tag;
-    TCGv_i64 val;
-} Tagged_i64;
-
-typedef enum {
-    TAGGED_S,
-    TAGGED_D,
-    TAGGED_X,
-    TAGGED_Q,
-} TaggedKind;
-
-typedef struct {
-    TaggedKind kind;
-    union {
-        Tagged_i32 t32;
-        Tagged_i64 t64;
-        Tagged_ptr tptr;
-    };
-} Tagged;
-
-typedef enum {
-    OP_RESULT_NONE,
-    OP_RESULT_BREG,
-    OP_RESULT_WREG,
-    OP_RESULT_GREG,
-    OP_RESULT_PREG,
-    OP_RESULT_CTPR,
-} OpResultKind;
-
-typedef struct {
-    OpResultKind type;
     Tagged tagged;
+    uint8_t dst;
+    uint8_t chan;
+} SavedReg;
+
+typedef struct {
     int index;
-} OpResult;
+    TCGv_i32 val;
+} SavedPreg;
 
 typedef struct DisasContext {
     DisasContextBase base;
     UnpackedBundle bundle;
-    Bundle bundle2;
+    Cs0 cs0;
+    Cs1 cs1;
+    Alop alops[6];
     target_ulong pc;
-    int jump_ctpr;
     int mmuidx;
-    uint8_t mas[6];
     bool loop_mode;
 
     /* optional, can be NULL */
@@ -456,7 +513,7 @@ typedef struct DisasContext {
     // Temporary values.
     TCGv_i32 t32[64];
     TCGv_i64 t64[32];
-    TCGv_ptr tptr[16];
+    TCGv_ptr tptr[32];
     // Allocated temporary values count.
     int t32_len;
     int t64_len;
@@ -465,70 +522,17 @@ typedef struct DisasContext {
     /* Delayed window bounds check */
     int wd_size;
     int max_r;
-    int max_r_src;
-    int max_r_dst;
     int bsize;
     int max_b;
-    int max_b_cur;
 
-    TCGv_i64 cond[6];
-    OpResult al_results[6];
-    TCGv_i32 al_cond[6];
-    OpResult aau_results[4];
+    SavedReg saved_reg[6];
+    SavedPreg saved_preg[8];
+    int saved_reg_len;
+    int saved_preg_len;
+
     int aau_am[4];
-    PlResult pl_results[3];
     ControlTransfer ct;
 } DisasContext;
-
-typedef struct {
-    DisasContext *ctx;
-    int chan;
-    AlesFlag ales_present;
-    uint8_t mas;
-    union {
-        uint32_t als;
-        struct {
-            uint32_t src4: 8;
-            uint32_t src2: 8;
-            uint32_t src1: 8;
-            uint32_t opc1: 7;
-            uint32_t sm: 1;
-        };
-        struct {
-            uint32_t dst: 8;
-            uint32_t opce2: 8;
-            uint32_t opce1: 8;
-            uint32_t unused1: 8;
-        };
-        struct {
-            uint32_t dst_preg: 5;
-            uint32_t opc_cmp: 3;
-            uint32_t unused2: 24;
-        };
-        /* staa/ldaa/aaurw/aaurr */
-        struct {
-            uint32_t unused3: 8;
-            uint32_t aalit: 2;
-            uint32_t aaopc: 2;
-            uint32_t aaincr: 3;
-            /* aaind/aasti/aaincr for aaurw/aaurr */
-            uint32_t aaind: 4;
-            uint32_t aad: 5;
-            uint32_t unused4: 8;
-        };
-    };
-    union {
-        uint16_t ales;
-        struct {
-            uint16_t src3: 8;
-            uint16_t opc2: 8;
-        };
-        struct {
-            uint16_t opce3: 8;
-            uint16_t unused5: 8;
-        };
-    };
-} Instr;
 
 typedef struct {
     int chan;
@@ -544,8 +548,6 @@ typedef struct {
     };
     uint8_t dst;
 } Mova;
-
-#include "alops.inc"
 
 static int16_t alops_map[4][128][6];
 
@@ -911,8 +913,7 @@ static inline void decode_cs1(DisasContext *ctx, const UnpackedBundle *raw)
         BG
     };
 
-    Bundle *bundle = &ctx->bundle2;
-    Cs1 *ret = &bundle->cs1;
+    Cs1 *ret = &ctx->cs1;
     uint32_t cs1 = raw->cs1;
     int opc = extract32(cs1, 28, 4);
 
@@ -1021,8 +1022,7 @@ static inline void decode_cs1(DisasContext *ctx, const UnpackedBundle *raw)
 
 static inline void decode_cs0(DisasContext *ctx, const UnpackedBundle *raw)
 {
-    Bundle *bundle = &ctx->bundle2;
-    Cs0 *ret = &bundle->cs0;
+    Cs0 *ret = &ctx->cs0;
     uint32_t cs0 = raw->cs0;
     int ctpr = extract32(cs0, 30, 2);
     int ctp_opc = extract32(cs0, 28, 2);
@@ -1097,8 +1097,8 @@ static inline void decode_cs0(DisasContext *ctx, const UnpackedBundle *raw)
         if (!raw->ss_present
             || extract32(raw->ss, 10, 2) != 0
             || extract32(raw->ss, 0, 9) == 0
-            || bundle->cs1.type == CS1_CALL
-            || bundle->cs1.type == CS1_HCALL)
+            || ctx->cs1.type == CS1_CALL
+            || ctx->cs1.type == CS1_HCALL)
         {
             ret->type = CS0_NONE;
             gen_tr_excp_illopc(ctx);
@@ -1206,7 +1206,7 @@ static void gen_preg_offset(TCGv_i64 ret, int idx)
     tcg_temp_free_i32(t0);
 }
 
-static void gen_preg_i64(TCGv_i64 ret, int reg)
+static void gen_preg_raw_i64(TCGv_i64 ret, int reg)
 {
     TCGv_i64 one = tcg_const_i64(1);
     TCGv_i64 t0 = tcg_temp_new_i64();
@@ -1221,13 +1221,34 @@ static void gen_preg_i64(TCGv_i64 ret, int reg)
     tcg_temp_free_i64(one);
 }
 
-static void gen_preg_i32(TCGv_i32 ret, int reg)
+static void gen_preg_raw_i32(TCGv_i32 ret, int reg)
 {
     TCGv_i64 t0 = tcg_temp_new_i64();
 
-    gen_preg_i64(t0, reg);
+    gen_preg_raw_i64(t0, reg);
     tcg_gen_extrl_i64_i32(ret, t0);
     tcg_temp_free_i64(t0);
+}
+
+static bool gen_saved_preg_i32(DisasContext *ctx, TCGv_i32 ret, int index)
+{
+    int i;
+
+    for (i = 0; i < ctx->saved_preg_len; i++) {
+        if (ctx->saved_preg[i].index == index) {
+            tcg_gen_mov_i32(ret, ctx->saved_preg[i].val);
+            return true;
+        }
+    }
+
+    return false;
+}
+
+static void gen_preg_i32(DisasContext *ctx, TCGv_i32 ret, int index)
+{
+    if (!gen_saved_preg_i32(ctx, ret, index)) {
+        gen_preg_raw_i32(ret, index);
+    }
 }
 
 static void gen_preg_set_i32(int index, TCGv_i32 val)
@@ -1395,6 +1416,19 @@ static inline void gen_greg_index_i32(TCGv_i32 ret, int index)
     tcg_gen_movi_i32(ret, E2K_NR_COUNT + index);
 }
 
+static void gen_reg_index(DisasContext *ctx, TCGv_i32 ret, uint8_t arg)
+{
+    if (IS_BASED(arg)) {
+        gen_breg_index_i32(ret, GET_BASED(arg));
+    } else if (IS_REGULAR(arg)) {
+        gen_wreg_index_i32(ret, GET_REGULAR(arg));
+    } else if (IS_GLOBAL(arg)) {
+        gen_greg_index_i32(ret, GET_GLOBAL(arg));
+    } else {
+        gen_tr_excp_illopc(ctx);
+    }
+}
+
 static void gen_reg_lo_ptr(TCGv_ptr ret, TCGv_i32 idx)
 {
     TCGv_ptr t0 = tcg_temp_new_ptr();
@@ -1435,9 +1469,28 @@ static void gen_tagged_temp_ptr(TCGv_ptr ret, int i)
     tcg_gen_addi_ptr(ret, cpu_env, offsetof(CPUE2KState, tmp[i]));
 }
 
+static void gen_result_reg_ptr(DisasContext *ctx, TCGv_ptr ret, uint8_t dst,
+    int temp_index)
+{
+    if (dst == 0xdf) {
+        /* %empty */
+        intptr_t offset = offsetof(CPUE2KState, al_result[temp_index]);
+        tcg_gen_addi_ptr(ret, cpu_env, offset);
+    } else if (IS_REG(dst)) {
+        TCGv_i32 t0 = tcg_temp_new_i32();
+
+        gen_reg_index(ctx, t0, dst);
+        gen_reg_lo_ptr(ret, t0);
+
+        tcg_temp_free_i32(t0);
+    } else {
+        gen_tr_excp_illopc(ctx);
+    }
+}
+
 static void gen_temp_result_ptr(TCGv_ptr ret, int i)
 {
-    tcg_gen_addi_ptr(ret, cpu_env, offsetof(CPUE2KState, al_result[i]));
+    tcg_gen_addi_ptr(ret, cpu_env, offsetof(CPUE2KState, al_result[i + 6]));
 }
 
 static void gen_tagged_const_ptr(Tagged_ptr ret, uint8_t tag, int64_t val)
@@ -1501,45 +1554,149 @@ static void gen_tagged_reg_ptr(DisasContext *ctx, Tagged_ptr ret,
     tcg_temp_free_i32(t0);
 }
 
-static void gen_tagged_reg_q(DisasContext *ctx, Tagged_ptr ret, uint8_t arg)
+static Tagged* get_saved_reg(DisasContext *ctx, uint8_t arg, int chan)
 {
-    gen_tagged_reg_ptr(ctx, ret, arg, E2K_TAG_MASK_128);
+    int i;
+
+    for (i = 0; i < ctx->saved_reg_len; i++) {
+        SavedReg *r = &ctx->saved_reg[i];
+
+        switch (r->tagged.kind) {
+        case TAGGED_S:
+        case TAGGED_D:
+            if (chan > r->chan && r->dst == arg) {
+                return &r->tagged;
+            }
+            break;
+        case TAGGED_X:
+        case TAGGED_Q:
+            if (chan >= r->chan && r->dst == arg) {
+                return &r->tagged;
+            }
+            break;
+        }
+    }
+
+    return NULL;
 }
 
-static void gen_tagged_reg_x(DisasContext *ctx, Tagged_ptr ret, uint8_t arg)
+static void gen_tagged_reg_q(DisasContext *ctx, Tagged_ptr ret, uint8_t arg,
+    int chan)
 {
-    gen_tagged_reg_ptr(ctx, ret, arg, E2K_TAG_MASK_80);
+    Tagged *r = get_saved_reg(ctx, arg, chan);
+
+    if (r) {
+        switch (r->kind) {
+        case TAGGED_Q:
+            tcg_gen_mov_i32(ret.tag, r->tptr.tag);
+            tcg_gen_addi_ptr(ret.val, r->tptr.val, 0);
+            break;
+        default:
+            g_assert_not_reached();
+            break;
+        }
+    } else {
+        gen_tagged_reg_ptr(ctx, ret, arg, E2K_TAG_MASK_128);
+    }
 }
 
-static void gen_tagged_reg_d(DisasContext *ctx, Tagged_i64 ret, uint8_t arg)
+static void gen_tagged_reg_x(DisasContext *ctx, Tagged_ptr ret, uint8_t arg,
+    int chan)
 {
-    Tagged_ptr t0 = tagged_new_ptr();
+    Tagged *r = get_saved_reg(ctx, arg, chan);
 
-    gen_tagged_reg_ptr(ctx, t0, arg, E2K_TAG_MASK_64);
-    tcg_gen_mov_i32(ret.tag, t0.tag);
-    tcg_gen_ld_i64(ret.val, t0.val, offsetof(E2KReg, lo));
-
-    tagged_free_ptr(t0);
+    if (r) {
+        switch (r->kind) {
+        case TAGGED_X:
+            tcg_gen_mov_i32(ret.tag, r->tptr.tag);
+            tcg_gen_addi_ptr(ret.val, r->tptr.val, 0);
+            break;
+        case TAGGED_Q:
+            tcg_gen_andi_i32(ret.tag, r->tptr.tag, E2K_TAG_MASK_80);
+            tcg_gen_addi_ptr(ret.val, r->tptr.val, 0);
+            break;
+        default:
+            g_assert_not_reached();
+            break;
+        }
+    } else {
+        gen_tagged_reg_ptr(ctx, ret, arg, E2K_TAG_MASK_80);
+    }
 }
 
-static void gen_tagged_reg_s(DisasContext *ctx, Tagged_i32 ret, uint8_t arg)
+static void gen_tagged_reg_d(DisasContext *ctx, Tagged_i64 ret, uint8_t arg,
+    int chan)
 {
-    Tagged_ptr t0 = tagged_new_ptr();
+    Tagged *r = get_saved_reg(ctx, arg, chan);
 
-    gen_tagged_reg_ptr(ctx, t0, arg, E2K_TAG_MASK_32);
-    tcg_gen_mov_i32(ret.tag, t0.tag);
-    tcg_gen_ld_i32(ret.val, t0.val, offsetof(E2KReg, lo));
+    if (r) {
+        switch (r->kind) {
+        case TAGGED_D:
+            tcg_gen_mov_i32(ret.tag, r->t64.tag);
+            tcg_gen_mov_i64(ret.val, r->t64.val);
+            break;
+        case TAGGED_X:
+        case TAGGED_Q:
+            tcg_gen_andi_i32(ret.tag, r->tptr.tag, E2K_TAG_MASK_64);
+            tcg_gen_ld_i64(ret.val, r->tptr.val, offsetof(E2KReg, lo));
+            break;
+        default:
+            g_assert_not_reached();
+            break;
+        }
+    } else {
+        Tagged_ptr t0 = tagged_new_ptr();
 
-    tagged_free_ptr(t0);
+        gen_tagged_reg_ptr(ctx, t0, arg, E2K_TAG_MASK_64);
+        tcg_gen_mov_i32(ret.tag, t0.tag);
+        tcg_gen_ld_i64(ret.val, t0.val, offsetof(E2KReg, lo));
+
+        tagged_free_ptr(t0);
+    }
+}
+
+static void gen_tagged_reg_s(DisasContext *ctx, Tagged_i32 ret, uint8_t arg,
+    int chan)
+{
+    Tagged *r = get_saved_reg(ctx, arg, chan);
+
+    if (r) {
+        switch (r->kind) {
+        case TAGGED_S:
+            tcg_gen_mov_i32(ret.tag, r->t32.tag);
+            tcg_gen_mov_i32(ret.val, r->t32.val);
+            break;
+        case TAGGED_D:
+            tcg_gen_andi_i32(ret.tag, r->t64.tag, E2K_TAG_MASK_32);
+            tcg_gen_extrl_i64_i32(ret.val, r->t64.val);
+            break;
+        case TAGGED_X:
+        case TAGGED_Q:
+            tcg_gen_andi_i32(ret.tag, r->tptr.tag, E2K_TAG_MASK_32);
+            tcg_gen_ld_i32(ret.val, r->tptr.val, offsetof(E2KReg, lo));
+            break;
+        default:
+            g_assert_not_reached();
+            break;
+        }
+    } else {
+        Tagged_ptr t0 = tagged_new_ptr();
+
+        gen_tagged_reg_ptr(ctx, t0, arg, E2K_TAG_MASK_32);
+        tcg_gen_mov_i32(ret.tag, t0.tag);
+        tcg_gen_ld_i32(ret.val, t0.val, offsetof(E2KReg, lo));
+
+        tagged_free_ptr(t0);
+    }
 }
 
 #define IMPL_GEN_TAGGED_SRC1(S, T) \
-    static void glue(gen_tagged_src1_, S)(Instr *instr, T ret) \
+    static void glue(gen_tagged_src1_, S)(Alop *alop, T ret) \
     { \
-        if (IS_IMM5(instr->src1)) { \
-            glue(gen_tagged_const_, S)(ret, 0, GET_IMM5(instr->src1), 1); \
+        if (IS_IMM5(alop->als.src1)) { \
+            glue(gen_tagged_const_, S)(ret, 0, GET_IMM5(alop->als.src1), 1); \
         } else { \
-            glue(gen_tagged_reg_, S)(instr->ctx, ret, instr->src1); \
+            glue(gen_tagged_reg_, S)(alop->ctx, ret, alop->als.src1, alop->chan); \
         } \
     }
 
@@ -1549,16 +1706,16 @@ IMPL_GEN_TAGGED_SRC1(d, Tagged_i64)
 IMPL_GEN_TAGGED_SRC1(s, Tagged_i32)
 
 #define IMPL_GEN_TAGGED_SRC2(S, T) \
-    static void glue(gen_tagged_src2_, S)(Instr *instr, T ret) \
+    static void glue(gen_tagged_src2_, S)(Alop *alop, T ret) \
     { \
-        if (IS_IMM4(instr->src2)) { \
-            glue(gen_tagged_const_, S)(ret, 0, GET_IMM4(instr->src2), 2); \
-        } else if (IS_LIT(instr->src2)) { \
-            int64_t lit = get_literal(instr->ctx, instr->src2); \
+        if (IS_IMM4(alop->als.src2)) { \
+            glue(gen_tagged_const_, S)(ret, 0, GET_IMM4(alop->als.src2), 2); \
+        } else if (IS_LIT(alop->als.src2)) { \
+            int64_t lit = get_literal(alop->ctx, alop->als.src2); \
             \
             glue(gen_tagged_const_, S)(ret, 0, lit, 2); \
         } else { \
-            glue(gen_tagged_reg_, S)(instr->ctx, ret, instr->src2); \
+            glue(gen_tagged_reg_, S)(alop->ctx, ret, alop->als.src2, alop->chan); \
         } \
     }
 
@@ -1567,19 +1724,25 @@ IMPL_GEN_TAGGED_SRC2(x, Tagged_ptr)
 IMPL_GEN_TAGGED_SRC2(d, Tagged_i64)
 IMPL_GEN_TAGGED_SRC2(s, Tagged_i32)
 
-#define IMPL_GEN_TAGGED_SRC_REG(N, S, T) \
-    static void glue4(gen_tagged_src, N, _, S)(Instr *instr, T ret) \
+#define IMPL_GEN_TAGGED_SRC3(S, T) \
+    static void glue(gen_tagged_src3_, S)(Alop *alop, T ret) \
     { \
-        glue(gen_tagged_reg_, S)(instr->ctx, ret, glue(instr->src, N)); \
+        glue(gen_tagged_reg_, S)(alop->ctx, ret, alop->ales.src3, alop->chan); \
     }
 
-IMPL_GEN_TAGGED_SRC_REG(3, q, Tagged_ptr)
-IMPL_GEN_TAGGED_SRC_REG(3, d, Tagged_i64)
-IMPL_GEN_TAGGED_SRC_REG(3, s, Tagged_i32)
+IMPL_GEN_TAGGED_SRC3(q, Tagged_ptr)
+IMPL_GEN_TAGGED_SRC3(d, Tagged_i64)
+IMPL_GEN_TAGGED_SRC3(s, Tagged_i32)
 
-IMPL_GEN_TAGGED_SRC_REG(4, q, Tagged_ptr)
-IMPL_GEN_TAGGED_SRC_REG(4, d, Tagged_i64)
-IMPL_GEN_TAGGED_SRC_REG(4, s, Tagged_i32)
+#define IMPL_GEN_TAGGED_SRC4(S, T) \
+    static void glue(gen_tagged_src4_, S)(Alop *alop, T ret) \
+    { \
+        glue(gen_tagged_reg_, S)(alop->ctx, ret, alop->als.src4, alop->chan); \
+    }
+
+IMPL_GEN_TAGGED_SRC4(q, Tagged_ptr)
+IMPL_GEN_TAGGED_SRC4(d, Tagged_i64)
+IMPL_GEN_TAGGED_SRC4(s, Tagged_i32)
 
 /*
  * Returns zero if all @args is zero otherwise returns @tag.
@@ -1624,6 +1787,175 @@ static inline void gen_tag3_raw(TCGv_i32 ret, int tag, TCGv_i32 arg1, TCGv_i32 a
 #define gen_tag2_i32(ret, a1, a2) gen_tag3_i32((ret), (a1), (a2), NULL)
 #define gen_tag1_i32(ret, a1) gen_tag2_i32((ret), (a1), NULL)
 
+#if !defined(FORCE_SAVE_ALC_PREG) && !defined(FORCE_SAVE_PLU_PREG)
+static bool is_preg_used_by_rlp(DisasContext *ctx, int chan, int index)
+{
+    int i, j;
+
+    for (i = 0; i < 3; i++) {
+        if (!ctx->bundle.cds_present[i]) {
+            continue;
+        }
+
+        for (j = 0; j < 2; j++) {
+            uint16_t rlp = extract32(ctx->bundle.cds[i], j * 16, 16);
+            int cluster = extract16(rlp, 14, 1);
+            int am = extract16(rlp, 13, 1);
+            int mask = extract16(rlp, 10, 3) << (cluster ? 3 : 0);
+            int psrc = extract16(rlp, 0, 5);
+
+            // FIXME: forced save preg if am is set
+            if (((1 << chan) < mask || am) && index == psrc) {
+                return true;
+            }
+        }
+    }
+
+    return false;
+}
+
+static bool is_preg_used_by_pls(DisasContext *ctx, int offset, int index)
+{
+    int i, j;
+
+    for (i = offset; i < 2; i++) {
+        uint32_t pls = ctx->bundle.pls[i];
+
+        if (!ctx->bundle.pls_present[i]) {
+            continue;
+        }
+
+        for (j = 0; j < 2; j++) {
+            uint8_t psrc = extract32(pls, 16 + j * 8, 7);
+
+            if ((psrc & 0xe0) == 0x60) {
+                int index2 = extract8(psrc, 0, 5);
+
+                if (index == index2) {
+                    return true;
+                }
+            }
+        }
+    }
+
+    return false;
+}
+
+static bool is_preg_used_by_ct(DisasContext *ctx, int index)
+{
+    if (ctx->ct.type == CT_NONE) {
+        return false;
+    }
+
+    switch (ctx->ct.cond_type) {
+    case 0x2:
+    case 0x6:
+    case 0xf:
+    case 0x3:
+    case 0x7:
+    case 0xe:
+        return index == ctx->ct.psrc;
+    default:
+        return false;
+    }
+}
+#endif
+
+static bool is_preg_saved(DisasContext *ctx, int index)
+{
+    int i;
+
+    for (i = 0; i < ctx->saved_preg_len; i++) {
+        if (ctx->saved_preg[i].index == index) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+static bool is_alop_affected_by_dbl(Alop *alop)
+{
+    if (alop->format == ALOPF2) {
+        switch (alop->op) {
+        case OP_MOVTS:
+        case OP_MOVTCS:
+        case OP_MOVTRS:
+        case OP_MOVTRCS:
+            return false;
+        default:
+            break;
+        }
+    }
+
+    return true;
+}
+
+#if 0
+static bool is_alop_check_tag(Alop *alop)
+{
+    if (alop->format == ALOPF2) {
+        switch (alop->op) {
+        case OP_PUTTAGS:
+        case OP_PUTTAGD:
+        case OP_MOVTS:
+        case OP_MOVTRS:
+        case OP_MOVTD:
+        case OP_MOVTRD:
+        case OP_MOVTQ:
+        case OP_MOVTRQ:
+            return false;
+        default:
+            break;
+        }
+    }
+
+    return true;
+}
+
+static bool is_alop_poison_result(Alop *alop)
+{
+    if (alop->format == ALOPF2) {
+        switch (alop->op) {
+        case OP_PUTTAGS:
+        case OP_PUTTAGD:
+        case OP_MOVTS:
+        case OP_MOVTRS:
+        case OP_MOVTD:
+        case OP_MOVTRD:
+        case OP_MOVTQ:
+        case OP_MOVTRQ:
+            return false;
+        default:
+            break;
+        }
+    }
+
+    return true;
+}
+#endif
+
+static bool is_alop_store(Alop *alop)
+{
+    switch (alop->format) {
+    case ALOPF3:
+    case ALOPF10:
+    case ALOPF13:
+        return true;
+    default:
+        return false;
+    }
+}
+
+static void gen_save_preg(DisasContext *ctx, int index)
+{
+    SavedPreg *r = &ctx->saved_preg[ctx->saved_preg_len++];
+
+    r->index = index;
+    r->val = e2k_get_temp_i32(ctx);
+    gen_preg_raw_i32(r->val, r->index);
+}
+
 static void gen_get_lp(TCGv_i32 ret, uint16_t clp, int offset, TCGv_i32 lp[7])
 {
     int p = extract32(clp, offset, 3);
@@ -1654,7 +1986,7 @@ static void gen_cond_i32(DisasContext *ctx, TCGv_i32 ret, uint8_t psrc)
             e2k_todo_illop(ctx, "%%spred");
         } else if ((psrc & 0x60) == 0x60) {
             // %predN
-            gen_preg_i32(ret, idx);
+            gen_preg_i32(ctx, ret, idx);
         } else {
             // %pcntN
             tcg_gen_setcondi_i32(TCG_COND_LEU, ret, cpu_lsr_pcnt, idx);
@@ -1710,8 +2042,7 @@ static inline void scan_needed(const UnpackedBundle *bundle, int need[7])
 static void gen_plu(DisasContext *ctx)
 {
     const UnpackedBundle *bundle = &ctx->bundle;
-    int need[7] = { 0 };
-    unsigned int i;
+    int i, need[7] = { 0 };
     TCGv_i32 lp[7];
 
     scan_needed(bundle, need);
@@ -1723,8 +2054,6 @@ static void gen_plu(DisasContext *ctx)
     }
 
     for (i = 0; i < 3; i++) {
-        ctx->pl_results[i].reg = -1;
-
         if (!bundle->pls_present[i]) {
             continue;
         }
@@ -1746,7 +2075,7 @@ static void gen_plu(DisasContext *ctx)
             int opc = extract32(clp, 14, 2);
             TCGv_i32 p0 = tcg_temp_new_i32();
             TCGv_i32 p1 = tcg_temp_new_i32();
-            int vdst = GET_BIT(clp, 5);
+            int vdst = extract32(clp, 5, 1);
             int pdst = extract32(clp, 0, 5);
 
             // TODO: check clp arg
@@ -1755,13 +2084,17 @@ static void gen_plu(DisasContext *ctx)
             // {C/M}LP2 0, 1, 2, 3, 4, 5 => 6
             // maximal cascading is 2
 
+            if (vdst && !is_preg_saved(ctx, pdst)
+#ifndef FORCE_SAVE_PLU_PREG
+                && (is_preg_used_by_pls(ctx, i + 1, pdst)
+                    || is_preg_used_by_ct(ctx, pdst))
+#endif
+            ) {
+                gen_save_preg(ctx, pdst);
+            }
+
             gen_get_lp(p0, clp, 10, lp);
             gen_get_lp(p1, clp, 6, lp);
-
-            if (vdst) {
-                ctx->pl_results[i].reg = pdst;
-                ctx->pl_results[i].value = e2k_get_temp_i32(ctx);
-            }
 
             switch (opc) {
             case 0: /* andp */
@@ -1769,7 +2102,7 @@ static void gen_plu(DisasContext *ctx)
             case 1: /* landp */
                 tcg_gen_and_i32(lp[4 + i], p0, p1);
                 if (vdst) {
-                    tcg_gen_mov_i32(ctx->pl_results[i].value, lp[4 + i]);
+                    gen_preg_set_i32(pdst, lp[4 + i]);
                 }
                 break;
             case 3: { /* movep */
@@ -1777,20 +2110,22 @@ static void gen_plu(DisasContext *ctx)
                 tcg_gen_and_i32(lp[4 + i], p0, p1);
 
                 if (vdst) {
-                    TCGv_i32 z = tcg_const_i32(0);
-                    TCGv_i32 t0 = tcg_temp_new_i32();
+                    TCGv_i32 t0 = tcg_const_i32(0);
+                    TCGv_i32 t1 = tcg_temp_new_i32();
+                    TCGv_i32 t2 = tcg_temp_new_i32();
 
-                    gen_preg_i32(t0, pdst);
-                    tcg_gen_movcond_i32(TCG_COND_NE, ctx->pl_results[i].value,
-                        p0, z, p1, t0);
+                    gen_preg_i32(ctx, t1, pdst);
+                    tcg_gen_movcond_i32(TCG_COND_NE, t2, p0, t0, p1, t1);
+                    gen_preg_set_i32(pdst, t2);
 
+                    tcg_temp_free_i32(t2);
+                    tcg_temp_free_i32(t1);
                     tcg_temp_free_i32(t0);
-                    tcg_temp_free_i32(z);
                 }
                 break;
             }
             default:
-                abort();
+                gen_tr_excp_illopc(ctx);
                 break;
             }
         }
@@ -1803,110 +2138,449 @@ static void gen_plu(DisasContext *ctx)
     }
 }
 
-static void gen_plu_commit(DisasContext *ctx)
+#ifndef FORCE_SAVE_ALC_REG
+static inline ArgSize alop_reg_max_size(uint8_t src1, ArgSize size1,
+    uint8_t src2, ArgSize size2)
 {
-    unsigned int i;
-
-    for (i = 0; i < 3; i++) {
-        if (ctx->pl_results[i].reg < 0) {
-            continue;
-        }
-        gen_preg_set_i32(ctx->pl_results[i].reg, ctx->pl_results[i].value);
+    if (IS_REG(src2) && src1 == src2) {
+        return MAX(size1, size2);
+    } else {
+        return size1;
     }
 }
 
-static void set_al_result_reg(Instr *instr, Tagged tagged)
+static ArgSize alop_opn_max_size(Alop *alop, uint8_t src)
 {
-    OpResult *res = &instr->ctx->al_results[instr->chan];
-    uint8_t dst = instr->dst;
+    ArgSize r = ARG_SIZE_NONE;
 
-    res->tagged = tagged;
+    switch (alop->format) {
+    case ALOPF_NONE:
+        break;
+    case ALOPF1:
+    case ALOPF1_MERGE:
+    case ALOPF7:
+    case ALOPF11:
+    case ALOPF11_MERGE:
+    case ALOPF11_LIT8:
+    case ALOPF17:
+        r = alop_reg_max_size(src, r, alop->als.src1, args_src1(alop->args));
+        r = alop_reg_max_size(src, r, alop->als.src2, args_src2(alop->args));
+        break;
+    case ALOPF2:
+    case ALOPF8:
+    case ALOPF12:
+    case ALOPF12_PSHUFH:
+    case ALOPF15:
+    case ALOPF22:
+        r = alop_reg_max_size(src, r, alop->als.src2, args_src2(alop->args));
+        break;
+    case ALOPF3:
+    case ALOPF13:
+        r = alop_reg_max_size(src, r, alop->als.src1, args_src1(alop->args));
+        r = alop_reg_max_size(src, r, alop->als.src2, args_src2(alop->args));
+        r = alop_reg_max_size(src, r, alop->als.src4, args_src4(alop->args));
+        break;
+    case ALOPF10:
+        r = alop_reg_max_size(src, r, alop->als.src4, args_src4(alop->args));
+        break;
+    case ALOPF16:
+        break;
+    case ALOPF21:
+    case ALOPF21_ICOMB:
+    case ALOPF21_FCOMB:
+    case ALOPF21_PFCOMB:
+    case ALOPF21_QPFCOMB:
+        r = alop_reg_max_size(src, r, alop->als.src1, args_src1(alop->args));
+        r = alop_reg_max_size(src, r, alop->als.src2, args_src2(alop->args));
+        r = alop_reg_max_size(src, r, alop->ales.src3, args_src3(alop->args));
+        break;
+    default:
+        g_assert_not_reached();
+        break;
+    }
+
+    return r;
+}
+#endif
+
+static bool is_reg_saved(DisasContext *ctx, uint8_t dst)
+{
+    int i;
+
+    for (i = 0; i < ctx->saved_reg_len; i++) {
+        if (ctx->saved_reg[i].dst == dst) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+static void gen_save_reg(DisasContext *ctx, int chan, ArgSize size,
+    uint8_t dst)
+{
+    SavedReg *r;
+    Tagged_ptr t0;
+
+    if (size == ARG_SIZE_NONE) {
+        return;
+    }
+
+    r = &ctx->saved_reg[ctx->saved_reg_len++];
+    r->dst = dst;
+    r->chan = chan;
+    t0 = tagged_new_ptr();
+
+    switch (size) {
+    case ARG_SIZE_S:
+        r->tagged.kind = TAGGED_S;
+        r->tagged.t32 = e2k_get_tagged_temp_i32(ctx);
+        gen_tagged_reg_ptr(ctx, t0, r->dst, E2K_TAG_MASK_32);
+        tcg_gen_mov_i32(r->tagged.t32.tag, t0.tag);
+        tcg_gen_ld_i32(r->tagged.t32.val, t0.val, offsetof(E2KReg, lo));
+        break;
+    case ARG_SIZE_D:
+    case ARG_SIZE_Q:
+        r->tagged.kind = TAGGED_D;
+        r->tagged.t64 = e2k_get_tagged_temp_i64(ctx);
+        gen_tagged_reg_ptr(ctx, t0, r->dst, E2K_TAG_MASK_64);
+        tcg_gen_mov_i32(r->tagged.t64.tag, t0.tag);
+        tcg_gen_ld_i64(r->tagged.t64.val, t0.val, offsetof(E2KReg, lo));
+        break;
+    case ARG_SIZE_X:
+    {
+        Tagged_ptr *t = &r->tagged.tptr;
+        TCGv_i64 t1 = tcg_temp_new_i64();
+        TCGv_i32 t2 = tcg_temp_new_i32();
+
+        r->tagged.kind = TAGGED_X;
+        *t = e2k_get_tagged_temp_ptr(ctx);
+        tcg_gen_addi_ptr(t->val, cpu_env, offsetof(CPUE2KState, tmp_saved[chan]));
+        gen_tagged_reg_ptr(ctx, t0, r->dst, E2K_TAG_MASK_80);
+        tcg_gen_mov_i32(t->tag, t0.tag);
+        tcg_gen_ld_i64(t1, t0.val, offsetof(E2KReg, lo));
+        tcg_gen_ld16u_i32(t2, t0.val, offsetof(E2KReg, hi));
+        tcg_gen_st_i64(t1, t->val, offsetof(E2KReg, lo));
+        tcg_gen_st_i32(t2, t->val, offsetof(E2KReg, hi));
+
+        tcg_temp_free_i32(t2);
+        tcg_temp_free_i64(t1);
+        break;
+    }
+    case ARG_SIZE_P:
+    {
+        Tagged_ptr *t = &r->tagged.tptr;
+        TCGv_i64 t1 = tcg_temp_new_i64();
+        TCGv_i64 t2 = tcg_temp_new_i64();
+
+        r->tagged.kind = TAGGED_Q;
+        *t = e2k_get_tagged_temp_ptr(ctx);
+        tcg_gen_addi_ptr(t->val, cpu_env, offsetof(CPUE2KState, tmp_saved[chan]));
+        gen_tagged_reg_ptr(ctx, t0, r->dst, E2K_TAG_MASK_128);
+        tcg_gen_mov_i32(t->tag, t0.tag);
+        tcg_gen_ld_i64(t1, t0.val, offsetof(E2KReg, lo));
+        tcg_gen_ld_i64(t2, t0.val, offsetof(E2KReg, hi));
+        tcg_gen_st_i64(t1, t->val, offsetof(E2KReg, lo));
+        tcg_gen_st_i64(t2, t->val, offsetof(E2KReg, hi));
+
+        tcg_temp_free_i64(t2);
+        tcg_temp_free_i64(t1);
+        break;
+    }
+    default:
+        g_assert_not_reached();
+        break;
+    }
+
+    tagged_free_ptr(t0);
+}
+
+static void gen_alop_save_dst(Alop *alop)
+{
+    DisasContext *ctx = alop->ctx;
+    uint8_t dst;
+
+    switch (alop->format) {
+    case ALOPF1:
+    case ALOPF1_MERGE:
+    case ALOPF2:
+    case ALOPF11:
+    case ALOPF11_MERGE:
+    case ALOPF11_LIT8:
+    case ALOPF12:
+    case ALOPF12_PSHUFH:
+    case ALOPF16:
+    case ALOPF21:
+    case ALOPF21_ICOMB:
+    case ALOPF21_FCOMB:
+    case ALOPF21_PFCOMB:
+    case ALOPF21_QPFCOMB:
+    case ALOPF22:
+        dst = alop->als.dst;
+
+        if (IS_REG(dst) && !is_reg_saved(ctx, dst)) {
+            int chan = alop->chan;
+            ArgSize size;
+
+#ifndef FORCE_SAVE_ALC_REG
+            if (IS_REG_SAVE_SAFE(dst)) {
+                int i;
+
+                size = alop_opn_max_size(alop, dst);
+                size = size >= ARG_SIZE_X ? size : ARG_SIZE_NONE;
+
+                for (i = alop->chan + 1; i < 6; i++) {
+                    Alop *next_alop = &alop->ctx->alops[i];
+
+                    size = MAX(size, alop_opn_max_size(next_alop, dst));
+                }
+            } else {
+                size = ctx->version >= 5 ? ARG_SIZE_P : ARG_SIZE_X;
+            }
+#else
+            size = ctx->version >= 5 ? ARG_SIZE_P : ARG_SIZE_X;
+#endif
+            gen_save_reg(ctx, chan, size, dst);
+        }
+        break;
+    case ALOPF7:
+    case ALOPF8:
+    case ALOPF17:
+        dst = alop->als.dst_preg;
+
+#ifndef FORCE_SAVE_ALC_PREG
+        if (!is_preg_saved(ctx, dst)
+            && (is_preg_used_by_rlp(ctx, alop->chan, dst)
+                || is_preg_used_by_pls(ctx, 0, dst)
+                || is_preg_used_by_ct(ctx, dst)))
+        {
+            gen_save_preg(ctx, dst);
+        }
+#else
+        if (!is_preg_saved(ctx, dst)) {
+            gen_save_preg(ctx, dst);
+        }
+#endif
+        break;
+    default:
+        break;
+    }
+}
+
+static void gen_qppackdl(TCGv_ptr ret, TCGv_i64 hi, TCGv_i64 lo)
+{
+    tcg_gen_st_i64(lo, ret, offsetof(E2KReg, lo));
+    tcg_gen_st_i64(hi, ret, offsetof(E2KReg, hi));
+}
+
+static void gen_qpunpackdl(TCGv_i64 hi, TCGv_i64 lo, TCGv_ptr arg)
+{
+    tcg_gen_ld_i64(lo, arg, offsetof(E2KReg, lo));
+    tcg_gen_ld_i64(hi, arg, offsetof(E2KReg, hi));
+}
+
+static void gen_movqp(TCGv_ptr ret, TCGv_ptr arg)
+{
+    TCGv_i64 t0 = tcg_temp_new_i64();
+    TCGv_i64 t1 = tcg_temp_new_i64();
+
+    gen_qpunpackdl(t0, t1, arg);
+    gen_qppackdl(ret, t0, t1);
+
+    tcg_temp_free_i64(t1);
+    tcg_temp_free_i64(t0);
+}
+
+static void gen_reg_set_q(DisasContext *ctx, TCGv_i32 tag, TCGv_i64 hi,
+    TCGv_i64 lo, uint8_t dst)
+{
+    TCGv_i32 t0 = tcg_temp_new_i32();
+    TCGv_ptr t1 = tcg_temp_new_ptr();
+
+    gen_reg_index(ctx, t0, dst);
+    gen_reg_lo_ptr(t1, t0);
+    gen_reg_tag_mask_set(ctx, tag, t0, E2K_TAG_MASK_128);
+    gen_qppackdl(t1, hi, lo);
+
+    tcg_temp_free_ptr(t1);
+    tcg_temp_free_i32(t0);
+}
+
+static void gen_reg_set_d(DisasContext *ctx,
+    TCGv_i32 index, TCGv_i32 tag, TCGv_i64 value)
+{
+    TCGv_ptr t0 = tcg_temp_new_ptr();
+
+    // TODO: poison value
+    gen_reg_tag_set_i64(ctx, tag, index);
+    gen_reg_lo_ptr(t0, index);
+    tcg_gen_st_i64(value, t0, 0);
+
+    tcg_temp_free_ptr(t0);
+}
+
+static void gen_reg_set_s(DisasContext *ctx, bool is_dbl,
+    TCGv_i32 index, TCGv_i32 tag, TCGv_i64 val)
+{
+    if (is_dbl) {
+        Cs1 *cs1 = &ctx->cs1;
+        Cs1Setr *setr = &cs1->setr;
+
+        if (cs1->type == CS1_SETR && (setr->type & SETR_WD) && setr->dbl) {
+            TCGv_ptr t0 = tcg_temp_new_ptr();
+            TCGv_i32 t1 = tcg_temp_new_i32();
+
+            gen_reg_lo_ptr(t0, index);
+            gen_tag1_i64(t1, tag);
+            gen_reg_tag_set_i64(ctx, t1, index);
+            tcg_gen_st_i64(val, t0, 0);
+
+            tcg_temp_free_i32(t1);
+            tcg_temp_free_ptr(t0);
+        } else {
+            TCGLabel *l0 = gen_new_label();
+            TCGLabel *l1 = gen_new_label();
+            TCGv_ptr t0 = tcg_temp_local_new_ptr();
+            TCGv_i32 t1 = tcg_temp_local_new_i32();
+            TCGv_i64 t2 = tcg_temp_local_new_i64();
+
+            gen_reg_lo_ptr(t0, index);
+            tcg_gen_mov_i32(t1, tag);
+            tcg_gen_mov_i64(t2, val);
+            tcg_gen_brcondi_i32(TCG_COND_NE, cpu_wdbl, 0, l0);
+
+            /* wdbl is not set */
+            gen_reg_tag_set_i32(ctx, t1, index);
+            tcg_gen_st32_i64(t2, t0, 0);
+            tcg_gen_br(l1);
+
+            /* wdbl is set */
+            gen_set_label(l0);
+            gen_tag1_i64(t1, t1);
+            gen_reg_tag_set_i64(ctx, t1, index);
+            tcg_gen_st_i64(t2, t0, 0);
+
+            gen_set_label(l1);
+
+            tcg_temp_free_i64(t2);
+            tcg_temp_free_i32(t1);
+            tcg_temp_free_ptr(t0);
+        }
+    } else {
+        TCGv_ptr t0 = tcg_temp_new_ptr();
+
+        gen_reg_lo_ptr(t0, index);
+        gen_reg_tag_set_i32(ctx, tag, index);
+        tcg_gen_st32_i64(val, t0, 0);
+
+        tcg_temp_free_ptr(t0);
+    }
+}
+
+static void gen_al_result_q(Alop *alop, Tagged_ptr arg)
+{
+    uint8_t dst = alop->als.dst;
 
     if (dst == 0xdf) {
-        res->type = OP_RESULT_NONE;
-    } else if (IS_BASED(dst)) {
-        res->type = OP_RESULT_BREG;
-        res->index = GET_BASED(dst);
-    } else if (IS_REGULAR(dst)) {
-        res->type = OP_RESULT_WREG;
-        res->index = GET_REGULAR(dst);
-    } else if (IS_GLOBAL(dst)) {
-        res->type = OP_RESULT_GREG;
-        res->index = GET_GLOBAL(dst);
-    } else if ((dst & 0xfc) == 0xd0 && (dst) != 0) {
-        // TODO: check if instruction can write to ctpr
-        // TODO: check tag
-        res->type = OP_RESULT_CTPR;
-        res->index = (dst & 3) - 1;
+        /* %empty */
+    } else if (IS_REG(dst)) {
+        TCGv_i32 t0 = tcg_temp_new_i32();
+
+        gen_reg_index(alop->ctx, t0, dst);
+        gen_reg_tag_mask_set(alop->ctx, arg.tag, t0, E2K_TAG_MASK_128);
+
+        tcg_temp_free_i32(t0);
     } else {
-        gen_tr_excp_illopc(instr->ctx);
+        gen_tr_excp_illopc(alop->ctx);
     }
 }
 
-static void gen_al_result_q(Instr *instr, Tagged_ptr arg)
+static void gen_al_result_x(Alop *alop, Tagged_ptr arg)
 {
-    Tagged t = {
-        .kind = TAGGED_Q,
-        .tptr = e2k_get_tagged_temp_ptr(instr->ctx),
-    };
+    uint8_t dst = alop->als.dst;
 
-    tcg_gen_mov_i32(t.tptr.tag, arg.tag);
-    tcg_gen_addi_ptr(t.tptr.val, arg.val, 0);
+    if (dst == 0xdf) {
+        /* %empty */
+    } else if (IS_REG(dst)) {
+        TCGv_i32 t0 = tcg_temp_new_i32();
 
-    set_al_result_reg(instr, t);
+        gen_reg_index(alop->ctx, t0, dst);
+        gen_reg_tag_mask_set(alop->ctx, arg.tag, t0, E2K_TAG_MASK_80);
+
+        tcg_temp_free_i32(t0);
+    } else {
+        gen_tr_excp_illopc(alop->ctx);
+    }
 }
 
-static void gen_al_result_x(Instr *instr, Tagged_ptr arg)
+static void gen_al_result_d(Alop *alop, Tagged_i64 arg)
 {
-    Tagged t = {
-        .kind = TAGGED_X,
-        .tptr = e2k_get_tagged_temp_ptr(instr->ctx),
-    };
+    uint8_t dst = alop->als.dst;
 
-    tcg_gen_mov_i32(t.tptr.tag, arg.tag);
-    tcg_gen_addi_ptr(t.tptr.val, arg.val, 0);
+    if (dst == 0xdf) {
+        /* %empty */
+    } else if (IS_REG(dst)) {
+        TCGv_i32 t0 = tcg_temp_new_i32();
 
-    set_al_result_reg(instr, t);
+        gen_reg_index(alop->ctx, t0, dst);
+
+        if (alop->format == ALOPF16 && alop->op == OP_RRS) {
+            gen_reg_set_s(alop->ctx, true, t0, arg.tag, arg.val);
+        } else {
+            gen_reg_set_d(alop->ctx, t0, arg.tag, arg.val);
+        }
+
+        tcg_temp_free_i32(t0);
+    } else if (IS_CTPR(dst)) {
+        TCGv_i64 ctpr = cpu_ctprs[GET_CTPR(dst) - 1];
+        TCGv_i64 t0 = tcg_const_i64(CTPR_TAG_DISP);
+
+        tcg_gen_deposit_i64(ctpr, ctpr, arg.val, CTPR_BASE_OFF, CTPR_BASE_LEN);
+        tcg_gen_deposit_i64(ctpr, ctpr, t0, CTPR_TAG_OFF, CTPR_TAG_LEN);
+
+        tcg_temp_free_i64(t0);
+    } else {
+        gen_tr_excp_illopc(alop->ctx);
+    }
 }
 
-static void gen_al_result_d(Instr *instr, Tagged_i64 arg)
+static void gen_al_result_s(Alop *alop, Tagged_i32 arg)
 {
-    Tagged t = {
-        .kind = TAGGED_D,
-        .t64 = e2k_get_tagged_temp_i64(instr->ctx),
-    };
+    uint8_t dst = alop->als.dst;
 
-    tcg_gen_mov_i32(t.t64.tag, arg.tag);
-    tcg_gen_mov_i64(t.t64.val, arg.val);
+    if (dst == 0xdf) {
+        /* %empty */
+    } else if (IS_REG(dst)) {
+        bool dbl = is_alop_affected_by_dbl(alop);
+        TCGv_i32 t0 = tcg_temp_new_i32();
+        TCGv_i64 t1 = tcg_temp_new_i64();
 
-    set_al_result_reg(instr, t);
+        gen_reg_index(alop->ctx, t0, dst);
+        tcg_gen_extu_i32_i64(t1, arg.val);
+        gen_reg_set_s(alop->ctx, dbl, t0, arg.tag, t1);
+
+        tcg_temp_free_i64(t1);
+        tcg_temp_free_i32(t0);
+    } else if (IS_CTPR(dst)) {
+        TCGv_i64 ctpr = cpu_ctprs[GET_CTPR(dst) - 1];
+        TCGv_i64 t0 = tcg_temp_new_i64();
+        TCGv_i64 t1 = tcg_const_i64(CTPR_TAG_DISP);
+
+        tcg_gen_extu_i32_i64(t0, arg.val);
+        tcg_gen_deposit_i64(ctpr, ctpr, t0, CTPR_BASE_OFF, CTPR_BASE_LEN);
+        tcg_gen_deposit_i64(ctpr, ctpr, t1, CTPR_TAG_OFF, CTPR_TAG_LEN);
+
+        tcg_temp_free_i64(t1);
+        tcg_temp_free_i64(t0);
+    } else {
+        gen_tr_excp_illopc(alop->ctx);
+    }
 }
 
-static void gen_al_result_s(Instr *instr, Tagged_i32 arg)
+static void gen_al_result_b(Alop *alop, Tagged_i32 arg)
 {
-    Tagged t = {
-        .kind = TAGGED_S,
-        .t32 = e2k_get_tagged_temp_i32(instr->ctx),
-    };
-
-    tcg_gen_mov_i32(t.t32.tag, arg.tag);
-    tcg_gen_mov_i32(t.t32.val, arg.val);
-
-    set_al_result_reg(instr, t);
-}
-
-static void gen_al_result_b(Instr *instr, Tagged_i32 arg)
-{
-    OpResult *res = &instr->ctx->al_results[instr->chan];
-    Tagged_i32 t = e2k_get_tagged_temp_i32(instr->ctx);
-
-    tcg_gen_mov_i32(t.tag, arg.tag);
-    tcg_gen_mov_i32(t.val, arg.val);
-
-    res->type = OP_RESULT_PREG;
-    res->index = instr->dst_preg;
-    res->tagged.kind = TAGGED_S;
-    res->tagged.t32 = t;
+    // TODO: preg tag
+    gen_preg_set_i32(alop->als.dst_preg, arg.val);
 }
 
 static inline bool check_qr(uint8_t src, int chan)
@@ -2520,22 +3194,22 @@ static inline void gen_merge_i64(TCGv_i64 ret, TCGv_i64 src1, TCGv_i64 src2,
 }
 
 #define IMPL_MERGE(name, S) \
-    static void name(Instr *instr) \
+    static void name(Alop *alop) \
     { \
         tagged(S) r = tagged_new(S); \
         tagged(S) a = tagged_new(S); \
         tagged(S) b = tagged_new(S); \
         TCGv_i32 t0 = tcg_temp_new_i32(); \
         \
-        gen_tagged_src(1, S, instr, a); \
-        gen_tagged_src(2, S, instr, b); \
-        gen_result_init(S, instr, r); \
+        gen_tagged_src(1, S, alop, a); \
+        gen_tagged_src(2, S, alop, b); \
+        gen_result_init(S, alop, r); \
         \
-        gen_mrgc_i32(instr->ctx, instr->chan, t0); \
+        gen_mrgc_i32(alop->ctx, alop->chan, t0); \
         gen_merge_i32(r.tag, a.tag, b.tag, t0); \
         gen_tag1(S, r, r); \
         call(S, gen_merge, r.val, a.val, b.val, t0); \
-        gen_al_result(S, instr, r); \
+        gen_al_result(S, alop, r); \
         \
         tagged_free(S, b); \
         tagged_free(S, a); \
@@ -2629,15 +3303,15 @@ IMPL_GEN_SDIV(gen_sdivd, 64, TCGv_i64, E2K_TAG_NON_NUMBER64)
 IMPL_GEN_SDIV(gen_sdivs, 32, TCGv_i32, E2K_TAG_NON_NUMBER32)
 
 #define IMPL_GEN_GETTAG(name, S, ext) \
-    static void name(Instr *instr) \
+    static void name(Alop *alop) \
     { \
         tagged(S) r = tagged_new(S); \
         tagged(S) b = tagged_new(S); \
         \
-        gen_tagged_src(2, S, instr, b); \
+        gen_tagged_src(2, S, alop, b); \
         tcg_gen_movi_i32(r.tag, 0); \
         ext(r.val, b.tag); \
-        gen_al_result(S, instr, r); \
+        gen_al_result(S, alop, r); \
         \
         tagged_free(S, b); \
         tagged_free(S, r); \
@@ -2647,7 +3321,7 @@ IMPL_GEN_GETTAG(gen_gettagd, d, tcg_gen_extu_i32_i64)
 IMPL_GEN_GETTAG(gen_gettags, s, tcg_gen_mov_i32)
 
 #define IMPL_GEN_PUTTAG(name, S1, S2, R, mov) \
-    static void name(Instr *instr) \
+    static void name(Alop *alop) \
     { \
         TCGLabel *l0 = gen_new_label(); \
         TCGLabel *l1 = gen_new_label(); \
@@ -2655,9 +3329,9 @@ IMPL_GEN_GETTAG(gen_gettags, s, tcg_gen_mov_i32)
         tagged(S1) s1 = tagged_local_new(S1); \
         tagged(S2) s2 = tagged_local_new(S2); \
         \
-        gen_tagged_src(1, S1, instr, s1); \
-        gen_tagged_src(2, S2, instr, s2); \
-        gen_result_init(R, instr, r); \
+        gen_tagged_src(1, S1, alop, s1); \
+        gen_tagged_src(2, S2, alop, s2); \
+        gen_result_init(R, alop, r); \
         mov(r.val, s1.val); \
         tcg_gen_brcondi_i32(TCG_COND_EQ, s2.val, 0, l0); \
         gen_tag2(R, r, s1, s2); \
@@ -2667,20 +3341,18 @@ IMPL_GEN_GETTAG(gen_gettags, s, tcg_gen_mov_i32)
         gen_set_label(l0); \
         tcg_gen_mov_i32(r.tag, s2.val); \
         gen_set_label(l1); \
-        gen_al_result(R, instr, r); \
+        gen_al_result(R, alop, r); \
         \
         tagged_free(S2, s2); \
         tagged_free(S1, s1); \
         tagged_free(R, r); \
     }
 
-static void gen_movqp(TCGv_ptr ret, TCGv_ptr arg);
-
 IMPL_GEN_PUTTAG(gen_puttagqp, q, s, q, gen_movqp)
 IMPL_GEN_PUTTAG(gen_puttagd,  d, s, d, tcg_gen_mov_i64)
 IMPL_GEN_PUTTAG(gen_puttags,  s, s, s, tcg_gen_mov_i32)
 
-static inline void gen_insfd_tag_mask(TCGv_i32 ret, TCGv_i32 flags,
+static void gen_insfd_tag_mask(TCGv_i32 ret, TCGv_i32 flags,
     TCGv_i32 tag, int offset)
 {
     TCGv_i32 z = tcg_const_i32(0);
@@ -2694,7 +3366,7 @@ static inline void gen_insfd_tag_mask(TCGv_i32 ret, TCGv_i32 flags,
     tcg_temp_free_i32(z);
 }
 
-static inline void gen_insfd_tag(TCGv_i32 ret, TCGv_i64 value,
+static void gen_insfd_tag(TCGv_i32 ret, TCGv_i64 value,
     TCGv_i32 s1_tag, TCGv_i32 s3_tag)
 {
     TCGv_i32 z = tcg_const_i32(0);
@@ -2713,7 +3385,7 @@ static inline void gen_insfd_tag(TCGv_i32 ret, TCGv_i64 value,
     tcg_temp_free_i32(z);
 }
 
-static inline void gen_insfd(Instr *instr)
+static void gen_insfd(Alop *alop)
 {
     Tagged_i64 r = tagged_new_i64();
     Tagged_i64 a = tagged_new_i64();
@@ -2727,9 +3399,9 @@ static inline void gen_insfd(Instr *instr)
     TCGv_i64 t2 = tcg_temp_new_i64();
     TCGv_i64 t3 = tcg_temp_new_i64();
 
-    gen_tagged_src1_d(instr, a);
-    gen_tagged_src2_d(instr, b);
-    gen_tagged_src3_d(instr, c);
+    gen_tagged_src1_d(alop, a);
+    gen_tagged_src2_d(alop, b);
+    gen_tagged_src3_d(alop, c);
     tcg_gen_extract_i64(offset, b.val, 0, 6);
     tcg_gen_extract_i64(len, b.val, 6, 6);
     gen_mask_i64(t0, len);
@@ -2740,7 +3412,7 @@ static inline void gen_insfd(Instr *instr)
 
     gen_insfd_tag(r.tag, b.val, a.tag, c.tag);
     gen_tag2_i64(r.tag, b.tag, r.tag);
-    gen_al_result_d(instr, r);
+    gen_al_result_d(alop, r);
 
     tcg_temp_free_i64(t3);
     tcg_temp_free_i64(t2);
@@ -2755,7 +3427,7 @@ static inline void gen_insfd(Instr *instr)
     tagged_free_i64(r);
 }
 
-static inline void gen_insfs(TCGv_i32 ret, TCGv_i32 src1,
+static void gen_insfs(TCGv_i32 ret, TCGv_i32 src1,
     TCGv_i32 src2, TCGv_i32 src3)
 {
     TCGv_i32 one = tcg_const_i32(1);
@@ -2827,29 +3499,29 @@ static inline void gen_smulhd(TCGv_i64 ret, TCGv_i64 src1, TCGv_i64 src2)
     tcg_temp_free_i64(t0);
 }
 
-static void gen_rrd(Instr *instr)
+static void gen_rrd(Alop *alop)
 {
     Tagged_i64 r = tagged_new_i64();
-    TCGv_i32 t0 = tcg_const_i32(instr->src1);
+    TCGv_i32 t0 = tcg_const_i32(alop->als.src1);
 
     // TODO: check version
-    gen_save_cpu_state(instr->ctx);
+    gen_save_cpu_state(alop->ctx);
     gen_helper_rrd(r.val, cpu_env, t0);
     tcg_gen_movi_i32(r.tag, 0);
-    gen_al_result_d(instr, r);
+    gen_al_result_d(alop, r);
 
     tcg_temp_free_i32(t0);
     tagged_free_i64(r);
 }
 
 #define IMPL_GEN_RW(name, S, helper) \
-    static void name(Instr *instr) \
+    static void name(Alop *alop) \
     { \
         tagged(S) b = tagged_new(S); \
-        TCGv_i32 t0 = tcg_const_i32(instr->dst); \
+        TCGv_i32 t0 = tcg_const_i32(alop->als.dst); \
         \
         /* TODO: check version */ \
-        gen_tagged_src(2, S, instr, b); \
+        gen_tagged_src(2, S, alop, b); \
         helper(cpu_env, t0, b.val); \
         \
         tcg_temp_free_i32(t0); \
@@ -2860,50 +3532,50 @@ IMPL_GEN_RW(gen_rwd, d, gen_helper_rwd)
 IMPL_GEN_RW(gen_rws, s, gen_helper_rws)
 
 #define IMPL_GEN_MOV(name, S, code) \
-    static void name(Instr *instr) \
+    static void name(Alop *alop) \
     { \
         tagged(S) b = tagged_new(S); \
         \
-        gen_tagged_src(2, S, instr, b); \
+        gen_tagged_src(2, S, alop, b); \
         { code; } \
-        gen_al_result(S, instr, b); \
+        gen_al_result(S, alop, b); \
         \
         tagged_free(S, b); \
     }
 
-static void gen_qpair_check(Instr *instr)
+static void gen_qpair_check(Alop *alop)
 {
-    if (!check_qr(instr->src2, instr->chan)
-        || !check_qr(instr->dst, instr->chan))
+    if (!check_qr(alop->als.src2, alop->chan)
+        || !check_qr(alop->als.dst, alop->chan))
     {
-        gen_tr_excp_illopc(instr->ctx);
+        gen_tr_excp_illopc(alop->ctx);
     }
 }
 
 IMPL_GEN_MOV(gen_movts,  s, { })
 IMPL_GEN_MOV(gen_movtd,  d, { })
-IMPL_GEN_MOV(gen_movtq,  d, { gen_qpair_check(instr); })
+IMPL_GEN_MOV(gen_movtq,  d, { gen_qpair_check(alop); })
 IMPL_GEN_MOV(gen_movtcs, s, { })
 IMPL_GEN_MOV(gen_movtcd, d, { })
-IMPL_GEN_MOV(gen_movtcq, d, { gen_qpair_check(instr); })
+IMPL_GEN_MOV(gen_movtcq, d, { gen_qpair_check(alop); })
 
-static void gen_getpl(Instr *instr)
+static void gen_getpl(Alop *alop)
 {
 #ifdef TARGET_E2K32
     Tagged_i64 r = tagged_new_i64();
     Tagged_i32 b = tagged_new_i32();
 
     // TODO: CUD
-    gen_tagged_src2_s(instr, b);
+    gen_tagged_src2_s(alop, b);
     gen_tag1_i64(r.tag, b.tag);
     tcg_gen_extu_i32_i64(r.val, b.val);
-    gen_al_result_d(instr, r);
+    gen_al_result_d(alop, r);
 
     tagged_free_i32(b);
     tagged_free_i64(r);
 #else /* !TARGET_E2K32 */
     // TODO: getpl 64-bit
-    e2k_todo_illop(instr->ctx, "getpl");
+    e2k_todo_illop(alop->ctx, "getpl");
 #endif
 }
 
@@ -3072,30 +3744,6 @@ IMPL_GEN_PCMPP(gen_pcmpgtwap, gen_helper_pcmpgtw, TCG_COND_EQ, -1)
 
 IMPL_CMP(gen_pcmpgtdop, d, TCG_COND_GT)
 IMPL_CMP(gen_pcmpgtdap, d, TCG_COND_GT)
-
-static void gen_qppackdl(TCGv_ptr ret, TCGv_i64 hi, TCGv_i64 lo)
-{
-    tcg_gen_st_i64(lo, ret, offsetof(E2KReg, lo));
-    tcg_gen_st_i64(hi, ret, offsetof(E2KReg, hi));
-}
-
-static void gen_qpunpackdl(TCGv_i64 hi, TCGv_i64 lo, TCGv_ptr arg)
-{
-    tcg_gen_ld_i64(lo, arg, offsetof(E2KReg, lo));
-    tcg_gen_ld_i64(hi, arg, offsetof(E2KReg, hi));
-}
-
-static void gen_movqp(TCGv_ptr ret, TCGv_ptr arg)
-{
-    TCGv_i64 t0 = tcg_temp_new_i64();
-    TCGv_i64 t1 = tcg_temp_new_i64();
-
-    gen_qpunpackdl(t0, t1, arg);
-    gen_qppackdl(ret, t0, t1);
-
-    tcg_temp_free_i64(t1);
-    tcg_temp_free_i64(t0);
-}
 
 static void gen_qpswitchd(TCGv_ptr ret, TCGv_ptr src2)
 {
@@ -3549,20 +4197,20 @@ static MemOp memop_from_mas(uint8_t mas)
     return r;
 }
 
-static MemOp scan_ld_mas(Instr *instr, bool *skip, bool *save)
+static MemOp scan_ld_mas(Alop *alop, bool *skip, bool *save)
 {
-    int mod = instr->mas & 0x7;
+    int mod = alop->mas & 0x7;
     MemOp memop = 0;
 
     if (mod == 0x7) {
-        int opc = instr->mas >> 3;
+        int opc = alop->mas >> 3;
         bool warn = false;
 
         memop |= MO_LE;
 
         switch (opc) {
         case MAS_OPC_CACHE_FLUSH:
-            if (instr->chan == 0) {
+            if (alop->chan == 0) {
                 *save = true;
             } else {
                 warn = true;
@@ -3574,35 +4222,35 @@ static MemOp scan_ld_mas(Instr *instr, bool *skip, bool *save)
         }
 
         if (warn) {
-            e2k_todo(instr->ctx, "ld special opc %d on channel %d", opc,
-                instr->chan);
+            e2k_todo(alop->ctx, "ld special opc %d on channel %d", opc,
+                alop->chan);
         }
     } else {
         bool warn = false;
 
-        memop |= memop_from_mas(instr->mas);
+        memop |= memop_from_mas(alop->mas);
 
         switch (mod) {
         case 0:
             /* normal load */
             break;
         case 3:
-            if (is_chan_25(instr->chan)) {
+            if (is_chan_25(alop->chan)) {
                 /* TODO: DAM */
                 /* always go to fixing code */
-                if (instr->ctx->mlock) {
-                    tcg_gen_movi_i32(instr->ctx->mlock, 1);
+                if (alop->ctx->mlock) {
+                    tcg_gen_movi_i32(alop->ctx->mlock, 1);
                 }
             } else {
                 warn = true;
             }
             break;
         case 4:
-            if (instr->sm && is_chan_03(instr->chan)) {
+            if (alop->als.sm && is_chan_03(alop->chan)) {
                 /* TODO: DAM */
                 /* always ignore lock load */
                 *skip = true;
-            } else if (!instr->sm) {
+            } else if (!alop->als.sm) {
                 /* TODO */
             } else {
                 warn = true;
@@ -3614,20 +4262,20 @@ static MemOp scan_ld_mas(Instr *instr, bool *skip, bool *save)
         }
 
         if (warn) {
-            e2k_todo(instr->ctx, "ld mod %d on channel %d", mod, instr->chan);
+            e2k_todo(alop->ctx, "ld mod %d on channel %d", mod, alop->chan);
         }
     }
 
     return memop;
 }
 
-static MemOp scan_st_mas(Instr *instr, bool *skip, bool *check)
+static MemOp scan_st_mas(Alop *alop, bool *skip, bool *check)
 {
-    int mod = instr->mas & 0x7;
+    int mod = alop->mas & 0x7;
     MemOp memop = 0;
 
     if (mod == 0x7) {
-        int opc = instr->mas >> 3;
+        int opc = alop->mas >> 3;
         bool warn = false;
 
         memop |= MO_LE;
@@ -3638,7 +4286,7 @@ static MemOp scan_st_mas(Instr *instr, bool *skip, bool *check)
             *skip = true;
             break;
         case MAS_OPC_ST_UNKNOWN3:
-            if (!instr->sm) {
+            if (!alop->als.sm) {
                 // TODO: unknown store special opc 3
                 *skip = true;
             } else {
@@ -3651,13 +4299,13 @@ static MemOp scan_st_mas(Instr *instr, bool *skip, bool *check)
         }
 
         if (warn) {
-            e2k_todo(instr->ctx, "st special opc %d on channel %d", opc,
-                instr->chan);
+            e2k_todo(alop->ctx, "st special opc %d on channel %d", opc,
+                alop->chan);
         }
     } else {
         bool warn = false;
 
-        memop |= memop_from_mas(instr->mas);
+        memop |= memop_from_mas(alop->mas);
 
         switch (mod) {
         case 0:
@@ -3672,7 +4320,7 @@ static MemOp scan_st_mas(Instr *instr, bool *skip, bool *check)
         }
 
         if (warn) {
-            e2k_todo(instr->ctx, "st mod %d on channel %d", mod, instr->chan);
+            e2k_todo(alop->ctx, "st mod %d on channel %d", mod, alop->chan);
         }
     }
 
@@ -3703,17 +4351,17 @@ static void gen_probe_write_access(TCGv_i32 ret, TCGv addr, int size,
     tcg_temp_free_i32(t0);
 }
 
-static void gen_ld_raw_i64(Instr *instr, TCGv_i32 tag, TCGv addr,
+static void gen_ld_raw_i64(Alop *alop, TCGv_i32 tag, TCGv addr,
     MemOp memop, bool skip, bool save)
 {
     TCGLabel *l0 = gen_new_label();
     Tagged_i64 r = tagged_local_new_i64();
 
-    if (instr->sm) {
+    if (alop->als.sm) {
         TCGLabel *l1 = gen_new_label();
         TCGv_i32 t0 = tcg_temp_new_i32();
 
-        gen_probe_read_access(t0, addr, memop_size(memop), instr->ctx->mmuidx);
+        gen_probe_read_access(t0, addr, memop_size(memop), alop->ctx->mmuidx);
         tcg_gen_brcondi_i32(TCG_COND_NE, t0, 0, l1);
 
         /* address is not available */
@@ -3728,7 +4376,7 @@ static void gen_ld_raw_i64(Instr *instr, TCGv_i32 tag, TCGv addr,
     }
 
     gen_tag1_i64(r.tag, tag);
-    tcg_gen_qemu_ld_i64(r.val, addr, instr->ctx->mmuidx, memop);
+    tcg_gen_qemu_ld_i64(r.val, addr, alop->ctx->mmuidx, memop);
     gen_set_label(l0);
 
     if (save) {
@@ -3736,7 +4384,7 @@ static void gen_ld_raw_i64(Instr *instr, TCGv_i32 tag, TCGv addr,
         tcg_gen_mov_i64(cpu_last_val0, r.val);
     }
 
-    gen_al_result_d(instr, r);
+    gen_al_result_d(alop, r);
 
     tagged_free_i64(r);
 }
@@ -3759,7 +4407,7 @@ static void gen_qemu_ld_i128(TCGv_i64 hi, TCGv_i64 lo, TCGv addr, TCGArg idx,
     tcg_temp_free(t0);
 }
 
-static void gen_ld_raw_i128(Instr *instr, TCGv_i32 tag, TCGv addr,
+static void gen_ld_raw_i128(Alop *alop, TCGv_i32 tag, TCGv addr,
     MemOp memop, bool skip, bool save)
 {
     TCGLabel *l0 = gen_new_label();
@@ -3767,13 +4415,13 @@ static void gen_ld_raw_i128(Instr *instr, TCGv_i32 tag, TCGv addr,
     TCGv_i64 t0 = tcg_temp_local_new_i64();
     TCGv_i64 t1 = tcg_temp_local_new_i64();
 
-    gen_result_init_q(instr, r);
+    gen_result_init_q(alop, r);
 
-    if (instr->sm) {
+    if (alop->als.sm) {
         TCGLabel *l1 = gen_new_label();
         TCGv_i32 t3 = tcg_temp_new_i32();
 
-        gen_probe_read_access(t3, addr, 16, instr->ctx->mmuidx);
+        gen_probe_read_access(t3, addr, 16, alop->ctx->mmuidx);
         tcg_gen_brcondi_i32(TCG_COND_NE, t3, 0, l1);
 
         /* address is not available */
@@ -3789,7 +4437,7 @@ static void gen_ld_raw_i128(Instr *instr, TCGv_i32 tag, TCGv addr,
     }
 
     gen_tag1_i128(r.tag, tag);
-    gen_qemu_ld_i128(t1, t0, addr, instr->ctx->mmuidx, memop);
+    gen_qemu_ld_i128(t1, t0, addr, alop->ctx->mmuidx, memop);
 
     gen_set_label(l0);
 
@@ -3800,29 +4448,29 @@ static void gen_ld_raw_i128(Instr *instr, TCGv_i32 tag, TCGv addr,
     }
 
     gen_qppackdl(r.val, t1, t0);
-    gen_al_result_q(instr, r);
+    gen_al_result_q(alop, r);
 
     tcg_temp_free_i64(t1);
     tcg_temp_free_i64(t0);
     tagged_free_ptr(r);
 }
 
-static void gen_atomic_cmpxchg_i64(Instr *instr, TCGv_i64 value, TCGv addr,
+static void gen_atomic_cmpxchg_i64(Alop *alop, TCGv_i64 value, TCGv addr,
     MemOp memop)
 {
     TCGv_i64 t0 = tcg_temp_new_i64();
     TCGv_i64 t1 = tcg_temp_new_i64();
 
     tcg_gen_atomic_cmpxchg_i64(t0, addr, cpu_last_val0, value,
-        instr->ctx->mmuidx, memop);
+        alop->ctx->mmuidx, memop);
     tcg_gen_setcond_i64(TCG_COND_NE, t1, t0, cpu_last_val0);
-    tcg_gen_extrl_i64_i32(instr->ctx->mlock, t1);
+    tcg_gen_extrl_i64_i32(alop->ctx->mlock, t1);
 
     tcg_temp_free_i64(t1);
     tcg_temp_free_i64(t0);
 }
 
-static void gen_atomic_cmpxchg_i128(Instr *instr, TCGv_i64 hi, TCGv_i64 lo,
+static void gen_atomic_cmpxchg_i128(Alop *alop, TCGv_i64 hi, TCGv_i64 lo,
     TCGv addr, MemOp memop)
 {
     TCGv_i64 t0 = tcg_temp_new_i64();
@@ -3834,27 +4482,27 @@ static void gen_atomic_cmpxchg_i128(Instr *instr, TCGv_i64 hi, TCGv_i64 lo,
     // FIXME: temp solution
     if (memop & MO_BE) {
         tcg_gen_atomic_cmpxchg_i64(t1, addr, cpu_last_val0, hi,
-            instr->ctx->mmuidx, memop);
+            alop->ctx->mmuidx, memop);
         tcg_gen_atomic_cmpxchg_i64(t0, t2, cpu_last_val1, lo,
-            instr->ctx->mmuidx, memop);
+            alop->ctx->mmuidx, memop);
     } else {
         tcg_gen_atomic_cmpxchg_i64(t0, addr, cpu_last_val0, lo,
-            instr->ctx->mmuidx, memop);
+            alop->ctx->mmuidx, memop);
         tcg_gen_atomic_cmpxchg_i64(t1, t2, cpu_last_val1, hi,
-            instr->ctx->mmuidx, memop);
+            alop->ctx->mmuidx, memop);
     }
 
     tcg_gen_setcond_i64(TCG_COND_NE, t0, t0, cpu_last_val0);
     tcg_gen_setcond_i64(TCG_COND_NE, t1, t1, cpu_last_val1);
     tcg_gen_or_i64(t0, t0, t1);
-    tcg_gen_extrl_i64_i32(instr->ctx->mlock, t1);
+    tcg_gen_extrl_i64_i32(alop->ctx->mlock, t1);
 
     tcg_temp_free(t2);
     tcg_temp_free_i64(t1);
     tcg_temp_free_i64(t0);
 }
 
-static void gen_atomic_cmpxchg_i32(Instr *instr, TCGv_i32 value, TCGv addr,
+static void gen_atomic_cmpxchg_i32(Alop *alop, TCGv_i32 value, TCGv addr,
     MemOp memop)
 {
     TCGv_i32 t0 = tcg_temp_new_i32();
@@ -3862,37 +4510,37 @@ static void gen_atomic_cmpxchg_i32(Instr *instr, TCGv_i32 value, TCGv addr,
 
     tcg_gen_extrl_i64_i32(t0, cpu_last_val0);
     tcg_gen_atomic_cmpxchg_i32(t1, addr, t0, value,
-        instr->ctx->mmuidx, memop);
-    tcg_gen_setcond_i32(TCG_COND_NE, instr->ctx->mlock, t1, t0);
+        alop->ctx->mmuidx, memop);
+    tcg_gen_setcond_i32(TCG_COND_NE, alop->ctx->mlock, t1, t0);
 
     tcg_temp_free_i32(t1);
     tcg_temp_free_i32(t0);
 }
 
 #define IMPL_GEN_ST(name, S, st1, st2) \
-    static void name(Instr *instr, TCGv addr, \
+    static void name(Alop *alop, TCGv addr, \
         MemOp memop, bool skip, bool check) \
     { \
         TCGLabel *l0 = gen_new_label(); \
         tagged(S) s4 = tagged_local_new(S); \
         \
-        gen_tagged_src(4, S, instr, s4); \
+        gen_tagged_src(4, S, alop, s4); \
         \
         if (!skip) { \
-            if (instr->sm) { \
+            if (alop->als.sm) { \
                 TCGv_i32 t0 = tcg_temp_new_i32(); \
                 \
                 gen_probe_write_access(t0, addr, memop_size(memop), \
-                    instr->ctx->mmuidx); \
+                    alop->ctx->mmuidx); \
                 tcg_gen_brcondi_i32(TCG_COND_EQ, t0, 0, l0); \
                 \
                 tcg_temp_free_i32(t0); \
             } \
             \
-            if (check && instr->ctx->mlock) { \
-                st1(instr, s4.val, addr, memop); \
+            if (check && alop->ctx->mlock) { \
+                st1(alop, s4.val, addr, memop); \
             } else { \
-                st2(s4.val, addr, instr->ctx->mmuidx, memop); \
+                st2(s4.val, addr, alop->ctx->mmuidx, memop); \
             } \
         } \
         gen_set_label(l0); \
@@ -3921,22 +4569,22 @@ static void gen_qemu_st_i128(TCGv_i64 hi, TCGv_i64 lo, TCGv addr,
     tcg_temp_free(t0);
 }
 
-static void gen_st_raw_i128(Instr *instr, TCGv addr,
+static void gen_st_raw_i128(Alop *alop, TCGv addr,
     MemOp memop, bool skip, bool check)
 {
     TCGLabel *l0 = gen_new_label();
     Tagged_ptr s4 = tagged_local_new_ptr();
 
-    gen_tagged_src4_q(instr, s4);
+    gen_tagged_src4_q(alop, s4);
 
     if (!skip) {
         TCGv_i64 t0 = tcg_temp_new_i64();
         TCGv_i64 t1 = tcg_temp_new_i64();
 
-        if (instr->sm) {
+        if (alop->als.sm) {
             TCGv_i32 t0 = tcg_temp_new_i32();
 
-            gen_probe_write_access(t0, addr, 16, instr->ctx->mmuidx);
+            gen_probe_write_access(t0, addr, 16, alop->ctx->mmuidx);
             tcg_gen_brcondi_i32(TCG_COND_EQ, t0, 0, l0);
 
             tcg_temp_free_i32(t0);
@@ -3944,10 +4592,10 @@ static void gen_st_raw_i128(Instr *instr, TCGv addr,
 
         gen_qpunpackdl(t1, t0, s4.val);
 
-        if (check && instr->ctx->mlock) {
-            gen_atomic_cmpxchg_i128(instr, t1, t0, addr, memop);
+        if (check && alop->ctx->mlock) {
+            gen_atomic_cmpxchg_i128(alop, t1, t0, addr, memop);
         } else {
-            gen_qemu_st_i128(t1, t0, addr, instr->ctx->mmuidx, memop);
+            gen_qemu_st_i128(t1, t0, addr, alop->ctx->mmuidx, memop);
         }
 
         tcg_temp_free_i64(t1);
@@ -3993,7 +4641,7 @@ static void gen_pmerge_i64(TCGv_i64 ret, TCGv_i64 a, TCGv_i64 b,
     tcg_temp_free_i64(t0);
 }
 
-static void gen_stm_raw_i128(Instr *instr, TCGv addr,
+static void gen_stm_raw_i128(Alop *alop, TCGv addr,
     MemOp memop, bool skip, bool check)
 {
     TCGLabel *l0 = gen_new_label();
@@ -4001,8 +4649,8 @@ static void gen_stm_raw_i128(Instr *instr, TCGv addr,
     Tagged_ptr s4 = tagged_local_new_ptr();
     TCGv_i64 mask = tcg_temp_local_new_i64();
 
-    gen_tagged_src2_s(instr, s2);
-    gen_tagged_src4_q(instr, s4);
+    gen_tagged_src2_s(alop, s2);
+    gen_tagged_src4_q(alop, s4);
     tcg_gen_extu_i32_i64(mask, s2.val);
     tcg_gen_andi_i64(mask, mask, 0xffff);
     tcg_gen_brcondi_i64(TCG_COND_EQ, mask, 0, l0);
@@ -4014,25 +4662,25 @@ static void gen_stm_raw_i128(Instr *instr, TCGv addr,
         TCGv_i64 t3 = tcg_temp_new_i64();
         TCGv_i64 t4 = tcg_temp_new_i64();
 
-        if (instr->sm) {
+        if (alop->als.sm) {
             TCGv_i32 t0 = tcg_temp_new_i32();
 
-            gen_probe_write_access(t0, addr, 16, instr->ctx->mmuidx);
+            gen_probe_write_access(t0, addr, 16, alop->ctx->mmuidx);
             tcg_gen_brcondi_i32(TCG_COND_EQ, t0, 0, l0);
 
             tcg_temp_free_i32(t0);
         }
 
         gen_qpunpackdl(t1, t0, s4.val);
-        gen_qemu_ld_i128(t3, t2, addr, instr->ctx->mmuidx, memop);
+        gen_qemu_ld_i128(t3, t2, addr, alop->ctx->mmuidx, memop);
         tcg_gen_shri_i64(t4, mask, 8);
         gen_pmerge_i64(t0, t0, t2, mask);
         gen_pmerge_i64(t1, t1, t3, t4);
 
-        if (check && instr->ctx->mlock) {
-            gen_atomic_cmpxchg_i128(instr, t1, t0, addr, memop);
+        if (check && alop->ctx->mlock) {
+            gen_atomic_cmpxchg_i128(alop, t1, t0, addr, memop);
         } else {
-            gen_qemu_st_i128(t1, t0, addr, instr->ctx->mmuidx, memop);
+            gen_qemu_st_i128(t1, t0, addr, alop->ctx->mmuidx, memop);
         }
 
         tcg_temp_free_i64(t4);
@@ -4060,44 +4708,44 @@ typedef enum {
     ADDR_SS,
 } AddrBase;
 
-typedef void (*GenAddrFn)(Instr *instr, TCGv_i32 tag, TCGv addr, AddrBase base);
-typedef void (*GenLoadFn)(Instr *instr, TCGv_i32 tag, TCGv addr,
+typedef void (*GenAddrFn)(Alop *alop, TCGv_i32 tag, TCGv addr, AddrBase base);
+typedef void (*GenLoadFn)(Alop *alop, TCGv_i32 tag, TCGv addr,
     MemOp memop, bool skip, bool save);
-typedef void (*GenStoreFn)(Instr *instr, TCGv addr,
+typedef void (*GenStoreFn)(Alop *alop, TCGv addr,
     MemOp memop, bool skip, bool check);
 
-static void gen_alopf1_mas(Instr *instr, GenAddrFn addr_fn,
+static void gen_alopf1_mas(Alop *alop, GenAddrFn addr_fn,
     GenLoadFn ld_fn, MemOp memop, AddrBase base)
 {
     bool skip = false, save = false;
     TCGv_i32 tag = tcg_temp_local_new_i32();
     TCGv addr = tcg_temp_local_new();
 
-    memop |= scan_ld_mas(instr, &skip, &save);
-    (*addr_fn)(instr, tag, addr, base);
-    (*ld_fn)(instr, tag, addr, memop, skip, save);
+    memop |= scan_ld_mas(alop, &skip, &save);
+    (*addr_fn)(alop, tag, addr, base);
+    (*ld_fn)(alop, tag, addr, memop, skip, save);
 
     tcg_temp_free(addr);
     tcg_temp_free_i32(tag);
 }
 
-static void gen_alopf3_mas(Instr *instr, GenAddrFn addr_fn,
+static void gen_alopf3_mas(Alop *alop, GenAddrFn addr_fn,
     GenStoreFn st_fn, MemOp memop, AddrBase base)
 {
     bool skip = false, check = false;
     TCGv_i32 tag = tcg_temp_new_i32();
     TCGv addr = tcg_temp_local_new();
 
-    memop |= scan_st_mas(instr, &skip, &check);
-    (*addr_fn)(instr, tag, addr, base);
-    (*st_fn)(instr, addr, memop, skip, check);
+    memop |= scan_st_mas(alop, &skip, &check);
+    (*addr_fn)(alop, tag, addr, base);
+    (*st_fn)(alop, addr, memop, skip, check);
 
     tcg_temp_free(addr);
     tcg_temp_free_i32(tag);
 }
 
 #define IMPL_GEN_ADDR(name, S, cast) \
-    static void name(Instr *instr, TCGv_i32 tag, TCGv addr, \
+    static void name(Alop *alop, TCGv_i32 tag, TCGv addr, \
         AddrBase base) \
     { \
         tagged(S) s1 = tagged_new(S); \
@@ -4105,8 +4753,8 @@ static void gen_alopf3_mas(Instr *instr, GenAddrFn addr_fn,
         temp(S) t0 = temp_new(S); \
         \
         /* TODO: addr base */  \
-        gen_tagged_src(1, S, instr, s1); \
-        gen_tagged_src(2, S, instr, s2); \
+        gen_tagged_src(1, S, alop, s1); \
+        gen_tagged_src(2, S, alop, s2); \
         tcg_gen_or_i32(tag, s1.tag, s2.tag); \
         call(S, tcg_gen_add, t0, s1.val, s2.val); \
         cast(addr, t0); \
@@ -4120,13 +4768,13 @@ IMPL_GEN_ADDR(gen_addr_i64, d, tcg_gen_trunc_i64_tl)
 IMPL_GEN_ADDR(gen_addr_i32, s, tcg_gen_ext_i32_tl)
 
 #define IMPL_GEN_ADDR_SRC1(name, S, cast) \
-    static void name(Instr *instr, TCGv_i32 tag, TCGv addr, \
+    static void name(Alop *alop, TCGv_i32 tag, TCGv addr, \
         AddrBase base) \
     { \
         tagged(S) s1 = tagged_new(S); \
         \
         /* TODO: addr base */  \
-        gen_tagged_src(1, S, instr, s1); \
+        gen_tagged_src(1, S, alop, s1); \
         tcg_gen_mov_i32(tag, s1.tag); \
         cast(addr, s1.val); \
         \
@@ -4162,9 +4810,9 @@ static void gen_aad_tag(TCGv_i64 ret, TCGv_i32 tag)
     tcg_temp_free_i32(t0);
 }
 
-static void gen_aaurw_aad_lo_i64(Instr *instr, TCGv_i64 arg1, TCGv_i32 tag)
+static void gen_aaurw_aad_lo_i64(Alop *alop, TCGv_i64 arg1, TCGv_i32 tag)
 {
-    TCGv_i64 lo = cpu_aad_lo[instr->aad];
+    TCGv_i64 lo = cpu_aad_lo[alop->als.aad];
     TCGv_i64 t0 = tcg_temp_new_i64();
     TCGv_i64 t1 = tcg_temp_new_i64();
 
@@ -4180,14 +4828,14 @@ static void gen_aaurw_aad_lo_i64(Instr *instr, TCGv_i64 arg1, TCGv_i32 tag)
     tcg_temp_free_i64(t0);
 }
 
-static void gen_aaurw_aad_hi_i64(Instr *instr, TCGv_i64 arg1, TCGv_i32 tag)
+static void gen_aaurw_aad_hi_i64(Alop *alop, TCGv_i64 arg1, TCGv_i32 tag)
 {
-    tcg_gen_andi_i64(cpu_aad_hi[instr->aad], arg1, 0xffffffff00000000);
+    tcg_gen_andi_i64(cpu_aad_hi[alop->als.aad], arg1, 0xffffffff00000000);
 }
 
-static void gen_aaurw_aad_i32(Instr *instr, TCGv_i32 arg1, TCGv_i32 tag)
+static void gen_aaurw_aad_i32(Alop *alop, TCGv_i32 arg1, TCGv_i32 tag)
 {
-    TCGv_i64 lo = cpu_aad_lo[instr->aad];
+    TCGv_i64 lo = cpu_aad_lo[alop->als.aad];
     TCGv_i64 t0 = tcg_temp_new_i64();
     TCGv_i64 t1 = tcg_temp_new_i64();
     TCGv_i64 t2 = tcg_temp_new_i64();
@@ -4204,12 +4852,12 @@ static void gen_aaurw_aad_i32(Instr *instr, TCGv_i32 arg1, TCGv_i32 tag)
     tcg_temp_free_i64(t0);
 }
 
-static void gen_aaurw_rest_i32(Instr* instr, TCGv_i32 arg1, TCGv_i32 tag)
+static void gen_aaurw_rest_i32(Alop *alop, TCGv_i32 arg1, TCGv_i32 tag)
 {
-    int idx = instr->aaind;
+    int idx = alop->als.aaind;
     TCGv_i32 t0 = tcg_temp_new_i32();
     tcg_gen_setcondi_i32(TCG_COND_NE, t0, tag, 0);
-    switch(instr->aaopc) {
+    switch(alop->als.aaopc) {
     case 1: /* aaurwd src4, aasti */
         tcg_gen_mov_i32(cpu_aasti[idx], arg1);
         tcg_gen_deposit_i32(cpu_aasti_tags, cpu_aasti_tags, t0, idx, 1);
@@ -4268,9 +4916,10 @@ static void gen_dec_lsr_strmd(TCGv_i32 loop_end)
     tcg_temp_free_i32(t0);
 }
 
-static void gen_aasti_incr(DisasContext *ctx, Alop *alop, Instr *instr)
+static void gen_aasti_incr(Alop *alop)
 {
-    uint16_t rlp = find_am_cond(ctx, instr->chan);
+    DisasContext *ctx = alop->ctx;
+    uint16_t rlp = find_am_cond(ctx, alop->chan);
     TCGv_i32 t0 = tcg_temp_new_i32();
     TCGv_i32 t1 = tcg_temp_new_i32();
     int len;
@@ -4287,8 +4936,8 @@ static void gen_aasti_incr(DisasContext *ctx, Alop *alop, Instr *instr)
         break;
     }
 
-    tcg_gen_shli_i32(t0, cpu_aaincr[instr->aaincr], len);
-    tcg_gen_add_i32(t1, cpu_aasti[instr->aaind], t0);
+    tcg_gen_shli_i32(t0, cpu_aaincr[alop->als.aaincr], len);
+    tcg_gen_add_i32(t1, cpu_aasti[alop->als.aaind], t0);
 
     if (rlp != 0) {
         // FIXME: need to test AM RLP
@@ -4296,29 +4945,29 @@ static void gen_aasti_incr(DisasContext *ctx, Alop *alop, Instr *instr)
         TCGv_i32 t3 = tcg_const_i32(0);
 
         e2k_todo(ctx, "AM RLP found");
-        gen_am_cond_i32(ctx, t2, instr->chan, rlp);
-        tcg_gen_movcond_i32(TCG_COND_NE, cpu_aasti[instr->aaind], t2, t3,
-            cpu_aasti[instr->aaind], t1);
+        gen_am_cond_i32(ctx, t2, alop->chan, rlp);
+        tcg_gen_movcond_i32(TCG_COND_NE, cpu_aasti[alop->als.aaind], t2, t3,
+            cpu_aasti[alop->als.aaind], t1);
 
         tcg_temp_free_i32(t3);
         tcg_temp_free_i32(t2);
     } else {
-        tcg_gen_mov_i32(cpu_aasti[instr->aaind], t1);
+        tcg_gen_mov_i32(cpu_aasti[alop->als.aaind], t1);
     }
 
     tcg_temp_free_i32(t1);
     tcg_temp_free_i32(t0);
 }
 
-static void gen_aad_ptr(DisasContext *ctx, TCGv ret, Instr *instr)
+static void gen_aad_ptr(DisasContext *ctx, TCGv ret, Alop *alop)
 {
     uint32_t lit = 0;
     TCGv_i64 t0 = tcg_temp_new_i64();
     TCGv t1 = tcg_temp_new();
     TCGv t2 = tcg_temp_new();
 
-    if (instr->aalit) {
-        int lts = instr->aalit - 1;
+    if (alop->als.aalit) {
+        int lts = alop->als.aalit - 1;
         if (ctx->bundle.lts_present[lts]) {
             lit = ctx->bundle.lts[lts];
         } else {
@@ -4327,9 +4976,9 @@ static void gen_aad_ptr(DisasContext *ctx, TCGv ret, Instr *instr)
         }
     }
 
-    tcg_gen_extract_i64(t0, cpu_aad_lo[instr->aad], 0, 48);
+    tcg_gen_extract_i64(t0, cpu_aad_lo[alop->als.aad], 0, 48);
     tcg_gen_trunc_i64_tl(t1, t0);
-    tcg_gen_extu_i32_tl(t2, cpu_aasti[instr->aaind]);
+    tcg_gen_extu_i32_tl(t2, cpu_aasti[alop->als.aaind]);
 
     if (lit != 0) {
         TCGv t3 = tcg_temp_new();
@@ -4345,13 +4994,13 @@ static void gen_aad_ptr(DisasContext *ctx, TCGv ret, Instr *instr)
     tcg_temp_free_i64(t0);
 }
 
-static void gen_staaqp(Instr *instr)
+static void gen_staaqp(Alop *alop)
 {
-    DisasContext *ctx = instr->ctx;
-    uint8_t mas = instr->mas;
+    DisasContext *ctx = alop->ctx;
+    uint8_t mas = alop->mas;
     Tagged_ptr s4 = tagged_local_new_ptr();
 
-    gen_tagged_src4_q(instr, s4);
+    gen_tagged_src4_q(alop, s4);
 
     if ((mas & 0x7) == 0x7) {
         int opc = mas >> 3;
@@ -4361,7 +5010,7 @@ static void gen_staaqp(Instr *instr)
             /* should be aaurwqp but CPU do nothing */
             break;
         default:
-            e2k_todo_illop(instr->ctx, "staaqp special opc=%#x", opc);
+            e2k_todo_illop(alop->ctx, "staaqp special opc=%#x", opc);
             break;
         }
     } else {
@@ -4377,17 +5026,17 @@ static void gen_staaqp(Instr *instr)
             e2k_todo(ctx, "staaqp mod=%#x is not implemented", mod);
         }
 
-        gen_aad_ptr(ctx, t0, instr);
+        gen_aad_ptr(ctx, t0, alop);
 
-        if (instr->sm) {
+        if (alop->als.sm) {
             TCGv_i32 t1 = tcg_temp_new_i32();
-            gen_probe_write_access(t1, t0, 16, instr->ctx->mmuidx);
+            gen_probe_write_access(t1, t0, 16, alop->ctx->mmuidx);
             tcg_gen_brcondi_i32(TCG_COND_EQ, t1, 0, l0);
             tcg_temp_free_i32(t1);
         }
 
         gen_qpunpackdl(t2, t1, s4.val);
-        gen_qemu_st_i128(t2, t1, t0, instr->ctx->mmuidx, memop);
+        gen_qemu_st_i128(t2, t1, t0, alop->ctx->mmuidx, memop);
         gen_set_label(l0);
 
         tcg_temp_free_i64(t2);
@@ -4398,26 +5047,26 @@ static void gen_staaqp(Instr *instr)
     tagged_free_ptr(s4);
 }
 
-static void gen_staa_i64(Instr *instr)
+static void gen_staa_i64(Alop *alop)
 {
-    DisasContext *ctx = instr->ctx;
-    uint8_t mas = instr->mas;
+    DisasContext *ctx = alop->ctx;
+    uint8_t mas = alop->mas;
     Tagged_i64 s4 = tagged_local_new_i64();
 
-    gen_tagged_src4_d(instr, s4);
+    gen_tagged_src4_d(alop, s4);
 
     if (mas == 0x3f) {
         /* aaurwd */
-        if (instr->aaopc == 0) {
-            if (instr->chan == 5 && instr->opc1 == 0x3f) {
-                gen_aaurw_aad_hi_i64(instr, s4.val, s4.tag);
+        if (alop->als.aaopc == 0) {
+            if (alop->chan == 5 && alop->als.opc1 == 0x3f) {
+                gen_aaurw_aad_hi_i64(alop, s4.val, s4.tag);
             } else {
-                gen_aaurw_aad_lo_i64(instr, s4.val, s4.tag);
+                gen_aaurw_aad_lo_i64(alop, s4.val, s4.tag);
             }
         } else {
             TCGv_i32 t0 = tcg_temp_new_i32();
             tcg_gen_extrl_i64_i32(t0, s4.val);
-            gen_aaurw_rest_i32(instr, t0, s4.tag);
+            gen_aaurw_rest_i32(alop, t0, s4.tag);
             tcg_temp_free_i32(t0);
         }
     } else {
@@ -4431,11 +5080,11 @@ static void gen_staa_i64(Instr *instr)
             e2k_todo(ctx, "staad mod=%#x is not implemented", mod);
         }
 
-        gen_aad_ptr(ctx, t0, instr);
+        gen_aad_ptr(ctx, t0, alop);
 
-        if (instr->sm) {
+        if (alop->als.sm) {
             TCGv_i32 t1 = tcg_temp_new_i32();
-            gen_probe_write_access(t1, t0, memop_size(memop), instr->ctx->mmuidx);
+            gen_probe_write_access(t1, t0, memop_size(memop), alop->ctx->mmuidx);
             tcg_gen_brcondi_i32(TCG_COND_EQ, t1, 0, l0);
             tcg_temp_free_i32(t1);
         }
@@ -4448,22 +5097,22 @@ static void gen_staa_i64(Instr *instr)
     tagged_free_i64(s4);
 }
 
-static void gen_staa_i32(Instr *instr, MemOp memop)
+static void gen_staa_i32(Alop *alop, MemOp memop)
 {
-    DisasContext *ctx = instr->ctx;
-    uint8_t mas = instr->mas;
+    DisasContext *ctx = alop->ctx;
+    uint8_t mas = alop->mas;
     Tagged_i32 s4 = tagged_local_new_i32();
 
-    gen_tagged_src4_s(instr, s4);
+    gen_tagged_src4_s(alop, s4);
 
     if (mas == 0x3f) {
         /* aaurw */
         /* CPU do nothing if size less than 32 bits */
         if ((memop & MO_SIZE) == MO_32) {
-            if (instr->aaopc == 0) {
-                gen_aaurw_aad_i32(instr, s4.val, s4.tag);
+            if (alop->als.aaopc == 0) {
+                gen_aaurw_aad_i32(alop, s4.val, s4.tag);
             } else {
-                gen_aaurw_rest_i32(instr, s4.val, s4.tag);
+                gen_aaurw_rest_i32(alop, s4.val, s4.tag);
             }
         }
     } else {
@@ -4485,11 +5134,11 @@ static void gen_staa_i32(Instr *instr, MemOp memop)
             e2k_todo(ctx, "staa%c mod=%#x is not implemented", c, mod);
         }
 
-        gen_aad_ptr(ctx, t0, instr);
+        gen_aad_ptr(ctx, t0, alop);
 
-        if (instr->sm) {
+        if (alop->als.sm) {
             TCGv_i32 t1 = tcg_temp_new_i32();
-            gen_probe_write_access(t1, t0, memop_size(memop), instr->ctx->mmuidx);
+            gen_probe_write_access(t1, t0, memop_size(memop), alop->ctx->mmuidx);
             tcg_gen_brcondi_i32(TCG_COND_EQ, t1, 0, l0);
             tcg_temp_free_i32(t1);
         }
@@ -4504,20 +5153,84 @@ static void gen_staa_i32(Instr *instr, MemOp memop)
 }
 
 #define IMPL_ALOPF1_BASIC(name, S1, S2, R, T, code) \
-    static void name(Instr *instr, T) \
+    static void name(Alop *alop, T) \
     { \
         tagged(S1) s1 = tagged_local_new(S1); \
         tagged(S2) s2 = tagged_local_new(S2); \
         tagged(R) r = tagged_local_new(R); \
         \
-        gen_tagged_src(1, S1, instr, s1); \
-        gen_tagged_src(2, S2, instr, s2); \
-        gen_result_init(R, instr, r); \
+        gen_tagged_src(1, S1, alop, s1); \
+        gen_tagged_src(2, S2, alop, s2); \
+        gen_result_init(R, alop, r); \
         gen_tag2(R, r, s1, s2); \
         { code; } \
-        gen_al_result(R, instr, r); \
+        gen_al_result(R, alop, r); \
         \
         tagged_free(R, r); \
+        tagged_free(S2, s2); \
+        tagged_free(S1, s1); \
+    }
+
+#define IMPL_ALOPF2_BASIC(name, S2, R, T, code) \
+    static void name(Alop *alop, T) \
+    { \
+        tagged(S2) s2 = tagged_local_new(S2); \
+        tagged(R) r = tagged_local_new(R); \
+        \
+        gen_tagged_src(2, S2, alop, s2); \
+        gen_result_init(R, alop, r); \
+        gen_tag1(R, r, s2); \
+        { code; } \
+        gen_al_result(R, alop, r); \
+        \
+        tagged_free(R, r); \
+        tagged_free(S2, s2); \
+    }
+
+#define IMPL_ALOPF7_BASIC(name, S1, S2, R, T, code) \
+    static void name(Alop *alop, T) \
+    { \
+        tagged(S1) s1 = tagged_local_new(S1); \
+        tagged(S2) s2 = tagged_local_new(S2); \
+        tagged(R) r = tagged_local_new(R); \
+        Tagged_i32 p = tagged_new_i32(); \
+        temp(R) t0 = temp_new(R); \
+        \
+        gen_tagged_src(1, S1, alop, s1); \
+        gen_tagged_src(2, S2, alop, s2); \
+        gen_result_init(R, alop, r); \
+        gen_tag2(R, r, s1, s2); \
+        { code; } \
+        tcg_gen_mov_i32(p.tag, r.tag); \
+        call(R, tcg_gen_setcondi, TCG_COND_NE, t0, r.val, 0); \
+        call(R, gen_extrl, p.val, t0); \
+        gen_al_result_b(alop, p); \
+        \
+        temp_free(R, t0); \
+        tagged_free_i32(p); \
+        tagged_free(R, r); \
+        tagged_free(S2, s2); \
+        tagged_free(S1, s1); \
+    }
+
+#define IMPL_ALOPF21_BASIC(name, S1, S2, S3, R, T, code) \
+    static void name(Alop *alop, T) \
+    { \
+        tagged(S1) s1 = tagged_local_new(S1); \
+        tagged(S2) s2 = tagged_local_new(S2); \
+        tagged(S3) s3 = tagged_local_new(S3); \
+        tagged(R) r = tagged_local_new(R); \
+        \
+        gen_tagged_src(1, S1, alop, s1); \
+        gen_tagged_src(2, S2, alop, s2); \
+        gen_tagged_src(3, S3, alop, s3); \
+        gen_result_init(R, alop, r); \
+        gen_tag3(R, r, s1, s2, s3); \
+        { code; } \
+        gen_al_result(R, alop, r); \
+        \
+        tagged_free(R, r); \
+        tagged_free(S3, s3); \
         tagged_free(S2, s2); \
         tagged_free(S1, s1); \
     }
@@ -4527,9 +5240,68 @@ static void gen_staa_i32(Instr *instr, MemOp memop)
         void (*op)(temp(R), temp(S1), temp(S2)), \
         { (*op)(r.val, s1.val, s2.val); })
 
+#define IMPL_ALOPF1_TAG_SM(name, S1, S2, R) \
+    IMPL_ALOPF1_BASIC(name, S1, S2, R, \
+        void (*op)(temp(R), TCGv_i32, TCGv_i32, \
+            temp(S1), temp(S2), bool sm), \
+        { (*op)(r.val, r.tag, r.tag, s1.val, s2.val, alop->als.sm); })
+
+#define IMPL_ALOPF1_ENV(name, S1, S2, R) \
+    IMPL_ALOPF1_BASIC(name, S1, S2, R, \
+        void (*op)(temp(R), TCGv_env, temp(S1), temp(S2)), \
+        { (*op)(r.val, cpu_env, s1.val, s2.val); })
+
+#define IMPL_ALOPF11_LIT8(name, S1, S2, R) \
+    IMPL_ALOPF1_BASIC(name, S1, S2, R, \
+        void (*op)(temp(R), temp(S1), temp(S2), int), \
+        { (*op)(r.val, s1.val, s2.val, alop->ales.src3); })
+
+#define IMPL_ALOPF2(name, S2, R) \
+    IMPL_ALOPF2_BASIC(name, S2, R, \
+        void (*op)(temp(R), temp(S2)), \
+        { (*op)(r.val, s2.val); })
+
+#define IMPL_ALOPF2_ENV(name, S2, R) \
+    IMPL_ALOPF2_BASIC(name, S2, R, \
+        void (*op)(temp(R), TCGv_env, temp(S2)), \
+        { (*op)(r.val, cpu_env, s2.val); })
+
+#define IMPL_ALOPF2_PSHUFH(name, S2, R) \
+    IMPL_ALOPF2_BASIC(name, S2, R, \
+        void (*op)(temp(R), temp(S2), TCGv_i32), \
+        { \
+            TCGv_i32 t0 = tcg_const_i32(alop->ales.src3); \
+            (*op)(r.val, s2.val, t0); \
+            tcg_temp_free_i32(t0); \
+        })
+
+#define IMPL_ALOPF7(name, S1, S2, R) \
+    IMPL_ALOPF7_BASIC(name, S1, S2, R, \
+        void (*op)(temp(R), temp(S1), temp(S2)), \
+        { (*op)(r.val, s1.val, s2.val); })
+
+#define IMPL_ALOPF7_ENV(name, S1, S2, R) \
+    IMPL_ALOPF7_BASIC(name, S1, S2, R, \
+        void (*op)(temp(R), TCGv_env, temp(S1), temp(S2)), \
+        { (*op)(r.val, cpu_env, s1.val, s2.val); })
+
+#define IMPL_ALOPF21(name, S1, S2, S3, R) \
+    IMPL_ALOPF21_BASIC(name, S1, S2, S3, R, \
+        void (*op)(temp(R), temp(S1), temp(S2), temp(S3)), \
+        { (*op)(r.val, s1.val, s2.val, s3.val); })
+
+#define IMPL_ALOPF21_ENV(name, S1, S2, S3, R) \
+    IMPL_ALOPF21_BASIC(name, S1, S2, S3, R, \
+        void (*op)(temp(R), TCGv_env, temp(S1), temp(S2), temp(S3)), \
+        { (*op)(r.val, cpu_env, s1.val, s2.val, s3.val); })
+
+#define IMPL_ALOPF21_LOG(name, S1, S2, S3, R) \
+    IMPL_ALOPF21_BASIC(name, S1, S2, S3, R, \
+        void (*op)(temp(R), uint32_t, temp(S1), temp(S2), temp(S3)), \
+        { (*op)(r.val, alop->als.opc1, s1.val, s2.val, s3.val); })
+
 IMPL_ALOPF1(gen_alopf1_sss, s, s, s)
 IMPL_ALOPF1(gen_alopf1_ssd, s, s, d)
-IMPL_ALOPF1(gen_alopf1_sdd, d, s, d)
 IMPL_ALOPF1(gen_alopf1_ddd, d, d, d)
 IMPL_ALOPF1(gen_alopf1_dsx, d, s, x)
 IMPL_ALOPF1(gen_alopf1_qsq, q, s, q)
@@ -4539,59 +5311,30 @@ IMPL_ALOPF1(gen_alopf1_qdq, q, d, q)
 IMPL_ALOPF1(gen_alopf1_qqd, q, q, d)
 IMPL_ALOPF1(gen_alopf1_qqq, q, q, q)
 
-#define IMPL_ALOPF1_TAG_SM(name, S1, S2, R) \
-    IMPL_ALOPF1_BASIC(name, S1, S2, R, \
-        void (*op)(temp(R), TCGv_i32, TCGv_i32, \
-            temp(S1), temp(S2), bool sm), \
-        { (*op)(r.val, r.tag, r.tag, s1.val, s2.val, instr->sm); })
+IMPL_ALOPF1_TAG_SM(gen_alopf1_tag_sss, s, s, s)
+IMPL_ALOPF1_TAG_SM(gen_alopf1_tag_dss, d, s, s)
+IMPL_ALOPF1_TAG_SM(gen_alopf1_tag_ddd, d, d, d)
 
-IMPL_ALOPF1_TAG_SM(gen_alopf1_ttsss, s, s, s)
-IMPL_ALOPF1_TAG_SM(gen_alopf1_ttdss, d, s, s)
-IMPL_ALOPF1_TAG_SM(gen_alopf1_ttddd, d, d, d)
+IMPL_ALOPF1_ENV(gen_alopf1_env_sss, s, s, s)
+IMPL_ALOPF1_ENV(gen_alopf1_env_dsd, d, s, d)
+IMPL_ALOPF1_ENV(gen_alopf1_env_dds, d, d, s)
+IMPL_ALOPF1_ENV(gen_alopf1_env_ddd, d, d, d)
+IMPL_ALOPF1_ENV(gen_alopf1_env_xxs, x, x, s)
+IMPL_ALOPF1_ENV(gen_alopf1_env_xxd, x, x, d)
+IMPL_ALOPF1_ENV(gen_alopf1_env_xss, x, s, s)
+IMPL_ALOPF1_ENV(gen_alopf1_env_xds, x, d, s)
+IMPL_ALOPF1_ENV(gen_alopf1_env_xdd, x, d, d)
+IMPL_ALOPF1_ENV(gen_alopf1_env_xsx, x, s, x)
+IMPL_ALOPF1_ENV(gen_alopf1_env_xdx, x, d, x)
+IMPL_ALOPF1_ENV(gen_alopf1_env_sxs, s, x, s)
+IMPL_ALOPF1_ENV(gen_alopf1_env_dxd, d, x, d)
+IMPL_ALOPF1_ENV(gen_alopf1_env_sxx, s, x, x)
+IMPL_ALOPF1_ENV(gen_alopf1_env_dxx, d, x, x)
+IMPL_ALOPF1_ENV(gen_alopf1_env_xxx, x, x, x)
+IMPL_ALOPF1_ENV(gen_alopf1_env_dqq, d, q, q)
+IMPL_ALOPF1_ENV(gen_alopf1_env_qqq, q, q, q)
 
-#define IMPL_ALOPF1_ENV(name, S1, S2, R) \
-    IMPL_ALOPF1_BASIC(name, S1, S2, R, \
-        void (*op)(temp(R), TCGv_env, temp(S1), temp(S2)), \
-        { (*op)(r.val, cpu_env, s1.val, s2.val); })
-
-IMPL_ALOPF1_ENV(gen_alopf1_esss, s, s, s)
-IMPL_ALOPF1_ENV(gen_alopf1_edsd, d, s, d)
-IMPL_ALOPF1_ENV(gen_alopf1_eddd, d, d, d)
-IMPL_ALOPF1_ENV(gen_alopf1_exxs, x, x, s)
-IMPL_ALOPF1_ENV(gen_alopf1_exxd, x, x, d)
-IMPL_ALOPF1_ENV(gen_alopf1_exss, x, s, s)
-IMPL_ALOPF1_ENV(gen_alopf1_exds, x, d, s)
-IMPL_ALOPF1_ENV(gen_alopf1_exdd, x, d, d)
-IMPL_ALOPF1_ENV(gen_alopf1_exsx, x, s, x)
-IMPL_ALOPF1_ENV(gen_alopf1_exdx, x, d, x)
-IMPL_ALOPF1_ENV(gen_alopf1_esxs, s, x, s)
-IMPL_ALOPF1_ENV(gen_alopf1_edxd, d, x, d)
-IMPL_ALOPF1_ENV(gen_alopf1_esxx, s, x, x)
-IMPL_ALOPF1_ENV(gen_alopf1_edxx, d, x, x)
-IMPL_ALOPF1_ENV(gen_alopf1_exxx, x, x, x)
-IMPL_ALOPF1_ENV(gen_alopf1_edqq, d, q, q)
-IMPL_ALOPF1_ENV(gen_alopf1_eqqq, q, q, q)
-
-#define IMPL_ALOPF2_BASIC(name, S2, R, T, code) \
-    static void name(Instr *instr, T) \
-    { \
-        tagged(S2) s2 = tagged_local_new(S2); \
-        tagged(R) r = tagged_local_new(R); \
-        \
-        gen_tagged_src(2, S2, instr, s2); \
-        gen_result_init(R, instr, r); \
-        gen_tag1(R, r, s2); \
-        { code; } \
-        gen_al_result(R, instr, r); \
-        \
-        tagged_free(R, r); \
-        tagged_free(S2, s2); \
-    }
-
-#define IMPL_ALOPF2(name, S2, R) \
-    IMPL_ALOPF2_BASIC(name, S2, R, \
-        void (*op)(temp(R), temp(S2)), \
-        { (*op)(r.val, s2.val); })
+IMPL_ALOPF11_LIT8(gen_alopf11_lit8_ddd, d, d, d)
 
 IMPL_ALOPF2(gen_alopf2_ss, s, s)
 IMPL_ALOPF2(gen_alopf2_dd, d, d)
@@ -4601,141 +5344,47 @@ IMPL_ALOPF2(gen_alopf2_qs, q, s)
 IMPL_ALOPF2(gen_alopf2_dq, d, q)
 IMPL_ALOPF2(gen_alopf2_qq, q, q)
 
-#define IMPL_ALOPF2_ENV(name, S2, R) \
-    IMPL_ALOPF2_BASIC(name, S2, R, \
-        void (*op)(temp(R), TCGv_env, temp(S2)), \
-        { (*op)(r.val, cpu_env, s2.val); })
-
-IMPL_ALOPF2_ENV(gen_alopf2_ess, s, s)
-IMPL_ALOPF2_ENV(gen_alopf2_eds, d, s)
-IMPL_ALOPF2_ENV(gen_alopf2_esd, s, d)
-IMPL_ALOPF2_ENV(gen_alopf2_edd, d, d)
-IMPL_ALOPF2_ENV(gen_alopf2_edx, d, x)
-IMPL_ALOPF2_ENV(gen_alopf2_exs, x, s)
-IMPL_ALOPF2_ENV(gen_alopf2_exd, x, d)
-IMPL_ALOPF2_ENV(gen_alopf2_esx, s, x)
-IMPL_ALOPF2_ENV(gen_alopf2_edq, d, q)
-IMPL_ALOPF2_ENV(gen_alopf2_eqd, q, d)
-IMPL_ALOPF2_ENV(gen_alopf2_eqq, q, q)
-
-#define IMPL_ALOPF2_PSHUFH(name, S2, R) \
-    IMPL_ALOPF2_BASIC(name, S2, R, \
-        void (*op)(temp(R), temp(S2), TCGv_i32), \
-        { \
-            TCGv_i32 t0 = tcg_const_i32(instr->src3); \
-            (*op)(r.val, s2.val, t0); \
-            tcg_temp_free_i32(t0); \
-        })
+IMPL_ALOPF2_ENV(gen_alopf2_env_ss, s, s)
+IMPL_ALOPF2_ENV(gen_alopf2_env_ds, d, s)
+IMPL_ALOPF2_ENV(gen_alopf2_env_sd, s, d)
+IMPL_ALOPF2_ENV(gen_alopf2_env_dd, d, d)
+IMPL_ALOPF2_ENV(gen_alopf2_env_dx, d, x)
+IMPL_ALOPF2_ENV(gen_alopf2_env_xs, x, s)
+IMPL_ALOPF2_ENV(gen_alopf2_env_xd, x, d)
+IMPL_ALOPF2_ENV(gen_alopf2_env_sx, s, x)
+IMPL_ALOPF2_ENV(gen_alopf2_env_dq, d, q)
+IMPL_ALOPF2_ENV(gen_alopf2_env_qd, q, d)
+IMPL_ALOPF2_ENV(gen_alopf2_env_qq, q, q)
 
 IMPL_ALOPF2_PSHUFH(gen_alopf2_pshufh, d, d)
-
-#define IMPL_ALOPF7_BASIC(name, S1, S2, R, T, code) \
-    static void name(Instr *instr, T) \
-    { \
-        tagged(S1) s1 = tagged_local_new(S1); \
-        tagged(S2) s2 = tagged_local_new(S2); \
-        tagged(R) r = tagged_local_new(R); \
-        Tagged_i32 p = tagged_new_i32(); \
-        temp(R) t0 = temp_new(R); \
-        \
-        gen_tagged_src(1, S1, instr, s1); \
-        gen_tagged_src(2, S2, instr, s2); \
-        gen_result_init(R, instr, r); \
-        gen_tag2(R, r, s1, s2); \
-        { code; } \
-        tcg_gen_mov_i32(p.tag, r.tag); \
-        call(R, tcg_gen_setcondi, TCG_COND_NE, t0, r.val, 0); \
-        call(R, gen_extrl, p.val, t0); \
-        gen_al_result_b(instr, p); \
-        \
-        temp_free(R, t0); \
-        tagged_free_i32(p); \
-        tagged_free(R, r); \
-        tagged_free(S2, s2); \
-        tagged_free(S1, s1); \
-    }
-
-#define IMPL_ALOPF7(name, S1, S2, R) \
-    IMPL_ALOPF7_BASIC(name, S1, S2, R, \
-        void (*op)(temp(R), temp(S1), temp(S2)), \
-        { (*op)(r.val, s1.val, s2.val); })
 
 IMPL_ALOPF7(gen_alopf7_sss, s, s, s)
 IMPL_ALOPF7(gen_alopf7_ddd, d, d, d)
 IMPL_ALOPF7(gen_alopf7_qqd, q, q, d)
 
-#define IMPL_ALOPF7_ENV(name, S1, S2, R) \
-    IMPL_ALOPF7_BASIC(name, S1, S2, R, \
-        void (*op)(temp(R), TCGv_env, temp(S1), temp(S2)), \
-        { (*op)(r.val, cpu_env, s1.val, s2.val); })
-
-IMPL_ALOPF7_ENV(gen_alopf7_esss, s, s, s)
-IMPL_ALOPF7_ENV(gen_alopf7_eddd, d, d, d)
-IMPL_ALOPF7_ENV(gen_alopf7_exsd, x, s, d)
-IMPL_ALOPF7_ENV(gen_alopf7_exdd, x, d, d)
-IMPL_ALOPF7_ENV(gen_alopf7_exxd, x, x, d)
-
-#define IMPL_ALOPF11_LIT8(name, S1, S2, R) \
-    IMPL_ALOPF1_BASIC(name, S1, S2, R, \
-        void (*op)(temp(R), temp(S1), temp(S2), int), \
-        { (*op)(r.val, s1.val, s2.val, instr->src3); })
-
-IMPL_ALOPF11_LIT8(gen_alopf11_ddid, d, d, d)
-
-#define IMPL_ALOPF21_BASIC(name, S1, S2, S3, R, T, code) \
-    static void name(Instr *instr, T) \
-    { \
-        tagged(S1) s1 = tagged_local_new(S1); \
-        tagged(S2) s2 = tagged_local_new(S2); \
-        tagged(S3) s3 = tagged_local_new(S3); \
-        tagged(R) r = tagged_local_new(R); \
-        \
-        gen_tagged_src(1, S1, instr, s1); \
-        gen_tagged_src(2, S2, instr, s2); \
-        gen_tagged_src(3, S3, instr, s3); \
-        gen_result_init(R, instr, r); \
-        gen_tag3(R, r, s1, s2, s3); \
-        { code; } \
-        gen_al_result(R, instr, r); \
-        \
-        tagged_free(R, r); \
-        tagged_free(S3, s3); \
-        tagged_free(S2, s2); \
-        tagged_free(S1, s1); \
-    }
-
-#define IMPL_ALOPF21(name, S1, S2, S3, R) \
-    IMPL_ALOPF21_BASIC(name, S1, S2, S3, R, \
-        void (*op)(temp(R), temp(S1), temp(S2), temp(S3)), \
-        { (*op)(r.val, s1.val, s2.val, s3.val); })
+IMPL_ALOPF7_ENV(gen_alopf7_env_sss, s, s, s)
+IMPL_ALOPF7_ENV(gen_alopf7_env_ddd, d, d, d)
+IMPL_ALOPF7_ENV(gen_alopf7_env_xsd, x, s, d)
+IMPL_ALOPF7_ENV(gen_alopf7_env_xdd, x, d, d)
+IMPL_ALOPF7_ENV(gen_alopf7_env_xxd, x, x, d)
 
 IMPL_ALOPF21(gen_alopf21_ssss, s, s, s, s)
 IMPL_ALOPF21(gen_alopf21_ddsd, d, d, s, d)
 IMPL_ALOPF21(gen_alopf21_dddd, d, d, d, d)
 IMPL_ALOPF21(gen_alopf21_qqqq, q, q, q, q)
 
-#define IMPL_ALOPF21_ENV(name, S1, S2, S3, R) \
-    IMPL_ALOPF21_BASIC(name, S1, S2, S3, R, \
-        void (*op)(temp(R), TCGv_env, temp(S1), temp(S2), temp(S3)), \
-        { (*op)(r.val, cpu_env, s1.val, s2.val, s3.val); })
-
 IMPL_ALOPF21_ENV(gen_alopf21_env_ssss, s, s, s, s)
 IMPL_ALOPF21_ENV(gen_alopf21_env_dddd, d, d, d, d)
 IMPL_ALOPF21_ENV(gen_alopf21_env_qqqq, q, q, q, q)
 
-#define IMPL_ALOPF21_LOG(name, S1, S2, S3, R) \
-    IMPL_ALOPF21_BASIC(name, S1, S2, S3, R, \
-        void (*op)(temp(R), uint32_t, temp(S1), temp(S2), temp(S3)), \
-        { (*op)(r.val, instr->opc1, s1.val, s2.val, s3.val); })
-
 IMPL_ALOPF21_LOG(gen_alopf21_log_dddd, d, d, d, d)
 IMPL_ALOPF21_LOG(gen_alopf21_log_qqqq, q, q, q, q)
 
-static AlopDesc *find_op(Instr *instr)
+static void alop_table_find(DisasContext *ctx, Alop *alop, AlesFlag ales_present)
 {
     /* ALES2/5 may be allocated but must not be used */
-    int opc2 = instr->ales_present & ALES_PRESENT ? instr->opc2 : 0;
-    int16_t index = alops_map[opc2][instr->opc1][instr->chan];
+    int opc2 = ales_present & ALES_PRESENT ? alop->ales.opc2 : 0;
+    int16_t index = alops_map[opc2][alop->als.opc1][alop->chan];
     while (index != -1) {
         bool is_match = false;
         AlopDesc *desc = &alops[index];
@@ -4751,28 +5400,30 @@ static AlopDesc *find_op(Instr *instr)
             break;
         case ALOPF2:
         case ALOPF15:
-            is_match = desc->extra1 == instr->opce1;
+            is_match = desc->extra1 == alop->als.opce1;
             break;
         case ALOPF7:
-            is_match = desc->extra1 == instr->opc_cmp;
+            is_match = desc->extra1 == alop->als.opc_cmp;
             break;
         case ALOPF8:
-            is_match = desc->extra1 == instr->opc_cmp && instr->opce1 == 0xc0;
+            is_match = desc->extra1 == alop->als.opc_cmp
+                && alop->als.opce1 == 0xc0;
             break;
         case ALOPF11:
         case ALOPF11_MERGE:
         case ALOPF13:
         case ALOPF17:
-            is_match = desc->extra1 == instr->opce3;
+            is_match = desc->extra1 == alop->ales.opce3;
             break;
         case ALOPF12:
         case ALOPF12_IBRANCHD:
         case ALOPF12_ICALLD:
         case ALOPF22:
-            is_match = desc->extra1 == instr->opce1 && desc->extra2 == instr->opce3;
+            is_match = desc->extra1 == alop->als.opce1
+                && desc->extra2 == alop->ales.opce3;
             break;
         case ALOPF16:
-            is_match = desc->extra1 == instr->opce2;
+            is_match = desc->extra1 == alop->als.opce2;
             break;
         default:
             g_assert_not_reached();
@@ -4780,284 +5431,208 @@ static AlopDesc *find_op(Instr *instr)
         }
 
         if (is_match) {
-            return desc;
+            alop->format = desc->alopf;
+            alop->op = desc->op;
+            alop->args = desc->args;
+            alop->name = desc->dsc;
+            return;
         }
 
-        index = desc->next[instr->chan];
+        index = desc->next[alop->chan];
     }
 
-    return NULL;
+    gen_tr_excp_illopc(ctx);
 }
 
-static inline void check_reg_src(DisasContext *ctx, uint8_t src)
+static void gen_alop_simple(Alop *alop)
 {
-    if (IS_REGULAR(src)) {
-        ctx->max_r_src = MAX(ctx->max_r_src, GET_REGULAR(src));
-    } else if (IS_BASED(src)) {
-        ctx->max_b_cur = MAX(ctx->max_b_cur, GET_BASED(src));
-    }
-}
+    DisasContext *ctx = alop->ctx;
 
-static inline void check_reg_dst(DisasContext *ctx, uint8_t dst)
-{
-    if (IS_REGULAR(dst)) {
-        ctx->max_r_dst = MAX(ctx->max_r_dst, GET_REGULAR(dst));
-    } else if (IS_BASED(dst)) {
-        ctx->max_b_cur = MAX(ctx->max_b_cur, GET_BASED(dst));
-    }
-}
-
-static void check_reg_indices(Alopf alopf, Instr *instr)
-{
-    DisasContext *ctx = instr->ctx;
-
-    switch(alopf) {
-    case ALOPF1:
-    case ALOPF1_MERGE:
-    case ALOPF11:
-    case ALOPF11_MERGE:
-    case ALOPF11_LIT8:
-        check_reg_src(ctx, instr->src1);
-        check_reg_src(ctx, instr->src2);
-        check_reg_dst(ctx, instr->dst);
-        break;
-    case ALOPF2:
-    case ALOPF12:
-    case ALOPF12_PSHUFH:
-    case ALOPF15:
-    case ALOPF22:
-        check_reg_src(ctx, instr->src2);
-        check_reg_dst(ctx, instr->dst);
-        break;
-    case ALOPF3:
-        check_reg_src(ctx, instr->src1);
-        check_reg_src(ctx, instr->src2);
-        check_reg_src(ctx, instr->src4);
-        break;
-    case ALOPF7:
-    case ALOPF17:
-        check_reg_src(ctx, instr->src1);
-        check_reg_src(ctx, instr->src2);
-        break;
-    case ALOPF8:
-        check_reg_src(ctx, instr->src2);
-        break;
-    case ALOPF10:
-        check_reg_src(ctx, instr->src4);
-        break;
-    case ALOPF13:
-        check_reg_src(ctx, instr->src1);
-        check_reg_src(ctx, instr->src2);
-        check_reg_src(ctx, instr->src4);
-        break;
-    case ALOPF16:
-        check_reg_dst(ctx, instr->dst);
-        break;
-    case ALOPF21:
-    case ALOPF21_ICOMB:
-    case ALOPF21_FCOMB:
-    case ALOPF21_PFCOMB:
-    case ALOPF21_QPFCOMB:
-        check_reg_src(ctx, instr->src1);
-        check_reg_src(ctx, instr->src2);
-        check_reg_src(ctx, instr->src3);
-        check_reg_dst(ctx, instr->dst);
-        break;
-    default:
-        e2k_todo(ctx, "check_args %d", alopf);
-        break;
-    }
-}
-
-static void gen_alop_simple(Instr *instr, uint32_t op, const char *name)
-{
-    DisasContext *ctx = instr->ctx;
-    int chan = instr->chan;
-    switch(op) {
-    case OP_ANDS: gen_alopf1_sss(instr, tcg_gen_and_i32); break;
-    case OP_ANDD: gen_alopf1_ddd(instr, tcg_gen_and_i64); break;
-    case OP_ANDNS: gen_alopf1_sss(instr, gen_andn_i32); break;
-    case OP_ANDND: gen_alopf1_ddd(instr, gen_andn_i64); break;
-    case OP_ORS: gen_alopf1_sss(instr, tcg_gen_or_i32); break;
-    case OP_ORD: gen_alopf1_ddd(instr, tcg_gen_or_i64); break;
-    case OP_ORNS: gen_alopf1_sss(instr, gen_orn_i32); break;
-    case OP_ORND: gen_alopf1_ddd(instr, gen_orn_i64); break;
-    case OP_XORS: gen_alopf1_sss(instr, tcg_gen_xor_i32); break;
-    case OP_XORD: gen_alopf1_ddd(instr, tcg_gen_xor_i64); break;
-    case OP_XORNS: gen_alopf1_sss(instr, gen_xorn_i32); break;
-    case OP_XORND: gen_alopf1_ddd(instr, gen_xorn_i64); break;
-    case OP_SXT: gen_alopf1_sdd(instr, gen_helper_sxt); break;
-    case OP_ADDS: gen_alopf1_sss(instr, tcg_gen_add_i32); break;
-    case OP_ADDD: gen_alopf1_ddd(instr, tcg_gen_add_i64); break;
-    case OP_SUBS: gen_alopf1_sss(instr, tcg_gen_sub_i32); break;
-    case OP_SUBD: gen_alopf1_ddd(instr, tcg_gen_sub_i64); break;
-    case OP_SCLS: gen_alopf1_sss(instr, tcg_gen_rotl_i32); break;
-    case OP_SCLD: gen_alopf1_ddd(instr, tcg_gen_rotl_i64); break;
-    case OP_SCRS: gen_alopf1_sss(instr, tcg_gen_rotr_i32); break;
-    case OP_SCRD: gen_alopf1_ddd(instr, tcg_gen_rotr_i64); break;
-    case OP_SHLS: gen_alopf1_sss(instr, tcg_gen_shl_i32); break;
-    case OP_SHLD: gen_alopf1_ddd(instr, tcg_gen_shl_i64); break;
-    case OP_SHRS: gen_alopf1_sss(instr, tcg_gen_shr_i32); break;
-    case OP_SHRD: gen_alopf1_ddd(instr, tcg_gen_shr_i64); break;
-    case OP_SARS: gen_alopf1_sss(instr, tcg_gen_sar_i32); break;
-    case OP_SARD: gen_alopf1_ddd(instr, tcg_gen_sar_i64); break;
-    case OP_GETFS: gen_alopf1_sss(instr, gen_getfs); break;
-    case OP_GETFD: gen_alopf1_ddd(instr, gen_getfd); break;
-    case OP_MERGES: gen_merges(instr); break;
-    case OP_MERGED: gen_merged(instr); break;
-    case OP_CMPOSB: gen_alopf7_sss(instr, gen_cmposb); break;
-    case OP_CMPBSB: gen_alopf7_sss(instr, gen_cmpbsb); break;
-    case OP_CMPESB: gen_alopf7_sss(instr, gen_cmpesb); break;
-    case OP_CMPBESB: gen_alopf7_sss(instr, gen_cmpbesb); break;
-    case OP_CMPSSB: gen_alopf7_sss(instr, gen_cmpssb); break;
-    case OP_CMPPSB: gen_alopf7_sss(instr, gen_cmppsb); break;
-    case OP_CMPLSB: gen_alopf7_sss(instr, gen_cmplsb); break;
-    case OP_CMPLESB: gen_alopf7_sss(instr, gen_cmplesb); break;
-    case OP_CMPODB: gen_alopf7_ddd(instr, gen_cmpodb); break;
-    case OP_CMPBDB: gen_alopf7_ddd(instr, gen_cmpbdb); break;
-    case OP_CMPEDB: gen_alopf7_ddd(instr, gen_cmpedb); break;
-    case OP_CMPBEDB: gen_alopf7_ddd(instr, gen_cmpbedb); break;
-    case OP_CMPSDB: gen_alopf7_ddd(instr, gen_cmpsdb); break;
-    case OP_CMPPDB: gen_alopf7_ddd(instr, gen_cmppdb); break;
-    case OP_CMPLDB: gen_alopf7_ddd(instr, gen_cmpldb); break;
-    case OP_CMPLEDB: gen_alopf7_ddd(instr, gen_cmpledb); break;
-    case OP_CMPANDESB: gen_alopf7_sss(instr, gen_cmpandesb); break;
-    case OP_CMPANDSSB: gen_alopf7_sss(instr, gen_cmpandssb); break;
-    case OP_CMPANDPSB: gen_alopf7_sss(instr, gen_cmpandpsb); break;
-    case OP_CMPANDLESB: gen_alopf7_sss(instr, gen_cmpandlesb); break;
-    case OP_CMPANDEDB: gen_alopf7_ddd(instr, gen_cmpandedb); break;
-    case OP_CMPANDSDB: gen_alopf7_ddd(instr, gen_cmpandsdb); break;
-    case OP_CMPANDPDB: gen_alopf7_ddd(instr, gen_cmpandpdb); break;
-    case OP_CMPANDLEDB: gen_alopf7_ddd(instr, gen_cmpandledb); break;
-    case OP_FCMPEQSB:  gen_alopf7_esss(instr, gen_helper_fcmpeqs); break;
-    case OP_FCMPLTSB:  gen_alopf7_esss(instr, gen_helper_fcmplts); break;
-    case OP_FCMPLESB:  gen_alopf7_esss(instr, gen_helper_fcmples); break;
-    case OP_FCMPUODSB: gen_alopf7_esss(instr, gen_helper_fcmpuods); break;
-    case OP_FCMPNEQSB: gen_alopf7_esss(instr, gen_helper_fcmpneqs); break;
-    case OP_FCMPNLTSB: gen_alopf7_esss(instr, gen_helper_fcmpnlts); break;
-    case OP_FCMPNLESB: gen_alopf7_esss(instr, gen_helper_fcmpnles); break;
-    case OP_FCMPODSB:  gen_alopf7_esss(instr, gen_helper_fcmpods); break;
-    case OP_FCMPEQDB:  gen_alopf7_eddd(instr, gen_helper_fcmpeqd); break;
-    case OP_FCMPLTDB:  gen_alopf7_eddd(instr, gen_helper_fcmpltd); break;
-    case OP_FCMPLEDB:  gen_alopf7_eddd(instr, gen_helper_fcmpled); break;
-    case OP_FCMPUODDB: gen_alopf7_eddd(instr, gen_helper_fcmpuodd); break;
-    case OP_FCMPNEQDB: gen_alopf7_eddd(instr, gen_helper_fcmpneqd); break;
-    case OP_FCMPNLTDB: gen_alopf7_eddd(instr, gen_helper_fcmpnltd); break;
-    case OP_FCMPNLEDB: gen_alopf7_eddd(instr, gen_helper_fcmpnled); break;
-    case OP_FCMPODDB:  gen_alopf7_eddd(instr, gen_helper_fcmpodd); break;
-    case OP_FXCMPEQSB:  gen_alopf7_exsd(instr, gen_helper_fxcmpeqs); break;
-    case OP_FXCMPLTSB:  gen_alopf7_exsd(instr, gen_helper_fxcmplts); break;
-    case OP_FXCMPLESB:  gen_alopf7_exsd(instr, gen_helper_fxcmples); break;
-    case OP_FXCMPUODSB: gen_alopf7_exsd(instr, gen_helper_fxcmpuods); break;
-    case OP_FXCMPNEQSB: gen_alopf7_exsd(instr, gen_helper_fxcmpneqs); break;
-    case OP_FXCMPNLTSB: gen_alopf7_exsd(instr, gen_helper_fxcmpnlts); break;
-    case OP_FXCMPNLESB: gen_alopf7_exsd(instr, gen_helper_fxcmpnles); break;
-    case OP_FXCMPODSB:  gen_alopf7_exsd(instr, gen_helper_fxcmpods); break;
-    case OP_FXCMPEQDB:  gen_alopf7_exdd(instr, gen_helper_fxcmpeqd); break;
-    case OP_FXCMPLTDB:  gen_alopf7_exdd(instr, gen_helper_fxcmpltd); break;
-    case OP_FXCMPLEDB:  gen_alopf7_exdd(instr, gen_helper_fxcmpled); break;
-    case OP_FXCMPUODDB: gen_alopf7_exdd(instr, gen_helper_fxcmpuodd); break;
-    case OP_FXCMPNEQDB: gen_alopf7_exdd(instr, gen_helper_fxcmpneqd); break;
-    case OP_FXCMPNLTDB: gen_alopf7_exdd(instr, gen_helper_fxcmpnltd); break;
-    case OP_FXCMPNLEDB: gen_alopf7_exdd(instr, gen_helper_fxcmpnled); break;
-    case OP_FXCMPODDB:  gen_alopf7_exdd(instr, gen_helper_fxcmpodd); break;
-    case OP_FXCMPEQXB:  gen_alopf7_exxd(instr, gen_helper_fxcmpeqx); break;
-    case OP_FXCMPLTXB:  gen_alopf7_exxd(instr, gen_helper_fxcmpltx); break;
-    case OP_FXCMPLEXB:  gen_alopf7_exxd(instr, gen_helper_fxcmplex); break;
-    case OP_FXCMPUODXB: gen_alopf7_exxd(instr, gen_helper_fxcmpuodx); break;
-    case OP_FXCMPNEQXB: gen_alopf7_exxd(instr, gen_helper_fxcmpneqx); break;
-    case OP_FXCMPNLTXB: gen_alopf7_exxd(instr, gen_helper_fxcmpnltx); break;
-    case OP_FXCMPNLEXB: gen_alopf7_exxd(instr, gen_helper_fxcmpnlex); break;
-    case OP_FXCMPODXB:  gen_alopf7_exxd(instr, gen_helper_fxcmpodx); break;
-    case OP_STB: gen_stb(instr, gen_addr_i64, ADDR_FLAT); break;
-    case OP_STH: gen_sth(instr, gen_addr_i64, ADDR_FLAT); break;
-    case OP_STW: gen_stw(instr, gen_addr_i64, ADDR_FLAT); break;
-    case OP_STD: gen_std(instr, gen_addr_i64, ADDR_FLAT); break;
-    case OP_STQP: gen_stqp(instr, gen_addr_i64, ADDR_FLAT); break;
-    case OP_STMQP: gen_stmqp(instr, gen_addr_src1_i64, ADDR_FLAT); break;
-    case OP_STCSB: gen_stb(instr, gen_addr_i32, ADDR_CS); break;
-    case OP_STDSB: gen_stb(instr, gen_addr_i32, ADDR_DS); break;
-    case OP_STESB: gen_stb(instr, gen_addr_i32, ADDR_ES); break;
-    case OP_STFSB: gen_stb(instr, gen_addr_i32, ADDR_FS); break;
-    case OP_STGDB: gen_stb(instr, gen_addr_i32, ADDR_GD); break;
-    case OP_STGSB: gen_stb(instr, gen_addr_i32, ADDR_GS); break;
-    case OP_STSSB: gen_stb(instr, gen_addr_i32, ADDR_SS); break;
-    case OP_STCSH: gen_sth(instr, gen_addr_i32, ADDR_CS); break;
-    case OP_STDSH: gen_sth(instr, gen_addr_i32, ADDR_DS); break;
-    case OP_STESH: gen_sth(instr, gen_addr_i32, ADDR_ES); break;
-    case OP_STFSH: gen_sth(instr, gen_addr_i32, ADDR_FS); break;
-    case OP_STGDH: gen_sth(instr, gen_addr_i32, ADDR_GD); break;
-    case OP_STGSH: gen_sth(instr, gen_addr_i32, ADDR_GS); break;
-    case OP_STSSH: gen_sth(instr, gen_addr_i32, ADDR_SS); break;
-    case OP_STCSW: gen_stw(instr, gen_addr_i32, ADDR_CS); break;
-    case OP_STDSW: gen_stw(instr, gen_addr_i32, ADDR_DS); break;
-    case OP_STESW: gen_stw(instr, gen_addr_i32, ADDR_ES); break;
-    case OP_STFSW: gen_stw(instr, gen_addr_i32, ADDR_FS); break;
-    case OP_STGDW: gen_stw(instr, gen_addr_i32, ADDR_GD); break;
-    case OP_STGSW: gen_stw(instr, gen_addr_i32, ADDR_GS); break;
-    case OP_STSSW: gen_stw(instr, gen_addr_i32, ADDR_SS); break;
-    case OP_STCSD: gen_std(instr, gen_addr_i32, ADDR_CS); break;
-    case OP_STDSD: gen_std(instr, gen_addr_i32, ADDR_DS); break;
-    case OP_STESD: gen_std(instr, gen_addr_i32, ADDR_ES); break;
-    case OP_STFSD: gen_std(instr, gen_addr_i32, ADDR_FS); break;
-    case OP_STGDD: gen_std(instr, gen_addr_i32, ADDR_GD); break;
-    case OP_STGSD: gen_std(instr, gen_addr_i32, ADDR_GS); break;
-    case OP_STSSD: gen_std(instr, gen_addr_i32, ADDR_SS); break;
-    case OP_STCSQP: gen_stqp(instr, gen_addr_i32, ADDR_CS); break;
-    case OP_STDSQP: gen_stqp(instr, gen_addr_i32, ADDR_DS); break;
-    case OP_STESQP: gen_stqp(instr, gen_addr_i32, ADDR_ES); break;
-    case OP_STFSQP: gen_stqp(instr, gen_addr_i32, ADDR_FS); break;
-    case OP_STGDQP: gen_stqp(instr, gen_addr_i32, ADDR_GD); break;
-    case OP_STGSQP: gen_stqp(instr, gen_addr_i32, ADDR_GS); break;
-    case OP_STSSQP: gen_stqp(instr, gen_addr_i32, ADDR_SS); break;
-    case OP_STCSMQP: gen_stmqp(instr, gen_addr_src1_i32, ADDR_CS); break;
-    case OP_STDSMQP: gen_stmqp(instr, gen_addr_src1_i32, ADDR_DS); break;
-    case OP_STESMQP: gen_stmqp(instr, gen_addr_src1_i32, ADDR_ES); break;
-    case OP_STFSMQP: gen_stmqp(instr, gen_addr_src1_i32, ADDR_FS); break;
-    case OP_STGDMQP: gen_stmqp(instr, gen_addr_src1_i32, ADDR_GD); break;
-    case OP_STGSMQP: gen_stmqp(instr, gen_addr_src1_i32, ADDR_GS); break;
-    case OP_STSSMQP: gen_stmqp(instr, gen_addr_src1_i32, ADDR_SS); break;
-    case OP_LDB: gen_ldb(instr, gen_addr_i64, ADDR_FLAT); break;
-    case OP_LDH: gen_ldh(instr, gen_addr_i64, ADDR_FLAT); break;
-    case OP_LDW: gen_ldw(instr, gen_addr_i64, ADDR_FLAT); break;
-    case OP_LDD: gen_ldd(instr, gen_addr_i64, ADDR_FLAT); break;
-    case OP_LDQP: gen_ldqp(instr, gen_addr_i64, ADDR_FLAT); break;
+    switch(alop->op) {
+    case OP_ANDS: gen_alopf1_sss(alop, tcg_gen_and_i32); break;
+    case OP_ANDD: gen_alopf1_ddd(alop, tcg_gen_and_i64); break;
+    case OP_ANDNS: gen_alopf1_sss(alop, gen_andn_i32); break;
+    case OP_ANDND: gen_alopf1_ddd(alop, gen_andn_i64); break;
+    case OP_ORS: gen_alopf1_sss(alop, tcg_gen_or_i32); break;
+    case OP_ORD: gen_alopf1_ddd(alop, tcg_gen_or_i64); break;
+    case OP_ORNS: gen_alopf1_sss(alop, gen_orn_i32); break;
+    case OP_ORND: gen_alopf1_ddd(alop, gen_orn_i64); break;
+    case OP_XORS: gen_alopf1_sss(alop, tcg_gen_xor_i32); break;
+    case OP_XORD: gen_alopf1_ddd(alop, tcg_gen_xor_i64); break;
+    case OP_XORNS: gen_alopf1_sss(alop, gen_xorn_i32); break;
+    case OP_XORND: gen_alopf1_ddd(alop, gen_xorn_i64); break;
+    case OP_SXT: gen_alopf1_ssd(alop, gen_helper_sxt); break;
+    case OP_ADDS: gen_alopf1_sss(alop, tcg_gen_add_i32); break;
+    case OP_ADDD: gen_alopf1_ddd(alop, tcg_gen_add_i64); break;
+    case OP_SUBS: gen_alopf1_sss(alop, tcg_gen_sub_i32); break;
+    case OP_SUBD: gen_alopf1_ddd(alop, tcg_gen_sub_i64); break;
+    case OP_SCLS: gen_alopf1_sss(alop, tcg_gen_rotl_i32); break;
+    case OP_SCLD: gen_alopf1_ddd(alop, tcg_gen_rotl_i64); break;
+    case OP_SCRS: gen_alopf1_sss(alop, tcg_gen_rotr_i32); break;
+    case OP_SCRD: gen_alopf1_ddd(alop, tcg_gen_rotr_i64); break;
+    case OP_SHLS: gen_alopf1_sss(alop, tcg_gen_shl_i32); break;
+    case OP_SHLD: gen_alopf1_ddd(alop, tcg_gen_shl_i64); break;
+    case OP_SHRS: gen_alopf1_sss(alop, tcg_gen_shr_i32); break;
+    case OP_SHRD: gen_alopf1_ddd(alop, tcg_gen_shr_i64); break;
+    case OP_SARS: gen_alopf1_sss(alop, tcg_gen_sar_i32); break;
+    case OP_SARD: gen_alopf1_ddd(alop, tcg_gen_sar_i64); break;
+    case OP_GETFS: gen_alopf1_sss(alop, gen_getfs); break;
+    case OP_GETFD: gen_alopf1_ddd(alop, gen_getfd); break;
+    case OP_MERGES: gen_merges(alop); break;
+    case OP_MERGED: gen_merged(alop); break;
+    case OP_CMPOSB: gen_alopf7_sss(alop, gen_cmposb); break;
+    case OP_CMPBSB: gen_alopf7_sss(alop, gen_cmpbsb); break;
+    case OP_CMPESB: gen_alopf7_sss(alop, gen_cmpesb); break;
+    case OP_CMPBESB: gen_alopf7_sss(alop, gen_cmpbesb); break;
+    case OP_CMPSSB: gen_alopf7_sss(alop, gen_cmpssb); break;
+    case OP_CMPPSB: gen_alopf7_sss(alop, gen_cmppsb); break;
+    case OP_CMPLSB: gen_alopf7_sss(alop, gen_cmplsb); break;
+    case OP_CMPLESB: gen_alopf7_sss(alop, gen_cmplesb); break;
+    case OP_CMPODB: gen_alopf7_ddd(alop, gen_cmpodb); break;
+    case OP_CMPBDB: gen_alopf7_ddd(alop, gen_cmpbdb); break;
+    case OP_CMPEDB: gen_alopf7_ddd(alop, gen_cmpedb); break;
+    case OP_CMPBEDB: gen_alopf7_ddd(alop, gen_cmpbedb); break;
+    case OP_CMPSDB: gen_alopf7_ddd(alop, gen_cmpsdb); break;
+    case OP_CMPPDB: gen_alopf7_ddd(alop, gen_cmppdb); break;
+    case OP_CMPLDB: gen_alopf7_ddd(alop, gen_cmpldb); break;
+    case OP_CMPLEDB: gen_alopf7_ddd(alop, gen_cmpledb); break;
+    case OP_CMPANDESB: gen_alopf7_sss(alop, gen_cmpandesb); break;
+    case OP_CMPANDSSB: gen_alopf7_sss(alop, gen_cmpandssb); break;
+    case OP_CMPANDPSB: gen_alopf7_sss(alop, gen_cmpandpsb); break;
+    case OP_CMPANDLESB: gen_alopf7_sss(alop, gen_cmpandlesb); break;
+    case OP_CMPANDEDB: gen_alopf7_ddd(alop, gen_cmpandedb); break;
+    case OP_CMPANDSDB: gen_alopf7_ddd(alop, gen_cmpandsdb); break;
+    case OP_CMPANDPDB: gen_alopf7_ddd(alop, gen_cmpandpdb); break;
+    case OP_CMPANDLEDB: gen_alopf7_ddd(alop, gen_cmpandledb); break;
+    case OP_FCMPEQSB:  gen_alopf7_env_sss(alop, gen_helper_fcmpeqs); break;
+    case OP_FCMPLTSB:  gen_alopf7_env_sss(alop, gen_helper_fcmplts); break;
+    case OP_FCMPLESB:  gen_alopf7_env_sss(alop, gen_helper_fcmples); break;
+    case OP_FCMPUODSB: gen_alopf7_env_sss(alop, gen_helper_fcmpuods); break;
+    case OP_FCMPNEQSB: gen_alopf7_env_sss(alop, gen_helper_fcmpneqs); break;
+    case OP_FCMPNLTSB: gen_alopf7_env_sss(alop, gen_helper_fcmpnlts); break;
+    case OP_FCMPNLESB: gen_alopf7_env_sss(alop, gen_helper_fcmpnles); break;
+    case OP_FCMPODSB:  gen_alopf7_env_sss(alop, gen_helper_fcmpods); break;
+    case OP_FCMPEQDB:  gen_alopf7_env_ddd(alop, gen_helper_fcmpeqd); break;
+    case OP_FCMPLTDB:  gen_alopf7_env_ddd(alop, gen_helper_fcmpltd); break;
+    case OP_FCMPLEDB:  gen_alopf7_env_ddd(alop, gen_helper_fcmpled); break;
+    case OP_FCMPUODDB: gen_alopf7_env_ddd(alop, gen_helper_fcmpuodd); break;
+    case OP_FCMPNEQDB: gen_alopf7_env_ddd(alop, gen_helper_fcmpneqd); break;
+    case OP_FCMPNLTDB: gen_alopf7_env_ddd(alop, gen_helper_fcmpnltd); break;
+    case OP_FCMPNLEDB: gen_alopf7_env_ddd(alop, gen_helper_fcmpnled); break;
+    case OP_FCMPODDB:  gen_alopf7_env_ddd(alop, gen_helper_fcmpodd); break;
+    case OP_FXCMPEQSB:  gen_alopf7_env_xsd(alop, gen_helper_fxcmpeqs); break;
+    case OP_FXCMPLTSB:  gen_alopf7_env_xsd(alop, gen_helper_fxcmplts); break;
+    case OP_FXCMPLESB:  gen_alopf7_env_xsd(alop, gen_helper_fxcmples); break;
+    case OP_FXCMPUODSB: gen_alopf7_env_xsd(alop, gen_helper_fxcmpuods); break;
+    case OP_FXCMPNEQSB: gen_alopf7_env_xsd(alop, gen_helper_fxcmpneqs); break;
+    case OP_FXCMPNLTSB: gen_alopf7_env_xsd(alop, gen_helper_fxcmpnlts); break;
+    case OP_FXCMPNLESB: gen_alopf7_env_xsd(alop, gen_helper_fxcmpnles); break;
+    case OP_FXCMPODSB:  gen_alopf7_env_xsd(alop, gen_helper_fxcmpods); break;
+    case OP_FXCMPEQDB:  gen_alopf7_env_xdd(alop, gen_helper_fxcmpeqd); break;
+    case OP_FXCMPLTDB:  gen_alopf7_env_xdd(alop, gen_helper_fxcmpltd); break;
+    case OP_FXCMPLEDB:  gen_alopf7_env_xdd(alop, gen_helper_fxcmpled); break;
+    case OP_FXCMPUODDB: gen_alopf7_env_xdd(alop, gen_helper_fxcmpuodd); break;
+    case OP_FXCMPNEQDB: gen_alopf7_env_xdd(alop, gen_helper_fxcmpneqd); break;
+    case OP_FXCMPNLTDB: gen_alopf7_env_xdd(alop, gen_helper_fxcmpnltd); break;
+    case OP_FXCMPNLEDB: gen_alopf7_env_xdd(alop, gen_helper_fxcmpnled); break;
+    case OP_FXCMPODDB:  gen_alopf7_env_xdd(alop, gen_helper_fxcmpodd); break;
+    case OP_FXCMPEQXB:  gen_alopf7_env_xxd(alop, gen_helper_fxcmpeqx); break;
+    case OP_FXCMPLTXB:  gen_alopf7_env_xxd(alop, gen_helper_fxcmpltx); break;
+    case OP_FXCMPLEXB:  gen_alopf7_env_xxd(alop, gen_helper_fxcmplex); break;
+    case OP_FXCMPUODXB: gen_alopf7_env_xxd(alop, gen_helper_fxcmpuodx); break;
+    case OP_FXCMPNEQXB: gen_alopf7_env_xxd(alop, gen_helper_fxcmpneqx); break;
+    case OP_FXCMPNLTXB: gen_alopf7_env_xxd(alop, gen_helper_fxcmpnltx); break;
+    case OP_FXCMPNLEXB: gen_alopf7_env_xxd(alop, gen_helper_fxcmpnlex); break;
+    case OP_FXCMPODXB:  gen_alopf7_env_xxd(alop, gen_helper_fxcmpodx); break;
+    case OP_STB: gen_stb(alop, gen_addr_i64, ADDR_FLAT); break;
+    case OP_STH: gen_sth(alop, gen_addr_i64, ADDR_FLAT); break;
+    case OP_STW: gen_stw(alop, gen_addr_i64, ADDR_FLAT); break;
+    case OP_STD: gen_std(alop, gen_addr_i64, ADDR_FLAT); break;
+    case OP_STQP: gen_stqp(alop, gen_addr_i64, ADDR_FLAT); break;
+    case OP_STMQP: gen_stmqp(alop, gen_addr_src1_i64, ADDR_FLAT); break;
+    case OP_STCSB: gen_stb(alop, gen_addr_i32, ADDR_CS); break;
+    case OP_STDSB: gen_stb(alop, gen_addr_i32, ADDR_DS); break;
+    case OP_STESB: gen_stb(alop, gen_addr_i32, ADDR_ES); break;
+    case OP_STFSB: gen_stb(alop, gen_addr_i32, ADDR_FS); break;
+    case OP_STGDB: gen_stb(alop, gen_addr_i32, ADDR_GD); break;
+    case OP_STGSB: gen_stb(alop, gen_addr_i32, ADDR_GS); break;
+    case OP_STSSB: gen_stb(alop, gen_addr_i32, ADDR_SS); break;
+    case OP_STCSH: gen_sth(alop, gen_addr_i32, ADDR_CS); break;
+    case OP_STDSH: gen_sth(alop, gen_addr_i32, ADDR_DS); break;
+    case OP_STESH: gen_sth(alop, gen_addr_i32, ADDR_ES); break;
+    case OP_STFSH: gen_sth(alop, gen_addr_i32, ADDR_FS); break;
+    case OP_STGDH: gen_sth(alop, gen_addr_i32, ADDR_GD); break;
+    case OP_STGSH: gen_sth(alop, gen_addr_i32, ADDR_GS); break;
+    case OP_STSSH: gen_sth(alop, gen_addr_i32, ADDR_SS); break;
+    case OP_STCSW: gen_stw(alop, gen_addr_i32, ADDR_CS); break;
+    case OP_STDSW: gen_stw(alop, gen_addr_i32, ADDR_DS); break;
+    case OP_STESW: gen_stw(alop, gen_addr_i32, ADDR_ES); break;
+    case OP_STFSW: gen_stw(alop, gen_addr_i32, ADDR_FS); break;
+    case OP_STGDW: gen_stw(alop, gen_addr_i32, ADDR_GD); break;
+    case OP_STGSW: gen_stw(alop, gen_addr_i32, ADDR_GS); break;
+    case OP_STSSW: gen_stw(alop, gen_addr_i32, ADDR_SS); break;
+    case OP_STCSD: gen_std(alop, gen_addr_i32, ADDR_CS); break;
+    case OP_STDSD: gen_std(alop, gen_addr_i32, ADDR_DS); break;
+    case OP_STESD: gen_std(alop, gen_addr_i32, ADDR_ES); break;
+    case OP_STFSD: gen_std(alop, gen_addr_i32, ADDR_FS); break;
+    case OP_STGDD: gen_std(alop, gen_addr_i32, ADDR_GD); break;
+    case OP_STGSD: gen_std(alop, gen_addr_i32, ADDR_GS); break;
+    case OP_STSSD: gen_std(alop, gen_addr_i32, ADDR_SS); break;
+    case OP_STCSQP: gen_stqp(alop, gen_addr_i32, ADDR_CS); break;
+    case OP_STDSQP: gen_stqp(alop, gen_addr_i32, ADDR_DS); break;
+    case OP_STESQP: gen_stqp(alop, gen_addr_i32, ADDR_ES); break;
+    case OP_STFSQP: gen_stqp(alop, gen_addr_i32, ADDR_FS); break;
+    case OP_STGDQP: gen_stqp(alop, gen_addr_i32, ADDR_GD); break;
+    case OP_STGSQP: gen_stqp(alop, gen_addr_i32, ADDR_GS); break;
+    case OP_STSSQP: gen_stqp(alop, gen_addr_i32, ADDR_SS); break;
+    case OP_STCSMQP: gen_stmqp(alop, gen_addr_src1_i32, ADDR_CS); break;
+    case OP_STDSMQP: gen_stmqp(alop, gen_addr_src1_i32, ADDR_DS); break;
+    case OP_STESMQP: gen_stmqp(alop, gen_addr_src1_i32, ADDR_ES); break;
+    case OP_STFSMQP: gen_stmqp(alop, gen_addr_src1_i32, ADDR_FS); break;
+    case OP_STGDMQP: gen_stmqp(alop, gen_addr_src1_i32, ADDR_GD); break;
+    case OP_STGSMQP: gen_stmqp(alop, gen_addr_src1_i32, ADDR_GS); break;
+    case OP_STSSMQP: gen_stmqp(alop, gen_addr_src1_i32, ADDR_SS); break;
+    case OP_LDB: gen_ldb(alop, gen_addr_i64, ADDR_FLAT); break;
+    case OP_LDH: gen_ldh(alop, gen_addr_i64, ADDR_FLAT); break;
+    case OP_LDW: gen_ldw(alop, gen_addr_i64, ADDR_FLAT); break;
+    case OP_LDD: gen_ldd(alop, gen_addr_i64, ADDR_FLAT); break;
+    case OP_LDQP: gen_ldqp(alop, gen_addr_i64, ADDR_FLAT); break;
 #ifdef TARGET_E2K32
-    case OP_LDCSB: gen_ldb(instr, gen_addr_i32, ADDR_CS); break;
-    case OP_LDDSB: gen_ldb(instr, gen_addr_i32, ADDR_DS); break;
-    case OP_LDESB: gen_ldb(instr, gen_addr_i32, ADDR_ES); break;
-    case OP_LDFSB: gen_ldb(instr, gen_addr_i32, ADDR_FS); break;
-    case OP_LDGDB: gen_ldb(instr, gen_addr_i32, ADDR_GD); break;
-    case OP_LDGSB: gen_ldb(instr, gen_addr_i32, ADDR_GS); break;
-    case OP_LDSSB: gen_ldb(instr, gen_addr_i32, ADDR_SS); break;
-    case OP_LDCSH: gen_ldh(instr, gen_addr_i32, ADDR_CS); break;
-    case OP_LDDSH: gen_ldh(instr, gen_addr_i32, ADDR_DS); break;
-    case OP_LDESH: gen_ldh(instr, gen_addr_i32, ADDR_ES); break;
-    case OP_LDFSH: gen_ldh(instr, gen_addr_i32, ADDR_FS); break;
-    case OP_LDGDH: gen_ldh(instr, gen_addr_i32, ADDR_GD); break;
-    case OP_LDGSH: gen_ldh(instr, gen_addr_i32, ADDR_GS); break;
-    case OP_LDSSH: gen_ldh(instr, gen_addr_i32, ADDR_SS); break;
-    case OP_LDCSW: gen_ldw(instr, gen_addr_i32, ADDR_CS); break;
-    case OP_LDDSW: gen_ldw(instr, gen_addr_i32, ADDR_DS); break;
-    case OP_LDESW: gen_ldw(instr, gen_addr_i32, ADDR_ES); break;
-    case OP_LDFSW: gen_ldw(instr, gen_addr_i32, ADDR_FS); break;
-    case OP_LDGDW: gen_ldw(instr, gen_addr_i32, ADDR_GD); break;
-    case OP_LDGSW: gen_ldw(instr, gen_addr_i32, ADDR_GS); break;
-    case OP_LDSSW: gen_ldw(instr, gen_addr_i32, ADDR_SS); break;
-    case OP_LDCSD: gen_ldd(instr, gen_addr_i32, ADDR_CS); break;
-    case OP_LDDSD: gen_ldd(instr, gen_addr_i32, ADDR_DS); break;
-    case OP_LDESD: gen_ldd(instr, gen_addr_i32, ADDR_ES); break;
-    case OP_LDFSD: gen_ldd(instr, gen_addr_i32, ADDR_FS); break;
-    case OP_LDGDD: gen_ldd(instr, gen_addr_i32, ADDR_GD); break;
-    case OP_LDGSD: gen_ldd(instr, gen_addr_i32, ADDR_GS); break;
-    case OP_LDSSD: gen_ldd(instr, gen_addr_i32, ADDR_SS); break;
-    case OP_LDCSQP: gen_ldqp(instr, gen_addr_i32, ADDR_CS); break;
-    case OP_LDDSQP: gen_ldqp(instr, gen_addr_i32, ADDR_DS); break;
-    case OP_LDESQP: gen_ldqp(instr, gen_addr_i32, ADDR_ES); break;
-    case OP_LDFSQP: gen_ldqp(instr, gen_addr_i32, ADDR_FS); break;
-    case OP_LDGDQP: gen_ldqp(instr, gen_addr_i32, ADDR_GD); break;
-    case OP_LDGSQP: gen_ldqp(instr, gen_addr_i32, ADDR_GS); break;
-    case OP_LDSSQP: gen_ldqp(instr, gen_addr_i32, ADDR_SS); break;
+    case OP_LDCSB: gen_ldb(alop, gen_addr_i32, ADDR_CS); break;
+    case OP_LDDSB: gen_ldb(alop, gen_addr_i32, ADDR_DS); break;
+    case OP_LDESB: gen_ldb(alop, gen_addr_i32, ADDR_ES); break;
+    case OP_LDFSB: gen_ldb(alop, gen_addr_i32, ADDR_FS); break;
+    case OP_LDGDB: gen_ldb(alop, gen_addr_i32, ADDR_GD); break;
+    case OP_LDGSB: gen_ldb(alop, gen_addr_i32, ADDR_GS); break;
+    case OP_LDSSB: gen_ldb(alop, gen_addr_i32, ADDR_SS); break;
+    case OP_LDCSH: gen_ldh(alop, gen_addr_i32, ADDR_CS); break;
+    case OP_LDDSH: gen_ldh(alop, gen_addr_i32, ADDR_DS); break;
+    case OP_LDESH: gen_ldh(alop, gen_addr_i32, ADDR_ES); break;
+    case OP_LDFSH: gen_ldh(alop, gen_addr_i32, ADDR_FS); break;
+    case OP_LDGDH: gen_ldh(alop, gen_addr_i32, ADDR_GD); break;
+    case OP_LDGSH: gen_ldh(alop, gen_addr_i32, ADDR_GS); break;
+    case OP_LDSSH: gen_ldh(alop, gen_addr_i32, ADDR_SS); break;
+    case OP_LDCSW: gen_ldw(alop, gen_addr_i32, ADDR_CS); break;
+    case OP_LDDSW: gen_ldw(alop, gen_addr_i32, ADDR_DS); break;
+    case OP_LDESW: gen_ldw(alop, gen_addr_i32, ADDR_ES); break;
+    case OP_LDFSW: gen_ldw(alop, gen_addr_i32, ADDR_FS); break;
+    case OP_LDGDW: gen_ldw(alop, gen_addr_i32, ADDR_GD); break;
+    case OP_LDGSW: gen_ldw(alop, gen_addr_i32, ADDR_GS); break;
+    case OP_LDSSW: gen_ldw(alop, gen_addr_i32, ADDR_SS); break;
+    case OP_LDCSD: gen_ldd(alop, gen_addr_i32, ADDR_CS); break;
+    case OP_LDDSD: gen_ldd(alop, gen_addr_i32, ADDR_DS); break;
+    case OP_LDESD: gen_ldd(alop, gen_addr_i32, ADDR_ES); break;
+    case OP_LDFSD: gen_ldd(alop, gen_addr_i32, ADDR_FS); break;
+    case OP_LDGDD: gen_ldd(alop, gen_addr_i32, ADDR_GD); break;
+    case OP_LDGSD: gen_ldd(alop, gen_addr_i32, ADDR_GS); break;
+    case OP_LDSSD: gen_ldd(alop, gen_addr_i32, ADDR_SS); break;
+    case OP_LDCSQP: gen_ldqp(alop, gen_addr_i32, ADDR_CS); break;
+    case OP_LDDSQP: gen_ldqp(alop, gen_addr_i32, ADDR_DS); break;
+    case OP_LDESQP: gen_ldqp(alop, gen_addr_i32, ADDR_ES); break;
+    case OP_LDFSQP: gen_ldqp(alop, gen_addr_i32, ADDR_FS); break;
+    case OP_LDGDQP: gen_ldqp(alop, gen_addr_i32, ADDR_GD); break;
+    case OP_LDGSQP: gen_ldqp(alop, gen_addr_i32, ADDR_GS); break;
+    case OP_LDSSQP: gen_ldqp(alop, gen_addr_i32, ADDR_SS); break;
 #else
     case OP_LDCSB:
     case OP_LDDSB:
@@ -5098,527 +5673,527 @@ static void gen_alop_simple(Instr *instr, uint32_t op, const char *name)
         gen_tr_excp_array_bounds(ctx);
         break;
 #endif
-    case OP_BITREVS: gen_alopf2_ss(instr, gen_bitrevs); break;
-    case OP_BITREVD: gen_alopf2_dd(instr, gen_bitrevd); break;
-    case OP_LZCNTS: gen_alopf2_ss(instr, gen_lzcnts); break;
-    case OP_LZCNTD: gen_alopf2_dd(instr, gen_lzcntd); break;
-    case OP_POPCNTS: gen_alopf2_ss(instr, tcg_gen_ctpop_i32); break;
-    case OP_POPCNTD: gen_alopf2_dd(instr, tcg_gen_ctpop_i64); break;
-    case OP_FADDS: gen_alopf1_esss(instr, gen_helper_fadds); break;
-    case OP_FADDD: gen_alopf1_eddd(instr, gen_helper_faddd); break;
-    case OP_FSUBS: gen_alopf1_esss(instr, gen_helper_fsubs); break;
-    case OP_FSUBD: gen_alopf1_eddd(instr, gen_helper_fsubd); break;
-    case OP_FMINS: gen_alopf1_esss(instr, gen_helper_fmins); break;
-    case OP_FMIND: gen_alopf1_eddd(instr, gen_helper_fmind); break;
-    case OP_FMAXS: gen_alopf1_esss(instr, gen_helper_fmaxs); break;
-    case OP_FMAXD: gen_alopf1_eddd(instr, gen_helper_fmaxd); break;
-    case OP_FMULS: gen_alopf1_esss(instr, gen_helper_fmuls); break;
-    case OP_FMULD: gen_alopf1_eddd(instr, gen_helper_fmuld); break;
-    case OP_FCMPEQS: gen_alopf1_esss(instr, gen_helper_fcmpeqs); break;
-    case OP_FCMPLTS: gen_alopf1_esss(instr, gen_helper_fcmplts); break;
-    case OP_FCMPLES: gen_alopf1_esss(instr, gen_helper_fcmples); break;
-    case OP_FCMPUODS: gen_alopf1_esss(instr, gen_helper_fcmpuods); break;
-    case OP_FCMPNEQS: gen_alopf1_esss(instr, gen_helper_fcmpneqs); break;
-    case OP_FCMPNLTS: gen_alopf1_esss(instr, gen_helper_fcmpnlts); break;
-    case OP_FCMPNLES: gen_alopf1_esss(instr, gen_helper_fcmpnles); break;
-    case OP_FCMPODS: gen_alopf1_esss(instr, gen_helper_fcmpods); break;
-    case OP_FCMPEQD: gen_alopf1_eddd(instr, gen_helper_fcmpeqd); break;
-    case OP_FCMPLTD: gen_alopf1_eddd(instr, gen_helper_fcmpltd); break;
-    case OP_FCMPLED: gen_alopf1_eddd(instr, gen_helper_fcmpled); break;
-    case OP_FCMPUODD: gen_alopf1_eddd(instr, gen_helper_fcmpuodd); break;
-    case OP_FCMPNEQD: gen_alopf1_eddd(instr, gen_helper_fcmpneqd); break;
-    case OP_FCMPNLTD: gen_alopf1_eddd(instr, gen_helper_fcmpnltd); break;
-    case OP_FCMPNLED: gen_alopf1_eddd(instr, gen_helper_fcmpnled); break;
-    case OP_FCMPODD: gen_alopf1_eddd(instr, gen_helper_fcmpodd); break;
-    case OP_FSTOIS: gen_alopf2_ess(instr, gen_helper_fstois); break;
-    case OP_FSTOISTR: gen_alopf2_ess(instr, gen_helper_fstoistr); break;
-    case OP_ISTOFS: gen_alopf2_ess(instr, gen_helper_istofs); break;
-    case OP_FDTOID: gen_alopf2_edd(instr, gen_helper_fdtoid); break;
-    case OP_IDTOFD: gen_alopf2_edd(instr, gen_helper_idtofd); break;
-    case OP_FXTOFD: gen_alopf2_exd(instr, gen_helper_fxtofd); break;
-    case OP_FDTOFX: gen_alopf2_edx(instr, gen_helper_fdtofx); break;
-    case OP_FSTOID: gen_alopf2_esd(instr, gen_helper_fstoid); break;
-    case OP_FSTOIDTR: gen_alopf2_esd(instr, gen_helper_fstoidtr); break;
-    case OP_FDTOIDTR: gen_alopf2_edd(instr, gen_helper_fdtoidtr); break;
-    case OP_ISTOFD: gen_alopf2_esd(instr, gen_helper_istofd); break;
-    case OP_FSTOFD: gen_alopf2_esd(instr, gen_helper_fstofd); break;
-    case OP_FSTOFX: gen_alopf2_esx(instr, gen_helper_fstofx); break;
-    case OP_FDTOISTR: gen_alopf2_eds(instr, gen_helper_fdtoistr); break;
-    case OP_FDTOIS: gen_alopf2_eds(instr, gen_helper_fdtois); break;
-    case OP_IDTOFS: gen_alopf2_eds(instr, gen_helper_idtofs); break;
-    case OP_FDTOFS: gen_alopf2_eds(instr, gen_helper_fdtofs); break;
-    case OP_FXTOFS: gen_alopf2_exs(instr, gen_helper_fxtofs); break;
-    case OP_FXTOIS: gen_alopf2_exs(instr, gen_helper_fxtois); break;
-    case OP_FXTOISTR: gen_alopf2_exs(instr, gen_helper_fxtoistr); break;
-    case OP_FXTOID: gen_alopf2_exd(instr, gen_helper_fxtoid); break;
-    case OP_FXTOIDTR: gen_alopf2_exd(instr, gen_helper_fxtoidtr); break;
-    case OP_ISTOFX: gen_alopf2_esx(instr, gen_helper_istofx); break;
-    case OP_IDTOFX: gen_alopf2_edx(instr, gen_helper_idtofx); break;
-    case OP_UDIVS: gen_alopf1_ttsss(instr, gen_udivs); break;
-    case OP_UDIVD: gen_alopf1_ttddd(instr, gen_udivd); break;
-    case OP_SDIVS: gen_alopf1_ttsss(instr, gen_sdivs); break;
-    case OP_SDIVD: gen_alopf1_ttddd(instr, gen_sdivd); break;
-    case OP_FXADDSS: gen_alopf1_exss(instr, gen_helper_fxaddss); break;
-    case OP_FXADDDD: gen_alopf1_exdd(instr, gen_helper_fxadddd); break;
-    case OP_FXADDSX: gen_alopf1_exsx(instr, gen_helper_fxaddsx); break;
-    case OP_FXADDDX: gen_alopf1_exdx(instr, gen_helper_fxadddx); break;
-    case OP_FXADDXX: gen_alopf1_exxx(instr, gen_helper_fxaddxx); break;
-    case OP_FXADDXD: gen_alopf1_exxd(instr, gen_helper_fxaddxd); break;
-    case OP_FXADDXS: gen_alopf1_exxs(instr, gen_helper_fxaddxs); break;
-    case OP_FXSUBSS: gen_alopf1_exss(instr, gen_helper_fxsubss); break;
-    case OP_FXSUBDD: gen_alopf1_exdd(instr, gen_helper_fxsubdd); break;
-    case OP_FXSUBSX: gen_alopf1_exsx(instr, gen_helper_fxsubsx); break;
-    case OP_FXSUBDX: gen_alopf1_exdx(instr, gen_helper_fxsubdx); break;
-    case OP_FXSUBXX: gen_alopf1_exxx(instr, gen_helper_fxsubxx); break;
-    case OP_FXSUBXD: gen_alopf1_exxd(instr, gen_helper_fxsubxd); break;
-    case OP_FXSUBXS: gen_alopf1_exxs(instr, gen_helper_fxsubxs); break;
-    case OP_FXRSUBSS: gen_alopf1_exss(instr, gen_helper_fxrsubss); break;
-    case OP_FXRSUBDD: gen_alopf1_exdd(instr, gen_helper_fxrsubdd); break;
-    case OP_FXRSUBSX: gen_alopf1_exsx(instr, gen_helper_fxrsubsx); break;
-    case OP_FXRSUBDX: gen_alopf1_exdx(instr, gen_helper_fxrsubdx); break;
-    case OP_FXMULSS: gen_alopf1_exss(instr, gen_helper_fxmulss); break;
-    case OP_FXMULDD: gen_alopf1_exdd(instr, gen_helper_fxmuldd); break;
-    case OP_FXMULSX: gen_alopf1_exsx(instr, gen_helper_fxmulsx); break;
-    case OP_FXMULDX: gen_alopf1_exdx(instr, gen_helper_fxmuldx); break;
-    case OP_FXMULXX: gen_alopf1_exxx(instr, gen_helper_fxmulxx); break;
-    case OP_FXMULXD: gen_alopf1_exxd(instr, gen_helper_fxmulxd); break;
-    case OP_FXMULXS: gen_alopf1_exxs(instr, gen_helper_fxmulxs); break;
-    case OP_FXDIVSS: gen_alopf1_exss(instr, gen_helper_fxdivss); break;
-    case OP_FXDIVDD: gen_alopf1_exdd(instr, gen_helper_fxdivdd); break;
-    case OP_FXDIVSX: gen_alopf1_exsx(instr, gen_helper_fxdivsx); break;
-    case OP_FXDIVDX: gen_alopf1_exdx(instr, gen_helper_fxdivdx); break;
-    case OP_FXDIVXX: gen_alopf1_exxx(instr, gen_helper_fxdivxx); break;
-    case OP_FXDIVXD: gen_alopf1_exxd(instr, gen_helper_fxdivxd); break;
-    case OP_FXDIVXS: gen_alopf1_exxs(instr, gen_helper_fxdivxs); break;
-    case OP_MOVFI: gen_alopf2_xs(instr, gen_movfi); break;
-    case OP_MOVIF: gen_alopf1_dsx(instr, gen_movif); break;
-    case OP_MOVX: gen_alopf2_xx(instr, gen_movx); break;
-    case OP_MOVXA: gen_alopf2_xx(instr, gen_movxa); break;
-    case OP_MOVXC: gen_alopf2_xx(instr, gen_movxc); break;
-    case OP_MOVTS: gen_movts(instr); break;
-    case OP_MOVTCS: gen_movtcs(instr); break;
-    case OP_MOVTD: gen_movtd(instr); break;
-    case OP_MOVTCD: gen_movtcd(instr); break;
-    case OP_MOVTQ: gen_movtq(instr); break;
-    case OP_MOVTCQ: gen_movtcq(instr); break;
-    case OP_GETPL: gen_getpl(instr); break;
-    case OP_PANDD: gen_alopf1_ddd(instr, tcg_gen_and_i64); break;
-    case OP_PANDND: gen_alopf1_ddd(instr, gen_andn_i64); break;
-    case OP_PORD: gen_alopf1_ddd(instr, tcg_gen_or_i64); break;
-    case OP_PXORD: gen_alopf1_ddd(instr, tcg_gen_xor_i64); break;
-    case OP_PMINUB: gen_alopf1_ddd(instr, gen_helper_pminub); break;
-    case OP_PMINSB: gen_alopf1_ddd(instr, gen_helper_pminsb); break;
-    case OP_PMINUH: gen_alopf1_ddd(instr, gen_helper_pminuh); break;
-    case OP_PMINSH: gen_alopf1_ddd(instr, gen_helper_pminsh); break;
-    case OP_PMINUW: gen_alopf1_ddd(instr, gen_helper_pminuw); break;
-    case OP_PMINSW: gen_alopf1_ddd(instr, gen_helper_pminsw); break;
-    case OP_PMAXUB: gen_alopf1_ddd(instr, gen_helper_pmaxub); break;
-    case OP_PMAXSB: gen_alopf1_ddd(instr, gen_helper_pmaxsb); break;
-    case OP_PMAXUH: gen_alopf1_ddd(instr, gen_helper_pmaxuh); break;
-    case OP_PMAXSH: gen_alopf1_ddd(instr, gen_helper_pmaxsh); break;
-    case OP_PMAXUW: gen_alopf1_ddd(instr, gen_helper_pmaxuw); break;
-    case OP_PMAXSW: gen_alopf1_ddd(instr, gen_helper_pmaxsw); break;
-    case OP_PCMPEQB: gen_alopf1_ddd(instr, gen_helper_pcmpeqb); break;
-    case OP_PCMPEQH: gen_alopf1_ddd(instr, gen_helper_pcmpeqh); break;
-    case OP_PCMPEQW: gen_alopf1_ddd(instr, gen_helper_pcmpeqw); break;
-    case OP_PCMPEQD: gen_alopf1_ddd(instr, gen_helper_pcmpeqd); break;
-    case OP_PCMPGTB: gen_alopf1_ddd(instr, gen_helper_pcmpgtb); break;
-    case OP_PCMPGTH: gen_alopf1_ddd(instr, gen_helper_pcmpgth); break;
-    case OP_PCMPGTW: gen_alopf1_ddd(instr, gen_helper_pcmpgtw); break;
-    case OP_PCMPGTD: gen_alopf1_ddd(instr, gen_helper_pcmpgtd); break;
-    case OP_PADDB: gen_alopf1_ddd(instr, tcg_gen_vec_add8_i64); break;
-    case OP_PADDH: gen_alopf1_ddd(instr, tcg_gen_vec_add16_i64); break;
-    case OP_PADDW: gen_alopf1_ddd(instr, tcg_gen_vec_add32_i64); break;
-    case OP_PADDD: gen_alopf1_ddd(instr, tcg_gen_add_i64); break;
-    case OP_PADDSB: gen_alopf1_ddd(instr, gen_helper_paddsb); break;
-    case OP_PADDSH: gen_alopf1_ddd(instr, gen_helper_paddsh); break;
-    case OP_PADDUSB: gen_alopf1_ddd(instr, gen_helper_paddusb); break;
-    case OP_PADDUSH: gen_alopf1_ddd(instr, gen_helper_paddush); break;
-    case OP_PHADDH: gen_alopf1_ddd(instr, gen_helper_phaddh); break;
-    case OP_PHADDW: gen_alopf1_ddd(instr, gen_helper_phaddw); break;
-    case OP_PHADDSH:  gen_alopf1_ddd(instr, gen_helper_phaddsh); break;
-    case OP_PSUBB: gen_alopf1_ddd(instr, tcg_gen_vec_sub8_i64); break;
-    case OP_PSUBH: gen_alopf1_ddd(instr, tcg_gen_vec_sub16_i64); break;
-    case OP_PSUBW: gen_alopf1_ddd(instr, tcg_gen_vec_sub32_i64); break;
-    case OP_PSUBD: gen_alopf1_ddd(instr, tcg_gen_sub_i64); break;
-    case OP_PSUBSB: gen_alopf1_ddd(instr, gen_helper_psubsb); break;
-    case OP_PSUBSH: gen_alopf1_ddd(instr, gen_helper_psubsh); break;
-    case OP_PSUBUSB: gen_alopf1_ddd(instr, gen_helper_psubusb); break;
-    case OP_PSUBUSH: gen_alopf1_ddd(instr, gen_helper_psubush); break;
-    case OP_PHSUBH: gen_alopf1_ddd(instr, gen_helper_phsubh); break;
-    case OP_PHSUBW: gen_alopf1_ddd(instr, gen_helper_phsubw); break;
-    case OP_PHSUBSH: gen_alopf1_ddd(instr, gen_helper_phsubsh); break;
-    case OP_PMULHH: gen_alopf1_ddd(instr, gen_helper_pmulhh); break;
-    case OP_PMULLH: gen_alopf1_ddd(instr, gen_helper_pmullh); break;
-    case OP_PMULHUH: gen_alopf1_ddd(instr, gen_helper_pmulhuh); break;
-    case OP_PMULUBHH: gen_alopf1_ddd(instr, gen_helper_pmulubhh); break;
-    case OP_PMULHRSH: gen_alopf1_ddd(instr, gen_helper_pmulhrsh); break;
-    case OP_PMADDH: gen_alopf1_ddd(instr, gen_helper_pmaddh); break;
-    case OP_PMADDUBSH: gen_alopf1_ddd(instr, gen_helper_pmaddubsh); break;
-    case OP_MPSADBH: gen_alopf1_ddd(instr, gen_helper_mpsadbh); break;
-    case OP_PSADBW: gen_alopf1_ddd(instr, gen_helper_psadbw); break;
-    case OP_PSIGNB: gen_alopf1_ddd(instr, gen_helper_psignb); break;
-    case OP_PSIGNH: gen_alopf1_ddd(instr, gen_helper_psignh); break;
-    case OP_PSIGNW: gen_alopf1_ddd(instr, gen_helper_psignw); break;
-    case OP_PSLLH: gen_alopf1_ddd(instr, gen_helper_psllh); break;
-    case OP_PSLLW: gen_alopf1_ddd(instr, gen_helper_psllw); break;
-    case OP_PSLLD: gen_alopf1_ddd(instr, gen_pslld); break;
-    case OP_PSRLH: gen_alopf1_ddd(instr, gen_helper_psrlh); break;
-    case OP_PSRLW: gen_alopf1_ddd(instr, gen_helper_psrlw); break;
-    case OP_PSRLD: gen_alopf1_ddd(instr, gen_psrld); break;
-    case OP_PSRAH: gen_alopf1_ddd(instr, gen_helper_psrah); break;
-    case OP_PSRAW: gen_alopf1_ddd(instr, gen_helper_psraw); break;
-    case OP_PAVGUSB: gen_alopf1_ddd(instr, gen_helper_pavgusb); break;
-    case OP_PAVGUSH: gen_alopf1_ddd(instr, gen_helper_pavgush); break;
-    case OP_PSLLQL: gen_alopf11_ddid(instr, gen_psllql); break;
-    case OP_PSLLQH: gen_alopf11_ddid(instr, gen_psllqh); break;
-    case OP_PSRLQL: gen_alopf11_ddid(instr, gen_psrlql); break;
-    case OP_PSRLQH: gen_alopf11_ddid(instr, gen_psrlqh); break;
-    case OP_PINSH: gen_alopf11_ddid(instr, gen_pinsh); break;
-    case OP_PEXTRH: gen_alopf11_ddid(instr, gen_pextrh); break;
-    case OP_PSHUFH: gen_alopf2_pshufh(instr, gen_helper_pshufh); break;
-    case OP_PSHUFW: gen_alopf11_ddid(instr, gen_pshufw); break;
-    case OP_PMOVMSKB: gen_alopf1_ddd(instr, gen_helper_pmovmskb); break;
-    case OP_PMOVMSKPS: gen_alopf1_ddd(instr, gen_helper_pmovmskps); break;
-    case OP_PMOVMSKPD: gen_alopf1_ddd(instr, gen_helper_pmovmskpd); break;
-    case OP_PACKSSHB: gen_alopf1_ddd(instr, gen_helper_packsshb); break;
-    case OP_PACKUSHB: gen_alopf1_ddd(instr, gen_helper_packushb); break;
-    case OP_PACKSSWH: gen_alopf1_ddd(instr, gen_helper_packsswh); break;
-    case OP_PACKUSWH: gen_alopf1_ddd(instr, gen_helper_packuswh); break;
-    case OP_PUNPCKLBH: gen_alopf1_ddd(instr, gen_helper_punpcklbh); break;
-    case OP_PUNPCKLHW: gen_alopf1_ddd(instr, gen_helper_punpcklhw); break;
-    case OP_PUNPCKLWD: gen_alopf1_ddd(instr, gen_helper_punpcklwd); break;
-    case OP_PUNPCKHBH: gen_alopf1_ddd(instr, gen_helper_punpckhbh); break;
-    case OP_PUNPCKHHW: gen_alopf1_ddd(instr, gen_helper_punpckhhw); break;
-    case OP_PUNPCKHWD: gen_alopf1_ddd(instr, gen_helper_punpckhwd); break;
-    case OP_PHMINPOSUH: gen_alopf1_ddd(instr, gen_helper_phminposuh); break;
-    case OP_GETTAGS: gen_gettags(instr); break;
-    case OP_GETTAGD: gen_gettagd(instr); break;
-    case OP_PUTTAGS: gen_puttags(instr); break;
-    case OP_PUTTAGD: gen_puttagd(instr); break;
-    case OP_PUTTAGQP: gen_puttagqp(instr); break;
-    case OP_STAAB: gen_staa_i32(instr, MO_8); break;
-    case OP_STAAH: gen_staa_i32(instr, MO_16); break;
-    case OP_STAAW: gen_staa_i32(instr, MO_32); break;
-    case OP_STAAD: gen_staa_i64(instr); break;
+    case OP_BITREVS: gen_alopf2_ss(alop, gen_bitrevs); break;
+    case OP_BITREVD: gen_alopf2_dd(alop, gen_bitrevd); break;
+    case OP_LZCNTS: gen_alopf2_ss(alop, gen_lzcnts); break;
+    case OP_LZCNTD: gen_alopf2_dd(alop, gen_lzcntd); break;
+    case OP_POPCNTS: gen_alopf2_ss(alop, tcg_gen_ctpop_i32); break;
+    case OP_POPCNTD: gen_alopf2_dd(alop, tcg_gen_ctpop_i64); break;
+    case OP_FADDS: gen_alopf1_env_sss(alop, gen_helper_fadds); break;
+    case OP_FADDD: gen_alopf1_env_ddd(alop, gen_helper_faddd); break;
+    case OP_FSUBS: gen_alopf1_env_sss(alop, gen_helper_fsubs); break;
+    case OP_FSUBD: gen_alopf1_env_ddd(alop, gen_helper_fsubd); break;
+    case OP_FMINS: gen_alopf1_env_sss(alop, gen_helper_fmins); break;
+    case OP_FMIND: gen_alopf1_env_ddd(alop, gen_helper_fmind); break;
+    case OP_FMAXS: gen_alopf1_env_sss(alop, gen_helper_fmaxs); break;
+    case OP_FMAXD: gen_alopf1_env_ddd(alop, gen_helper_fmaxd); break;
+    case OP_FMULS: gen_alopf1_env_sss(alop, gen_helper_fmuls); break;
+    case OP_FMULD: gen_alopf1_env_ddd(alop, gen_helper_fmuld); break;
+    case OP_FCMPEQS: gen_alopf1_env_sss(alop, gen_helper_fcmpeqs); break;
+    case OP_FCMPLTS: gen_alopf1_env_sss(alop, gen_helper_fcmplts); break;
+    case OP_FCMPLES: gen_alopf1_env_sss(alop, gen_helper_fcmples); break;
+    case OP_FCMPUODS: gen_alopf1_env_sss(alop, gen_helper_fcmpuods); break;
+    case OP_FCMPNEQS: gen_alopf1_env_sss(alop, gen_helper_fcmpneqs); break;
+    case OP_FCMPNLTS: gen_alopf1_env_sss(alop, gen_helper_fcmpnlts); break;
+    case OP_FCMPNLES: gen_alopf1_env_sss(alop, gen_helper_fcmpnles); break;
+    case OP_FCMPODS: gen_alopf1_env_sss(alop, gen_helper_fcmpods); break;
+    case OP_FCMPEQD: gen_alopf1_env_ddd(alop, gen_helper_fcmpeqd); break;
+    case OP_FCMPLTD: gen_alopf1_env_ddd(alop, gen_helper_fcmpltd); break;
+    case OP_FCMPLED: gen_alopf1_env_ddd(alop, gen_helper_fcmpled); break;
+    case OP_FCMPUODD: gen_alopf1_env_ddd(alop, gen_helper_fcmpuodd); break;
+    case OP_FCMPNEQD: gen_alopf1_env_ddd(alop, gen_helper_fcmpneqd); break;
+    case OP_FCMPNLTD: gen_alopf1_env_ddd(alop, gen_helper_fcmpnltd); break;
+    case OP_FCMPNLED: gen_alopf1_env_ddd(alop, gen_helper_fcmpnled); break;
+    case OP_FCMPODD: gen_alopf1_env_ddd(alop, gen_helper_fcmpodd); break;
+    case OP_FSTOIS: gen_alopf2_env_ss(alop, gen_helper_fstois); break;
+    case OP_FSTOISTR: gen_alopf2_env_ss(alop, gen_helper_fstoistr); break;
+    case OP_ISTOFS: gen_alopf2_env_ss(alop, gen_helper_istofs); break;
+    case OP_FDTOID: gen_alopf2_env_dd(alop, gen_helper_fdtoid); break;
+    case OP_IDTOFD: gen_alopf2_env_dd(alop, gen_helper_idtofd); break;
+    case OP_FXTOFD: gen_alopf2_env_xd(alop, gen_helper_fxtofd); break;
+    case OP_FDTOFX: gen_alopf2_env_dx(alop, gen_helper_fdtofx); break;
+    case OP_FSTOID: gen_alopf2_env_sd(alop, gen_helper_fstoid); break;
+    case OP_FSTOIDTR: gen_alopf2_env_sd(alop, gen_helper_fstoidtr); break;
+    case OP_FDTOIDTR: gen_alopf2_env_dd(alop, gen_helper_fdtoidtr); break;
+    case OP_ISTOFD: gen_alopf2_env_sd(alop, gen_helper_istofd); break;
+    case OP_FSTOFD: gen_alopf2_env_sd(alop, gen_helper_fstofd); break;
+    case OP_FSTOFX: gen_alopf2_env_sx(alop, gen_helper_fstofx); break;
+    case OP_FDTOISTR: gen_alopf2_env_ds(alop, gen_helper_fdtoistr); break;
+    case OP_FDTOIS: gen_alopf2_env_ds(alop, gen_helper_fdtois); break;
+    case OP_IDTOFS: gen_alopf2_env_ds(alop, gen_helper_idtofs); break;
+    case OP_FDTOFS: gen_alopf2_env_ds(alop, gen_helper_fdtofs); break;
+    case OP_FXTOFS: gen_alopf2_env_xs(alop, gen_helper_fxtofs); break;
+    case OP_FXTOIS: gen_alopf2_env_xs(alop, gen_helper_fxtois); break;
+    case OP_FXTOISTR: gen_alopf2_env_xs(alop, gen_helper_fxtoistr); break;
+    case OP_FXTOID: gen_alopf2_env_xd(alop, gen_helper_fxtoid); break;
+    case OP_FXTOIDTR: gen_alopf2_env_xd(alop, gen_helper_fxtoidtr); break;
+    case OP_ISTOFX: gen_alopf2_env_sx(alop, gen_helper_istofx); break;
+    case OP_IDTOFX: gen_alopf2_env_dx(alop, gen_helper_idtofx); break;
+    case OP_UDIVS: gen_alopf1_tag_sss(alop, gen_udivs); break;
+    case OP_UDIVD: gen_alopf1_tag_ddd(alop, gen_udivd); break;
+    case OP_SDIVS: gen_alopf1_tag_sss(alop, gen_sdivs); break;
+    case OP_SDIVD: gen_alopf1_tag_ddd(alop, gen_sdivd); break;
+    case OP_FXADDSS: gen_alopf1_env_xss(alop, gen_helper_fxaddss); break;
+    case OP_FXADDDD: gen_alopf1_env_xdd(alop, gen_helper_fxadddd); break;
+    case OP_FXADDSX: gen_alopf1_env_xsx(alop, gen_helper_fxaddsx); break;
+    case OP_FXADDDX: gen_alopf1_env_xdx(alop, gen_helper_fxadddx); break;
+    case OP_FXADDXX: gen_alopf1_env_xxx(alop, gen_helper_fxaddxx); break;
+    case OP_FXADDXD: gen_alopf1_env_xxd(alop, gen_helper_fxaddxd); break;
+    case OP_FXADDXS: gen_alopf1_env_xxs(alop, gen_helper_fxaddxs); break;
+    case OP_FXSUBSS: gen_alopf1_env_xss(alop, gen_helper_fxsubss); break;
+    case OP_FXSUBDD: gen_alopf1_env_xdd(alop, gen_helper_fxsubdd); break;
+    case OP_FXSUBSX: gen_alopf1_env_xsx(alop, gen_helper_fxsubsx); break;
+    case OP_FXSUBDX: gen_alopf1_env_xdx(alop, gen_helper_fxsubdx); break;
+    case OP_FXSUBXX: gen_alopf1_env_xxx(alop, gen_helper_fxsubxx); break;
+    case OP_FXSUBXD: gen_alopf1_env_xxd(alop, gen_helper_fxsubxd); break;
+    case OP_FXSUBXS: gen_alopf1_env_xxs(alop, gen_helper_fxsubxs); break;
+    case OP_FXRSUBSS: gen_alopf1_env_xss(alop, gen_helper_fxrsubss); break;
+    case OP_FXRSUBDD: gen_alopf1_env_xdd(alop, gen_helper_fxrsubdd); break;
+    case OP_FXRSUBSX: gen_alopf1_env_xsx(alop, gen_helper_fxrsubsx); break;
+    case OP_FXRSUBDX: gen_alopf1_env_xdx(alop, gen_helper_fxrsubdx); break;
+    case OP_FXMULSS: gen_alopf1_env_xss(alop, gen_helper_fxmulss); break;
+    case OP_FXMULDD: gen_alopf1_env_xdd(alop, gen_helper_fxmuldd); break;
+    case OP_FXMULSX: gen_alopf1_env_xsx(alop, gen_helper_fxmulsx); break;
+    case OP_FXMULDX: gen_alopf1_env_xdx(alop, gen_helper_fxmuldx); break;
+    case OP_FXMULXX: gen_alopf1_env_xxx(alop, gen_helper_fxmulxx); break;
+    case OP_FXMULXD: gen_alopf1_env_xxd(alop, gen_helper_fxmulxd); break;
+    case OP_FXMULXS: gen_alopf1_env_xxs(alop, gen_helper_fxmulxs); break;
+    case OP_FXDIVSS: gen_alopf1_env_xss(alop, gen_helper_fxdivss); break;
+    case OP_FXDIVDD: gen_alopf1_env_xdd(alop, gen_helper_fxdivdd); break;
+    case OP_FXDIVSX: gen_alopf1_env_xsx(alop, gen_helper_fxdivsx); break;
+    case OP_FXDIVDX: gen_alopf1_env_xdx(alop, gen_helper_fxdivdx); break;
+    case OP_FXDIVXX: gen_alopf1_env_xxx(alop, gen_helper_fxdivxx); break;
+    case OP_FXDIVXD: gen_alopf1_env_xxd(alop, gen_helper_fxdivxd); break;
+    case OP_FXDIVXS: gen_alopf1_env_xxs(alop, gen_helper_fxdivxs); break;
+    case OP_MOVFI: gen_alopf2_xs(alop, gen_movfi); break;
+    case OP_MOVIF: gen_alopf1_dsx(alop, gen_movif); break;
+    case OP_MOVX: gen_alopf2_xx(alop, gen_movx); break;
+    case OP_MOVXA: gen_alopf2_xx(alop, gen_movxa); break;
+    case OP_MOVXC: gen_alopf2_xx(alop, gen_movxc); break;
+    case OP_MOVTS: gen_movts(alop); break;
+    case OP_MOVTCS: gen_movtcs(alop); break;
+    case OP_MOVTD: gen_movtd(alop); break;
+    case OP_MOVTCD: gen_movtcd(alop); break;
+    case OP_MOVTQ: gen_movtq(alop); break;
+    case OP_MOVTCQ: gen_movtcq(alop); break;
+    case OP_GETPL: gen_getpl(alop); break;
+    case OP_PANDD: gen_alopf1_ddd(alop, tcg_gen_and_i64); break;
+    case OP_PANDND: gen_alopf1_ddd(alop, gen_andn_i64); break;
+    case OP_PORD: gen_alopf1_ddd(alop, tcg_gen_or_i64); break;
+    case OP_PXORD: gen_alopf1_ddd(alop, tcg_gen_xor_i64); break;
+    case OP_PMINUB: gen_alopf1_ddd(alop, gen_helper_pminub); break;
+    case OP_PMINSB: gen_alopf1_ddd(alop, gen_helper_pminsb); break;
+    case OP_PMINUH: gen_alopf1_ddd(alop, gen_helper_pminuh); break;
+    case OP_PMINSH: gen_alopf1_ddd(alop, gen_helper_pminsh); break;
+    case OP_PMINUW: gen_alopf1_ddd(alop, gen_helper_pminuw); break;
+    case OP_PMINSW: gen_alopf1_ddd(alop, gen_helper_pminsw); break;
+    case OP_PMAXUB: gen_alopf1_ddd(alop, gen_helper_pmaxub); break;
+    case OP_PMAXSB: gen_alopf1_ddd(alop, gen_helper_pmaxsb); break;
+    case OP_PMAXUH: gen_alopf1_ddd(alop, gen_helper_pmaxuh); break;
+    case OP_PMAXSH: gen_alopf1_ddd(alop, gen_helper_pmaxsh); break;
+    case OP_PMAXUW: gen_alopf1_ddd(alop, gen_helper_pmaxuw); break;
+    case OP_PMAXSW: gen_alopf1_ddd(alop, gen_helper_pmaxsw); break;
+    case OP_PCMPEQB: gen_alopf1_ddd(alop, gen_helper_pcmpeqb); break;
+    case OP_PCMPEQH: gen_alopf1_ddd(alop, gen_helper_pcmpeqh); break;
+    case OP_PCMPEQW: gen_alopf1_ddd(alop, gen_helper_pcmpeqw); break;
+    case OP_PCMPEQD: gen_alopf1_ddd(alop, gen_helper_pcmpeqd); break;
+    case OP_PCMPGTB: gen_alopf1_ddd(alop, gen_helper_pcmpgtb); break;
+    case OP_PCMPGTH: gen_alopf1_ddd(alop, gen_helper_pcmpgth); break;
+    case OP_PCMPGTW: gen_alopf1_ddd(alop, gen_helper_pcmpgtw); break;
+    case OP_PCMPGTD: gen_alopf1_ddd(alop, gen_helper_pcmpgtd); break;
+    case OP_PADDB: gen_alopf1_ddd(alop, tcg_gen_vec_add8_i64); break;
+    case OP_PADDH: gen_alopf1_ddd(alop, tcg_gen_vec_add16_i64); break;
+    case OP_PADDW: gen_alopf1_ddd(alop, tcg_gen_vec_add32_i64); break;
+    case OP_PADDD: gen_alopf1_ddd(alop, tcg_gen_add_i64); break;
+    case OP_PADDSB: gen_alopf1_ddd(alop, gen_helper_paddsb); break;
+    case OP_PADDSH: gen_alopf1_ddd(alop, gen_helper_paddsh); break;
+    case OP_PADDUSB: gen_alopf1_ddd(alop, gen_helper_paddusb); break;
+    case OP_PADDUSH: gen_alopf1_ddd(alop, gen_helper_paddush); break;
+    case OP_PHADDH: gen_alopf1_ddd(alop, gen_helper_phaddh); break;
+    case OP_PHADDW: gen_alopf1_ddd(alop, gen_helper_phaddw); break;
+    case OP_PHADDSH:  gen_alopf1_ddd(alop, gen_helper_phaddsh); break;
+    case OP_PSUBB: gen_alopf1_ddd(alop, tcg_gen_vec_sub8_i64); break;
+    case OP_PSUBH: gen_alopf1_ddd(alop, tcg_gen_vec_sub16_i64); break;
+    case OP_PSUBW: gen_alopf1_ddd(alop, tcg_gen_vec_sub32_i64); break;
+    case OP_PSUBD: gen_alopf1_ddd(alop, tcg_gen_sub_i64); break;
+    case OP_PSUBSB: gen_alopf1_ddd(alop, gen_helper_psubsb); break;
+    case OP_PSUBSH: gen_alopf1_ddd(alop, gen_helper_psubsh); break;
+    case OP_PSUBUSB: gen_alopf1_ddd(alop, gen_helper_psubusb); break;
+    case OP_PSUBUSH: gen_alopf1_ddd(alop, gen_helper_psubush); break;
+    case OP_PHSUBH: gen_alopf1_ddd(alop, gen_helper_phsubh); break;
+    case OP_PHSUBW: gen_alopf1_ddd(alop, gen_helper_phsubw); break;
+    case OP_PHSUBSH: gen_alopf1_ddd(alop, gen_helper_phsubsh); break;
+    case OP_PMULHH: gen_alopf1_ddd(alop, gen_helper_pmulhh); break;
+    case OP_PMULLH: gen_alopf1_ddd(alop, gen_helper_pmullh); break;
+    case OP_PMULHUH: gen_alopf1_ddd(alop, gen_helper_pmulhuh); break;
+    case OP_PMULUBHH: gen_alopf1_ddd(alop, gen_helper_pmulubhh); break;
+    case OP_PMULHRSH: gen_alopf1_ddd(alop, gen_helper_pmulhrsh); break;
+    case OP_PMADDH: gen_alopf1_ddd(alop, gen_helper_pmaddh); break;
+    case OP_PMADDUBSH: gen_alopf1_ddd(alop, gen_helper_pmaddubsh); break;
+    case OP_MPSADBH: gen_alopf1_ddd(alop, gen_helper_mpsadbh); break;
+    case OP_PSADBW: gen_alopf1_ddd(alop, gen_helper_psadbw); break;
+    case OP_PSIGNB: gen_alopf1_ddd(alop, gen_helper_psignb); break;
+    case OP_PSIGNH: gen_alopf1_ddd(alop, gen_helper_psignh); break;
+    case OP_PSIGNW: gen_alopf1_ddd(alop, gen_helper_psignw); break;
+    case OP_PSLLH: gen_alopf1_ddd(alop, gen_helper_psllh); break;
+    case OP_PSLLW: gen_alopf1_ddd(alop, gen_helper_psllw); break;
+    case OP_PSLLD: gen_alopf1_ddd(alop, gen_pslld); break;
+    case OP_PSRLH: gen_alopf1_ddd(alop, gen_helper_psrlh); break;
+    case OP_PSRLW: gen_alopf1_ddd(alop, gen_helper_psrlw); break;
+    case OP_PSRLD: gen_alopf1_ddd(alop, gen_psrld); break;
+    case OP_PSRAH: gen_alopf1_ddd(alop, gen_helper_psrah); break;
+    case OP_PSRAW: gen_alopf1_ddd(alop, gen_helper_psraw); break;
+    case OP_PAVGUSB: gen_alopf1_ddd(alop, gen_helper_pavgusb); break;
+    case OP_PAVGUSH: gen_alopf1_ddd(alop, gen_helper_pavgush); break;
+    case OP_PSLLQL: gen_alopf11_lit8_ddd(alop, gen_psllql); break;
+    case OP_PSLLQH: gen_alopf11_lit8_ddd(alop, gen_psllqh); break;
+    case OP_PSRLQL: gen_alopf11_lit8_ddd(alop, gen_psrlql); break;
+    case OP_PSRLQH: gen_alopf11_lit8_ddd(alop, gen_psrlqh); break;
+    case OP_PINSH: gen_alopf11_lit8_ddd(alop, gen_pinsh); break;
+    case OP_PEXTRH: gen_alopf11_lit8_ddd(alop, gen_pextrh); break;
+    case OP_PSHUFH: gen_alopf2_pshufh(alop, gen_helper_pshufh); break;
+    case OP_PSHUFW: gen_alopf11_lit8_ddd(alop, gen_pshufw); break;
+    case OP_PMOVMSKB: gen_alopf1_ddd(alop, gen_helper_pmovmskb); break;
+    case OP_PMOVMSKPS: gen_alopf1_ddd(alop, gen_helper_pmovmskps); break;
+    case OP_PMOVMSKPD: gen_alopf1_ddd(alop, gen_helper_pmovmskpd); break;
+    case OP_PACKSSHB: gen_alopf1_ddd(alop, gen_helper_packsshb); break;
+    case OP_PACKUSHB: gen_alopf1_ddd(alop, gen_helper_packushb); break;
+    case OP_PACKSSWH: gen_alopf1_ddd(alop, gen_helper_packsswh); break;
+    case OP_PACKUSWH: gen_alopf1_ddd(alop, gen_helper_packuswh); break;
+    case OP_PUNPCKLBH: gen_alopf1_ddd(alop, gen_helper_punpcklbh); break;
+    case OP_PUNPCKLHW: gen_alopf1_ddd(alop, gen_helper_punpcklhw); break;
+    case OP_PUNPCKLWD: gen_alopf1_ddd(alop, gen_helper_punpcklwd); break;
+    case OP_PUNPCKHBH: gen_alopf1_ddd(alop, gen_helper_punpckhbh); break;
+    case OP_PUNPCKHHW: gen_alopf1_ddd(alop, gen_helper_punpckhhw); break;
+    case OP_PUNPCKHWD: gen_alopf1_ddd(alop, gen_helper_punpckhwd); break;
+    case OP_PHMINPOSUH: gen_alopf1_ddd(alop, gen_helper_phminposuh); break;
+    case OP_GETTAGS: gen_gettags(alop); break;
+    case OP_GETTAGD: gen_gettagd(alop); break;
+    case OP_PUTTAGS: gen_puttags(alop); break;
+    case OP_PUTTAGD: gen_puttagd(alop); break;
+    case OP_PUTTAGQP: gen_puttagqp(alop); break;
+    case OP_STAAB: gen_staa_i32(alop, MO_8); break;
+    case OP_STAAH: gen_staa_i32(alop, MO_16); break;
+    case OP_STAAW: gen_staa_i32(alop, MO_32); break;
+    case OP_STAAD: gen_staa_i64(alop); break;
     case OP_STAAQ: {
-        int pair_chan = chan == 2 ? 5 : 2;
+        int pair_chan = alop->chan == 2 ? 5 : 2;
         if (!ctx->bundle.als_present[pair_chan] ||
             extract32(ctx->bundle.als[pair_chan], 24, 7) != 0x3f ||
-            (instr->dst & 1) != (chan == 2 ? 0 : 1))
+            (alop->als.dst & 1) != (alop->chan == 2 ? 0 : 1))
         {
             gen_tr_excp_illopc(ctx);
             return;
         }
-        gen_staa_i64(instr);
+        gen_staa_i64(alop);
         break;
     }
-    case OP_STAAQP: gen_staaqp(instr); break;
-    case OP_MULS: gen_alopf1_sss(instr, tcg_gen_mul_i32); break;
-    case OP_MULD: gen_alopf1_ddd(instr, tcg_gen_mul_i64); break;
-    case OP_UMULX: gen_alopf1_ssd(instr, gen_umulx); break;
-    case OP_SMULX: gen_alopf1_ssd(instr, gen_smulx); break;
-    case OP_RWS: gen_rws(instr); break;
-    case OP_RWD: gen_rwd(instr); break;
-    case OP_RRS: gen_rrd(instr); break;
-    case OP_RRD: gen_rrd(instr); break;
-    case OP_FDIVS: gen_alopf1_esss(instr, gen_helper_fdivs); break;
-    case OP_FDIVD: gen_alopf1_eddd(instr, gen_helper_fdivd); break;
-    case OP_GETSP: gen_alopf2_esd(instr, gen_helper_getsp); break;
-    case OP_UMULHD: gen_alopf1_ddd(instr, gen_umulhd); break;
-    case OP_SMULHD: gen_alopf1_ddd(instr, gen_smulhd); break;
-    case OP_FCMPODSF: gen_alopf1_esss(instr, gen_helper_fcmpodsf); break;
-    case OP_FCMPUDSF: gen_alopf1_esss(instr, gen_helper_fcmpudsf); break;
-    case OP_FCMPODDF: gen_alopf1_eddd(instr, gen_helper_fcmpoddf); break;
-    case OP_FCMPUDDF: gen_alopf1_eddd(instr, gen_helper_fcmpoddf); break;
-    case OP_FXCMPODSF: gen_alopf1_exss(instr, gen_helper_fxcmpodsf); break;
-    case OP_FXCMPUDSF: gen_alopf1_exss(instr, gen_helper_fxcmpudsf); break;
-    case OP_FXCMPODDF: gen_alopf1_exds(instr, gen_helper_fxcmpoddf); break;
-    case OP_FXCMPUDDF: gen_alopf1_exds(instr, gen_helper_fxcmpuddf); break;
-    case OP_FXCMPODXF: gen_alopf1_exxs(instr, gen_helper_fxcmpodxf); break;
-    case OP_FXCMPUDXF: gen_alopf1_exxs(instr, gen_helper_fxcmpudxf); break;
-    case OP_FSTOIFS: gen_alopf1_esss(instr, gen_helper_fstoifs); break;
-    case OP_FDTOIFD: gen_alopf1_eddd(instr, gen_helper_fdtoifd); break;
-    case OP_UDIVX: gen_alopf1_ttdss(instr, gen_udivx); break;
-    case OP_UMODX: gen_alopf1_ttdss(instr, gen_umodx); break;
-    case OP_SDIVX: gen_alopf1_ttdss(instr, gen_sdivx); break;
-    case OP_SMODX: gen_alopf1_ttdss(instr, gen_smodx); break;
-    case OP_PFMULD: gen_alopf1_eddd(instr, gen_helper_fmuld); break;
-    case OP_PFADDD: gen_alopf1_eddd(instr, gen_helper_faddd); break;
-    case OP_PFSUBD: gen_alopf1_eddd(instr, gen_helper_fsubd); break;
-    case OP_PFDIVD: gen_alopf1_eddd(instr, gen_helper_fdivd); break;
-    case OP_PFMIND: gen_alopf1_eddd(instr, gen_helper_fmind); break;
-    case OP_PFMAXD: gen_alopf1_eddd(instr, gen_helper_fmaxd); break;
-    case OP_PFADDS: gen_alopf1_eddd(instr, gen_helper_pfadds); break;
-    case OP_PFSUBS: gen_alopf1_eddd(instr, gen_helper_pfsubs); break;
-    case OP_PFMULS: gen_alopf1_eddd(instr, gen_helper_pfmuls); break;
-    case OP_PFDIVS: gen_alopf1_esss(instr, gen_helper_fdivs); break;
-    case OP_PFMAXS: gen_alopf1_eddd(instr, gen_helper_pfmaxs); break;
-    case OP_PFMINS: gen_alopf1_eddd(instr, gen_helper_pfmins); break;
-    case OP_PFHADDS: gen_alopf1_eddd(instr, gen_helper_pfhadds); break;
-    case OP_PFHSUBS: gen_alopf1_eddd(instr, gen_helper_pfhsubs); break;
-    case OP_PFADDSUBS: gen_alopf1_eddd(instr, gen_helper_pfaddsubs); break;
-    case OP_PFSQRTS: gen_alopf2_ess(instr, gen_helper_fsqrts); break;
-    case OP_PFSTOIFS: gen_alopf1_eddd(instr, gen_helper_pfstoifs); break;
-    case OP_PISTOFS: gen_alopf2_edd(instr, gen_helper_pistofs); break;
-    case OP_PFSTOIS: gen_alopf2_edd(instr, gen_helper_pfstois); break;
-    case OP_PFSTOISTR: gen_alopf2_edd(instr, gen_helper_pfstoistr); break;
-    case OP_PFSTOFD: gen_alopf2_esd(instr, gen_helper_fstofd); break;
-    case OP_PFDTOFS: gen_alopf2_eds(instr, gen_helper_fdtofs); break;
-    case OP_PFDTOIFD: gen_alopf1_eddd(instr, gen_helper_fdtoifd); break;
-    case OP_PFDTOIS: gen_alopf2_eds(instr, gen_helper_fdtois); break;
-    case OP_PFDTOISTR: gen_alopf2_eds(instr, gen_helper_fdtoistr); break;
-    case OP_PFCMPEQS: gen_alopf1_eddd(instr, gen_helper_pfcmpeqs); break;
-    case OP_PFCMPLTS: gen_alopf1_eddd(instr, gen_helper_pfcmplts); break;
-    case OP_PFCMPLES: gen_alopf1_eddd(instr, gen_helper_pfcmples); break;
-    case OP_PFCMPUODS: gen_alopf1_eddd(instr, gen_helper_pfcmpuods); break;
-    case OP_PFCMPNEQS: gen_alopf1_eddd(instr, gen_helper_pfcmpneqs); break;
-    case OP_PFCMPNLTS: gen_alopf1_eddd(instr, gen_helper_pfcmpnlts); break;
-    case OP_PFCMPNLES: gen_alopf1_eddd(instr, gen_helper_pfcmpnles); break;
-    case OP_PFCMPODS: gen_alopf1_eddd(instr, gen_helper_pfcmpods); break;
-    case OP_PFCMPEQD: gen_alopf1_eddd(instr, gen_helper_fcmpeqd); break;
-    case OP_PFCMPLTD: gen_alopf1_eddd(instr, gen_helper_fcmpltd); break;
-    case OP_PFCMPLED: gen_alopf1_eddd(instr, gen_helper_fcmpled); break;
-    case OP_PFCMPUODD: gen_alopf1_eddd(instr, gen_helper_fcmpuodd); break;
-    case OP_PFCMPNEQD: gen_alopf1_eddd(instr, gen_helper_fcmpneqd); break;
-    case OP_PFCMPNLTD: gen_alopf1_eddd(instr, gen_helper_fcmpnltd); break;
-    case OP_PFCMPNLED: gen_alopf1_eddd(instr, gen_helper_fcmpnled); break;
-    case OP_PFCMPODD: gen_alopf1_eddd(instr, gen_helper_fcmpodd); break;
-    case OP_FSCALED: gen_alopf1_edsd(instr, gen_helper_fscaled); break;
-    case OP_FSCALES: gen_alopf1_esss(instr, gen_helper_fscales); break;
-    case OP_FXSCALESX: gen_alopf1_exsx(instr, gen_helper_fxscalesx); break;
-    case OP_FRCPS: gen_alopf2_ess(instr, gen_helper_frcps); break;
-    case OP_FSQRTS: gen_alopf2_ess(instr, gen_helper_fsqrts); break;
-    case OP_FRSQRTS: gen_alopf2_ess(instr, gen_helper_frsqrts); break;
+    case OP_STAAQP: gen_staaqp(alop); break;
+    case OP_MULS: gen_alopf1_sss(alop, tcg_gen_mul_i32); break;
+    case OP_MULD: gen_alopf1_ddd(alop, tcg_gen_mul_i64); break;
+    case OP_UMULX: gen_alopf1_ssd(alop, gen_umulx); break;
+    case OP_SMULX: gen_alopf1_ssd(alop, gen_smulx); break;
+    case OP_RWS: gen_rws(alop); break;
+    case OP_RWD: gen_rwd(alop); break;
+    case OP_RRS: gen_rrd(alop); break;
+    case OP_RRD: gen_rrd(alop); break;
+    case OP_FDIVS: gen_alopf1_env_sss(alop, gen_helper_fdivs); break;
+    case OP_FDIVD: gen_alopf1_env_ddd(alop, gen_helper_fdivd); break;
+    case OP_GETSP: gen_alopf2_env_sd(alop, gen_helper_getsp); break;
+    case OP_UMULHD: gen_alopf1_ddd(alop, gen_umulhd); break;
+    case OP_SMULHD: gen_alopf1_ddd(alop, gen_smulhd); break;
+    case OP_FCMPODSF: gen_alopf1_env_sss(alop, gen_helper_fcmpodsf); break;
+    case OP_FCMPUDSF: gen_alopf1_env_sss(alop, gen_helper_fcmpudsf); break;
+    case OP_FCMPODDF: gen_alopf1_env_dds(alop, gen_helper_fcmpoddf); break;
+    case OP_FCMPUDDF: gen_alopf1_env_dds(alop, gen_helper_fcmpoddf); break;
+    case OP_FXCMPODSF: gen_alopf1_env_xss(alop, gen_helper_fxcmpodsf); break;
+    case OP_FXCMPUDSF: gen_alopf1_env_xss(alop, gen_helper_fxcmpudsf); break;
+    case OP_FXCMPODDF: gen_alopf1_env_xds(alop, gen_helper_fxcmpoddf); break;
+    case OP_FXCMPUDDF: gen_alopf1_env_xds(alop, gen_helper_fxcmpuddf); break;
+    case OP_FXCMPODXF: gen_alopf1_env_xxs(alop, gen_helper_fxcmpodxf); break;
+    case OP_FXCMPUDXF: gen_alopf1_env_xxs(alop, gen_helper_fxcmpudxf); break;
+    case OP_FSTOIFS: gen_alopf1_env_sss(alop, gen_helper_fstoifs); break;
+    case OP_FDTOIFD: gen_alopf1_env_ddd(alop, gen_helper_fdtoifd); break;
+    case OP_UDIVX: gen_alopf1_tag_dss(alop, gen_udivx); break;
+    case OP_UMODX: gen_alopf1_tag_dss(alop, gen_umodx); break;
+    case OP_SDIVX: gen_alopf1_tag_dss(alop, gen_sdivx); break;
+    case OP_SMODX: gen_alopf1_tag_dss(alop, gen_smodx); break;
+    case OP_PFMULD: gen_alopf1_env_ddd(alop, gen_helper_fmuld); break;
+    case OP_PFADDD: gen_alopf1_env_ddd(alop, gen_helper_faddd); break;
+    case OP_PFSUBD: gen_alopf1_env_ddd(alop, gen_helper_fsubd); break;
+    case OP_PFDIVD: gen_alopf1_env_ddd(alop, gen_helper_fdivd); break;
+    case OP_PFMIND: gen_alopf1_env_ddd(alop, gen_helper_fmind); break;
+    case OP_PFMAXD: gen_alopf1_env_ddd(alop, gen_helper_fmaxd); break;
+    case OP_PFADDS: gen_alopf1_env_ddd(alop, gen_helper_pfadds); break;
+    case OP_PFSUBS: gen_alopf1_env_ddd(alop, gen_helper_pfsubs); break;
+    case OP_PFMULS: gen_alopf1_env_ddd(alop, gen_helper_pfmuls); break;
+    case OP_PFDIVS: gen_alopf1_env_sss(alop, gen_helper_fdivs); break;
+    case OP_PFMAXS: gen_alopf1_env_ddd(alop, gen_helper_pfmaxs); break;
+    case OP_PFMINS: gen_alopf1_env_ddd(alop, gen_helper_pfmins); break;
+    case OP_PFHADDS: gen_alopf1_env_ddd(alop, gen_helper_pfhadds); break;
+    case OP_PFHSUBS: gen_alopf1_env_ddd(alop, gen_helper_pfhsubs); break;
+    case OP_PFADDSUBS: gen_alopf1_env_ddd(alop, gen_helper_pfaddsubs); break;
+    case OP_PFSQRTS: gen_alopf2_env_ss(alop, gen_helper_fsqrts); break;
+    case OP_PFSTOIFS: gen_alopf1_env_ddd(alop, gen_helper_pfstoifs); break;
+    case OP_PISTOFS: gen_alopf2_env_dd(alop, gen_helper_pistofs); break;
+    case OP_PFSTOIS: gen_alopf2_env_dd(alop, gen_helper_pfstois); break;
+    case OP_PFSTOISTR: gen_alopf2_env_dd(alop, gen_helper_pfstoistr); break;
+    case OP_PFSTOFD: gen_alopf2_env_sd(alop, gen_helper_fstofd); break;
+    case OP_PFDTOFS: gen_alopf2_env_ds(alop, gen_helper_fdtofs); break;
+    case OP_PFDTOIFD: gen_alopf1_env_ddd(alop, gen_helper_fdtoifd); break;
+    case OP_PFDTOIS: gen_alopf2_env_ds(alop, gen_helper_fdtois); break;
+    case OP_PFDTOISTR: gen_alopf2_env_ds(alop, gen_helper_fdtoistr); break;
+    case OP_PFCMPEQS: gen_alopf1_env_ddd(alop, gen_helper_pfcmpeqs); break;
+    case OP_PFCMPLTS: gen_alopf1_env_ddd(alop, gen_helper_pfcmplts); break;
+    case OP_PFCMPLES: gen_alopf1_env_ddd(alop, gen_helper_pfcmples); break;
+    case OP_PFCMPUODS: gen_alopf1_env_ddd(alop, gen_helper_pfcmpuods); break;
+    case OP_PFCMPNEQS: gen_alopf1_env_ddd(alop, gen_helper_pfcmpneqs); break;
+    case OP_PFCMPNLTS: gen_alopf1_env_ddd(alop, gen_helper_pfcmpnlts); break;
+    case OP_PFCMPNLES: gen_alopf1_env_ddd(alop, gen_helper_pfcmpnles); break;
+    case OP_PFCMPODS: gen_alopf1_env_ddd(alop, gen_helper_pfcmpods); break;
+    case OP_PFCMPEQD: gen_alopf1_env_ddd(alop, gen_helper_fcmpeqd); break;
+    case OP_PFCMPLTD: gen_alopf1_env_ddd(alop, gen_helper_fcmpltd); break;
+    case OP_PFCMPLED: gen_alopf1_env_ddd(alop, gen_helper_fcmpled); break;
+    case OP_PFCMPUODD: gen_alopf1_env_ddd(alop, gen_helper_fcmpuodd); break;
+    case OP_PFCMPNEQD: gen_alopf1_env_ddd(alop, gen_helper_fcmpneqd); break;
+    case OP_PFCMPNLTD: gen_alopf1_env_ddd(alop, gen_helper_fcmpnltd); break;
+    case OP_PFCMPNLED: gen_alopf1_env_ddd(alop, gen_helper_fcmpnled); break;
+    case OP_PFCMPODD: gen_alopf1_env_ddd(alop, gen_helper_fcmpodd); break;
+    case OP_FSCALED: gen_alopf1_env_dsd(alop, gen_helper_fscaled); break;
+    case OP_FSCALES: gen_alopf1_env_sss(alop, gen_helper_fscales); break;
+    case OP_FXSCALESX: gen_alopf1_env_xsx(alop, gen_helper_fxscalesx); break;
+    case OP_FRCPS: gen_alopf2_env_ss(alop, gen_helper_frcps); break;
+    case OP_FSQRTS: gen_alopf2_env_ss(alop, gen_helper_fsqrts); break;
+    case OP_FRSQRTS: gen_alopf2_env_ss(alop, gen_helper_frsqrts); break;
 #ifndef TARGET_E2K_PRECISE_FSQRTID
-    case OP_FSQRTID: gen_alopf2_dd(instr, tcg_gen_mov_i64); break;
-    case OP_FXSQRTISX: gen_alopf2_esx(instr, gen_helper_fstofx); break;
-    case OP_FXSQRTIDX: gen_alopf2_edx(instr, gen_helper_fdtofx); break;
-    case OP_FXSQRTIXX: gen_alopf2_xx(instr, gen_movx); break;
+    case OP_FSQRTID: gen_alopf2_dd(alop, tcg_gen_mov_i64); break;
+    case OP_FXSQRTISX: gen_alopf2_env_sx(alop, gen_helper_fstofx); break;
+    case OP_FXSQRTIDX: gen_alopf2_env_dx(alop, gen_helper_fdtofx); break;
+    case OP_FXSQRTIXX: gen_alopf2_xx(alop, gen_movx); break;
     /* FIXME: these are not ALOPF2! */
     case OP_FXSQRTUSX: /* fallthrough */
     case OP_FXSQRTUDX: /* fallthrough */
-    case OP_FXSQRTUXX: gen_alopf2_xx(instr, gen_movx); break;
+    case OP_FXSQRTUXX: gen_alopf2_xx(alop, gen_movx); break;
 #else
 #error Not implemented
 #endif
-    case OP_FXSQRTTSX: gen_alopf1_esxx(instr, gen_helper_fxsqrttsx); break;
-    case OP_FXSQRTTDX: gen_alopf1_edxx(instr, gen_helper_fxsqrttdx); break;
-    case OP_FXSQRTTXX: gen_alopf1_exxx(instr, gen_helper_fxsqrttxx); break;
+    case OP_FXSQRTTSX: gen_alopf1_env_sxx(alop, gen_helper_fxsqrttsx); break;
+    case OP_FXSQRTTDX: gen_alopf1_env_dxx(alop, gen_helper_fxsqrttdx); break;
+    case OP_FXSQRTTXX: gen_alopf1_env_xxx(alop, gen_helper_fxsqrttxx); break;
     case OP_PFSQRTTD: /* fallthrough */
-    case OP_FSQRTTD: gen_alopf1_eddd(instr, gen_helper_fsqrttd); break;
-    case OP_INSFS: gen_alopf21_ssss(instr, gen_insfs); break;
-    case OP_INSFD: gen_insfd(instr); break;
-    case OP_PSHUFB: gen_alopf21_dddd(instr, gen_helper_pshufb); break;
-    case OP_PMERGE: gen_alopf21_dddd(instr, gen_helper_pmerge); break;
-    case OP_FXDIVTSS: gen_alopf1_esxs(instr, gen_helper_fxdivtss); break;
-    case OP_FXDIVTDD: gen_alopf1_edxd(instr, gen_helper_fxdivtdd); break;
-    case OP_FXDIVTSX: gen_alopf1_esxx(instr, gen_helper_fxdivtsx); break;
-    case OP_FXDIVTDX: gen_alopf1_edxx(instr, gen_helper_fxdivtdx); break;
-    case OP_QPPACKDL: gen_alopf1_ddq(instr, gen_qppackdl); break;
-    case OP_QPSWITCHW: gen_alopf2_qq(instr, gen_qpswitchw); break;
-    case OP_QPSWITCHD: gen_alopf2_qq(instr, gen_qpswitchd); break;
-    case OP_QPAND: gen_alopf1_qqq(instr, gen_qpand); break;
-    case OP_QPANDN: gen_alopf1_qqq(instr, gen_qpandn); break;
-    case OP_QPOR: gen_alopf1_qqq(instr, gen_qpor); break;
-    case OP_QPXOR: gen_alopf1_qqq(instr, gen_qpxor); break;
-    case OP_QPMAXSB: gen_alopf1_qqq(instr, gen_qpmaxsb); break;
-    case OP_QPMAXSH: gen_alopf1_qqq(instr, gen_qpmaxsh); break;
-    case OP_QPMAXSW: gen_alopf1_qqq(instr, gen_qpmaxsw); break;
-    case OP_QPMAXUB: gen_alopf1_qqq(instr, gen_qpmaxub); break;
-    case OP_QPMAXUH: gen_alopf1_qqq(instr, gen_qpmaxuh); break;
-    case OP_QPMAXUW: gen_alopf1_qqq(instr, gen_qpmaxuw); break;
-    case OP_QPMINSB: gen_alopf1_qqq(instr, gen_qpminsb); break;
-    case OP_QPMINSH: gen_alopf1_qqq(instr, gen_qpminsh); break;
-    case OP_QPMINSW: gen_alopf1_qqq(instr, gen_qpminsw); break;
-    case OP_QPMINUB: gen_alopf1_qqq(instr, gen_qpminub); break;
-    case OP_QPMINUH: gen_alopf1_qqq(instr, gen_qpminuh); break;
-    case OP_QPMINUW: gen_alopf1_qqq(instr, gen_qpminuw); break;
-    case OP_QPCMPEQB: gen_alopf1_qqq(instr, gen_qpcmpeqb); break;
-    case OP_QPCMPEQD: gen_alopf1_qqq(instr, gen_qpcmpeqd); break;
-    case OP_QPCMPEQH: gen_alopf1_qqq(instr, gen_qpcmpeqh); break;
-    case OP_QPCMPEQW: gen_alopf1_qqq(instr, gen_qpcmpeqw); break;
-    case OP_QPCMPGTB: gen_alopf1_qqq(instr, gen_qpcmpgtb); break;
-    case OP_QPCMPGTD: gen_alopf1_qqq(instr, gen_qpcmpgtd); break;
-    case OP_QPCMPGTH: gen_alopf1_qqq(instr, gen_qpcmpgth); break;
-    case OP_QPCMPGTW: gen_alopf1_qqq(instr, gen_qpcmpgtw); break;
-    case OP_QPADDSB: gen_alopf1_qqq(instr, gen_qpaddsb); break;
-    case OP_QPADDSH: gen_alopf1_qqq(instr, gen_qpaddsh); break;
-    case OP_QPADDUSB: gen_alopf1_qqq(instr, gen_qpaddusb); break;
-    case OP_QPADDUSH: gen_alopf1_qqq(instr, gen_qpaddush); break;
-    case OP_QPSUBSB: gen_alopf1_qqq(instr, gen_qpsubsb); break;
-    case OP_QPSUBSH: gen_alopf1_qqq(instr, gen_qpsubsh); break;
-    case OP_QPSUBUSB: gen_alopf1_qqq(instr, gen_qpsubusb); break;
-    case OP_QPSUBUSH: gen_alopf1_qqq(instr, gen_qpsubush); break;
-    case OP_QPADDB: gen_alopf1_qqq(instr, gen_qpaddb); break;
-    case OP_QPADDH: gen_alopf1_qqq(instr, gen_qpaddh); break;
-    case OP_QPADDW: gen_alopf1_qqq(instr, gen_qpaddw); break;
-    case OP_QPADDD: gen_alopf1_qqq(instr, gen_qpaddd); break;
-    case OP_QPSUBB: gen_alopf1_qqq(instr, gen_qpsubb); break;
-    case OP_QPSUBH: gen_alopf1_qqq(instr, gen_qpsubh); break;
-    case OP_QPSUBW: gen_alopf1_qqq(instr, gen_qpsubw); break;
-    case OP_QPSUBD: gen_alopf1_qqq(instr, gen_qpsubd); break;
-    case OP_QPSLLH: gen_alopf1_qdq(instr, gen_qpsllh); break;
-    case OP_QPSLLW: gen_alopf1_qdq(instr, gen_qpsllw); break;
-    case OP_QPSLLD: gen_alopf1_qdq(instr, gen_qpslld); break;
-    case OP_QPSRLH: gen_alopf1_qdq(instr, gen_qpsrlh); break;
-    case OP_QPSRLW: gen_alopf1_qdq(instr, gen_qpsrlw); break;
-    case OP_QPSRLD: gen_alopf1_qdq(instr, gen_qpsrld); break;
-    case OP_QPSRAH: gen_alopf1_qdq(instr, gen_qpsrah); break;
-    case OP_QPSRAW: gen_alopf1_qdq(instr, gen_qpsraw); break;
-    case OP_QPACKSSHB: gen_alopf1_qqq(instr, gen_qpacksshb); break;
-    case OP_QPACKSSWH: gen_alopf1_qqq(instr, gen_qpacksswh); break;
-    case OP_QPACKUSHB: gen_alopf1_qqq(instr, gen_qpackushb); break;
-    case OP_QPACKUSWH: gen_alopf1_qqq(instr, gen_qpackuswh); break;
-    case OP_QPAVGUSB: gen_alopf1_qqq(instr, gen_qpavgusb); break;
-    case OP_QPAVGUSH: gen_alopf1_qqq(instr, gen_qpavgush); break;
-    case OP_QPHADDH: gen_alopf1_qqq(instr, gen_helper_qphaddh); break;
-    case OP_QPHADDSH: gen_alopf1_qqq(instr, gen_helper_qphaddsh); break;
-    case OP_QPHADDW: gen_alopf1_qqq(instr, gen_helper_qphaddw); break;
-    case OP_QPHSUBH: gen_alopf1_qqq(instr, gen_helper_qphsubh); break;
-    case OP_QPHSUBSH: gen_alopf1_qqq(instr, gen_helper_qphsubsh); break;
-    case OP_QPHSUBW: gen_alopf1_qqq(instr, gen_helper_qphsubw); break;
-    case OP_QPMULHH: gen_alopf1_qqq(instr, gen_qpmulhh); break;
-    case OP_QPMULHRSH: gen_alopf1_qqq(instr, gen_qpmulhrsh); break;
-    case OP_QPMULHUH: gen_alopf1_qqq(instr, gen_qpmulhuh); break;
-    case OP_QPMULLH: gen_alopf1_qqq(instr, gen_qpmullh); break;
-    case OP_QPMULUBHH: gen_alopf1_dqq(instr, gen_helper_qpmulubhh); break;
-    case OP_QPSIGNB: gen_alopf1_qqq(instr, gen_qpsignb); break;
-    case OP_QPSIGNH: gen_alopf1_qqq(instr, gen_qpsignh); break;
-    case OP_QPSIGNW: gen_alopf1_qqq(instr, gen_qpsignw); break;
-    case OP_QPHMINPOSUH: gen_alopf1_qqd(instr, gen_helper_qphminposuh); break;
-    case OP_QPMADDH: gen_alopf1_qqq(instr, gen_qpmaddh); break;
-    case OP_QPMADDUBSH: gen_alopf1_qqq(instr, gen_qpmaddubsh); break;
-    case OP_QPMPSADBH: gen_alopf1_qsq(instr, gen_helper_qpmpsadbh); break;
-    case OP_QPSADBW: gen_alopf1_qqq(instr, gen_qpsadbw); break;
-    case OP_QPFADDS: gen_alopf1_eqqq(instr, gen_qpfadds); break;
-    case OP_QPFADDD: gen_alopf1_eqqq(instr, gen_qpfaddd); break;
-    case OP_QPFSUBS: gen_alopf1_eqqq(instr, gen_qpfsubs); break;
-    case OP_QPFSUBD: gen_alopf1_eqqq(instr, gen_qpfsubd); break;
-    case OP_QPFMULS: gen_alopf1_eqqq(instr, gen_qpfmuls); break;
-    case OP_QPFMULD: gen_alopf1_eqqq(instr, gen_qpfmuld); break;
-    case OP_QPFHADDS: gen_alopf1_eqqq(instr, gen_helper_qpfhadds); break;
-    case OP_QPFHSUBS: gen_alopf1_eqqq(instr, gen_helper_qpfhsubs); break;
-    case OP_QPFADDSUBS: gen_alopf1_eqqq(instr, gen_qpfaddsubs); break;
-    case OP_QPFADDSUBD: gen_alopf1_eqqq(instr, gen_qpfaddsubd); break;
-    case OP_QPFMINS: gen_alopf1_eqqq(instr, gen_qpfmins); break;
-    case OP_QPFMIND: gen_alopf1_eqqq(instr, gen_qpfmind); break;
-    case OP_QPFMAXS: gen_alopf1_eqqq(instr, gen_qpfmaxs); break;
-    case OP_QPFMAXD: gen_alopf1_eqqq(instr, gen_qpfmaxd); break;
-    case OP_QPFCMPEQS: gen_alopf1_eqqq(instr, gen_qpfcmpeqs); break;
-    case OP_QPFCMPLTS: gen_alopf1_eqqq(instr, gen_qpfcmplts); break;
-    case OP_QPFCMPLES: gen_alopf1_eqqq(instr, gen_qpfcmples); break;
-    case OP_QPFCMPUODS: gen_alopf1_eqqq(instr, gen_qpfcmpuods); break;
-    case OP_QPFCMPNEQS: gen_alopf1_eqqq(instr, gen_qpfcmpneqs); break;
-    case OP_QPFCMPNLTS: gen_alopf1_eqqq(instr, gen_qpfcmpnlts); break;
-    case OP_QPFCMPNLES: gen_alopf1_eqqq(instr, gen_qpfcmpnles); break;
-    case OP_QPFCMPODS: gen_alopf1_eqqq(instr, gen_qpfcmpods); break;
-    case OP_QPFCMPEQD: gen_alopf1_eqqq(instr, gen_qpfcmpeqd); break;
-    case OP_QPFCMPLTD: gen_alopf1_eqqq(instr, gen_qpfcmpltd); break;
-    case OP_QPFCMPLED: gen_alopf1_eqqq(instr, gen_qpfcmpled); break;
-    case OP_QPFCMPUODD: gen_alopf1_eqqq(instr, gen_qpfcmpuodd); break;
-    case OP_QPFCMPNEQD: gen_alopf1_eqqq(instr, gen_qpfcmpneqd); break;
-    case OP_QPFCMPNLTD: gen_alopf1_eqqq(instr, gen_qpfcmpnltd); break;
-    case OP_QPFCMPNLED: gen_alopf1_eqqq(instr, gen_qpfcmpnled); break;
-    case OP_QPFCMPODD: gen_alopf1_eqqq(instr, gen_qpfcmpodd); break;
-    case OP_QPFSTOIFS: gen_alopf1_edqq(instr, gen_qpfstoifs); break;
-    case OP_QPFDTOIFD: gen_alopf1_edqq(instr, gen_qpfdtoifd); break;
-    case OP_QPSRCD: gen_alopf1_qdq(instr, gen_qpsrcd); break;
-    case OP_QPSRCW: gen_alopf1_qdq(instr, gen_qpsrcw); break;
-    case OP_PSRCD: gen_alopf1_ddd(instr, gen_psrcd); break;
-    case OP_PSRCW: gen_alopf1_ddd(instr, gen_psrcw); break;
-    case OP_PMULLW: gen_alopf1_ddd(instr, gen_pmullw); break;
-    case OP_QPMULLW: gen_alopf1_qqq(instr, gen_qpmullw); break;
-    case OP_QPFSTOIS: gen_alopf2_eqq(instr, gen_qpfstois); break;
-    case OP_QPFSTOISTR: gen_alopf2_eqq(instr, gen_qpfstoistr); break;
-    case OP_QPISTOFS: gen_alopf2_eqq(instr, gen_qpistofs); break;
-    case OP_QPFDTOID: gen_alopf2_eqq(instr, gen_qpfdtoid); break;
-    case OP_QPFDTOIDTR: gen_alopf2_eqq(instr, gen_qpfdtoidtr); break;
-    case OP_QPIDTOFD: gen_alopf2_eqq(instr, gen_qpidtofd); break;
-    case OP_QPFSTOID: gen_alopf2_edq(instr, gen_helper_qpfstoid); break;
-    case OP_QPFSTOIDTR: gen_alopf2_edq(instr, gen_helper_qpfstoidtr); break;
-    case OP_QPISTOFD: gen_alopf2_edq(instr, gen_helper_qpistofd); break;
-    case OP_QPFSTOFD: gen_alopf2_edq(instr, gen_helper_qpfstofd); break;
-    case OP_QPFDTOIS: gen_alopf2_eqd(instr, gen_helper_qpfdtois); break;
-    case OP_QPFDTOISTR: gen_alopf2_eqd(instr, gen_helper_qpfdtoistr); break;
-    case OP_QPIDTOFS: gen_alopf2_eqd(instr, gen_helper_qpidtofs); break;
-    case OP_QPFDTOFS: gen_alopf2_eqd(instr, gen_helper_qpfdtofs); break;
-    case OP_QPMSK2SGNB: gen_alopf1_qsq(instr, gen_helper_qpmsk2sgnb); break;
-    case OP_QPSGN2MSKB: gen_alopf2_qs(instr, gen_helper_qpsgn2mskb); break;
-    case OP_GETFZS: gen_alopf1_sss(instr, gen_getfzs); break;
-    case OP_GETFZD: gen_alopf1_ddd(instr, gen_getfzd); break;
-    case OP_ADDCD: gen_alopf21_ddsd(instr, gen_addcd); break;
-    case OP_ADDCD_C: gen_alopf21_ddsd(instr, gen_addcd_c); break;
-    case OP_SUBCD: gen_alopf21_ddsd(instr, gen_subcd); break;
-    case OP_SUBCD_C: gen_alopf21_ddsd(instr, gen_subcd_c); break;
-    case OP_QPMERGE: gen_alopf21_qqqq(instr, gen_qpmerge); break;
-    case OP_QPSHUFB: gen_alopf21_qqqq(instr, gen_helper_qpshufb); break;
-    case OP_QPPERMB: gen_alopf21_qqqq(instr, gen_helper_qppermb); break;
-    case OP_PLOG_0x00: gen_alopf21_log_dddd(instr, gen_plog_0x00); break;
-    case OP_PLOG_0x80: gen_alopf21_log_dddd(instr, gen_plog_0x80); break;
-    case OP_QPLOG_0x00: gen_alopf21_log_qqqq(instr, gen_qplog_0x00); break;
-    case OP_QPLOG_0x80: gen_alopf21_log_qqqq(instr, gen_qplog_0x80); break;
-    case OP_FMAS: gen_alopf21_env_ssss(instr, gen_helper_fmas); break;
-    case OP_FMSS: gen_alopf21_env_ssss(instr, gen_helper_fmss); break;
-    case OP_FNMAS: gen_alopf21_env_ssss(instr, gen_helper_fnmas); break;
-    case OP_FNMSS: gen_alopf21_env_ssss(instr, gen_helper_fnmss); break;
-    case OP_FMAD: gen_alopf21_env_dddd(instr, gen_helper_fmad); break;
-    case OP_FMSD: gen_alopf21_env_dddd(instr, gen_helper_fmsd); break;
-    case OP_FNMAD: gen_alopf21_env_dddd(instr, gen_helper_fnmad); break;
-    case OP_FNMSD: gen_alopf21_env_dddd(instr, gen_helper_fnmsd); break;
-    case OP_QPFMAS: gen_alopf21_env_qqqq(instr, gen_helper_qpfmas); break;
-    case OP_QPFMSS: gen_alopf21_env_qqqq(instr, gen_helper_qpfmss); break;
-    case OP_QPFNMAS: gen_alopf21_env_qqqq(instr, gen_helper_qpfnmas); break;
-    case OP_QPFNMSS: gen_alopf21_env_qqqq(instr, gen_helper_qpfnmss); break;
-    case OP_QPFMASS: gen_alopf21_env_qqqq(instr, gen_helper_qpfmass); break;
-    case OP_QPFMSAS: gen_alopf21_env_qqqq(instr, gen_helper_qpfmsas); break;
-    case OP_QPFMAD: gen_alopf21_env_qqqq(instr, gen_helper_qpfmad); break;
-    case OP_QPFMSD: gen_alopf21_env_qqqq(instr, gen_helper_qpfmsd); break;
-    case OP_QPFNMAD: gen_alopf21_env_qqqq(instr, gen_helper_qpfnmad); break;
-    case OP_QPFNMSD: gen_alopf21_env_qqqq(instr, gen_helper_qpfnmsd); break;
-    case OP_QPFMASD: gen_alopf21_env_qqqq(instr, gen_helper_qpfmasd); break;
-    case OP_QPFMSAD: gen_alopf21_env_qqqq(instr, gen_helper_qpfmsad); break;
-    case OP_PCMPEQBOP: gen_alopf7_ddd(instr, gen_pcmpeqbop); break;
-    case OP_PCMPEQHOP: gen_alopf7_ddd(instr, gen_pcmpeqhop); break;
-    case OP_PCMPEQWOP: gen_alopf7_ddd(instr, gen_pcmpeqwop); break;
-    case OP_PCMPEQDOP: gen_alopf7_ddd(instr, gen_pcmpeqdop); break;
-    case OP_PCMPGTBOP: gen_alopf7_ddd(instr, gen_pcmpgtbop); break;
-    case OP_PCMPGTHOP: gen_alopf7_ddd(instr, gen_pcmpgthop); break;
-    case OP_PCMPGTWOP: gen_alopf7_ddd(instr, gen_pcmpgtwop); break;
-    case OP_PCMPGTDOP: gen_alopf7_ddd(instr, gen_pcmpgtdop); break;
-    case OP_PCMPEQBAP: gen_alopf7_ddd(instr, gen_pcmpeqbap); break;
-    case OP_PCMPEQHAP: gen_alopf7_ddd(instr, gen_pcmpeqhap); break;
-    case OP_PCMPEQWAP: gen_alopf7_ddd(instr, gen_pcmpeqwap); break;
-    case OP_PCMPEQDAP: gen_alopf7_ddd(instr, gen_pcmpeqdap); break;
-    case OP_PCMPGTBAP: gen_alopf7_ddd(instr, gen_pcmpgtbap); break;
-    case OP_PCMPGTHAP: gen_alopf7_ddd(instr, gen_pcmpgthap); break;
-    case OP_PCMPGTWAP: gen_alopf7_ddd(instr, gen_pcmpgtwap); break;
-    case OP_PCMPGTDAP: gen_alopf7_ddd(instr, gen_pcmpgtdap); break;
-    case OP_QPCMPEQBOP: gen_alopf7_qqd(instr, gen_qpcmpeqbop); break;
-    case OP_QPCMPEQHOP: gen_alopf7_qqd(instr, gen_qpcmpeqhop); break;
-    case OP_QPCMPEQWOP: gen_alopf7_qqd(instr, gen_qpcmpeqwop); break;
-    case OP_QPCMPEQDOP: gen_alopf7_qqd(instr, gen_qpcmpeqdop); break;
-    case OP_QPCMPGTBOP: gen_alopf7_qqd(instr, gen_qpcmpgtbop); break;
-    case OP_QPCMPGTHOP: gen_alopf7_qqd(instr, gen_qpcmpgthop); break;
-    case OP_QPCMPGTWOP: gen_alopf7_qqd(instr, gen_qpcmpgtwop); break;
-    case OP_QPCMPGTDOP: gen_alopf7_qqd(instr, gen_qpcmpgtdop); break;
-    case OP_QPCMPEQBAP: gen_alopf7_qqd(instr, gen_qpcmpeqbap); break;
-    case OP_QPCMPEQHAP: gen_alopf7_qqd(instr, gen_qpcmpeqhap); break;
-    case OP_QPCMPEQWAP: gen_alopf7_qqd(instr, gen_qpcmpeqwap); break;
-    case OP_QPCMPEQDAP: gen_alopf7_qqd(instr, gen_qpcmpeqdap); break;
-    case OP_QPCMPGTBAP: gen_alopf7_qqd(instr, gen_qpcmpgtbap); break;
-    case OP_QPCMPGTHAP: gen_alopf7_qqd(instr, gen_qpcmpgthap); break;
-    case OP_QPCMPGTWAP: gen_alopf7_qqd(instr, gen_qpcmpgtwap); break;
-    case OP_QPCMPGTDAP: gen_alopf7_qqd(instr, gen_qpcmpgtdap); break;
-    case OP_QPSRAD: gen_alopf1_qdq(instr, gen_qpsrad); break;
-    case OP_PMRGP: gen_merged(instr); break;
-    case OP_QPMRGP: gen_qpmrgp(instr); break;
-    case OP_CLMULH: gen_alopf1_ddd(instr, gen_helper_clmulh); break;
-    case OP_CLMULL: gen_alopf1_ddd(instr, gen_helper_clmull); break;
-    case OP_QPCEXT_0X00: gen_alopf2_dq(instr, gen_qpcext_0x00); break;
-    case OP_QPCEXT_0X7F: gen_alopf2_dq(instr, gen_qpcext_0x7f); break;
-    case OP_QPCEXT_0X80: gen_alopf2_dq(instr, gen_qpcext_0x80); break;
-    case OP_QPCEXT_0XFF: gen_alopf2_dq(instr, gen_qpcext_0xff); break;
+    case OP_FSQRTTD: gen_alopf1_env_ddd(alop, gen_helper_fsqrttd); break;
+    case OP_INSFS: gen_alopf21_ssss(alop, gen_insfs); break;
+    case OP_INSFD: gen_insfd(alop); break;
+    case OP_PSHUFB: gen_alopf21_dddd(alop, gen_helper_pshufb); break;
+    case OP_PMERGE: gen_alopf21_dddd(alop, gen_helper_pmerge); break;
+    case OP_FXDIVTSS: gen_alopf1_env_sxs(alop, gen_helper_fxdivtss); break;
+    case OP_FXDIVTDD: gen_alopf1_env_dxd(alop, gen_helper_fxdivtdd); break;
+    case OP_FXDIVTSX: gen_alopf1_env_sxx(alop, gen_helper_fxdivtsx); break;
+    case OP_FXDIVTDX: gen_alopf1_env_dxx(alop, gen_helper_fxdivtdx); break;
+    case OP_QPPACKDL: gen_alopf1_ddq(alop, gen_qppackdl); break;
+    case OP_QPSWITCHW: gen_alopf2_qq(alop, gen_qpswitchw); break;
+    case OP_QPSWITCHD: gen_alopf2_qq(alop, gen_qpswitchd); break;
+    case OP_QPAND: gen_alopf1_qqq(alop, gen_qpand); break;
+    case OP_QPANDN: gen_alopf1_qqq(alop, gen_qpandn); break;
+    case OP_QPOR: gen_alopf1_qqq(alop, gen_qpor); break;
+    case OP_QPXOR: gen_alopf1_qqq(alop, gen_qpxor); break;
+    case OP_QPMAXSB: gen_alopf1_qqq(alop, gen_qpmaxsb); break;
+    case OP_QPMAXSH: gen_alopf1_qqq(alop, gen_qpmaxsh); break;
+    case OP_QPMAXSW: gen_alopf1_qqq(alop, gen_qpmaxsw); break;
+    case OP_QPMAXUB: gen_alopf1_qqq(alop, gen_qpmaxub); break;
+    case OP_QPMAXUH: gen_alopf1_qqq(alop, gen_qpmaxuh); break;
+    case OP_QPMAXUW: gen_alopf1_qqq(alop, gen_qpmaxuw); break;
+    case OP_QPMINSB: gen_alopf1_qqq(alop, gen_qpminsb); break;
+    case OP_QPMINSH: gen_alopf1_qqq(alop, gen_qpminsh); break;
+    case OP_QPMINSW: gen_alopf1_qqq(alop, gen_qpminsw); break;
+    case OP_QPMINUB: gen_alopf1_qqq(alop, gen_qpminub); break;
+    case OP_QPMINUH: gen_alopf1_qqq(alop, gen_qpminuh); break;
+    case OP_QPMINUW: gen_alopf1_qqq(alop, gen_qpminuw); break;
+    case OP_QPCMPEQB: gen_alopf1_qqq(alop, gen_qpcmpeqb); break;
+    case OP_QPCMPEQD: gen_alopf1_qqq(alop, gen_qpcmpeqd); break;
+    case OP_QPCMPEQH: gen_alopf1_qqq(alop, gen_qpcmpeqh); break;
+    case OP_QPCMPEQW: gen_alopf1_qqq(alop, gen_qpcmpeqw); break;
+    case OP_QPCMPGTB: gen_alopf1_qqq(alop, gen_qpcmpgtb); break;
+    case OP_QPCMPGTD: gen_alopf1_qqq(alop, gen_qpcmpgtd); break;
+    case OP_QPCMPGTH: gen_alopf1_qqq(alop, gen_qpcmpgth); break;
+    case OP_QPCMPGTW: gen_alopf1_qqq(alop, gen_qpcmpgtw); break;
+    case OP_QPADDSB: gen_alopf1_qqq(alop, gen_qpaddsb); break;
+    case OP_QPADDSH: gen_alopf1_qqq(alop, gen_qpaddsh); break;
+    case OP_QPADDUSB: gen_alopf1_qqq(alop, gen_qpaddusb); break;
+    case OP_QPADDUSH: gen_alopf1_qqq(alop, gen_qpaddush); break;
+    case OP_QPSUBSB: gen_alopf1_qqq(alop, gen_qpsubsb); break;
+    case OP_QPSUBSH: gen_alopf1_qqq(alop, gen_qpsubsh); break;
+    case OP_QPSUBUSB: gen_alopf1_qqq(alop, gen_qpsubusb); break;
+    case OP_QPSUBUSH: gen_alopf1_qqq(alop, gen_qpsubush); break;
+    case OP_QPADDB: gen_alopf1_qqq(alop, gen_qpaddb); break;
+    case OP_QPADDH: gen_alopf1_qqq(alop, gen_qpaddh); break;
+    case OP_QPADDW: gen_alopf1_qqq(alop, gen_qpaddw); break;
+    case OP_QPADDD: gen_alopf1_qqq(alop, gen_qpaddd); break;
+    case OP_QPSUBB: gen_alopf1_qqq(alop, gen_qpsubb); break;
+    case OP_QPSUBH: gen_alopf1_qqq(alop, gen_qpsubh); break;
+    case OP_QPSUBW: gen_alopf1_qqq(alop, gen_qpsubw); break;
+    case OP_QPSUBD: gen_alopf1_qqq(alop, gen_qpsubd); break;
+    case OP_QPSLLH: gen_alopf1_qdq(alop, gen_qpsllh); break;
+    case OP_QPSLLW: gen_alopf1_qdq(alop, gen_qpsllw); break;
+    case OP_QPSLLD: gen_alopf1_qdq(alop, gen_qpslld); break;
+    case OP_QPSRLH: gen_alopf1_qdq(alop, gen_qpsrlh); break;
+    case OP_QPSRLW: gen_alopf1_qdq(alop, gen_qpsrlw); break;
+    case OP_QPSRLD: gen_alopf1_qdq(alop, gen_qpsrld); break;
+    case OP_QPSRAH: gen_alopf1_qdq(alop, gen_qpsrah); break;
+    case OP_QPSRAW: gen_alopf1_qdq(alop, gen_qpsraw); break;
+    case OP_QPACKSSHB: gen_alopf1_qqq(alop, gen_qpacksshb); break;
+    case OP_QPACKSSWH: gen_alopf1_qqq(alop, gen_qpacksswh); break;
+    case OP_QPACKUSHB: gen_alopf1_qqq(alop, gen_qpackushb); break;
+    case OP_QPACKUSWH: gen_alopf1_qqq(alop, gen_qpackuswh); break;
+    case OP_QPAVGUSB: gen_alopf1_qqq(alop, gen_qpavgusb); break;
+    case OP_QPAVGUSH: gen_alopf1_qqq(alop, gen_qpavgush); break;
+    case OP_QPHADDH: gen_alopf1_qqq(alop, gen_helper_qphaddh); break;
+    case OP_QPHADDSH: gen_alopf1_qqq(alop, gen_helper_qphaddsh); break;
+    case OP_QPHADDW: gen_alopf1_qqq(alop, gen_helper_qphaddw); break;
+    case OP_QPHSUBH: gen_alopf1_qqq(alop, gen_helper_qphsubh); break;
+    case OP_QPHSUBSH: gen_alopf1_qqq(alop, gen_helper_qphsubsh); break;
+    case OP_QPHSUBW: gen_alopf1_qqq(alop, gen_helper_qphsubw); break;
+    case OP_QPMULHH: gen_alopf1_qqq(alop, gen_qpmulhh); break;
+    case OP_QPMULHRSH: gen_alopf1_qqq(alop, gen_qpmulhrsh); break;
+    case OP_QPMULHUH: gen_alopf1_qqq(alop, gen_qpmulhuh); break;
+    case OP_QPMULLH: gen_alopf1_qqq(alop, gen_qpmullh); break;
+    case OP_QPMULUBHH: gen_alopf1_dqq(alop, gen_helper_qpmulubhh); break;
+    case OP_QPSIGNB: gen_alopf1_qqq(alop, gen_qpsignb); break;
+    case OP_QPSIGNH: gen_alopf1_qqq(alop, gen_qpsignh); break;
+    case OP_QPSIGNW: gen_alopf1_qqq(alop, gen_qpsignw); break;
+    case OP_QPHMINPOSUH: gen_alopf1_qqd(alop, gen_helper_qphminposuh); break;
+    case OP_QPMADDH: gen_alopf1_qqq(alop, gen_qpmaddh); break;
+    case OP_QPMADDUBSH: gen_alopf1_qqq(alop, gen_qpmaddubsh); break;
+    case OP_QPMPSADBH: gen_alopf1_qsq(alop, gen_helper_qpmpsadbh); break;
+    case OP_QPSADBW: gen_alopf1_qqq(alop, gen_qpsadbw); break;
+    case OP_QPFADDS: gen_alopf1_env_qqq(alop, gen_qpfadds); break;
+    case OP_QPFADDD: gen_alopf1_env_qqq(alop, gen_qpfaddd); break;
+    case OP_QPFSUBS: gen_alopf1_env_qqq(alop, gen_qpfsubs); break;
+    case OP_QPFSUBD: gen_alopf1_env_qqq(alop, gen_qpfsubd); break;
+    case OP_QPFMULS: gen_alopf1_env_qqq(alop, gen_qpfmuls); break;
+    case OP_QPFMULD: gen_alopf1_env_qqq(alop, gen_qpfmuld); break;
+    case OP_QPFHADDS: gen_alopf1_env_qqq(alop, gen_helper_qpfhadds); break;
+    case OP_QPFHSUBS: gen_alopf1_env_qqq(alop, gen_helper_qpfhsubs); break;
+    case OP_QPFADDSUBS: gen_alopf1_env_qqq(alop, gen_qpfaddsubs); break;
+    case OP_QPFADDSUBD: gen_alopf1_env_qqq(alop, gen_qpfaddsubd); break;
+    case OP_QPFMINS: gen_alopf1_env_qqq(alop, gen_qpfmins); break;
+    case OP_QPFMIND: gen_alopf1_env_qqq(alop, gen_qpfmind); break;
+    case OP_QPFMAXS: gen_alopf1_env_qqq(alop, gen_qpfmaxs); break;
+    case OP_QPFMAXD: gen_alopf1_env_qqq(alop, gen_qpfmaxd); break;
+    case OP_QPFCMPEQS: gen_alopf1_env_qqq(alop, gen_qpfcmpeqs); break;
+    case OP_QPFCMPLTS: gen_alopf1_env_qqq(alop, gen_qpfcmplts); break;
+    case OP_QPFCMPLES: gen_alopf1_env_qqq(alop, gen_qpfcmples); break;
+    case OP_QPFCMPUODS: gen_alopf1_env_qqq(alop, gen_qpfcmpuods); break;
+    case OP_QPFCMPNEQS: gen_alopf1_env_qqq(alop, gen_qpfcmpneqs); break;
+    case OP_QPFCMPNLTS: gen_alopf1_env_qqq(alop, gen_qpfcmpnlts); break;
+    case OP_QPFCMPNLES: gen_alopf1_env_qqq(alop, gen_qpfcmpnles); break;
+    case OP_QPFCMPODS: gen_alopf1_env_qqq(alop, gen_qpfcmpods); break;
+    case OP_QPFCMPEQD: gen_alopf1_env_qqq(alop, gen_qpfcmpeqd); break;
+    case OP_QPFCMPLTD: gen_alopf1_env_qqq(alop, gen_qpfcmpltd); break;
+    case OP_QPFCMPLED: gen_alopf1_env_qqq(alop, gen_qpfcmpled); break;
+    case OP_QPFCMPUODD: gen_alopf1_env_qqq(alop, gen_qpfcmpuodd); break;
+    case OP_QPFCMPNEQD: gen_alopf1_env_qqq(alop, gen_qpfcmpneqd); break;
+    case OP_QPFCMPNLTD: gen_alopf1_env_qqq(alop, gen_qpfcmpnltd); break;
+    case OP_QPFCMPNLED: gen_alopf1_env_qqq(alop, gen_qpfcmpnled); break;
+    case OP_QPFCMPODD: gen_alopf1_env_qqq(alop, gen_qpfcmpodd); break;
+    case OP_QPFSTOIFS: gen_alopf1_env_dqq(alop, gen_qpfstoifs); break;
+    case OP_QPFDTOIFD: gen_alopf1_env_dqq(alop, gen_qpfdtoifd); break;
+    case OP_QPSRCD: gen_alopf1_qdq(alop, gen_qpsrcd); break;
+    case OP_QPSRCW: gen_alopf1_qdq(alop, gen_qpsrcw); break;
+    case OP_PSRCD: gen_alopf1_ddd(alop, gen_psrcd); break;
+    case OP_PSRCW: gen_alopf1_ddd(alop, gen_psrcw); break;
+    case OP_PMULLW: gen_alopf1_ddd(alop, gen_pmullw); break;
+    case OP_QPMULLW: gen_alopf1_qqq(alop, gen_qpmullw); break;
+    case OP_QPFSTOIS: gen_alopf2_env_qq(alop, gen_qpfstois); break;
+    case OP_QPFSTOISTR: gen_alopf2_env_qq(alop, gen_qpfstoistr); break;
+    case OP_QPISTOFS: gen_alopf2_env_qq(alop, gen_qpistofs); break;
+    case OP_QPFDTOID: gen_alopf2_env_qq(alop, gen_qpfdtoid); break;
+    case OP_QPFDTOIDTR: gen_alopf2_env_qq(alop, gen_qpfdtoidtr); break;
+    case OP_QPIDTOFD: gen_alopf2_env_qq(alop, gen_qpidtofd); break;
+    case OP_QPFSTOID: gen_alopf2_env_dq(alop, gen_helper_qpfstoid); break;
+    case OP_QPFSTOIDTR: gen_alopf2_env_dq(alop, gen_helper_qpfstoidtr); break;
+    case OP_QPISTOFD: gen_alopf2_env_dq(alop, gen_helper_qpistofd); break;
+    case OP_QPFSTOFD: gen_alopf2_env_dq(alop, gen_helper_qpfstofd); break;
+    case OP_QPFDTOIS: gen_alopf2_env_qd(alop, gen_helper_qpfdtois); break;
+    case OP_QPFDTOISTR: gen_alopf2_env_qd(alop, gen_helper_qpfdtoistr); break;
+    case OP_QPIDTOFS: gen_alopf2_env_qd(alop, gen_helper_qpidtofs); break;
+    case OP_QPFDTOFS: gen_alopf2_env_qd(alop, gen_helper_qpfdtofs); break;
+    case OP_QPMSK2SGNB: gen_alopf1_qsq(alop, gen_helper_qpmsk2sgnb); break;
+    case OP_QPSGN2MSKB: gen_alopf2_qs(alop, gen_helper_qpsgn2mskb); break;
+    case OP_GETFZS: gen_alopf1_sss(alop, gen_getfzs); break;
+    case OP_GETFZD: gen_alopf1_ddd(alop, gen_getfzd); break;
+    case OP_ADDCD: gen_alopf21_ddsd(alop, gen_addcd); break;
+    case OP_ADDCD_C: gen_alopf21_ddsd(alop, gen_addcd_c); break;
+    case OP_SUBCD: gen_alopf21_ddsd(alop, gen_subcd); break;
+    case OP_SUBCD_C: gen_alopf21_ddsd(alop, gen_subcd_c); break;
+    case OP_QPMERGE: gen_alopf21_qqqq(alop, gen_qpmerge); break;
+    case OP_QPSHUFB: gen_alopf21_qqqq(alop, gen_helper_qpshufb); break;
+    case OP_QPPERMB: gen_alopf21_qqqq(alop, gen_helper_qppermb); break;
+    case OP_PLOG_0x00: gen_alopf21_log_dddd(alop, gen_plog_0x00); break;
+    case OP_PLOG_0x80: gen_alopf21_log_dddd(alop, gen_plog_0x80); break;
+    case OP_QPLOG_0x00: gen_alopf21_log_qqqq(alop, gen_qplog_0x00); break;
+    case OP_QPLOG_0x80: gen_alopf21_log_qqqq(alop, gen_qplog_0x80); break;
+    case OP_FMAS: gen_alopf21_env_ssss(alop, gen_helper_fmas); break;
+    case OP_FMSS: gen_alopf21_env_ssss(alop, gen_helper_fmss); break;
+    case OP_FNMAS: gen_alopf21_env_ssss(alop, gen_helper_fnmas); break;
+    case OP_FNMSS: gen_alopf21_env_ssss(alop, gen_helper_fnmss); break;
+    case OP_FMAD: gen_alopf21_env_dddd(alop, gen_helper_fmad); break;
+    case OP_FMSD: gen_alopf21_env_dddd(alop, gen_helper_fmsd); break;
+    case OP_FNMAD: gen_alopf21_env_dddd(alop, gen_helper_fnmad); break;
+    case OP_FNMSD: gen_alopf21_env_dddd(alop, gen_helper_fnmsd); break;
+    case OP_QPFMAS: gen_alopf21_env_qqqq(alop, gen_helper_qpfmas); break;
+    case OP_QPFMSS: gen_alopf21_env_qqqq(alop, gen_helper_qpfmss); break;
+    case OP_QPFNMAS: gen_alopf21_env_qqqq(alop, gen_helper_qpfnmas); break;
+    case OP_QPFNMSS: gen_alopf21_env_qqqq(alop, gen_helper_qpfnmss); break;
+    case OP_QPFMASS: gen_alopf21_env_qqqq(alop, gen_helper_qpfmass); break;
+    case OP_QPFMSAS: gen_alopf21_env_qqqq(alop, gen_helper_qpfmsas); break;
+    case OP_QPFMAD: gen_alopf21_env_qqqq(alop, gen_helper_qpfmad); break;
+    case OP_QPFMSD: gen_alopf21_env_qqqq(alop, gen_helper_qpfmsd); break;
+    case OP_QPFNMAD: gen_alopf21_env_qqqq(alop, gen_helper_qpfnmad); break;
+    case OP_QPFNMSD: gen_alopf21_env_qqqq(alop, gen_helper_qpfnmsd); break;
+    case OP_QPFMASD: gen_alopf21_env_qqqq(alop, gen_helper_qpfmasd); break;
+    case OP_QPFMSAD: gen_alopf21_env_qqqq(alop, gen_helper_qpfmsad); break;
+    case OP_PCMPEQBOP: gen_alopf7_ddd(alop, gen_pcmpeqbop); break;
+    case OP_PCMPEQHOP: gen_alopf7_ddd(alop, gen_pcmpeqhop); break;
+    case OP_PCMPEQWOP: gen_alopf7_ddd(alop, gen_pcmpeqwop); break;
+    case OP_PCMPEQDOP: gen_alopf7_ddd(alop, gen_pcmpeqdop); break;
+    case OP_PCMPGTBOP: gen_alopf7_ddd(alop, gen_pcmpgtbop); break;
+    case OP_PCMPGTHOP: gen_alopf7_ddd(alop, gen_pcmpgthop); break;
+    case OP_PCMPGTWOP: gen_alopf7_ddd(alop, gen_pcmpgtwop); break;
+    case OP_PCMPGTDOP: gen_alopf7_ddd(alop, gen_pcmpgtdop); break;
+    case OP_PCMPEQBAP: gen_alopf7_ddd(alop, gen_pcmpeqbap); break;
+    case OP_PCMPEQHAP: gen_alopf7_ddd(alop, gen_pcmpeqhap); break;
+    case OP_PCMPEQWAP: gen_alopf7_ddd(alop, gen_pcmpeqwap); break;
+    case OP_PCMPEQDAP: gen_alopf7_ddd(alop, gen_pcmpeqdap); break;
+    case OP_PCMPGTBAP: gen_alopf7_ddd(alop, gen_pcmpgtbap); break;
+    case OP_PCMPGTHAP: gen_alopf7_ddd(alop, gen_pcmpgthap); break;
+    case OP_PCMPGTWAP: gen_alopf7_ddd(alop, gen_pcmpgtwap); break;
+    case OP_PCMPGTDAP: gen_alopf7_ddd(alop, gen_pcmpgtdap); break;
+    case OP_QPCMPEQBOP: gen_alopf7_qqd(alop, gen_qpcmpeqbop); break;
+    case OP_QPCMPEQHOP: gen_alopf7_qqd(alop, gen_qpcmpeqhop); break;
+    case OP_QPCMPEQWOP: gen_alopf7_qqd(alop, gen_qpcmpeqwop); break;
+    case OP_QPCMPEQDOP: gen_alopf7_qqd(alop, gen_qpcmpeqdop); break;
+    case OP_QPCMPGTBOP: gen_alopf7_qqd(alop, gen_qpcmpgtbop); break;
+    case OP_QPCMPGTHOP: gen_alopf7_qqd(alop, gen_qpcmpgthop); break;
+    case OP_QPCMPGTWOP: gen_alopf7_qqd(alop, gen_qpcmpgtwop); break;
+    case OP_QPCMPGTDOP: gen_alopf7_qqd(alop, gen_qpcmpgtdop); break;
+    case OP_QPCMPEQBAP: gen_alopf7_qqd(alop, gen_qpcmpeqbap); break;
+    case OP_QPCMPEQHAP: gen_alopf7_qqd(alop, gen_qpcmpeqhap); break;
+    case OP_QPCMPEQWAP: gen_alopf7_qqd(alop, gen_qpcmpeqwap); break;
+    case OP_QPCMPEQDAP: gen_alopf7_qqd(alop, gen_qpcmpeqdap); break;
+    case OP_QPCMPGTBAP: gen_alopf7_qqd(alop, gen_qpcmpgtbap); break;
+    case OP_QPCMPGTHAP: gen_alopf7_qqd(alop, gen_qpcmpgthap); break;
+    case OP_QPCMPGTWAP: gen_alopf7_qqd(alop, gen_qpcmpgtwap); break;
+    case OP_QPCMPGTDAP: gen_alopf7_qqd(alop, gen_qpcmpgtdap); break;
+    case OP_QPSRAD: gen_alopf1_qdq(alop, gen_qpsrad); break;
+    case OP_PMRGP: gen_merged(alop); break;
+    case OP_QPMRGP: gen_qpmrgp(alop); break;
+    case OP_CLMULH: gen_alopf1_ddd(alop, gen_helper_clmulh); break;
+    case OP_CLMULL: gen_alopf1_ddd(alop, gen_helper_clmull); break;
+    case OP_QPCEXT_0X00: gen_alopf2_dq(alop, gen_qpcext_0x00); break;
+    case OP_QPCEXT_0X7F: gen_alopf2_dq(alop, gen_qpcext_0x7f); break;
+    case OP_QPCEXT_0X80: gen_alopf2_dq(alop, gen_qpcext_0x80); break;
+    case OP_QPCEXT_0XFF: gen_alopf2_dq(alop, gen_qpcext_0xff); break;
     case OP_VFSI:
     case OP_MOVTRS:
     case OP_MOVTRCS:
@@ -5732,7 +6307,7 @@ static void gen_alop_simple(Instr *instr, uint32_t op, const char *name)
     case OP_MODBGV:
     case OP_IBRANCHD:
     case OP_ICALLD:
-        e2k_todo_illop(ctx, "unimplemented %d (%s)", op, name); break;
+        e2k_todo_illop(ctx, "unimplemented %d (%s)", alop->op, alop->name); break;
     }
 }
 
@@ -5756,7 +6331,7 @@ typedef enum {
 } IComb;
 
 #define IMPL_GEN_ICOMB_OP(S) \
-    static void glue(gen_icomb_op_, S)(Instr *instr, IComb opc, \
+    static void glue(gen_icomb_op_, S)(Alop *alop, IComb opc, \
         glue(TCGv_, S) ret, glue(TCGv_, S) arg1, glue(TCGv_, S) arg2) \
     { \
         switch(opc) { \
@@ -5769,7 +6344,7 @@ typedef enum {
         case ICOMB_RSUB: glue(tcg_gen_sub_, S)(ret, arg2, arg1); break; \
         case ICOMB_MERGE: { \
             TCGv_i32 t0 = tcg_temp_new_i32(); \
-            gen_mrgc_i32(instr->ctx, instr->chan, t0); \
+            gen_mrgc_i32(alop->ctx, alop->chan, t0); \
             glue(gen_merge_, S)(ret, arg1, arg2, t0); \
             tcg_temp_free_i32(t0); \
             break; \
@@ -5789,13 +6364,14 @@ typedef enum {
 IMPL_GEN_ICOMB_OP(i64)
 IMPL_GEN_ICOMB_OP(i32)
 
-static inline bool icomb_check(Instr *instr, IComb opc1, IComb opc2)
+static inline bool icomb_check(DisasContext *ctx, Alop *alop,
+    IComb opc1, IComb opc2)
 {
-    if (!is_chan_14(instr->chan)) {
+    if (!is_chan_14(alop->chan)) {
         return false;
     }
 
-    if (instr->ctx->version == 1) {
+    if (ctx->version == 1) {
         return opc1 != ICOMB_RSUB;
     } else {
         return opc1 != ICOMB_RSUB
@@ -5832,11 +6408,12 @@ static inline bool fcomb_is_mul_unit(FComb op)
     return op == FCOMB_MUL;
 }
 
-static inline bool fcomb_check(Instr *instr, FComb opc1, FComb opc2)
+static inline bool fcomb_check(DisasContext *ctx, Alop *alop,
+    FComb opc1, FComb opc2)
 {
-    int ver = instr->ctx->version;
+    int ver = ctx->version;
 
-    if (opc1 == FCOMB_RSUB || (ver < 4 && is_chan_25(instr->chan))) {
+    if (opc1 == FCOMB_RSUB || (ver < 4 && is_chan_25(alop->chan))) {
         return false;
     }
 
@@ -5895,11 +6472,10 @@ static void pfcomb_init(DisasContext *ctx)
     }
 }
 
-static inline bool pfcomb_check(Instr *instr, FComb opc1, FComb opc2)
+static inline bool pfcomb_check(DisasContext *ctx, Alop *alop,
+    FComb opc1, FComb opc2)
 {
-    int ver = instr->ctx->version;
-
-    if (ver < 4 && is_chan_25(instr->chan)) {
+    if (ctx->version < 4 && is_chan_25(alop->chan)) {
         return false;
     }
 
@@ -5907,7 +6483,7 @@ static inline bool pfcomb_check(Instr *instr, FComb opc1, FComb opc2)
 }
 
 #define IMPL_GEN_FCOMB_OP(S, T) \
-    static void glue(gen_fcomb_op_, S)(Instr *instr, FComb opc, \
+    static void glue(gen_fcomb_op_, S)(Alop *alop, FComb opc, \
         glue(TCGv_, S) ret, glue(TCGv_, S) arg1, glue(TCGv_, S) arg2) \
     { \
         switch(opc) { \
@@ -5915,14 +6491,14 @@ static inline bool pfcomb_check(Instr *instr, FComb opc1, FComb opc2)
         case FCOMB_SUB: glue(gen_helper_fsub, T)(ret, cpu_env, arg1, arg2); break; \
         case FCOMB_MUL: glue(gen_helper_fmul, T)(ret, cpu_env, arg1, arg2); break; \
         case FCOMB_RSUB: glue(gen_helper_fsub, T)(ret, cpu_env, arg2, arg1); break; \
-        default: gen_tr_excp_illopc(instr->ctx); break; \
+        default: gen_tr_excp_illopc(alop->ctx); break; \
         } \
     }
 
 IMPL_GEN_FCOMB_OP(i64, d)
 IMPL_GEN_FCOMB_OP(i32, s)
 
-static void gen_pfcomb_op_i32(Instr *instr, FComb opc,
+static void gen_pfcomb_op_i32(Alop *alop, FComb opc,
     TCGv_i64 ret, TCGv_i64 arg1, TCGv_i64 arg2)
 {
     switch (opc) {
@@ -5933,11 +6509,11 @@ static void gen_pfcomb_op_i32(Instr *instr, FComb opc,
     case FCOMB_MUL: gen_helper_pfmuls(ret, cpu_env, arg1, arg2); break;
     case FCOMB_RSUB: gen_helper_pfsubs(ret, cpu_env, arg2, arg1); break;
     case FCOMB_ADDSUB: gen_helper_pfaddsubs(ret, cpu_env, arg1, arg2); break;
-    default: gen_tr_excp_illopc(instr->ctx); break;
+    default: gen_tr_excp_illopc(alop->ctx); break;
     }
 }
 
-static void gen_pfcomb_op_i64(Instr *instr, FComb opc,
+static void gen_pfcomb_op_i64(Alop *alop, FComb opc,
     TCGv_i64 ret, TCGv_i64 arg1, TCGv_i64 arg2)
 {
     switch (opc) {
@@ -5945,11 +6521,11 @@ static void gen_pfcomb_op_i64(Instr *instr, FComb opc,
     case FCOMB_SUB: gen_helper_fsubd(ret, cpu_env, arg1, arg2); break;
     case FCOMB_MUL: gen_helper_fmuld(ret, cpu_env, arg1, arg2); break;
     case FCOMB_RSUB: gen_helper_fsubd(ret, cpu_env, arg2, arg1); break;
-    default: gen_tr_excp_illopc(instr->ctx); break;
+    default: gen_tr_excp_illopc(alop->ctx); break;
     }
 }
 
-static void gen_qpfcomb_op_i32(Instr *instr, FComb opc,
+static void gen_qpfcomb_op_i32(Alop *alop, FComb opc,
     TCGv_ptr ret, TCGv_ptr arg1, TCGv_ptr arg2)
 {
     switch (opc) {
@@ -5960,11 +6536,11 @@ static void gen_qpfcomb_op_i32(Instr *instr, FComb opc,
     case FCOMB_MUL: gen_qpfmuls(ret, cpu_env, arg1, arg2); break;
     case FCOMB_RSUB: gen_qpfsubs(ret, cpu_env, arg2, arg1); break;
     case FCOMB_ADDSUB: gen_qpfaddsubs(ret, cpu_env, arg1, arg2); break;
-    default: gen_tr_excp_illopc(instr->ctx); break;
+    default: gen_tr_excp_illopc(alop->ctx); break;
     }
 }
 
-static void gen_qpfcomb_op_i64(Instr *instr, FComb opc,
+static void gen_qpfcomb_op_i64(Alop *alop, FComb opc,
     TCGv_ptr ret, TCGv_ptr arg1, TCGv_ptr arg2)
 {
     switch (opc) {
@@ -5973,18 +6549,18 @@ static void gen_qpfcomb_op_i64(Instr *instr, FComb opc,
     case FCOMB_MUL: gen_qpfmuld(ret, cpu_env, arg1, arg2); break;
     case FCOMB_RSUB: gen_qpfsubd(ret, cpu_env, arg2, arg1); break;
     case FCOMB_ADDSUB: gen_qpfaddsubd(ret, cpu_env, arg1, arg2); break;
-    default: gen_tr_excp_illopc(instr->ctx); break;
+    default: gen_tr_excp_illopc(alop->ctx); break;
     }
 }
 
-static inline int comb_opc1(Instr *instr, int m1)
+static inline int comb_opc1(Alop *alop, int m1)
 {
-    return (instr->opc1 >> 1) & m1;
+    return (alop->als.opc1 >> 1) & m1;
 }
 
-static inline int comb_opc2(Instr *instr, int m1, int m2)
+static inline int comb_opc2(Alop *alop, int m1, int m2)
 {
-    return ((instr->opc2 & m2) << 2) | ((instr->opc1 >> 5) & m1);
+    return ((alop->ales.opc2 & m2) << 2) | ((alop->als.opc1 >> 5) & m1);
 }
 
 #define icomb_opc1(instr) comb_opc1(instr, 0xf)
@@ -5994,7 +6570,7 @@ static inline int comb_opc2(Instr *instr, int m1, int m2)
 #define fcomb_opc2(instr) comb_opc2(instr, 0x3, 0x1)
 
 #define IMPL_GEN_COMB(NAME, P, S, OP) \
-    static void NAME(Instr *instr, int opc1, int opc2) \
+    static void NAME(Alop *alop, int opc1, int opc2) \
     { \
         tagged(S) r0 = tagged_local_new(S); \
         tagged(S) r1 = tagged_local_new(S); \
@@ -6002,16 +6578,16 @@ static inline int comb_opc2(Instr *instr, int m1, int m2)
         tagged(S) s2 = tagged_local_new(S); \
         tagged(S) s3 = tagged_local_new(S); \
         \
-        gen_tagged_src(1, S, instr, s1); \
-        gen_tagged_src(2, S, instr, s2); \
-        gen_tagged_src(3, S, instr, s3); \
+        gen_tagged_src(1, S, alop, s1); \
+        gen_tagged_src(2, S, alop, s2); \
+        gen_tagged_src(3, S, alop, s3); \
         gen_tag2(S, r0, s1, s2); \
         gen_tag2(S, r1, s3, r0); \
-        gen_result_init(S, instr, r0); \
-        gen_result_init2(S, instr, r1); \
-        OP(instr, opc1, r0.val, s1.val, s2.val); \
-        OP(instr, opc2, r1.val, s3.val, r0.val); \
-        gen_al_result(S, instr, r1); \
+        gen_result_init2(S, alop, r0); \
+        gen_result_init(S, alop, r1); \
+        OP(alop, opc1, r0.val, s1.val, s2.val); \
+        OP(alop, opc2, r1.val, s3.val, r0.val); \
+        gen_al_result(S, alop, r1); \
         \
         tagged_free(S, s3); \
         tagged_free(S, s2); \
@@ -6030,15 +6606,15 @@ IMPL_GEN_COMB(gen_qpfcomb_i64, pfcomb, q, gen_qpfcomb_op_i64)
 IMPL_GEN_COMB(gen_qpfcomb_i32, pfcomb, q, gen_qpfcomb_op_i32)
 
 #define IMPL_GEN_COMB_SELECT(NAME) \
-    static void glue(gen_, NAME)(Instr *instr, uint32_t op) \
+    static void glue(gen_, NAME)(Alop *alop) \
     { \
-        int opc1 = op & 0xffff; \
-        int opc2 = op >> 16; \
+        int opc1 = alop->op & 0xffff; \
+        int opc2 = alop->op >> 16; \
         \
-        if (instr->opc1 & 1) { \
-            glue3(gen_, NAME, _i64)(instr, opc1, opc2); \
+        if (alop->als.opc1 & 1) { \
+            glue3(gen_, NAME, _i64)(alop, opc1, opc2); \
         } else { \
-            glue3(gen_, NAME, _i32)(instr, opc1, opc2); \
+            glue3(gen_, NAME, _i32)(alop, opc1, opc2); \
         } \
     }
 
@@ -6058,27 +6634,15 @@ static inline bool rlp_is_chan_pred(uint16_t rlp, int chan)
     return !extract16(rlp, 15, 1) && rlp_check_chan(rlp, chan);
 }
 
-static bool is_alop_store(Alop *alop)
+static void gen_alop_pred(Alop *alop, TCGLabel *l)
 {
-    switch (alop->format) {
-    case ALOPF3:
-    case ALOPF10:
-    case ALOPF13:
-        return true;
-    default:
-        return false;
-    }
-}
-
-static void chan_check_preds(DisasContext *ctx, Alop *alop, int chan,
-    TCGLabel *l)
-{
+    DisasContext *ctx = alop->ctx;
     bool has_pcnt = false;
     bool has_preg = false;
     TCGv_i32 t0 = tcg_temp_new_i32();
     TCGv_i32 t1 = tcg_temp_new_i32();
     TCGv_i32 t2 = tcg_temp_new_i32();
-    int i, j;
+    int i, j, chan = alop->chan;
 
     tcg_gen_movi_i32(t0, 0);
     tcg_gen_movi_i32(t1, 0);
@@ -6111,7 +6675,7 @@ static void chan_check_preds(DisasContext *ctx, Alop *alop, int chan,
                 break;
             case 0x3: /* %predN */
                 has_preg = true;
-                gen_preg_i32(t2, idx);
+                gen_preg_i32(ctx, t2, idx);
                 if (invert) {
                     tcg_gen_xori_i32(t2, t2, 1);
                 }
@@ -6137,11 +6701,6 @@ static void chan_check_preds(DisasContext *ctx, Alop *alop, int chan,
             tcg_gen_mov_i32(cond, t0);
         }
 
-        if (!is_alop_store(alop)) {
-            ctx->al_cond[chan] = e2k_get_temp_i32(ctx);
-            tcg_gen_mov_i32(ctx->al_cond[chan], cond);
-        }
-
         tcg_gen_brcondi_i32(TCG_COND_EQ, cond, 0, l);
 
         tcg_temp_free_i32(cond);
@@ -6152,183 +6711,254 @@ static void chan_check_preds(DisasContext *ctx, Alop *alop, int chan,
     tcg_temp_free_i32(t0);
 }
 
-static void alop_instr_init(Instr *instr, DisasContext *ctx, int chan)
+static void alop_decode(Alop *alop, AlesFlag ales_present)
 {
-    memset(instr, 0, sizeof(Instr));
+    DisasContext *ctx = alop->ctx;
 
-    instr->ctx = ctx;
-    instr->chan = chan;
-    instr->mas = ctx->bundle2.cs1.type == CS1_MAS ? ctx->bundle2.cs1.mas[chan] : 0;
-    instr->als = ctx->bundle.als[chan];
-    instr->ales = ctx->bundle.ales[chan];
-    instr->ales_present = ctx->bundle.ales_present[chan];
-}
-
-static void alop_decode(Instr *instr)
-{
-    Alop *alop = &instr->ctx->bundle2.alops[instr->chan];
-
-    alop->format = ALOPF_NONE;
-    alop->op = 0;
-    alop->name = "none";
-
-    switch (instr->opc2) {
+    switch (alop->ales.opc2) {
     case ALOP_SHORT:
     case ALOP_EXT:
     case ALOP_EXT1:
-    case ALOP_EXT2: {
-        AlopDesc *desc = find_op(instr);
-        if (!desc) {
-            gen_tr_excp_illopc(instr->ctx);
-            return;
-        }
-        alop->format = desc->alopf;
-        alop->op = desc->op;
-        alop->name = desc->dsc;
+    case ALOP_EXT2:
+        alop_table_find(ctx, alop, ales_present);
         break;
-    }
     case ALOP_ICMB0:
     case ALOP_ICMB1:
     case ALOP_ICMB2:
     case ALOP_ICMB3:
-        if (instr->opc2 == ALOP_ICMB3
-            && (instr->opc1 == 0x6c || instr->opc1 == 0x6d))
+        if (alop->ales.opc2 == ALOP_ICMB3
+            && (alop->als.opc1 == 0x6c || alop->als.opc1 == 0x6d))
         {
-            if (!is_chan_0134(instr->chan)) {
-                gen_tr_excp_illopc(instr->ctx);
+            if (!is_chan_0134(alop->chan)) {
+                gen_tr_excp_illopc(ctx);
                 return;
             }
             alop->format = ALOPF21;
-            alop->op = instr->opc1 & 1 ? OP_INSFD : OP_INSFS;
+            alop->op = alop->als.opc1 & 1 ? OP_INSFD : OP_INSFS;
         } else {
-            int opc1 = icomb_opc1(instr);
-            int opc2 = icomb_opc2(instr);
-            if (!icomb_check(instr, opc1, opc2)) {
-                gen_tr_excp_illopc(instr->ctx);
+            int opc1 = icomb_opc1(alop);
+            int opc2 = icomb_opc2(alop);
+            if (!icomb_check(ctx, alop, opc1, opc2)) {
+                gen_tr_excp_illopc(ctx);
                 return;
             }
             alop->format = ALOPF21_ICOMB;
             alop->op = (opc2 << 16) | opc1;
         }
+        alop->args = alop->als.opc1 & 1 ? ARGS_DDDD : ARGS_SSSS;
         break;
     case ALOP_FLB:
     case ALOP_FLH:
     case ALOP_FLW:
     case ALOP_FLD:
-        e2k_todo_illop(instr->ctx, "flags ops");
+        e2k_todo_illop(ctx, "flags ops");
         break;
     case ALOP_FCMB0:
     case ALOP_FCMB1: {
-        int opc1 = fcomb_opc1(instr);
-        int opc2 = fcomb_opc2(instr);
-        if (!fcomb_check(instr, opc1, opc2)) {
-            gen_tr_excp_illopc(instr->ctx);
+        int opc1 = fcomb_opc1(alop);
+        int opc2 = fcomb_opc2(alop);
+        if (!fcomb_check(ctx, alop, opc1, opc2)) {
+            gen_tr_excp_illopc(ctx);
             return;
         }
         alop->format = ALOPF21_FCOMB;
         alop->op = (opc2 << 16) | opc1;
+        alop->args = alop->als.opc1 & 1 ? ARGS_DDDD : ARGS_SSSS;
         break;
     }
     case ALOP_PFCMB0:
     case ALOP_PFCMB1:
-        if (instr->opc2 == ALOP_PFCMB1 && is_chan_0134(instr->chan)
-            && instr->ctx->version >= 2 && instr->opc1 == 0x4d)
+        if (alop->ales.opc2 == ALOP_PFCMB1 && is_chan_0134(alop->chan)
+            && ctx->version >= 2 && alop->als.opc1 == 0x4d)
         {
-            alop->format = ALOPF12_PSHUFH;
+            alop->format = ALOPF21;
             alop->op = OP_PSHUFB;
-        } else if (instr->opc2 == ALOP_PFCMB1 && is_chan_0134(instr->chan)
-            && instr->ctx->version >= 2 && instr->opc1 == 0x6d)
+            alop->args = ARGS_DDDD;
+        } else if (alop->ales.opc2 == ALOP_PFCMB1 && is_chan_0134(alop->chan)
+            && ctx->version >= 2 && alop->als.opc1 == 0x6d)
         {
             alop->format = ALOPF21;
             alop->op = OP_PMERGE;
+            alop->args = ARGS_DDDD;
         } else {
-            int opc1 = fcomb_opc1(instr);
-            int opc2 = fcomb_opc2(instr);
-            if (!pfcomb_check(instr, opc1, opc2)) {
-                gen_tr_excp_illopc(instr->ctx);
+            int opc1 = fcomb_opc1(alop);
+            int opc2 = fcomb_opc2(alop);
+            if (!pfcomb_check(ctx, alop, opc1, opc2)) {
+                gen_tr_excp_illopc(ctx);
                 return;
             }
             alop->format = ALOPF21_PFCOMB;
             alop->op = (opc2 << 16) | opc1;
+            alop->args = ARGS_DDDD;
         }
         break;
     case ALOP_LCMBD0:
     case ALOP_LCMBD1:
-        if (is_chan_0134(instr->chan) && instr->ctx->version >= 5) {
+        if (is_chan_0134(alop->chan) && ctx->version >= 5) {
             alop->format = ALOPF21;
-            alop->op = instr->opc2 == ALOP_LCMBD0 ? OP_PLOG_0x00 : OP_PLOG_0x80;
+            alop->op = alop->ales.opc2 == ALOP_LCMBD0 ? OP_PLOG_0x00 : OP_PLOG_0x80;
+            alop->args = ARGS_DDDD;
         } else {
-            gen_tr_excp_illopc(instr->ctx);
+            gen_tr_excp_illopc(ctx);
         }
         break;
     case ALOP_LCMBQ0:
     case ALOP_LCMBQ1:
-        if (is_chan_0134(instr->chan) && instr->ctx->version >= 5) {
+        if (is_chan_0134(alop->chan) && ctx->version >= 5) {
             alop->format = ALOPF21;
-            alop->op = instr->opc2 == ALOP_LCMBQ0 ? OP_QPLOG_0x00 : OP_QPLOG_0x80;
+            alop->op = alop->ales.opc2 == ALOP_LCMBQ0 ? OP_QPLOG_0x00 : OP_QPLOG_0x80;
+            alop->args = ARGS_PPPP;
         } else {
-            gen_tr_excp_illopc(instr->ctx);
+            gen_tr_excp_illopc(ctx);
         }
         break;
     case ALOP_QPFCMB0:
     case ALOP_QPFCMB1:
-        if (instr->opc2 == ALOP_QPFCMB1 && is_chan_0134(instr->chan)
-            && instr->ctx->version >= 5 && instr->opc1 == 0xd)
+        if (alop->ales.opc2 == ALOP_QPFCMB1 && is_chan_0134(alop->chan)
+            && ctx->version >= 5 && alop->als.opc1 == 0xd)
         {
             alop->format = ALOPF21;
             alop->op = OP_QPPERMB;
-        } else if (instr->opc2 == ALOP_QPFCMB1 && is_chan_0134(instr->chan)
-            && instr->ctx->version >= 5 && instr->opc1 == 0x4d)
+        } else if (alop->ales.opc2 == ALOP_QPFCMB1 && is_chan_0134(alop->chan)
+            && ctx->version >= 5 && alop->als.opc1 == 0x4d)
         {
             alop->format = ALOPF21;
             alop->op = OP_QPSHUFB;
-        } else if (instr->opc2 == ALOP_QPFCMB1 && is_chan_0134(instr->chan)
-            && instr->ctx->version >= 5 && instr->opc1 == 0x6d)
+        } else if (alop->ales.opc2 == ALOP_QPFCMB1 && is_chan_0134(alop->chan)
+            && ctx->version >= 5 && alop->als.opc1 == 0x6d)
         {
             alop->format = ALOPF21;
             alop->op = OP_QPMERGE;
         } else {
-            int opc1 = fcomb_opc1(instr);
-            int opc2 = fcomb_opc2(instr);
+            int opc1 = fcomb_opc1(alop);
+            int opc2 = fcomb_opc2(alop);
             // TODO: qpfcomb check ops
-            if (instr->ctx->version < 5) {
-                gen_tr_excp_illopc(instr->ctx);
+            if (ctx->version < 5) {
+                gen_tr_excp_illopc(ctx);
                 return;
             }
             alop->format = ALOPF21_QPFCOMB;
             alop->op = (opc2 << 16) | opc1;
         }
+        alop->args = ARGS_PPPP;
         break;
     default:
-        gen_tr_excp_illopc(instr->ctx);
+        gen_tr_excp_illopc(ctx);
         break;
     }
 }
 
-static void alc_decode(DisasContext *ctx)
+static inline void check_reg_src(int *max_r, int *max_b, uint8_t src)
+{
+    if (IS_REGULAR(src)) {
+        *max_r = MAX(*max_r, GET_REGULAR(src));
+    } else if (IS_BASED(src)) {
+        *max_b = MAX(*max_b, GET_BASED(src));
+    }
+}
+
+static inline void check_reg_dst(int *max_r, int *max_b, uint8_t dst)
+{
+    if (IS_REGULAR(dst)) {
+        *max_r = MAX(*max_r, GET_REGULAR(dst));
+    } else if (IS_BASED(dst)) {
+        *max_b = MAX(*max_b, GET_BASED(dst));
+    }
+}
+
+static void alop_find_max_reg_indices(Alop *alop, int *max_r_src,
+    int *max_r_dst, int *max_b)
+{
+    switch (alop->format) {
+    case ALOPF_NONE:
+        break;
+    case ALOPF1:
+    case ALOPF1_MERGE:
+    case ALOPF11:
+    case ALOPF11_MERGE:
+    case ALOPF11_LIT8:
+        check_reg_src(max_r_src, max_b, alop->als.src1);
+        check_reg_src(max_r_src, max_b, alop->als.src2);
+        check_reg_dst(max_r_dst, max_b, alop->als.dst);
+        break;
+    case ALOPF2:
+    case ALOPF12:
+    case ALOPF12_PSHUFH:
+    case ALOPF22:
+        check_reg_src(max_r_src, max_b, alop->als.src2);
+        check_reg_dst(max_r_dst, max_b, alop->als.dst);
+        break;
+    case ALOPF3:
+    case ALOPF13:
+        check_reg_src(max_r_src, max_b, alop->als.src1);
+        check_reg_src(max_r_src, max_b, alop->als.src2);
+        check_reg_src(max_r_src, max_b, alop->als.src4);
+        break;
+    case ALOPF7:
+    case ALOPF17:
+        check_reg_src(max_r_src, max_b, alop->als.src1);
+        check_reg_src(max_r_src, max_b, alop->als.src2);
+        break;
+    case ALOPF8:
+    case ALOPF15:
+        check_reg_src(max_r_src, max_b, alop->als.src2);
+        break;
+    case ALOPF10:
+        check_reg_src(max_r_src, max_b, alop->als.src4);
+        break;
+    case ALOPF16:
+        check_reg_dst(max_r_dst, max_b, alop->als.dst);
+        break;
+    case ALOPF21:
+    case ALOPF21_ICOMB:
+    case ALOPF21_FCOMB:
+    case ALOPF21_PFCOMB:
+    case ALOPF21_QPFCOMB:
+        check_reg_src(max_r_src, max_b, alop->als.src1);
+        check_reg_src(max_r_src, max_b, alop->als.src2);
+        check_reg_src(max_r_src, max_b, alop->ales.src3);
+        check_reg_dst(max_r_dst, max_b, alop->als.dst);
+        break;
+    default:
+        e2k_todo(alop->ctx, "check_args %d", alop->format);
+        break;
+    }
+}
+
+static void decode_alops(DisasContext *ctx)
 {
     int i;
 
     for (i = 0; i < 6; i++) {
+        Alop *alop = &ctx->alops[i];
+
+        alop->format = ALOPF_NONE;
+        alop->ctx = ctx;
+        alop->name = "none";
+        alop->chan = i;
+
         if (ctx->bundle.als_present[i]) {
-            Instr instr;
-            alop_instr_init(&instr, ctx, i);
-            alop_decode(&instr);
+            alop->mas = ctx->cs1.type == CS1_MAS ? ctx->cs1.mas[i] : 0;
+            alop->als.raw = ctx->bundle.als[i];
+            alop->ales.raw = ctx->bundle.ales[i];
+
+            alop_decode(alop, ctx->bundle.ales_present[i]);
         }
     }
 }
 
-static void gen_alop(Instr *instr, Alop *alop)
+static void gen_alop(Alop *alop)
 {
-    DisasContext *ctx = instr->ctx;
-    TCGLabel *l0 = gen_new_label();
-    TCGLabel *l1 = gen_new_label();
+    DisasContext *ctx = alop->ctx;
+    TCGLabel *l0, *l1;
 
     if (alop->format == ALOPF_NONE) {
         return;
     }
 
-    check_reg_indices(alop->format, instr);
+    gen_alop_save_dst(alop);
+    l0 = gen_new_label();
+    l1 = gen_new_label();
 
     if (ctx->loop_mode && is_alop_store(alop)) {
         TCGv_i32 t0 = tcg_temp_new_i32();
@@ -6340,32 +6970,32 @@ static void gen_alop(Instr *instr, Alop *alop)
         tcg_temp_free_i32(t0);
     }
 
-    chan_check_preds(ctx, alop, instr->chan, l0);
+    gen_alop_pred(alop, l0);
 
     switch (alop->format) {
     case ALOPF21_ICOMB:
-        gen_icomb(instr, alop->op);
+        gen_icomb(alop);
         break;
     case ALOPF21_FCOMB:
-        gen_fcomb(instr, alop->op);
+        gen_fcomb(alop);
         break;
     case ALOPF21_PFCOMB:
-        gen_pfcomb(instr, alop->op);
+        gen_pfcomb(alop);
         break;
     case ALOPF21_QPFCOMB:
-        gen_qpfcomb(instr, alop->op);
+        gen_qpfcomb(alop);
         break;
     default:
-        gen_alop_simple(instr, alop->op, alop->name);
+        gen_alop_simple(alop);
         break;
     }
 
     gen_set_label(l0);
 
-    if (alop->format == ALOPF10 && (instr->aaopc & 1)
-        && (instr->mas & 0x7) != 0x7)
+    if (alop->format == ALOPF10 && (alop->als.aaopc & 1)
+        && (alop->mas & 0x7) != 0x7)
     {
-        gen_aasti_incr(instr->ctx, alop, instr);
+        gen_aasti_incr(alop);
     }
 
     gen_set_label(l1);
@@ -6376,297 +7006,7 @@ static void gen_alc(DisasContext *ctx)
     int i;
 
     for (i = 0; i < 6; i++) {
-        Instr instr;
-        Alop *alop = &ctx->bundle2.alops[i];
-
-        ctx->al_results[i].type = OP_RESULT_NONE;
-        ctx->al_cond[i] = NULL;
-        alop_instr_init(&instr, ctx, i);
-        gen_alop(&instr, alop);
-    }
-}
-
-static bool is_alop_affected_by_dbl(Alop *alop)
-{
-    if (alop->format == ALOPF2) {
-        switch (alop->op) {
-        case OP_MOVTS:
-        case OP_MOVTCS:
-        case OP_MOVTRS:
-        case OP_MOVTRCS:
-            return false;
-        default:
-            break;
-        }
-    }
-
-    return true;
-}
-
-static bool is_alop_check_tag(Alop *alop)
-{
-    if (alop->format == ALOPF2) {
-        switch (alop->op) {
-        case OP_PUTTAGS:
-        case OP_PUTTAGD:
-        case OP_MOVTS:
-        case OP_MOVTRS:
-        case OP_MOVTD:
-        case OP_MOVTRD:
-        case OP_MOVTQ:
-        case OP_MOVTRQ:
-            return false;
-        default:
-            break;
-        }
-    }
-
-    return true;
-}
-
-#if 0
-static bool is_alop_poison_result(Alop *alop)
-{
-    if (alop->format == ALOPF2) {
-        switch (alop->op) {
-        case OP_PUTTAGS:
-        case OP_PUTTAGD:
-        case OP_MOVTS:
-        case OP_MOVTRS:
-        case OP_MOVTD:
-        case OP_MOVTRD:
-        case OP_MOVTQ:
-        case OP_MOVTRQ:
-            return false;
-        default:
-            break;
-        }
-    }
-
-    return true;
-}
-#endif
-
-static void gen_commit_reg_s(DisasContext *ctx, bool is_dbl,
-    TCGv_i32 index, TCGv_i32 tag, TCGv_i64 val)
-{
-    TCGLabel *l0;
-    TCGv_ptr t0 = tcg_temp_local_new_ptr();
-    TCGv_i32 t1 = tcg_temp_local_new_i32();
-    TCGv_i64 t2 = tcg_temp_local_new_i64();
-
-    gen_reg_lo_ptr(t0, index);
-    tcg_gen_mov_i32(t1, tag);
-    tcg_gen_mov_i64(t2, val);
-
-    if (is_dbl) {
-        l0 = gen_new_label();
-        tcg_gen_brcondi_i32(TCG_COND_NE, cpu_wdbl, 0, l0);
-    }
-
-    /* wdbl is not set */
-    gen_reg_tag_set_i32(ctx, t1, index);
-    tcg_gen_st32_i64(t2, t0, 0);
-
-    if (is_dbl) {
-        TCGLabel *l1 = gen_new_label();
-
-        tcg_gen_br(l1);
-
-        /* wdbl is set */
-        gen_set_label(l0);
-        gen_tag1_i64(t1, t1);
-        gen_reg_tag_set_i64(ctx, t1, index);
-        tcg_gen_st_i64(t2, t0, 0);
-
-        gen_set_label(l1);
-    }
-
-    tcg_temp_free_i64(t2);
-    tcg_temp_free_i32(t1);
-    tcg_temp_free_ptr(t0);
-}
-
-static void gen_commit_reg_d(DisasContext *ctx,
-    TCGv_i32 index, TCGv_i32 tag, TCGv_i64 value)
-{
-    TCGv_ptr t0 = tcg_temp_new_ptr();
-
-    // TODO: poison value
-    gen_reg_tag_set_i64(ctx, tag, index);
-    gen_reg_lo_ptr(t0, index);
-    tcg_gen_st_i64(value, t0, 0);
-
-    tcg_temp_free_ptr(t0);
-}
-
-static void gen_commit_reg_full(DisasContext *ctx, TCGv_i32 index,
-    TCGv_i32 tag, TCGv_i64 lo, TCGv_i64 hi, uint8_t mask)
-{
-    TCGv_ptr t0 = tcg_temp_new_ptr();
-
-    // TODO: poison value
-    gen_reg_tag_mask_set(ctx, tag, index, mask);
-    gen_reg_lo_ptr(t0, index);
-    gen_qppackdl(t0, hi, lo);
-
-    tcg_temp_free_ptr(t0);
-}
-
-static void gen_commit_reg_x(DisasContext *ctx,
-    TCGv_i32 index, TCGv_i32 tag, TCGv_ptr ptr)
-{
-    TCGv_i64 t0 = tcg_temp_new_i64();
-    TCGv_i64 t1 = tcg_temp_new_i64();
-
-    tcg_gen_ld_i64(t0, ptr, offsetof(E2KReg, lo));
-    tcg_gen_ld16u_i64(t1, ptr, offsetof(E2KReg, hi));
-    gen_commit_reg_full(ctx, index, tag, t0, t1, E2K_TAG_MASK_80);
-
-    tcg_temp_free_i64(t1);
-    tcg_temp_free_i64(t0);
-}
-
-static void gen_commit_reg_q(DisasContext *ctx,
-    TCGv_i32 index, TCGv_i32 tag, TCGv_ptr ptr)
-{
-    TCGv_i64 t0 = tcg_temp_new_i64();
-    TCGv_i64 t1 = tcg_temp_new_i64();
-
-    gen_qpunpackdl(t1, t0, ptr);
-    gen_commit_reg_full(ctx, index, tag, t0, t1, E2K_TAG_MASK_128);
-
-    tcg_temp_free_i64(t1);
-    tcg_temp_free_i64(t0);
-}
-
-static void gen_al_commit_reg(DisasContext *ctx, Alop *alop,
-    Tagged *arg, TCGv_i32 index)
-{
-    if (is_alop_check_tag(alop)) {
-        // TODO: tag check before alops execution
-    }
-
-    switch (arg->kind) {
-    case TAGGED_S:
-    {
-        bool dbl = is_alop_affected_by_dbl(alop);
-        TCGv_i64 t0 = tcg_temp_new_i64();
-
-        tcg_gen_extu_i32_i64(t0, arg->t32.val);
-        gen_commit_reg_s(ctx, dbl, index, arg->t32.tag, t0);
-
-        tcg_temp_free_i64(t0);
-        break;
-    }
-    case TAGGED_D:
-        if (alop->format == ALOPF16 && alop->op == OP_RRS) {
-            /* rrs is affected by wdbl but unlike other 32-bit ops
-             * the upper half must be an actual value */
-            gen_commit_reg_s(ctx, true, index, arg->t64.tag, arg->t64.val);
-        } else {
-            gen_commit_reg_d(ctx, index, arg->t64.tag, arg->t64.val);
-        }
-        break;
-    case TAGGED_X:
-        gen_commit_reg_x(ctx, index, arg->tptr.tag, arg->tptr.val);
-        break;
-    case TAGGED_Q:
-        gen_commit_reg_q(ctx, index, arg->tptr.tag, arg->tptr.val);
-        break;
-    default:
-        g_assert_not_reached();
-        break;
-    }
-}
-
-static void gen_al_commit_ctpr(Tagged *t, int index)
-{
-    TCGv_i64 ctpr = cpu_ctprs[index];
-    TCGv_i64 t0 = tcg_temp_new_i64();
-    TCGv_i64 t1 = tcg_const_i64(CTPR_TAG_DISP);
-
-    switch (t->kind) {
-    case TAGGED_S:
-        tcg_gen_extu_i32_i64(t0, t->t32.val);
-        break;
-    case TAGGED_D:
-        tcg_gen_mov_i64(t0, t->t64.val);
-        break;
-    default:
-        g_assert_not_reached();
-        break;
-    }
-
-    tcg_gen_deposit_i64(ctpr, ctpr, t0, CTPR_BASE_OFF, CTPR_BASE_LEN);
-    tcg_gen_deposit_i64(ctpr, ctpr, t1, CTPR_TAG_OFF, CTPR_TAG_LEN);
-
-    tcg_temp_free_i64(t1);
-    tcg_temp_free_i64(t0);
-}
-
-static void gen_al_commit(DisasContext *ctx)
-{
-    int i;
-
-    for (i = 0; i < 6; i++) {
-        TCGLabel *l0 = gen_new_label();
-        OpResult *res = &ctx->al_results[i];
-        Alop *alop = &ctx->bundle2.alops[i];
-
-        if (!ctx->bundle.als_present[i]) {
-            continue;
-        }
-
-        if (res->type != OP_RESULT_NONE && ctx->al_cond[i] != NULL) {
-            tcg_gen_brcondi_i32(TCG_COND_EQ, ctx->al_cond[i], 0, l0);
-        }
-
-        switch (res->type) {
-        case OP_RESULT_NONE: /* %empty */
-            break;
-        case OP_RESULT_BREG: /* %b[N] */
-        {
-            TCGv_i32 t0 = tcg_temp_local_new_i32();
-
-            gen_breg_index_i32(t0, res->index);
-            gen_al_commit_reg(ctx, alop, &res->tagged, t0);
-            tcg_temp_free_i32(t0);
-            break;
-        }
-        case OP_RESULT_WREG: /* %rN */
-        {
-            TCGv_i32 t0 = tcg_temp_local_new_i32();
-
-            gen_wreg_index_i32(t0, res->index);
-            gen_al_commit_reg(ctx, alop, &res->tagged, t0);
-            tcg_temp_free_i32(t0);
-            break;
-        }
-        case OP_RESULT_GREG: /* %gN */
-        {
-            TCGv_i32 t0 = tcg_temp_local_new_i32();
-
-            gen_greg_index_i32(t0, res->index);
-            gen_al_commit_reg(ctx, alop, &res->tagged, t0);
-            tcg_temp_free_i32(t0);
-            break;
-        }
-        case OP_RESULT_PREG:
-            /* %predN */
-            assert(res->tagged.kind == TAGGED_S);
-            gen_preg_set_i32(res->index, res->tagged.t32.val);
-            break;
-        case OP_RESULT_CTPR:
-            /* %ctprN */
-            gen_al_commit_ctpr(&res->tagged, res->index);
-            break;
-        default:
-            g_assert_not_reached();
-            break;
-        }
-
-        gen_set_label(l0);
+        gen_alop(&ctx->alops[i]);
     }
 }
 
@@ -6700,60 +7040,30 @@ static void gen_load_prefetch_program(DisasContext *ctx)
     gen_helper_aau_load_program(cpu_env);
 }
 
-static void gen_aau_result(DisasContext *ctx, Mova *instr, Tagged tagged)
+static void gen_aau_result_d(DisasContext *ctx, Mova *instr,
+    TCGv_i32 tag, TCGv_i64 val)
 {
-    OpResult *res = &ctx->aau_results[instr->chan];
     uint8_t dst = instr->dst;
 
-    res->tagged = tagged;
-
     if (dst == 0xdf) {
-        res->type = OP_RESULT_NONE;
-    } else if (IS_BASED(dst)) {
-        res->type = OP_RESULT_BREG;
-        res->index = GET_BASED(dst);
-    } else if (IS_REGULAR(dst)) {
-        res->type = OP_RESULT_WREG;
-        res->index = GET_REGULAR(dst);
-    } else if (IS_GLOBAL(dst)) {
-        res->type = OP_RESULT_GREG;
-        res->index = GET_GLOBAL(dst);
+        /* %empty */
+    } else if (IS_REG(dst)) {
+        TCGv_i32 t0 = tcg_temp_local_new_i32();
+
+        gen_reg_index(ctx, t0, dst);
+        gen_reg_set_d(ctx, t0, tag, val);
+        tcg_temp_free_i32(t0);
     } else {
         gen_tr_excp_illopc(ctx);
     }
-}
-
-static void gen_aau_result_d(DisasContext *ctx, Mova *instr, Tagged_i64 arg)
-{
-    Tagged t = {
-        .kind = TAGGED_D,
-        .t64 = e2k_get_tagged_temp_i64(ctx),
-    };
-
-    tcg_gen_mov_i32(t.t64.tag, arg.tag);
-    tcg_gen_mov_i64(t.t64.val, arg.val);
-
-    gen_aau_result(ctx, instr, t);
-}
-
-static void gen_aau_result_q(DisasContext *ctx, Mova *instr, Tagged_ptr arg)
-{
-    Tagged t = {
-        .kind = TAGGED_Q,
-        .tptr = e2k_get_tagged_temp_ptr(ctx),
-    };
-
-    tcg_gen_mov_i32(t.tptr.tag, arg.tag);
-    tcg_gen_addi_ptr(t.tptr.val, arg.val, 0);
-
-    gen_aau_result(ctx, instr, t);
 }
 
 static void gen_checked_ld(DisasContext *ctx, Mova *instr, TCGv ptr)
 {
     TCGLabel *l0 = gen_new_label();
     TCGLabel *l1 = gen_new_label();
-    Tagged_i64 r = tagged_local_new_i64();
+    TCGv_i32 tag = tcg_temp_local_new_i32();
+    TCGv_i64 val = tcg_temp_local_new_i64();
     MemOp memop = instr->be ? MO_BE : MO_LE;
 
     switch(instr->opc) {
@@ -6769,19 +7079,20 @@ static void gen_checked_ld(DisasContext *ctx, Mova *instr, TCGv ptr)
     tcg_gen_brcondi_tl(TCG_COND_NE, ptr, 0, l0);
 
     /* if address is invalid */
-    tcg_gen_movi_i32(r.tag, E2K_TAG_NON_NUMBER64);
-    tcg_gen_movi_i64(r.val, E2K_MOVA_RESULT_INVALID);
+    tcg_gen_movi_i32(tag, E2K_TAG_NON_NUMBER64);
+    tcg_gen_movi_i64(val, E2K_MOVA_RESULT_INVALID);
     tcg_gen_br(l1);
 
     /* if address is valid */
     gen_set_label(l0);
-    tcg_gen_movi_i32(r.tag, E2K_TAG_NUMBER64);
-    tcg_gen_qemu_ld_i64(r.val, ptr, 0, memop);
+    tcg_gen_movi_i32(tag, E2K_TAG_NUMBER64);
+    tcg_gen_qemu_ld_i64(val, ptr, 0, memop);
 
     gen_set_label(l1);
-    gen_aau_result_d(ctx, instr, r);
+    gen_aau_result_d(ctx, instr, tag, val);
 
-    tagged_free_i64(r);
+    tcg_temp_free_i64(val);
+    tcg_temp_free_i32(tag);
 }
 
 static void gen_checked_ld_qp(DisasContext *ctx, Mova *instr, TCGv addr)
@@ -6789,31 +7100,36 @@ static void gen_checked_ld_qp(DisasContext *ctx, Mova *instr, TCGv addr)
     MemOp memop = (instr->be ? MO_BE : MO_LE) | MO_64;
     TCGLabel *l0 = gen_new_label();
     TCGLabel *l1 = gen_new_label();
-    Tagged_ptr r = tagged_local_new_ptr();
+    TCGv_i32 tag = tcg_temp_local_new_i32();
     TCGv_i64 t0 = tcg_temp_local_new_i64();
     TCGv_i64 t1 = tcg_temp_local_new_i64();
 
-    gen_temp_result_ptr(r.val, 12 + instr->chan);
     tcg_gen_brcondi_tl(TCG_COND_NE, addr, 0, l0);
 
     /* if address is invalid */
-    tcg_gen_movi_i32(r.tag, E2K_TAG_NON_NUMBER128);
+    tcg_gen_movi_i32(tag, E2K_TAG_NON_NUMBER128);
     tcg_gen_movi_i64(t0, E2K_MOVA_RESULT_INVALID);
     tcg_gen_movi_i64(t1, E2K_MOVA_RESULT_INVALID);
     tcg_gen_br(l1);
 
     /* if address is valid */
     gen_set_label(l0);
-    tcg_gen_movi_i32(r.tag, E2K_TAG_NUMBER128);
+    tcg_gen_movi_i32(tag, E2K_TAG_NUMBER128);
     gen_qemu_ld_i128(t1, t0, addr, ctx->mmuidx, memop);
 
     gen_set_label(l1);
-    gen_qppackdl(r.val, t1, t0);
-    gen_aau_result_q(ctx, instr, r);
+
+    if (instr->dst == 0xdf) {
+        /* %empty */
+    } else if (IS_REG(instr->dst)) {
+        gen_reg_set_q(ctx, tag, t1, t0, instr->dst);
+    } else {
+        gen_tr_excp_illopc(ctx);
+    }
 
     tcg_temp_free_i64(t1);
     tcg_temp_free_i64(t0);
-    tagged_free_ptr(r);
+    tcg_temp_free_i32(tag);
 }
 
 static void gen_mova_ptr(TCGv ret, Mova *instr, int size, int mmu_idx)
@@ -6877,11 +7193,10 @@ static inline void gen_aau_am(DisasContext *ctx, int chan, int area)
 static void gen_aau(DisasContext *ctx)
 {
     const UnpackedBundle *bundle = &ctx->bundle;
-    unsigned int i;
+    int i;
 
     for (i = 0; i < 4; i++) {
         Mova instr = { 0 };
-        OpResult *res = &ctx->aau_results[i];
 
         instr.chan = i;
         instr.aas = bundle->aas[i + 2];
@@ -6889,77 +7204,10 @@ static void gen_aau(DisasContext *ctx)
 
         if (!bundle->aas_present[i + 2] || instr.opc == 0) {
             ctx->aau_am[i] = -1;
-            res->type = OP_RESULT_NONE;
             continue;
         }
 
-        // TODO: invalid value if addr is unaligned
         gen_mova(ctx, &instr);
-    }
-
-    /* bap */
-    if (ctx->bundle.ss & (1 << 28)) {
-        gen_load_prefetch_program(ctx);
-    }
-}
-
-static void gen_aau_commit_reg(DisasContext *ctx, Tagged *arg,
-    TCGv_i32 index)
-{
-    switch (arg->kind) {
-    case TAGGED_D:
-        gen_commit_reg_d(ctx, index, arg->t64.tag, arg->t64.val);
-        break;
-    case TAGGED_Q:
-        gen_commit_reg_q(ctx, index, arg->tptr.tag, arg->tptr.val);
-        break;
-    default:
-        g_assert_not_reached();
-        break;
-    }
-}
-
-static void gen_aau_commit(DisasContext *ctx)
-{
-    int i;
-
-    for (i = 0; i < 4; i++) {
-        OpResult *res = &ctx->aau_results[i];
-
-        switch (res->type) {
-        case OP_RESULT_NONE: /* %empty */
-            break;
-        case OP_RESULT_BREG: /* %b[N] */
-        {
-            TCGv_i32 t0 = tcg_temp_local_new_i32();
-
-            gen_breg_index_i32(t0, res->index);
-            gen_aau_commit_reg(ctx, &res->tagged, t0);
-            tcg_temp_free_i32(t0);
-            break;
-        }
-        case OP_RESULT_WREG: /* %rN */
-        {
-            TCGv_i32 t0 = tcg_temp_local_new_i32();
-
-            gen_wreg_index_i32(t0, res->index);
-            gen_aau_commit_reg(ctx, &res->tagged, t0);
-            tcg_temp_free_i32(t0);
-            break;
-        }
-        case OP_RESULT_GREG: /* %gN */
-        {
-            TCGv_i32 t0 = tcg_temp_local_new_i32();
-
-            gen_greg_index_i32(t0, res->index);
-            gen_aau_commit_reg(ctx, &res->tagged, t0);
-            tcg_temp_free_i32(t0);
-            break;
-        }
-        default:
-            g_assert_not_reached();
-            break;
-        }
     }
 
     for (i = 0; i < 4; i++) {
@@ -6968,6 +7216,11 @@ static void gen_aau_commit(DisasContext *ctx)
             continue;
         }
         gen_aau_am(ctx, i, area);
+    }
+
+    /* bap */
+    if (ctx->bundle.ss & (1 << 28)) {
+        gen_load_prefetch_program(ctx);
     }
 }
 
@@ -6998,7 +7251,7 @@ static inline void gen_goto_ctpr_disp(TCGv_i64 ctpr)
 
 static inline void gen_vfrpsz(DisasContext *ctx)
 {
-    Cs1 *cs1 = &ctx->bundle2.cs1;
+    Cs1 *cs1 = &ctx->cs1;
     Cs1Setr *setr = &cs1->setr;
 
     if (cs1->type == CS1_SETR && (setr->type & SETR_VFRPSZ)) {
@@ -7008,7 +7261,7 @@ static inline void gen_vfrpsz(DisasContext *ctx)
 
 static inline void gen_setwd(DisasContext *ctx)
 {
-    Cs1 *cs1 = &ctx->bundle2.cs1;
+    Cs1 *cs1 = &ctx->cs1;
     Cs1Setr *setr = &cs1->setr;
 
     if (cs1->type == CS1_SETR && (setr->type & SETR_WD)) {
@@ -7025,7 +7278,7 @@ static inline void gen_setwd(DisasContext *ctx)
 
 static inline void gen_setbn(DisasContext *ctx)
 {
-    Cs1 *cs1 = &ctx->bundle2.cs1;
+    Cs1 *cs1 = &ctx->cs1;
     Cs1Setr *setr = &cs1->setr;
 
     if (cs1->type == CS1_SETR && (setr->type & SETR_BN)) {
@@ -7038,7 +7291,7 @@ static inline void gen_setbn(DisasContext *ctx)
 
 static inline void gen_setbp(DisasContext *ctx)
 {
-    Cs1 *cs1 = &ctx->bundle2.cs1;
+    Cs1 *cs1 = &ctx->cs1;
     Cs1Setr *setr = &cs1->setr;
 
     if (cs1->type == CS1_SETR && (setr->type & SETR_BP)) {
@@ -7057,7 +7310,7 @@ static inline void gen_setr(DisasContext *ctx)
 
 static inline void gen_cs1(DisasContext *ctx)
 {
-    Cs1 *cs1 = &ctx->bundle2.cs1;
+    Cs1 *cs1 = &ctx->cs1;
 
     switch(cs1->type) {
     case CS1_NONE:
@@ -7082,7 +7335,7 @@ static inline void gen_cs1(DisasContext *ctx)
 
 static inline void gen_cs0(DisasContext *ctx)
 {
-    Cs0 *cs0 = &ctx->bundle2.cs0;
+    Cs0 *cs0 = &ctx->cs0;
 
     switch(cs0->type) {
     case CS0_NONE:
@@ -7141,13 +7394,13 @@ static void gen_ct_cond(DisasContext *ctx)
     case 0x6:
     case 0xf:
         /* %predN */
-        gen_preg_i32(pcond, ct->psrc);
+        gen_preg_i32(ctx, pcond, ct->psrc);
         break;
     case 0x3:
     case 0x7:
     case 0xe: {
         TCGv_i32 t0 = tcg_temp_new_i32();
-        gen_preg_i32(t0, ct->psrc);
+        gen_preg_i32(ctx, t0, ct->psrc);
         tcg_gen_setcondi_i32(TCG_COND_EQ, pcond, t0, 0);
         tcg_temp_free_i32(t0);
         break;
@@ -7406,7 +7659,7 @@ static inline target_ulong do_decode(DisasContext *ctx, CPUState *cs)
     decode_cs1(ctx, &ctx->bundle);
     decode_cs0(ctx, &ctx->bundle);
     decode_ct_cond(ctx, &ctx->bundle);
-    alc_decode(ctx);
+    decode_alops(ctx);
 
     return ctx->pc + len;
 }
@@ -7420,39 +7673,48 @@ static inline void gen_window_bounds_checki_i32(TCGCond cond, TCGv_i32 arg1,
     gen_set_label(l0);
 }
 
-static inline void do_checks(DisasContext *ctx)
+static inline void gen_alop_reg_indices_check(DisasContext *ctx)
 {
-    const Bundle *b = &ctx->bundle2;
-    const Cs1Setr *setr = &b->cs1.setr;
+    const Cs1 *cs1 = &ctx->cs1;
+    const Cs1Setr *setr = &cs1->setr;
+    int i, max_r_src, max_r_dst, max_b_cur;
+
+    max_r_src = -1;
+    max_r_dst = -1;
+    max_b_cur = -1;
+    for (i = 0; i < 6; i++) {
+        alop_find_max_reg_indices(&ctx->alops[i], &max_r_src,
+            &max_r_dst, &max_b_cur);
+    }
 
     if (ctx->wd_size != DYNAMIC) {
         /* %rN src static check */
-        if (ctx->wd_size <= ctx->max_r_src) {
+        if (ctx->wd_size <= max_r_src) {
             gen_tr_excp_window_bounds(ctx);
         }
         /* %rN dst static check */
-        if (b->cs1.type == CS1_SETR && (setr->type & SETR_WD)) {
-            if (setr->wsz * 2 <= ctx->max_r_dst) {
+        if (cs1->type == CS1_SETR && (setr->type & SETR_WD)) {
+            if (setr->wsz * 2 <= max_r_dst) {
                 gen_tr_excp_window_bounds(ctx);
             }
-        } else if (ctx->wd_size <= ctx->max_r_dst) {
+        } else if (ctx->wd_size <= max_r_dst) {
             gen_tr_excp_window_bounds(ctx);
         }
-    } else if (b->cs1.type == CS1_SETR && (setr->type & SETR_WD)) {
+    } else if (cs1->type == CS1_SETR && (setr->type & SETR_WD)) {
         /* %rN src dynamic check */
-        if (ctx->max_r < ctx->max_r_src) {
-            ctx->max_r = ctx->max_r_src;
+        if (ctx->max_r < max_r_src) {
+            ctx->max_r = max_r_src;
             gen_window_bounds_checki_i32(TCG_COND_LE, cpu_wd_size,
-                ctx->max_r_src);
+                max_r_src);
         }
 
         /* %rN dst static check */
-        if (setr->wsz * 2 <= ctx->max_r_dst) {
+        if (setr->wsz * 2 <= max_r_dst) {
             gen_tr_excp_window_bounds(ctx);
         }
     } else {
         /* %rN src/dst dynamic check */
-        int max = MAX(ctx->max_r_src, ctx->max_r_dst);
+        int max = MAX(max_r_src, max_r_dst);
         if (ctx->max_r < max) {
             ctx->max_r = max;
             gen_window_bounds_checki_i32(TCG_COND_LE, cpu_wd_size, max);
@@ -7461,12 +7723,12 @@ static inline void do_checks(DisasContext *ctx)
 
     if (ctx->bsize != DYNAMIC) {
         /* %b[N] src/dst static check */
-        if (ctx->bsize <= ctx->max_b_cur) {
+        if (ctx->bsize <= max_b_cur) {
             gen_tr_excp_window_bounds(ctx);
         }
-    } else if (ctx->max_b < ctx->max_b_cur) {
+    } else if (ctx->max_b < max_b_cur) {
         /* %b[N] src/dst dynamic check */
-        ctx->max_b = ctx->max_b_cur;
+        ctx->max_b = max_b_cur;
         gen_window_bounds_checki_i32(TCG_COND_LE, cpu_bsize, ctx->max_b);
     }
 }
@@ -7500,7 +7762,7 @@ static void gen_loop_end_init(DisasContext *ctx)
     }
 
     for (i = 0; !need && i < 6; i++) {
-        if (is_alop_store(&ctx->bundle2.alops[i])) {
+        if (is_alop_store(&ctx->alops[i])) {
             need = true;
             break;
         }
@@ -7621,11 +7883,8 @@ static void e2k_tr_tb_start(DisasContextBase *db, CPUState *cs)
 
     ctx->wd_size = DYNAMIC;
     ctx->max_r = -1;
-    ctx->max_r_src = -1;
-    ctx->max_r_dst = -1;
     ctx->bsize = DYNAMIC;
     ctx->max_b = -1;
-    ctx->max_b_cur = -1;
 
     tcg_gen_movi_i32(cpu_ct_cond, 0);
 
@@ -7643,14 +7902,11 @@ static void e2k_tr_insn_start(DisasContextBase *db, CPUState *cs)
 
     tcg_gen_insn_start(ctx->base.pc_next);
 
-    memset(ctx->mas, 0, sizeof(ctx->mas));
-    memset(&ctx->bundle2, 0, sizeof(ctx->bundle2));
-
-    ctx->max_r_src = -1;
-    ctx->max_r_dst = -1;
-    ctx->max_b_cur = -1;
-
+    ctx->cs0.type = CS0_NONE;
+    ctx->cs1.type = CS0_NONE;
     ctx->mlock = NULL;
+    ctx->saved_reg_len = 0;
+    ctx->saved_preg_len = 0;
 }
 
 static void e2k_tr_translate_insn(DisasContextBase *db, CPUState *cs)
@@ -7692,26 +7948,23 @@ static void e2k_tr_translate_insn(DisasContextBase *db, CPUState *cs)
 
         pc_next = do_decode(ctx, cs);
 #ifdef CONFIG_USER_ONLY
-        if (ctx->bundle2.cs1.type == CS1_CALL) {
+        if (ctx->cs1.type == CS1_CALL) {
             gen_save_cpu_state(ctx);
             gen_helper_expand_stacks(cpu_env);
         }
 #endif /* CONFIG_USER_ONLY */
 
         ctx->loop_mode = (ctx->bundle.hs & (1 << 10)) != 0;
+        gen_alop_reg_indices_check(ctx);
         gen_cs0(ctx);
         gen_cs1(ctx);
         gen_mlock_init(ctx);
         gen_loop_end_init(ctx);
         gen_alc(ctx);
-        gen_ct_cond(ctx);
         gen_aau(ctx);
         gen_plu(ctx);
-        do_checks(ctx);
+        gen_ct_cond(ctx);
         gen_setr(ctx);
-        gen_al_commit(ctx);
-        gen_aau_commit(ctx);
-        gen_plu_commit(ctx);
         gen_stubs(ctx);
         do_branch(ctx, pc_next);
         ctx->base.pc_next = pc_next;

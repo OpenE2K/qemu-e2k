@@ -394,10 +394,10 @@ IMPL_CMPF_FX(fxcmpudxf, f80, f80, FXCMPUDF)
     IMPL_ALOPF1_FPU(fp, name, T, T, R, T, T, R, op)
 
 IMPL_CMPF_FP(fcmpodsf, f32, i32, FCMPODSF)
-IMPL_CMPF_FP(fcmpoddf, f64, i64, FCMPODDF)
+IMPL_CMPF_FP(fcmpoddf, f64, i32, FCMPODDF)
 
 IMPL_CMPF_FP(fcmpudsf, f32, i32, FCMPUDSF)
-IMPL_CMPF_FP(fcmpuddf, f64, i64, FCMPUDDF)
+IMPL_CMPF_FP(fcmpuddf, f64, i32, FCMPUDDF)
 
 #define cmp_op(T, op) glue3(type_name(T), _, op)
 

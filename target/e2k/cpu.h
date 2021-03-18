@@ -720,11 +720,12 @@ typedef struct {
     uint64_t pregs; /* predicate file */
     target_ulong ip; /* instruction address */
 
-    /* temporaries for FX/SIMD ops */
-    E2KReg t0, t1, t2, t3;
-
-    E2KReg tmp[8];
-    E2KReg al_result[16];
+    /* big constant values */
+    E2KReg tmp[12];
+    /* pre saved registers */
+    E2KReg tmp_saved[6];
+    /* alops results */
+    E2KReg al_result[12];
 
     /* DAM */
     E2KDamEntry dam[32];

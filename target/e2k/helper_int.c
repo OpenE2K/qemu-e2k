@@ -6,27 +6,10 @@
 #include "qemu/host-utils.h"
 #include "exec/helper-proto.h"
 
-uint64_t HELPER(sxt)(uint64_t x, uint32_t y)
+uint64_t HELPER(sxt)(uint32_t s1, uint32_t s2)
 {
-    int size;
-
-    switch (x & 3) {
-    case 0:
-        size = 8;
-        break;
-    case 1:
-        size = 16;
-        break;
-    default:
-        size = 32;
-        break;
-    }
-
-    if (x & 4) {
-        return y & GEN_MASK(0, size);
-    } else {
-        return (((int64_t) y) << (64 - size) >> (64 - size));
-    }
+    int size = MIN(32, 8 << (s1 & 3));
+    return s1 & 4 ? extract32(s2, 0, size) : sextract64(s2, 0, size);
 }
 
 static uint64_t cr_read(CPUE2KState *env, size_t offset)

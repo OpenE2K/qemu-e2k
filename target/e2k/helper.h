@@ -32,7 +32,7 @@ DEF_HELPER_FLAGS_2(rrd, TCG_CALL_NO_WG_SE, i64, env, int)
 DEF_HELPER_3(rwd, void, env, int, i64)
 DEF_HELPER_3(rws, void, env, int, i32)
 
-DEF_HELPER_FLAGS_2(sxt, TCG_CALL_NO_RWG_SE, i64, i64, i32)
+DEF_HELPER_FLAGS_2(sxt, TCG_CALL_NO_RWG_SE, i64, i32, i32)
 DEF_HELPER_FLAGS_2(clmull, TCG_CALL_NO_RWG_SE, i64, i64, i64)
 DEF_HELPER_FLAGS_2(clmulh, TCG_CALL_NO_RWG_SE, i64, i64, i64)
 
@@ -302,8 +302,8 @@ DEF_HELPER_FP_CMP(fx, x, i64, f80, f80)
 /* Float Flag Comparisons */
 DEF_HELPER_FLAGS_3(fcmpodsf, TCG_CALL_NO_RWG, i32, env, i32, i32)
 DEF_HELPER_FLAGS_3(fcmpudsf, TCG_CALL_NO_RWG, i32, env, i32, i32)
-DEF_HELPER_FLAGS_3(fcmpoddf, TCG_CALL_NO_RWG, i64, env, i64, i64)
-DEF_HELPER_FLAGS_3(fcmpuddf, TCG_CALL_NO_RWG, i64, env, i64, i64)
+DEF_HELPER_FLAGS_3(fcmpoddf, TCG_CALL_NO_RWG, i32, env, i64, i64)
+DEF_HELPER_FLAGS_3(fcmpuddf, TCG_CALL_NO_RWG, i32, env, i64, i64)
 
 /* Float Conversions */
 DEF_HELPER_FLAGS_2(fstofd,   TCG_CALL_NO_RWG,       i64, env, i32)
