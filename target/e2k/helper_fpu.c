@@ -236,8 +236,25 @@ void HELPER(fxscalesx)(floatx80 *r, CPUE2KState *env, floatx80 *a, uint32_t b)
 #define IMPL_ALOPF2_FP(name, S2, R, op) \
     IMPL_ALOPF2_FPU_BASIC(fp, name, R, S2, R, S2, op)
 
+#define IMPL_ALOPF2_FPU_CVT_OP(FPU, name, S2, R, op) \
+    ret_type(R) HELPER(name)(ret_arg(R) CPUE2KState *env, arg_type(S2) s2) \
+    { \
+        int old_flags = glue(FPU, _save_exception_flags)(env); \
+        float_status *s = &env->glue(FPU, _status); \
+        type(R) r = op(make(S2, s2), s); \
+        glue(FPU, _merge_exception_flags)(env, old_flags); \
+        ret(R, r); \
+    }
+
 #define IMPL_ALOPF2_FPU_CVT(FPU, name, S2, R) \
-    IMPL_ALOPF2_FPU_BASIC(FPU, name, S2, R, R, R, fpu_mov)
+    ret_type(R) HELPER(name)(ret_arg(R) CPUE2KState *env, arg_type(S2) s2) \
+    { \
+        int old_flags = glue(FPU, _save_exception_flags)(env); \
+        float_status *s = &env->glue(FPU, _status); \
+        type(R) r = convert(S2, R, make(S2, s2), s); \
+        glue(FPU, _merge_exception_flags)(env, old_flags); \
+        ret(R, r); \
+    }
 
 #define IMPL_ALOPF1_FPU(FPU, name, S1, S2, R, T1, T2, TR, op) \
     ret_type(R) HELPER(name)(ret_arg(R) CPUE2KState *env, \
@@ -275,6 +292,16 @@ void HELPER(fxscalesx)(floatx80 *r, CPUE2KState *env, floatx80 *a, uint32_t b)
 
 #define IMPL_ALOPF1_FPU_CMP(FPU, name, S1, S2, R, T, op1, op2) \
     IMPL_ALOPF1_FPU_CMP_BASIC(FPU, name, S1, S2, R, T, T, R, op1, op2)
+
+#define IMPL_ALOPF1_FP_S(name, S1, S2, R, op) \
+    ret_type(R) HELPER(name)(CPUE2KState *env, arg_type(S1) s1, \
+        arg_type(S2) s2) \
+    { \
+        int old_flags = fp_save_exception_flags(env); \
+        type(R) r = op(R, make(S1, s1), make(S2, s2), &env->fp_status); \
+        fp_merge_exception_flags(env, old_flags); \
+        return float_val(R, r); \
+    }
 
 #define IMPL_ALOPF21_FPU(FPU, name, S1, S2, S3, R, T1, T2, T3, TR, op) \
     ret_type(R) HELPER(name)(ret_arg(R) CPUE2KState *env, \
@@ -392,18 +419,10 @@ IMPL_ALOPF1_FPU_CMP_ALL(fx, fx, x, f80, i64, f80, f80)
 
 IMPL_ALOPF2_FPU_CVT(fp, fstofd, f32, f64)
 IMPL_ALOPF2_FPU_CVT(fx, fstofx, f32, f80)
-IMPL_ALOPF2_FPU_CVT(fp, fstois, f32, i32)
-IMPL_ALOPF2_FPU_CVT(fp, fstoid, f32, i64)
-
 IMPL_ALOPF2_FPU_CVT(fp, fdtofs, f64, f32)
 IMPL_ALOPF2_FPU_CVT(fx, fdtofx, f64, f80)
-IMPL_ALOPF2_FPU_CVT(fp, fdtois, f64, i32)
-IMPL_ALOPF2_FPU_CVT(fp, fdtoid, f64, i64)
-
 IMPL_ALOPF2_FPU_CVT(fx, fxtofs, f80, f32)
 IMPL_ALOPF2_FPU_CVT(fx, fxtofd, f80, f64)
-IMPL_ALOPF2_FPU_CVT(fx, fxtois, f80, i32)
-IMPL_ALOPF2_FPU_CVT(fx, fxtoid, f80, i64)
 
 IMPL_ALOPF2_FPU_CVT(fp, istofs, i32, f32)
 IMPL_ALOPF2_FPU_CVT(fp, istofd, i32, f64)
@@ -413,12 +432,56 @@ IMPL_ALOPF2_FPU_CVT(fp, idtofs, i64, f32)
 IMPL_ALOPF2_FPU_CVT(fp, idtofd, i64, f64)
 IMPL_ALOPF2_FPU_CVT(fx, idtofx, i64, f80)
 
-IMPL_ALOPF2_FPU(fp, fstoistr, f32, i32, float32_to_int32_round_to_zero)
-IMPL_ALOPF2_FPU(fp, fstoidtr, f32, i64, float32_to_int64_round_to_zero)
-IMPL_ALOPF2_FPU(fp, fdtoistr, f64, i32, float64_to_int32_round_to_zero)
-IMPL_ALOPF2_FPU(fp, fdtoidtr, f64, i64, float64_to_int64_round_to_zero)
-IMPL_ALOPF2_FPU(fx, fxtoistr, f80, i32, floatx80_to_int32_round_to_zero)
-IMPL_ALOPF2_FPU(fx, fxtoidtr, f80, i64, floatx80_to_int64_round_to_zero)
+/*
+ * I assume e2k behaves like x86.
+ *
+ * e2k/x86 mandates that we return the indefinite integer value for the result
+ * of any float-to-integer conversion that raises the 'invalid' exception.
+ * Wrap the softfloat functions to get this behaviour.
+ */
+#define WRAP_F2I(RET, func, T, defval) \
+    static RET glue(e2k_, func)(T x, float_status *s) \
+    { \
+        int oldflags, newflags; \
+        RET r; \
+        \
+        oldflags = get_float_exception_flags(s); \
+        set_float_exception_flags(0, s); \
+        r = func(x, s); \
+        newflags = get_float_exception_flags(s); \
+        if (newflags & float_flag_invalid) { \
+            r = defval; \
+        } \
+        set_float_exception_flags(newflags | oldflags, s); \
+        return r; \
+    }
+
+WRAP_F2I(int32_t, float32_to_int32,                float32,  INT32_MIN)
+WRAP_F2I(int32_t, float32_to_int32_round_to_zero,  float32,  INT32_MIN)
+WRAP_F2I(int64_t, float32_to_int64,                float32,  INT64_MIN)
+WRAP_F2I(int64_t, float32_to_int64_round_to_zero,  float32,  INT64_MIN)
+WRAP_F2I(int32_t, float64_to_int32,                float64,  INT32_MIN)
+WRAP_F2I(int32_t, float64_to_int32_round_to_zero,  float64,  INT32_MIN)
+WRAP_F2I(int64_t, float64_to_int64,                float64,  INT64_MIN)
+WRAP_F2I(int64_t, float64_to_int64_round_to_zero,  float64,  INT64_MIN)
+WRAP_F2I(int32_t, floatx80_to_int32,               floatx80, INT32_MIN)
+WRAP_F2I(int32_t, floatx80_to_int32_round_to_zero, floatx80, INT32_MIN)
+WRAP_F2I(int64_t, floatx80_to_int64,               floatx80, INT64_MIN)
+WRAP_F2I(int64_t, floatx80_to_int64_round_to_zero, floatx80, INT64_MIN)
+
+IMPL_ALOPF2_FPU_CVT_OP(fp, fstois, f32, i32, e2k_float32_to_int32)
+IMPL_ALOPF2_FPU_CVT_OP(fp, fdtois, f64, i32, e2k_float64_to_int32)
+IMPL_ALOPF2_FPU_CVT_OP(fx, fxtois, f80, i32, e2k_floatx80_to_int32)
+IMPL_ALOPF2_FPU_CVT_OP(fp, fstoid, f32, i64, e2k_float32_to_int64)
+IMPL_ALOPF2_FPU_CVT_OP(fp, fdtoid, f64, i64, e2k_float64_to_int64)
+IMPL_ALOPF2_FPU_CVT_OP(fx, fxtoid, f80, i64, e2k_floatx80_to_int64)
+
+IMPL_ALOPF2_FPU_CVT_OP(fp, fstoistr, f32, i32, e2k_float32_to_int32_round_to_zero)
+IMPL_ALOPF2_FPU_CVT_OP(fp, fstoidtr, f32, i64, e2k_float32_to_int64_round_to_zero)
+IMPL_ALOPF2_FPU_CVT_OP(fp, fdtoistr, f64, i32, e2k_float64_to_int32_round_to_zero)
+IMPL_ALOPF2_FPU_CVT_OP(fp, fdtoidtr, f64, i64, e2k_float64_to_int64_round_to_zero)
+IMPL_ALOPF2_FPU_CVT_OP(fx, fxtoistr, f80, i32, e2k_floatx80_to_int32_round_to_zero)
+IMPL_ALOPF2_FPU_CVT_OP(fx, fxtoidtr, f80, i64, e2k_floatx80_to_int64_round_to_zero)
 
 #define IMPL_FTOIF(name, A, B) \
     static type(B) name(type(A) flags, type(B) f, float_status *s) \
@@ -449,13 +512,25 @@ static float64 fsqrttd(float64 a, float64 b, float_status *s)
     return float64_sqrt(a, s);
 }
 
+/*
+ * I assume e2k behaves like x86.
+ *
+ * Note that the choice of comparison op here is important to get the
+ * special cases right: for min and max Intel specifies that (-0,0),
+ * (NaN, anything) and (anything, NaN) return the second argument.
+ */
+#define FPU_MIN(T, a, b, s) \
+    (glue(type_name(T), _lt)(a, b, s) ? (a) : (b))
+#define FPU_MAX(T, a, b, s) \
+    (glue(type_name(T), _lt)(b, a, s) ? (a) : (b))
+
 #define IMPL_ALOPF1_FP_MANY(S, T) \
     IMPL_ALOPF1_FP(glue(fadd, S), T, T, T, glue(type_name(T), _add)) \
     IMPL_ALOPF1_FP(glue(fsub, S), T, T, T, glue(type_name(T), _sub)) \
     IMPL_ALOPF1_FP(glue(fmul, S), T, T, T, glue(type_name(T), _mul)) \
     IMPL_ALOPF1_FP(glue(fdiv, S), T, T, T, glue(type_name(T), _div)) \
-    IMPL_ALOPF1_FP(glue(fmin, S), T, T, T, glue(type_name(T), _min)) \
-    IMPL_ALOPF1_FP(glue(fmax, S), T, T, T, glue(type_name(T), _max))
+    IMPL_ALOPF1_FP_S(glue(fmin, S), T, T, T, FPU_MIN) \
+    IMPL_ALOPF1_FP_S(glue(fmax, S), T, T, T, FPU_MAX)
 
 IMPL_ALOPF1_FP_MANY(s, f32)
 IMPL_ALOPF1_FP_MANY(d, f64)
