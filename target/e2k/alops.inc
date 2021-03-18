@@ -818,99 +818,121 @@ typedef enum {
     CHAN_012345 = CHAN_03 | CHAN_14 | CHAN_25,
 } Channels;
 
-#define SRC1_SHIFT 0
-#define SRC2_SHIFT 8
-#define SRC3_SHIFT 16
-#define SRC4_SHIFT 24
-#define DST_SHIFT SRC4_SHIFT
+#define ARG_SRC1_OFFSET 0
+#define ARG_SRC2_OFFSET 8
+#define ARG_SRC3_OFFSET 16
+#define ARG_SRC4_OFFSET 24
+#define ARG_DST_OFFSET ARG_SRC4_OFFSET
 
-#define args2(src2, dst) \
-    (src2 << SRC2_SHIFT) | \
-    (dst << DST_SHIFT)
+#define alopf1_args(src1, src2, dst) \
+    (src1 << ARG_SRC1_OFFSET) | \
+    (src2 << ARG_SRC2_OFFSET) | \
+    (dst  << ARG_DST_OFFSET)
 
-#define args3(src1, src2, dst) \
-    (src1 << SRC1_SHIFT) | \
-    (src2 << SRC2_SHIFT) | \
-    (dst << DST_SHIFT)
+#define alopf7_args alopf1_args
 
-#define args4(src1, src2, src3, dst) \
-    (src1 << SRC1_SHIFT) | \
-    (src2 << SRC2_SHIFT) | \
-    (src3 << SRC3_SHIFT) | \
-    (dst << DST_SHIFT)
+#define alopf2_args(src2, dst) \
+    (src2 << ARG_SRC2_OFFSET) | \
+    (dst  << ARG_DST_OFFSET)
+
+#define alopf8_args alopf2_args
+#define alopf15_args alopf2_args
+
+#define alopf3_args(src4) \
+    (src4 << ARG_SRC4_OFFSET)
+
+#define alopf21_args(src1, src2, src3, dst) \
+    (src1 << ARG_SRC1_OFFSET) | \
+    (src2 << ARG_SRC2_OFFSET) | \
+    (src3 << ARG_SRC3_OFFSET) | \
+    (dst  << ARG_DST_OFFSET)
+
+#define args_src1(args) (((args) >> ARG_SRC1_OFFSET) & 0xff)
+#define args_src2(args) (((args) >> ARG_SRC2_OFFSET) & 0xff)
+#define args_src3(args) (((args) >> ARG_SRC3_OFFSET) & 0xff)
+#define args_src4(args) (((args) >> ARG_SRC4_OFFSET) & 0xff)
+#define args_dst(args)  (((args) >> ARG_DST_OFFSET)  & 0xff)
 
 typedef enum {
-    I,
-    B,
-    S,
-    D,
-    X,
-    Q,
-    P,
-    ARGS_S = S << SRC4_SHIFT,
-    ARGS_D = D << SRC4_SHIFT,
-    ARGS_Q = Q << SRC4_SHIFT,
-    ARGS_P = P << SRC4_SHIFT,
-    ARGS_SB = args2(S, B),
-    ARGS_SS = args2(S, S),
-    ARGS_SD = args2(S, D),
-    ARGS_SX = args2(S, X),
-    ARGS_SQ = args2(S, Q),
-    ARGS_DS = args2(D, S),
-    ARGS_DD = args2(D, D),
-    ARGS_DX = args2(D, X),
-    ARGS_DP = args2(D, P),
-    ARGS_XS = args2(X, S),
-    ARGS_XD = args2(X, D),
-    ARGS_XX = args2(X, X),
-    ARGS_QQ = args2(Q, Q),
-    ARGS_PS = args2(P, S),
-    ARGS_PD = args2(P, D),
-    ARGS_PP = args2(P, P),
-    ARGS_SSB = args3(S, S, B),
-    ARGS_SSS = args3(S, S, S),
-    ARGS_SSD = args3(S, S, D),
-    ARGS_SSQ = args3(S, S, Q),
-    ARGS_SSP = args3(S, S, P),
-    ARGS_SDD = args3(S, D, D),
-    ARGS_DSS = args3(D, S, S),
-    ARGS_DSD = args3(D, S, D),
-    ARGS_DSX = args3(D, S, X),
-    ARGS_DDB = args3(D, D, B),
-    ARGS_DDS = args3(D, D, S),
-    ARGS_DDD = args3(D, D, D),
-    ARGS_DDQ = args3(D, D, Q),
-    ARGS_DSP = args3(D, S, P),
-    ARGS_DDP = args3(D, D, P),
-    ARGS_DPP = args3(D, P, P),
-    ARGS_XSB = args3(X, S, B),
-    ARGS_XSS = args3(X, S, S),
-    ARGS_XSX = args3(X, S, X),
-    ARGS_XDB = args3(X, D, B),
-    ARGS_XDS = args3(X, D, S),
-    ARGS_XDD = args3(X, D, D),
-    ARGS_XDX = args3(X, D, X),
-    ARGS_XXS = args3(X, X, S),
-    ARGS_XXD = args3(X, X, D),
-    ARGS_SXS = args3(S, X, S),
-    ARGS_DXD = args3(D, X, D),
-    ARGS_SXX = args3(S, X, X),
-    ARGS_DXX = args3(D, X, X),
-    ARGS_XXX = args3(X, X, X),
-    ARGS_QSS = args3(Q, S, S),
-    ARGS_QSD = args3(Q, S, D),
-    ARGS_QSQ = args3(Q, S, Q),
-    ARGS_QSP = args3(Q, S, P),
-    ARGS_QDQ = args3(Q, D, Q),
-    ARGS_QQQ = args3(Q, Q, Q),
-    ARGS_PSP = args3(P, S, P),
-    ARGS_PDP = args3(P, D, P),
-    ARGS_PPD = args3(P, P, D),
-    ARGS_PPP = args3(P, P, P),
-    ARGS_SSSS = args4(S, S, S, S),
-    ARGS_DDSD = args4(D, D, S, D),
-    ARGS_DDDD = args4(D, D, D, D),
-    ARGS_PPPP = args4(P, P, P, P),
+    ARG_SIZE_NONE,
+    ARG_SIZE_B, /* 1 pred */
+    ARG_SIZE_R, /* 32/64 state reg */
+    ARG_SIZE_S, /* 32 */
+    ARG_SIZE_D, /* 64 */
+    ARG_SIZE_Q, /* 64+64 pair */
+    ARG_SIZE_X, /* 80 */
+    ARG_SIZE_P, /* 128 */
+} ArgSize;
+
+typedef enum {
+    ARGS_S = alopf3_args(ARG_SIZE_S),
+    ARGS_D = alopf3_args(ARG_SIZE_D),
+    ARGS_Q = alopf3_args(ARG_SIZE_Q),
+    ARGS_P = alopf3_args(ARG_SIZE_P),
+    ARGS_SB = alopf8_args(ARG_SIZE_S, ARG_SIZE_B),
+    ARGS_SR = alopf15_args(ARG_SIZE_S, ARG_SIZE_R),
+    ARGS_DR = alopf15_args(ARG_SIZE_D, ARG_SIZE_R),
+    ARGS_SS = alopf2_args(ARG_SIZE_S, ARG_SIZE_S),
+    ARGS_SD = alopf2_args(ARG_SIZE_S, ARG_SIZE_D),
+    ARGS_SX = alopf2_args(ARG_SIZE_S, ARG_SIZE_X),
+    ARGS_SQ = alopf2_args(ARG_SIZE_S, ARG_SIZE_Q),
+    ARGS_DS = alopf2_args(ARG_SIZE_D, ARG_SIZE_S),
+    ARGS_DD = alopf2_args(ARG_SIZE_D, ARG_SIZE_D),
+    ARGS_DX = alopf2_args(ARG_SIZE_D, ARG_SIZE_X),
+    ARGS_DP = alopf2_args(ARG_SIZE_D, ARG_SIZE_P),
+    ARGS_XS = alopf2_args(ARG_SIZE_X, ARG_SIZE_S),
+    ARGS_XD = alopf2_args(ARG_SIZE_X, ARG_SIZE_D),
+    ARGS_XX = alopf2_args(ARG_SIZE_X, ARG_SIZE_X),
+    ARGS_QQ = alopf2_args(ARG_SIZE_Q, ARG_SIZE_Q),
+    ARGS_PS = alopf2_args(ARG_SIZE_P, ARG_SIZE_S),
+    ARGS_PD = alopf2_args(ARG_SIZE_P, ARG_SIZE_D),
+    ARGS_PP = alopf2_args(ARG_SIZE_P, ARG_SIZE_P),
+    ARGS_SSB = alopf7_args(ARG_SIZE_S, ARG_SIZE_S, ARG_SIZE_B),
+    ARGS_DDB = alopf7_args(ARG_SIZE_D, ARG_SIZE_D, ARG_SIZE_B),
+    ARGS_XSB = alopf7_args(ARG_SIZE_X, ARG_SIZE_S, ARG_SIZE_B),
+    ARGS_XDB = alopf7_args(ARG_SIZE_X, ARG_SIZE_D, ARG_SIZE_B),
+    ARGS_XXB = alopf7_args(ARG_SIZE_X, ARG_SIZE_X, ARG_SIZE_B),
+    ARGS_PPB = alopf7_args(ARG_SIZE_P, ARG_SIZE_P, ARG_SIZE_B),
+    ARGS_SSS = alopf1_args(ARG_SIZE_S, ARG_SIZE_S, ARG_SIZE_S),
+    ARGS_SSD = alopf1_args(ARG_SIZE_S, ARG_SIZE_S, ARG_SIZE_D),
+    ARGS_SSQ = alopf1_args(ARG_SIZE_S, ARG_SIZE_S, ARG_SIZE_Q),
+    ARGS_SSP = alopf1_args(ARG_SIZE_S, ARG_SIZE_S, ARG_SIZE_P),
+    ARGS_SDD = alopf1_args(ARG_SIZE_S, ARG_SIZE_D, ARG_SIZE_D),
+    ARGS_DSS = alopf1_args(ARG_SIZE_D, ARG_SIZE_S, ARG_SIZE_S),
+    ARGS_DSD = alopf1_args(ARG_SIZE_D, ARG_SIZE_S, ARG_SIZE_D),
+    ARGS_DSX = alopf1_args(ARG_SIZE_D, ARG_SIZE_S, ARG_SIZE_X),
+    ARGS_DDS = alopf1_args(ARG_SIZE_D, ARG_SIZE_D, ARG_SIZE_S),
+    ARGS_DDD = alopf1_args(ARG_SIZE_D, ARG_SIZE_D, ARG_SIZE_D),
+    ARGS_DDQ = alopf1_args(ARG_SIZE_D, ARG_SIZE_D, ARG_SIZE_Q),
+    ARGS_DSP = alopf1_args(ARG_SIZE_D, ARG_SIZE_S, ARG_SIZE_P),
+    ARGS_DDP = alopf1_args(ARG_SIZE_D, ARG_SIZE_D, ARG_SIZE_P),
+    ARGS_DPP = alopf1_args(ARG_SIZE_D, ARG_SIZE_P, ARG_SIZE_P),
+    ARGS_XSS = alopf1_args(ARG_SIZE_X, ARG_SIZE_S, ARG_SIZE_S),
+    ARGS_XSX = alopf1_args(ARG_SIZE_X, ARG_SIZE_S, ARG_SIZE_X),
+    ARGS_XDS = alopf1_args(ARG_SIZE_X, ARG_SIZE_D, ARG_SIZE_S),
+    ARGS_XDD = alopf1_args(ARG_SIZE_X, ARG_SIZE_D, ARG_SIZE_D),
+    ARGS_XDX = alopf1_args(ARG_SIZE_X, ARG_SIZE_D, ARG_SIZE_X),
+    ARGS_XXS = alopf1_args(ARG_SIZE_X, ARG_SIZE_X, ARG_SIZE_S),
+    ARGS_XXD = alopf1_args(ARG_SIZE_X, ARG_SIZE_X, ARG_SIZE_D),
+    ARGS_SXS = alopf1_args(ARG_SIZE_S, ARG_SIZE_X, ARG_SIZE_S),
+    ARGS_DXD = alopf1_args(ARG_SIZE_D, ARG_SIZE_X, ARG_SIZE_D),
+    ARGS_SXX = alopf1_args(ARG_SIZE_S, ARG_SIZE_X, ARG_SIZE_X),
+    ARGS_DXX = alopf1_args(ARG_SIZE_D, ARG_SIZE_X, ARG_SIZE_X),
+    ARGS_XXX = alopf1_args(ARG_SIZE_X, ARG_SIZE_X, ARG_SIZE_X),
+    ARGS_QSS = alopf1_args(ARG_SIZE_Q, ARG_SIZE_S, ARG_SIZE_S),
+    ARGS_QSD = alopf1_args(ARG_SIZE_Q, ARG_SIZE_S, ARG_SIZE_D),
+    ARGS_QSQ = alopf1_args(ARG_SIZE_Q, ARG_SIZE_S, ARG_SIZE_Q),
+    ARGS_QSP = alopf1_args(ARG_SIZE_Q, ARG_SIZE_S, ARG_SIZE_P),
+    ARGS_QDQ = alopf1_args(ARG_SIZE_Q, ARG_SIZE_D, ARG_SIZE_Q),
+    ARGS_QQQ = alopf1_args(ARG_SIZE_Q, ARG_SIZE_Q, ARG_SIZE_Q),
+    ARGS_PSP = alopf1_args(ARG_SIZE_P, ARG_SIZE_S, ARG_SIZE_P),
+    ARGS_PDP = alopf1_args(ARG_SIZE_P, ARG_SIZE_D, ARG_SIZE_P),
+    ARGS_PPD = alopf1_args(ARG_SIZE_P, ARG_SIZE_P, ARG_SIZE_D),
+    ARGS_PPP = alopf1_args(ARG_SIZE_P, ARG_SIZE_P, ARG_SIZE_P),
+    ARGS_SSSS = alopf21_args(ARG_SIZE_S, ARG_SIZE_S, ARG_SIZE_S, ARG_SIZE_S),
+    ARGS_DDSD = alopf21_args(ARG_SIZE_D, ARG_SIZE_D, ARG_SIZE_S, ARG_SIZE_D),
+    ARGS_DDDD = alopf21_args(ARG_SIZE_D, ARG_SIZE_D, ARG_SIZE_D, ARG_SIZE_D),
+    ARGS_PPPP = alopf21_args(ARG_SIZE_P, ARG_SIZE_P, ARG_SIZE_P, ARG_SIZE_P),
 } AlopArgs;
 
 typedef enum {
@@ -942,7 +964,7 @@ typedef struct {
     const char *dsc;
     uint16_t op;
     uint8_t alopf;
-    AlopArgs format;
+    AlopArgs args;
     uint8_t opc2;
     uint8_t opc1;
     uint8_t min_version;
@@ -1107,7 +1129,7 @@ static AlopDesc alops[] = {
     { X(OP_FDTOFS),       ALOPF2,            ARGS_DS,   ALOP_SHORT, 0x3f, 1, -1, CHAN_0134, { -1 }, 0xc6 },
     { X(OP_FXTOFD),       ALOPF2,            ARGS_XD,   ALOP_SHORT, 0x3d, 1, -1, CHAN_0134, { -1 }, 0xc6 },
     { X(OP_FSTOFX),       ALOPF2,            ARGS_SX,   ALOP_SHORT, 0x3e, 1, -1, CHAN_0134, { -1 }, 0xc7 },
-    { X(OP_FXTOFS),       ALOPF2,            ARGS_DS,   ALOP_SHORT, 0x3f, 1, -1, CHAN_0134, { -1 }, 0xc7 },
+    { X(OP_FXTOFS),       ALOPF2,            ARGS_XS,   ALOP_SHORT, 0x3f, 1, -1, CHAN_0134, { -1 }, 0xc7 },
     { X(OP_FDTOFX),       ALOPF2,            ARGS_DX,   ALOP_SHORT, 0x3d, 1, -1, CHAN_0134, { -1 }, 0xc7 },
     { X(OP_PFDTOIS),      ALOPF2,            ARGS_DS,   ALOP_SHORT, 0x3f, 1, -1, CHAN_0134, { -1 }, 0xc8 },
     { X(OP_PFSTOIS),      ALOPF2,            ARGS_DD,   ALOP_SHORT, 0x3d, 1, -1, CHAN_0134, { -1 }, 0xc8 },
@@ -1204,14 +1226,14 @@ static AlopDesc alops[] = {
     { X(OP_FXCMPNLTDB),   ALOPF7,            ARGS_XDB,  ALOP_SHORT, 0x29, 1, -1, CHAN_0134, { -1 }, 5, 4 },
     { X(OP_FXCMPNLEDB),   ALOPF7,            ARGS_XDB,  ALOP_SHORT, 0x29, 1, -1, CHAN_0134, { -1 }, 6, 4 },
     { X(OP_FXCMPODDB),    ALOPF7,            ARGS_XDB,  ALOP_SHORT, 0x29, 1, -1, CHAN_0134, { -1 }, 7, 4 },
-    { X(OP_FXCMPEQXB),    ALOPF7,            ARGS_XDB,  ALOP_SHORT, 0x2b, 1, -1, CHAN_0134, { -1 }, 0, 4 },
-    { X(OP_FXCMPLTXB),    ALOPF7,            ARGS_XDB,  ALOP_SHORT, 0x2b, 1, -1, CHAN_0134, { -1 }, 1, 4 },
-    { X(OP_FXCMPLEXB),    ALOPF7,            ARGS_XDB,  ALOP_SHORT, 0x2b, 1, -1, CHAN_0134, { -1 }, 2, 4 },
-    { X(OP_FXCMPUODXB),   ALOPF7,            ARGS_XDB,  ALOP_SHORT, 0x2b, 1, -1, CHAN_0134, { -1 }, 3, 4 },
-    { X(OP_FXCMPNEQXB),   ALOPF7,            ARGS_XDB,  ALOP_SHORT, 0x2b, 1, -1, CHAN_0134, { -1 }, 4, 4 },
-    { X(OP_FXCMPNLTXB),   ALOPF7,            ARGS_XDB,  ALOP_SHORT, 0x2b, 1, -1, CHAN_0134, { -1 }, 5, 4 },
-    { X(OP_FXCMPNLEXB),   ALOPF7,            ARGS_XDB,  ALOP_SHORT, 0x2b, 1, -1, CHAN_0134, { -1 }, 6, 4 },
-    { X(OP_FXCMPODXB),    ALOPF7,            ARGS_XDB,  ALOP_SHORT, 0x2b, 1, -1, CHAN_0134, { -1 }, 7, 4 },
+    { X(OP_FXCMPEQXB),    ALOPF7,            ARGS_XXB,  ALOP_SHORT, 0x2b, 1, -1, CHAN_0134, { -1 }, 0, 4 },
+    { X(OP_FXCMPLTXB),    ALOPF7,            ARGS_XXB,  ALOP_SHORT, 0x2b, 1, -1, CHAN_0134, { -1 }, 1, 4 },
+    { X(OP_FXCMPLEXB),    ALOPF7,            ARGS_XXB,  ALOP_SHORT, 0x2b, 1, -1, CHAN_0134, { -1 }, 2, 4 },
+    { X(OP_FXCMPUODXB),   ALOPF7,            ARGS_XXB,  ALOP_SHORT, 0x2b, 1, -1, CHAN_0134, { -1 }, 3, 4 },
+    { X(OP_FXCMPNEQXB),   ALOPF7,            ARGS_XXB,  ALOP_SHORT, 0x2b, 1, -1, CHAN_0134, { -1 }, 4, 4 },
+    { X(OP_FXCMPNLTXB),   ALOPF7,            ARGS_XXB,  ALOP_SHORT, 0x2b, 1, -1, CHAN_0134, { -1 }, 5, 4 },
+    { X(OP_FXCMPNLEXB),   ALOPF7,            ARGS_XXB,  ALOP_SHORT, 0x2b, 1, -1, CHAN_0134, { -1 }, 6, 4 },
+    { X(OP_FXCMPODXB),    ALOPF7,            ARGS_XXB,  ALOP_SHORT, 0x2b, 1, -1, CHAN_0134, { -1 }, 7, 4 },
     { X(OP_CCTOPO),       ALOPF8,            ARGS_S,    ALOP_SHORT, 0x24, 1, -1, CHAN_03, { -1 }, 0 },
     { X(OP_CCTOPB),       ALOPF8,            ARGS_S,    ALOP_SHORT, 0x24, 1, -1, CHAN_03, { -1 }, 1 },
     { X(OP_CCTOPE),       ALOPF8,            ARGS_S,    ALOP_SHORT, 0x24, 1, -1, CHAN_03, { -1 }, 2 },
@@ -1276,9 +1298,9 @@ static AlopDesc alops[] = {
     { X(OP_PSRLH),        ALOPF11,           ARGS_DDD,  ALOP_EXT,   0x11, 1, -1, CHAN_14, { -1 }, 0xc0, 0 },
     { X(OP_PSRAW),        ALOPF11,           ARGS_DDD,  ALOP_EXT,   0x12, 1, -1, CHAN_14, { -1 }, 0xc0, 0 },
     { X(OP_PSRAH),        ALOPF11,           ARGS_DDD,  ALOP_EXT,   0x13, 1, -1, CHAN_14, { -1 }, 0xc0, 0 },
-    { X(OP_PFADDS),       ALOPF11,           ARGS_SSS,  ALOP_EXT,   0x30, 1, -1, CHAN_0134, { -1 }, 0xc0, 0 },
+    { X(OP_PFADDS),       ALOPF11,           ARGS_DDD,  ALOP_EXT,   0x30, 1, -1, CHAN_0134, { -1 }, 0xc0, 0 },
     { X(OP_PFADDD),       ALOPF11,           ARGS_DDD,  ALOP_EXT,   0x31, 1, -1, CHAN_0134, { -1 }, 0xc0, 0 },
-    { X(OP_PFSUBS),       ALOPF11,           ARGS_SSS,  ALOP_EXT,   0x32, 1, -1, CHAN_0134, { -1 }, 0xc0, 0 },
+    { X(OP_PFSUBS),       ALOPF11,           ARGS_DDD,  ALOP_EXT,   0x32, 1, -1, CHAN_0134, { -1 }, 0xc0, 0 },
     { X(OP_PFSUBD),       ALOPF11,           ARGS_DDD,  ALOP_EXT,   0x33, 1, -1, CHAN_0134, { -1 }, 0xc0, 0 },
     { X(OP_APTOAP),       ALOPF11,           ARGS_QSQ,  ALOP_EXT,   0x50, 1, -1, CHAN_0134, { -1 }, 0xc0, 0 },
     { X(OP_APTOAPB),      ALOPF11,           ARGS_QSQ,  ALOP_EXT,   0x51, 1, -1, CHAN_0134, { -1 }, 0xc0, 0 },
@@ -1451,9 +1473,9 @@ static AlopDesc alops[] = {
     { X(OP_STODWH),       ALOPF13,           ARGS_QSS,  ALOP_EXT,   0x31, 1,  1, CHAN_25, { -1 }, 0xc0 },
     { X(OP_STODWQ),       ALOPF13,           ARGS_QSQ,  ALOP_EXT,   0x3c, 1,  1, CHAN_25, { -1 }, 0xc0 },
     { X(OP_STODWW),       ALOPF13,           ARGS_QSS,  ALOP_EXT,   0x32, 1,  1, CHAN_25, { -1 }, 0xc0 },
-    { X(OP_RWS),          ALOPF15,           ARGS_S,    ALOP_EXT,   0x3c, 1, -1, CHAN_0, { -1 }, 0xc0 },
-    { X(OP_RWD),          ALOPF15,           ARGS_D,    ALOP_EXT,   0x3d, 1, -1, CHAN_0, { -1 }, 0xc0 },
-    { X(OP_RRS),          ALOPF16,           ARGS_S,    ALOP_EXT,   0x3e, 1, -1, CHAN_0, { -1 }, 0xc0 },
+    { X(OP_RWS),          ALOPF15,           ARGS_SR,   ALOP_EXT,   0x3c, 1, -1, CHAN_0, { -1 }, 0xc0 },
+    { X(OP_RWD),          ALOPF15,           ARGS_DR,   ALOP_EXT,   0x3d, 1, -1, CHAN_0, { -1 }, 0xc0 },
+    { X(OP_RRS),          ALOPF16,           ARGS_D,    ALOP_EXT,   0x3e, 1, -1, CHAN_0, { -1 }, 0xc0 },
     { X(OP_RRD),          ALOPF16,           ARGS_D,    ALOP_EXT,   0x3f, 1, -1, CHAN_0, { -1 }, 0xc0 },
     { X(OP_MOVTQ),        ALOPF22,           ARGS_QQ,   ALOP_EXT,   0x57, 1, -1, CHAN_0134, { -1 }, 0xc0, 0xc0 },
     { X(OP_MOVTCQ),       ALOPF22,           ARGS_QQ,   ALOP_EXT,   0x57, 1, -1, CHAN_0134, { -1 }, 0xc1, 0xc0 },
@@ -1471,9 +1493,9 @@ static AlopDesc alops[] = {
     { X(OP_FDTOIDTR),     ALOPF2,            ARGS_DD,   ALOP_SHORT, 0x3d, 2, -1, CHAN_0134, { -1 }, 0xc2 },
     { X(OP_FXTOISTR),     ALOPF2,            ARGS_XS,   ALOP_SHORT, 0x3f, 2, -1, CHAN_0134, { -1 }, 0xc3 },
     { X(OP_FXTOIDTR),     ALOPF2,            ARGS_XD,   ALOP_SHORT, 0x3d, 2, -1, CHAN_0134, { -1 }, 0xc3 },
-    { X(OP_MOVX),         ALOPF2,            ARGS_DD,   ALOP_SHORT, 0x5f, 2, -1, CHAN_0134, { -1 }, 0xc0 },
-    { X(OP_MOVXA),        ALOPF2,            ARGS_DD,   ALOP_SHORT, 0x5f, 2, -1, CHAN_0134, { -1 }, 0xc1 },
-    { X(OP_MOVXC),        ALOPF2,            ARGS_DD,   ALOP_SHORT, 0x5f, 2, -1, CHAN_0134, { -1 }, 0xc2 },
+    { X(OP_MOVX),         ALOPF2,            ARGS_XX,   ALOP_SHORT, 0x5f, 2, -1, CHAN_0134, { -1 }, 0xc0 },
+    { X(OP_MOVXA),        ALOPF2,            ARGS_XX,   ALOP_SHORT, 0x5f, 2, -1, CHAN_0134, { -1 }, 0xc1 },
+    { X(OP_MOVXC),        ALOPF2,            ARGS_XX,   ALOP_SHORT, 0x5f, 2, -1, CHAN_0134, { -1 }, 0xc2 },
     { X(OP_PMULUBHH),     ALOPF11,           ARGS_DDD,  ALOP_EXT,   0x1d, 2, -1, CHAN_14, { -1 }, 0xc0, 0 },
     { X(OP_CAST),         ALOPF11,           ARGS_QQQ,  ALOP_EXT,   0x55, 2,  2, CHAN_0134, { -1 }, 0xc0, 0 },
     { X(OP_TDTOMP),       ALOPF11,           ARGS_DDD,  ALOP_EXT,   0x53, 2,  2, CHAN_0134, { -1 }, 0xc0, 0 },
@@ -1516,7 +1538,7 @@ static AlopDesc alops[] = {
     { X(OP_PSRLH),        ALOPF11,           ARGS_DDD,  ALOP_EXT1,  0x11, 3, -1, CHAN_03, { -1 }, 0xc0, 0 },
     { X(OP_PSRAW),        ALOPF11,           ARGS_DDD,  ALOP_EXT1,  0x12, 3, -1, CHAN_03, { -1 }, 0xc0, 0 },
     { X(OP_PSRAH),        ALOPF11,           ARGS_DDD,  ALOP_EXT1,  0x13, 3, -1, CHAN_03, { -1 }, 0xc0, 0 },
-    { X(OP_FSTOIFS),      ALOPF11,           ARGS_DDD,  ALOP_EXT,   0x6c, 3, -1, CHAN_0134, { -1 }, 0xc0, 0 },
+    { X(OP_FSTOIFS),      ALOPF11,           ARGS_SSS,  ALOP_EXT,   0x6c, 3, -1, CHAN_0134, { -1 }, 0xc0, 0 },
     { X(OP_FDTOIFD),      ALOPF11,           ARGS_DDD,  ALOP_EXT,   0x6d, 3, -1, CHAN_0134, { -1 }, 0xc0, 0 },
     { X(OP_UMULHD),       ALOPF11,           ARGS_DDD,  ALOP_EXT,   0x70, 3, -1, CHAN_0134, { -1 }, 0xc0, 0 },
     { X(OP_SMULHD),       ALOPF11,           ARGS_DDD,  ALOP_EXT,   0x71, 3, -1, CHAN_0134, { -1 }, 0xc0, 0 },
@@ -1551,9 +1573,9 @@ static AlopDesc alops[] = {
     { X(OP_PHMINPOSUH),   ALOPF11,           ARGS_DDD,  ALOP_EXT,   0x6a, 3, -1, CHAN_14, { -1 }, 0xc0, 0 },
     { X(OP_PUTTST),       ALOPF12,           ARGS_DD,   ALOP_EXT,   0x25, 3, -1, CHAN_3, { -1 }, 0xc0, 0xc0 },
     { X(OP_PFMULS),       ALOPF11,           ARGS_DDD,  ALOP_EXT,   0x38, 4, -1, CHAN_25, { -1 }, 0xc0, 0 },
-    { X(OP_PFADDS),       ALOPF11,           ARGS_SSS,  ALOP_EXT,   0x30, 4, -1, CHAN_25, { -1 }, 0xc0, 0 },
+    { X(OP_PFADDS),       ALOPF11,           ARGS_DDD,  ALOP_EXT,   0x30, 4, -1, CHAN_25, { -1 }, 0xc0, 0 },
     { X(OP_PFADDD),       ALOPF11,           ARGS_DDD,  ALOP_EXT,   0x31, 4, -1, CHAN_25, { -1 }, 0xc0, 0 },
-    { X(OP_PFSUBS),       ALOPF11,           ARGS_SSS,  ALOP_EXT,   0x32, 4, -1, CHAN_25, { -1 }, 0xc0, 0 },
+    { X(OP_PFSUBS),       ALOPF11,           ARGS_DDD,  ALOP_EXT,   0x32, 4, -1, CHAN_25, { -1 }, 0xc0, 0 },
     { X(OP_PFSUBD),       ALOPF11,           ARGS_DDD,  ALOP_EXT,   0x33, 4, -1, CHAN_25, { -1 }, 0xc0, 0 },
     { X(OP_FSCALES),      ALOPF11,           ARGS_SSS,  ALOP_EXT,   0x24, 4, -1, CHAN_14, { -1 }, 0xc0, 0 },
     { X(OP_FSCALED),      ALOPF11,           ARGS_DSD,  ALOP_EXT,   0x25, 4, -1, CHAN_14, { -1 }, 0xc0, 0 },
@@ -1740,38 +1762,38 @@ static AlopDesc alops[] = {
     { X(OP_VFBGV),        ALOPF1,            ARGS_SSS,  ALOP_SHORT, 0x68, 6, -1, CHAN_14, { -1 } },
     { X(OP_MKFSW),        ALOPF1,            ARGS_SSD,  ALOP_SHORT, 0x6a, 6, -1, CHAN_14, { -1 } },
     { X(OP_MODBGV),       ALOPF2,            ARGS_SS,   ALOP_SHORT, 0x69, 6, -1, CHAN_14, { -1 }, 0xc0 },
-    { X(OP_PCMPEQBOP),    ALOPF17,           ARGS_DD,   ALOP_EXT1,  0x28, 6, -1, CHAN_03, { -1 }, 0xc0, 2 },
-    { X(OP_PCMPEQHOP),    ALOPF17,           ARGS_DD,   ALOP_EXT1,  0x28, 6, -1, CHAN_03, { -1 }, 0xc1, 2 },
-    { X(OP_PCMPEQWOP),    ALOPF17,           ARGS_DD,   ALOP_EXT1,  0x28, 6, -1, CHAN_03, { -1 }, 0xc2, 2 },
-    { X(OP_PCMPEQDOP),    ALOPF17,           ARGS_DD,   ALOP_EXT1,  0x28, 6, -1, CHAN_03, { -1 }, 0xc3, 2 },
-    { X(OP_PCMPGTBOP),    ALOPF17,           ARGS_DD,   ALOP_EXT1,  0x28, 6, -1, CHAN_03, { -1 }, 0xc4, 2 },
-    { X(OP_PCMPGTHOP),    ALOPF17,           ARGS_DD,   ALOP_EXT1,  0x28, 6, -1, CHAN_03, { -1 }, 0xc5, 2 },
-    { X(OP_PCMPGTWOP),    ALOPF17,           ARGS_DD,   ALOP_EXT1,  0x28, 6, -1, CHAN_03, { -1 }, 0xc6, 2 },
-    { X(OP_PCMPGTDOP),    ALOPF17,           ARGS_DD,   ALOP_EXT1,  0x28, 6, -1, CHAN_03, { -1 }, 0xc7, 2 },
-    { X(OP_PCMPEQBAP),    ALOPF17,           ARGS_DD,   ALOP_EXT1,  0x28, 6, -1, CHAN_03, { -1 }, 0xc8, 2 },
-    { X(OP_PCMPEQHAP),    ALOPF17,           ARGS_DD,   ALOP_EXT1,  0x28, 6, -1, CHAN_03, { -1 }, 0xc9, 2 },
-    { X(OP_PCMPEQWAP),    ALOPF17,           ARGS_DD,   ALOP_EXT1,  0x28, 6, -1, CHAN_03, { -1 }, 0xca, 2 },
-    { X(OP_PCMPEQDAP),    ALOPF17,           ARGS_DD,   ALOP_EXT1,  0x28, 6, -1, CHAN_03, { -1 }, 0xcb, 2 },
-    { X(OP_PCMPGTBAP),    ALOPF17,           ARGS_DD,   ALOP_EXT1,  0x28, 6, -1, CHAN_03, { -1 }, 0xcc, 2 },
-    { X(OP_PCMPGTHAP),    ALOPF17,           ARGS_DD,   ALOP_EXT1,  0x28, 6, -1, CHAN_03, { -1 }, 0xcd, 2 },
-    { X(OP_PCMPGTWAP),    ALOPF17,           ARGS_DD,   ALOP_EXT1,  0x28, 6, -1, CHAN_03, { -1 }, 0xce, 2 },
-    { X(OP_PCMPGTDAP),    ALOPF17,           ARGS_DD,   ALOP_EXT1,  0x28, 6, -1, CHAN_03, { -1 }, 0xcf, 2 },
-    { X(OP_QPCMPEQBOP),   ALOPF17,           ARGS_PP,   ALOP_EXT1,  0x2c, 6, -1, CHAN_03, { -1 }, 0xc0, 2 },
-    { X(OP_QPCMPEQHOP),   ALOPF17,           ARGS_PP,   ALOP_EXT1,  0x2c, 6, -1, CHAN_03, { -1 }, 0xc1, 2 },
-    { X(OP_QPCMPEQWOP),   ALOPF17,           ARGS_PP,   ALOP_EXT1,  0x2c, 6, -1, CHAN_03, { -1 }, 0xc2, 2 },
-    { X(OP_QPCMPEQDOP),   ALOPF17,           ARGS_PP,   ALOP_EXT1,  0x2c, 6, -1, CHAN_03, { -1 }, 0xc3, 2 },
-    { X(OP_QPCMPGTBOP),   ALOPF17,           ARGS_PP,   ALOP_EXT1,  0x2c, 6, -1, CHAN_03, { -1 }, 0xc4, 2 },
-    { X(OP_QPCMPGTHOP),   ALOPF17,           ARGS_PP,   ALOP_EXT1,  0x2c, 6, -1, CHAN_03, { -1 }, 0xc5, 2 },
-    { X(OP_QPCMPGTWOP),   ALOPF17,           ARGS_PP,   ALOP_EXT1,  0x2c, 6, -1, CHAN_03, { -1 }, 0xc6, 2 },
-    { X(OP_QPCMPGTDOP),   ALOPF17,           ARGS_PP,   ALOP_EXT1,  0x2c, 6, -1, CHAN_03, { -1 }, 0xc7, 2 },
-    { X(OP_QPCMPEQBAP),   ALOPF17,           ARGS_PP,   ALOP_EXT1,  0x2c, 6, -1, CHAN_03, { -1 }, 0xc8, 2 },
-    { X(OP_QPCMPEQHAP),   ALOPF17,           ARGS_PP,   ALOP_EXT1,  0x2c, 6, -1, CHAN_03, { -1 }, 0xc9, 2 },
-    { X(OP_QPCMPEQWAP),   ALOPF17,           ARGS_PP,   ALOP_EXT1,  0x2c, 6, -1, CHAN_03, { -1 }, 0xca, 2 },
-    { X(OP_QPCMPEQDAP),   ALOPF17,           ARGS_PP,   ALOP_EXT1,  0x2c, 6, -1, CHAN_03, { -1 }, 0xcb, 2 },
-    { X(OP_QPCMPGTBAP),   ALOPF17,           ARGS_PP,   ALOP_EXT1,  0x2c, 6, -1, CHAN_03, { -1 }, 0xcc, 2 },
-    { X(OP_QPCMPGTHAP),   ALOPF17,           ARGS_PP,   ALOP_EXT1,  0x2c, 6, -1, CHAN_03, { -1 }, 0xcd, 2 },
-    { X(OP_QPCMPGTWAP),   ALOPF17,           ARGS_PP,   ALOP_EXT1,  0x2c, 6, -1, CHAN_03, { -1 }, 0xce, 2 },
-    { X(OP_QPCMPGTDAP),   ALOPF17,           ARGS_PP,   ALOP_EXT1,  0x2c, 6, -1, CHAN_03, { -1 }, 0xcf, 2 },
+    { X(OP_PCMPEQBOP),    ALOPF17,           ARGS_DDB,  ALOP_EXT1,  0x28, 6, -1, CHAN_03, { -1 }, 0xc0, 2 },
+    { X(OP_PCMPEQHOP),    ALOPF17,           ARGS_DDB,  ALOP_EXT1,  0x28, 6, -1, CHAN_03, { -1 }, 0xc1, 2 },
+    { X(OP_PCMPEQWOP),    ALOPF17,           ARGS_DDB,  ALOP_EXT1,  0x28, 6, -1, CHAN_03, { -1 }, 0xc2, 2 },
+    { X(OP_PCMPEQDOP),    ALOPF17,           ARGS_DDB,  ALOP_EXT1,  0x28, 6, -1, CHAN_03, { -1 }, 0xc3, 2 },
+    { X(OP_PCMPGTBOP),    ALOPF17,           ARGS_DDB,  ALOP_EXT1,  0x28, 6, -1, CHAN_03, { -1 }, 0xc4, 2 },
+    { X(OP_PCMPGTHOP),    ALOPF17,           ARGS_DDB,  ALOP_EXT1,  0x28, 6, -1, CHAN_03, { -1 }, 0xc5, 2 },
+    { X(OP_PCMPGTWOP),    ALOPF17,           ARGS_DDB,  ALOP_EXT1,  0x28, 6, -1, CHAN_03, { -1 }, 0xc6, 2 },
+    { X(OP_PCMPGTDOP),    ALOPF17,           ARGS_DDB,  ALOP_EXT1,  0x28, 6, -1, CHAN_03, { -1 }, 0xc7, 2 },
+    { X(OP_PCMPEQBAP),    ALOPF17,           ARGS_DDB,  ALOP_EXT1,  0x28, 6, -1, CHAN_03, { -1 }, 0xc8, 2 },
+    { X(OP_PCMPEQHAP),    ALOPF17,           ARGS_DDB,  ALOP_EXT1,  0x28, 6, -1, CHAN_03, { -1 }, 0xc9, 2 },
+    { X(OP_PCMPEQWAP),    ALOPF17,           ARGS_DDB,  ALOP_EXT1,  0x28, 6, -1, CHAN_03, { -1 }, 0xca, 2 },
+    { X(OP_PCMPEQDAP),    ALOPF17,           ARGS_DDB,  ALOP_EXT1,  0x28, 6, -1, CHAN_03, { -1 }, 0xcb, 2 },
+    { X(OP_PCMPGTBAP),    ALOPF17,           ARGS_DDB,  ALOP_EXT1,  0x28, 6, -1, CHAN_03, { -1 }, 0xcc, 2 },
+    { X(OP_PCMPGTHAP),    ALOPF17,           ARGS_DDB,  ALOP_EXT1,  0x28, 6, -1, CHAN_03, { -1 }, 0xcd, 2 },
+    { X(OP_PCMPGTWAP),    ALOPF17,           ARGS_DDB,  ALOP_EXT1,  0x28, 6, -1, CHAN_03, { -1 }, 0xce, 2 },
+    { X(OP_PCMPGTDAP),    ALOPF17,           ARGS_DDB,  ALOP_EXT1,  0x28, 6, -1, CHAN_03, { -1 }, 0xcf, 2 },
+    { X(OP_QPCMPEQBOP),   ALOPF17,           ARGS_PPB,  ALOP_EXT1,  0x2c, 6, -1, CHAN_03, { -1 }, 0xc0, 2 },
+    { X(OP_QPCMPEQHOP),   ALOPF17,           ARGS_PPB,  ALOP_EXT1,  0x2c, 6, -1, CHAN_03, { -1 }, 0xc1, 2 },
+    { X(OP_QPCMPEQWOP),   ALOPF17,           ARGS_PPB,  ALOP_EXT1,  0x2c, 6, -1, CHAN_03, { -1 }, 0xc2, 2 },
+    { X(OP_QPCMPEQDOP),   ALOPF17,           ARGS_PPB,  ALOP_EXT1,  0x2c, 6, -1, CHAN_03, { -1 }, 0xc3, 2 },
+    { X(OP_QPCMPGTBOP),   ALOPF17,           ARGS_PPB,  ALOP_EXT1,  0x2c, 6, -1, CHAN_03, { -1 }, 0xc4, 2 },
+    { X(OP_QPCMPGTHOP),   ALOPF17,           ARGS_PPB,  ALOP_EXT1,  0x2c, 6, -1, CHAN_03, { -1 }, 0xc5, 2 },
+    { X(OP_QPCMPGTWOP),   ALOPF17,           ARGS_PPB,  ALOP_EXT1,  0x2c, 6, -1, CHAN_03, { -1 }, 0xc6, 2 },
+    { X(OP_QPCMPGTDOP),   ALOPF17,           ARGS_PPB,  ALOP_EXT1,  0x2c, 6, -1, CHAN_03, { -1 }, 0xc7, 2 },
+    { X(OP_QPCMPEQBAP),   ALOPF17,           ARGS_PPB,  ALOP_EXT1,  0x2c, 6, -1, CHAN_03, { -1 }, 0xc8, 2 },
+    { X(OP_QPCMPEQHAP),   ALOPF17,           ARGS_PPB,  ALOP_EXT1,  0x2c, 6, -1, CHAN_03, { -1 }, 0xc9, 2 },
+    { X(OP_QPCMPEQWAP),   ALOPF17,           ARGS_PPB,  ALOP_EXT1,  0x2c, 6, -1, CHAN_03, { -1 }, 0xca, 2 },
+    { X(OP_QPCMPEQDAP),   ALOPF17,           ARGS_PPB,  ALOP_EXT1,  0x2c, 6, -1, CHAN_03, { -1 }, 0xcb, 2 },
+    { X(OP_QPCMPGTBAP),   ALOPF17,           ARGS_PPB,  ALOP_EXT1,  0x2c, 6, -1, CHAN_03, { -1 }, 0xcc, 2 },
+    { X(OP_QPCMPGTHAP),   ALOPF17,           ARGS_PPB,  ALOP_EXT1,  0x2c, 6, -1, CHAN_03, { -1 }, 0xcd, 2 },
+    { X(OP_QPCMPGTWAP),   ALOPF17,           ARGS_PPB,  ALOP_EXT1,  0x2c, 6, -1, CHAN_03, { -1 }, 0xce, 2 },
+    { X(OP_QPCMPGTDAP),   ALOPF17,           ARGS_PPB,  ALOP_EXT1,  0x2c, 6, -1, CHAN_03, { -1 }, 0xcf, 2 },
     { X(OP_PMRGP),        ALOPF11_MERGE,     ARGS_DDD,  ALOP_EXT,   0x40, 6, -1, CHAN_0134, { -1 }, 0xc0, 0 },
     { X(OP_QPMRGP),       ALOPF11_MERGE,     ARGS_PPP,  ALOP_EXT1,  0x60, 6, -1, CHAN_0134, { -1 }, 0xc0, 0 },
     { X(OP_CLMULH),       ALOPF11,           ARGS_DDD,  ALOP_EXT2,  0x15, 6, -1, CHAN_0134, { -1 }, 0xc0, 0 },
