@@ -1650,12 +1650,21 @@ struct target_stat64 {
     abi_uint        st_blksize;
     abi_uint        __unused1;
     abi_ullong      st_blocks;
+#if 0
     abi_int         target_st_atime;
     abi_uint        target_st_atime_nsec;
     abi_int         target_st_mtime;
     abi_uint        target_st_mtime_nsec;
     abi_int         target_st_ctime;
     abi_uint        target_st_ctime_nsec;
+#else
+    abi_long        target_st_atime;
+    abi_ulong       target_st_atime_nsec;
+    abi_long        target_st_mtime;
+    abi_ulong       target_st_mtime_nsec;
+    abi_long        target_st_ctime;
+    abi_ulong       target_st_ctime_nsec;
+#endif
 };
 
 #elif defined(TARGET_PPC)

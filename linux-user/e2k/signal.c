@@ -194,6 +194,13 @@ static void target_setup_frame(int sig, struct target_sigaction *ka,
     abi_ulong frame_addr;
     struct target_sigframe *frame;
 
+    if (env->is_bp) {
+        /* numas13 FIXME: I am not sure that it is a good solution but
+         * the way we handle breakpoints requires these steps.
+         * Maybe we need to create more fake kernel frames for breakpoints? */
+        e2k_proc_return(env, true);
+    }
+
     /* save current frame */
     helper_signal_frame(env, env->wd.size, env->ip);
 
@@ -235,6 +242,10 @@ static void target_setup_frame(int sig, struct target_sigaction *ka,
         env->tags[1] = E2K_TAG_NUMBER64;
         env->regs[2].lo = frame_addr + offsetof(struct target_sigframe, uc);
         env->tags[2] = E2K_TAG_NUMBER64;
+    }
+
+    if (env->is_bp) {
+        e2k_proc_call(env, env->wd.size, env->ip, true);
     }
 
     unlock_user_struct(frame, frame_addr, 1);

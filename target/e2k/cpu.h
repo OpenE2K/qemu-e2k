@@ -825,6 +825,9 @@ void e2k_update_fp_status(CPUE2KState *env);
 void e2k_update_fx_status(CPUE2KState *env);
 void e2k_pcs_new(E2KPcsState *pcs);
 void e2k_ps_new(E2KPsState *ps);
+void e2k_proc_call(CPUE2KState *env, int base, target_ulong ret_ip,
+    bool force_fx);
+void e2k_proc_return(CPUE2KState *env, bool force_fx);
 
 #define cpu_signal_handler e2k_cpu_signal_handler
 #define cpu_list e2k_cpu_list

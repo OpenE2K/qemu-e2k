@@ -155,7 +155,7 @@ static void pcs_pop(CPUE2KState *env, E2KCrs *crs)
     }
 }
 
-static void proc_call(CPUE2KState *env, int base, target_ulong ret_ip,
+void e2k_proc_call(CPUE2KState *env, int base, target_ulong ret_ip,
     bool force_fx)
 {
     E2KCrs crs;
@@ -177,7 +177,7 @@ static void proc_call(CPUE2KState *env, int base, target_ulong ret_ip,
     env->wd.psize = env->wd.size;
 }
 
-static void proc_return(CPUE2KState *env, bool force_fx)
+void e2k_proc_return(CPUE2KState *env, bool force_fx)
 {
     E2KCrs crs;
     int base;
@@ -200,17 +200,17 @@ static void proc_return(CPUE2KState *env, bool force_fx)
 
 void HELPER(signal_frame)(CPUE2KState *env, int wd_size, target_ulong ret_ip)
 {
-    proc_call(env, wd_size, ret_ip, false);
+    e2k_proc_call(env, wd_size, ret_ip, false);
 }
 
 void HELPER(signal_return)(CPUE2KState *env)
 {
-    proc_return(env, false);
+    e2k_proc_return(env, false);
 }
 
 static inline void do_call(CPUE2KState *env, int wbs, target_ulong ret_ip)
 {
-    proc_call(env, wbs * 2, ret_ip, false);
+    e2k_proc_call(env, wbs * 2, ret_ip, false);
     reset_ctprs(env);
 }
 
@@ -281,7 +281,7 @@ void HELPER(return)(CPUE2KState *env)
             qemu_log(TARGET_FMT_lx ": unknown return ctpr opc %d\n", env->ip, opc);
         }
 
-        proc_return(env, false);
+        e2k_proc_return(env, false);
         reset_ctprs(env);
     }
 }
@@ -301,7 +301,7 @@ void QEMU_NORETURN raise_exception_ra(CPUE2KState *env, int exception_index,
         /* ignore */
         break;
     default:
-        proc_call(env, env->wd.size, env->ip, true);
+        e2k_proc_call(env, env->wd.size, env->ip, true);
         break;
     }
     cs->exception_index = exception_index;
@@ -345,14 +345,14 @@ bool e2k_cpu_tlb_fill(CPUState *cs, vaddr address, int size,
     E2KCPU *cpu = E2K_CPU(cs);
     CPUE2KState *env = &cpu->env;
 
-    proc_call(env, env->wd.size, env->ip, true);
+    e2k_proc_call(env, env->wd.size, env->ip, true);
     cs->exception_index = EXCP_DATA_PAGE;
     cpu_loop_exit_restore(cs, retaddr);
 }
 
 void HELPER(break_restore_state)(CPUE2KState *env)
 {
-    proc_return(env, true);
+    e2k_proc_return(env, true);
     env->is_bp = false;
 }
 
@@ -360,7 +360,7 @@ void HELPER(debug)(CPUE2KState *env)
 {
     CPUState *cs = env_cpu(env);
     env->is_bp = true;
-    proc_call(env, env->wd.size, env->ip, true);
+    e2k_proc_call(env, env->wd.size, env->ip, true);
     cs->exception_index = EXCP_DEBUG;
     cpu_loop_exit(cs);
 }
