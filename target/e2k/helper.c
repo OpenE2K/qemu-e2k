@@ -3,8 +3,6 @@
 #include "qemu/host-utils.h"
 #include "exec/helper-proto.h"
 
-void helper_signal_frame(CPUE2KState *env, int wbs, target_ulong ret_ip);
-
 static inline void reset_ctprs(CPUE2KState *env)
 {
     unsigned int i;
@@ -166,7 +164,7 @@ void e2k_proc_call(CPUE2KState *env, int base, target_ulong ret_ip,
     crs.cr1.wpsz = env->wd.psize / 2;
     crs.cr1.wfx = env->wd.fx;
     crs.cr1.wdbl = env->wdbl;
-    crs.cr1.br = e2k_state_br(env);
+    crs.cr1.br = env_br_get(env);
     crs.cr1.ussz = env->usd.size >> 4;
 
     pcs_push(env, &crs);
@@ -189,23 +187,13 @@ void e2k_proc_return(CPUE2KState *env, bool force_fx)
 
     env->pregs = crs.cr0_lo;
     env->ip = crs.cr0_hi & ~7;
-    e2k_state_br_set(env, crs.cr1.br);
+    env_br_set(env, crs.cr1.br);
     env->wd.size = env->wd.psize + base;
     env->wd.psize = crs.cr1.wpsz * 2;
     env->wd.fx = crs.cr1.wfx;
     env->wdbl = crs.cr1.wdbl;
     env->usd.size = crs.cr1.ussz << 4;
     env->usd.base = env->sbr - env->usd.size;
-}
-
-void HELPER(signal_frame)(CPUE2KState *env, int wd_size, target_ulong ret_ip)
-{
-    e2k_proc_call(env, wd_size, ret_ip, false);
-}
-
-void HELPER(signal_return)(CPUE2KState *env)
-{
-    e2k_proc_return(env, false);
 }
 
 static inline void do_call(CPUE2KState *env, int wbs, target_ulong ret_ip)

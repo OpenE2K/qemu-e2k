@@ -21,6 +21,7 @@
 #include "qemu/osdep.h"
 #include "qemu/timer.h"
 #include "cpu.h"
+#include "helper-tcg.h"
 #include "exec/gdbstub.h"
 
 /* TODO: reverse engineer e2k-linux-gdb register ids */
@@ -65,8 +66,8 @@ int e2k_cpu_gdb_read_register(CPUState *cs, GByteArray *mem_buf, int n)
     case 46: return gdb_get_reg64(mem_buf, 0); // usbr
     case 47: return gdb_get_reg64(mem_buf, env->usd.lo); // usd_lo
     case 48: return gdb_get_reg64(mem_buf, env->usd.hi); // usd_hi
-    case 49: return gdb_get_reg64(mem_buf, e2k_state_psp_lo(env)); // psp_lo
-    case 50: return gdb_get_reg64(mem_buf, e2k_state_psp_hi(env)); // psp_hi
+    case 49: return gdb_get_reg64(mem_buf, env_psp_lo_get(env)); // psp_lo
+    case 50: return gdb_get_reg64(mem_buf, env_psp_hi_get(env)); // psp_hi
     case 51: return gdb_get_reg64(mem_buf, 0); // pshtp
     case 52: return gdb_get_reg64(mem_buf, env->pregs); // pregs
     case 53: return gdb_get_reg64(mem_buf, env->ip); // ip
@@ -79,8 +80,8 @@ int e2k_cpu_gdb_read_register(CPUState *cs, GByteArray *mem_buf, int n)
         return gdb_get_reg64(mem_buf, cr1_hi);
     }
     case 56: return gdb_get_reg64(mem_buf, 0); // cwd
-    case 57: return gdb_get_reg64(mem_buf, e2k_state_pcsp_lo(env)); // pcsp_lo
-    case 58: return gdb_get_reg64(mem_buf, e2k_state_pcsp_hi(env)); // pcsp_hi
+    case 57: return gdb_get_reg64(mem_buf, env_pcsp_lo_get(env)); // pcsp_lo
+    case 58: return gdb_get_reg64(mem_buf, env_pcsp_hi_get(env)); // pcsp_hi
     case 59: return gdb_get_reg64(mem_buf, 0); // pcshtp
     case 60: return gdb_get_reg64(mem_buf, 0); // cud_lo
     case 61: return gdb_get_reg64(mem_buf, 0); // cud_hi
@@ -175,7 +176,7 @@ int e2k_cpu_gdb_read_register(CPUState *cs, GByteArray *mem_buf, int n)
     case 331: return gdb_get_reg64(mem_buf, 0); // dtcr
     case 332: return gdb_get_reg64(mem_buf, 0); // dtarf
     case 333: return gdb_get_reg64(mem_buf, 0); // dtart
-    case 334: return gdb_get_reg64(mem_buf, e2k_state_wd(env)); // wd
+    case 334: return gdb_get_reg64(mem_buf, env_wd_get(env)); // wd
     case 335: return gdb_get_reg64(mem_buf, 0); // unk
     case 336: return gdb_get_reg64(mem_buf, 0); // bgr
     case 337: return gdb_get_reg64(mem_buf, 0); // unk
