@@ -20,6 +20,7 @@
 #include "qemu/osdep.h"
 #include "qapi/error.h"
 #include "cpu.h"
+#include "helper-tcg.h"
 #include "qemu/module.h"
 #include "qemu/qemu-print.h"
 #include "exec/exec-all.h"
@@ -131,7 +132,7 @@ static const struct e2k_def_t e2k_defs[] = {
 
 static inline void cpu_dump_state_br(CPUE2KState *env, FILE *f, int flags)
 {
-    uint32_t br = e2k_state_br(env);
+    uint32_t br = env_br_get(env);
     E2KBnState *bn = &env->bn;
     E2KBpState *bp = &env->bp;
 
@@ -151,10 +152,10 @@ void e2k_cpu_dump_state(CPUState *cs, FILE *f, int flags)
 
     qemu_fprintf(f, "       ip = " TARGET_FMT_lx "\n", env->ip);
     qemu_fprintf(f, "    pregs = 0x%016lx\n", env->pregs);
-    qemu_fprintf(f, "  pcsp_lo = 0x%016lx\n", e2k_state_pcsp_lo(env));
-    qemu_fprintf(f, "  pcsp_hi = 0x%016lx\n", e2k_state_pcsp_hi(env));
-    qemu_fprintf(f, "   psp_lo = 0x%016lx\n", e2k_state_psp_lo(env));
-    qemu_fprintf(f, "   psp_hi = 0x%016lx\n", e2k_state_psp_hi(env));
+    qemu_fprintf(f, "  pcsp_lo = 0x%016lx\n", env_pcsp_lo_get(env));
+    qemu_fprintf(f, "  pcsp_hi = 0x%016lx\n", env_pcsp_hi_get(env));
+    qemu_fprintf(f, "   psp_lo = 0x%016lx\n", env_psp_lo_get(env));
+    qemu_fprintf(f, "   psp_hi = 0x%016lx\n", env_psp_hi_get(env));
     qemu_fprintf(f, "   usd_lo = 0x%016lx\n", env->usd.lo);
     qemu_fprintf(f, "   usd_hi = 0x%016lx\n", env->usd.hi);
     qemu_fprintf(f, "      lsr = 0x%016lx\n", env->lsr);

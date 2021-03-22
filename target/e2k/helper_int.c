@@ -1,6 +1,7 @@
 #include "qemu/osdep.h"
 #include "qemu/log.h"
 #include "cpu.h"
+#include "helper-tcg.h"
 #include "exec/exec-all.h"
 #include "qemu/host-utils.h"
 #include "exec/helper-proto.h"
@@ -37,11 +38,11 @@ static uint64_t cr_read(CPUE2KState *env, size_t offset)
 uint64_t HELPER(rrd)(CPUE2KState *env, int idx)
 {
     switch (idx) {
-    case 0x01: return e2k_state_wd(env); /* %wd */
-    case 0x07: return e2k_state_psp_hi(env); /* %psp.hi */
-    case 0x09: return e2k_state_psp_lo(env); /* %psp.lo */
-    case 0x0d: return e2k_state_pcsp_hi(env); /* %pcsp.hi */
-    case 0x0f: return e2k_state_pcsp_lo(env); /* %pcsp.lo */
+    case 0x01: return env_wd_get(env); /* %wd */
+    case 0x07: return env_psp_hi_get(env); /* %psp.hi */
+    case 0x09: return env_psp_lo_get(env); /* %psp.lo */
+    case 0x0d: return env_pcsp_hi_get(env); /* %pcsp.hi */
+    case 0x0f: return env_pcsp_lo_get(env); /* %pcsp.lo */
     case 0x13: return 0; /* %pcshtp */
     case 0x2c: return env->usd.hi; /* %usd.hi */
     case 0x2d: return env->usd.lo; /* %usd.lo */
@@ -51,17 +52,7 @@ uint64_t HELPER(rrd)(CPUE2KState *env, int idx)
     case 0x57: return cr_read(env, offsetof(E2KCrs, cr1.lo)); /* %cr1.lo */
     case 0x80: return env->upsr; /* %upsr */
     case 0x81: return env->ip; /* %ip */
-    case 0x83: /* %lsr */
-    {
-        uint64_t lsr = env->lsr;
-        lsr = deposit64(lsr, LSR_LCNT_OFF, LSR_LCNT_LEN, env->lsr_lcnt);
-        lsr = deposit64(lsr, LSR_ECNT_OFF, LSR_ECNT_LEN, env->lsr_ecnt);
-        lsr = deposit64(lsr, LSR_VLC_OFF, 1, env->lsr_vlc);
-        lsr = deposit64(lsr, LSR_OVER_OFF, 1, env->lsr_over);
-        lsr = deposit64(lsr, LSR_PCNT_OFF, LSR_PCNT_LEN, env->lsr_pcnt);
-        lsr = deposit64(lsr, LSR_STRMD_OFF, LSR_STRMD_LEN, env->lsr_strmd);
-        return lsr;
-    }
+    case 0x83: return env_lsr_get(env); /* %lsr */
     case 0x84: return env->pfpfr.raw; /* %pfpfr */
     case 0x85: return env->fpcr.raw; /* %fpcr */
     case 0x86: return env->fpsr.raw; /* %fpsr */
@@ -81,13 +72,7 @@ void HELPER(rwd)(CPUE2KState *env, int idx, uint64_t val)
         env->upsr = val;
         break;
     case 0x83: /* %lsr */
-        env->lsr = val;
-        env->lsr_lcnt = extract64(val, LSR_LCNT_OFF, LSR_LCNT_LEN);
-        env->lsr_ecnt = extract64(val, LSR_ECNT_OFF, LSR_ECNT_LEN);
-        env->lsr_vlc = extract64(val, LSR_VLC_OFF, 1);
-        env->lsr_over = extract64(val, LSR_OVER_OFF, 1);
-        env->lsr_pcnt = extract64(val, LSR_PCNT_OFF, LSR_PCNT_LEN);
-        env->lsr_strmd = extract64(val, LSR_STRMD_OFF, LSR_STRMD_LEN);
+        env_lsr_set(env, val);
         break;
     case 0x84: /* %pfpfr */
         env->pfpfr.raw = val;

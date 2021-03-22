@@ -1422,7 +1422,7 @@ static int64_t get_literal(DisasContext *ctx, uint8_t arg)
         if (!ctx->bundle.lts_present[i + 1]) {
             gen_tr_excp_illopc(ctx);
         }
-        lit = *(uint64_t *) &ctx->bundle.lts[i];
+        lit = ((uint64_t) ctx->bundle.lts[i + 1] << 32) | ctx->bundle.lts[i];
     } else {
         gen_tr_excp_illopc(ctx);
     }
@@ -7685,11 +7685,6 @@ static void e2k_tr_translate_insn(DisasContextBase *db, CPUState *cs)
         tcg_temp_free_i32(t0);
         break;
     }
-    case E2K_SIGRET_ADDR:
-        /* fake return from signal handler */
-        gen_helper_signal_return(cpu_env);
-        tcg_gen_exit_tb(NULL, TB_EXIT_IDX0);
-        break;
 #endif /* CONFIG_USER_ONLY */
     default:
     {

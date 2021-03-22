@@ -22,6 +22,7 @@
 #include "qemu.h"
 #include "signal-common.h"
 #include "linux-user/trace.h"
+#include "target/e2k/helper-tcg.h"
 
 #define MAX_TC_SIZE	10
 
@@ -105,16 +106,17 @@ struct target_sigframe {
         struct target_ucontext uc;
         // TODO: ucontext_prot
     };
-    target_sigset_t saved_set;
 
-    // FIXME: find where AAU state is saved
+    /* FIXME: move this data to TaskState? */
     E2KAauState aau;
+    uint64_t lsr;
+    uint64_t lsr_lcnt;
+    // FIXME: according to ABI only 16-31 must be saved
+    E2KReg gregs[16];
+    uint8_t gtags[16];
 };
 
 #define NF_ALIGNEDSZ  (((sizeof(struct target_signal_frame) + 7) & (~7)))
-
-void helper_signal_frame(CPUE2KState *env, int wbs, target_ulong ret_ip);
-void helper_signal_return(CPUE2KState *env);
 
 static abi_long setup_sigcontext(CPUE2KState *env,
     struct target_sigcontext *sc, struct target_extra_ucontext *extra)
@@ -202,7 +204,7 @@ static void target_setup_frame(int sig, struct target_sigaction *ka,
     }
 
     /* save current frame */
-    helper_signal_frame(env, env->wd.size, env->ip);
+    e2k_proc_call(env, env->wd.size, env->ip, false);
 
     frame_addr = get_sigframe(ka, env, sizeof(*frame));
     trace_user_setup_rt_frame(env, frame_addr);
@@ -212,8 +214,16 @@ static void target_setup_frame(int sig, struct target_sigaction *ka,
     if (setup_ucontext(&frame->uc, env)) {
         goto fail;
     }
-    copy_to_user((uintptr_t) &frame->uc.uc_sigmask, set, sizeof(*set));
-    copy_to_user((uintptr_t) &frame->aau, &env->aau, sizeof(env->aau));
+    copy_to_user(frame_addr + offsetof(struct target_sigframe, uc.uc_sigmask),
+        set, sizeof(*set));
+    copy_to_user(frame_addr + offsetof(struct target_sigframe, aau),
+        &env->aau, sizeof(env->aau));
+    __put_user(env_lsr_get(env), &frame->lsr);
+    __put_user(env->lsr_lcnt, &frame->lsr_lcnt);
+    copy_to_user(frame_addr + offsetof(struct target_sigframe, gregs),
+        &env->regs[E2K_NR_COUNT + 16], 16 * sizeof(E2KReg));
+    copy_to_user(frame_addr + offsetof(struct target_sigframe, gtags),
+        &env->tags[E2K_NR_COUNT + 16], 16);
 
     if (ka->sa_flags & TARGET_SA_RESTORER) {
         // TODO: sa_restorer?
@@ -223,13 +233,11 @@ static void target_setup_frame(int sig, struct target_sigaction *ka,
     }
 
     /* fake kernel frame */
-    env->regs[0].lo = frame_addr;
-    env->tags[0] = E2K_TAG_NUMBER64;
-    env->wd.size = 2;
+    env->wd.size = 0;
     env->wd.psize = 0;
     env->usd.size = env->sbr - frame_addr;
     env->usd.base = frame_addr;
-    helper_signal_frame(env, 2, E2K_SIGRET_ADDR);
+    e2k_proc_call(env, 0, E2K_SIGRET_ADDR, false);
 
     env->ip = ka->_sa_handler;
     env->regs[0].lo = sig;
@@ -242,10 +250,6 @@ static void target_setup_frame(int sig, struct target_sigaction *ka,
         env->tags[1] = E2K_TAG_NUMBER64;
         env->regs[2].lo = frame_addr + offsetof(struct target_sigframe, uc);
         env->tags[2] = E2K_TAG_NUMBER64;
-    }
-
-    if (env->is_bp) {
-        e2k_proc_call(env, env->wd.size, env->ip, true);
     }
 
     unlock_user_struct(frame, frame_addr, 1);
@@ -272,8 +276,6 @@ static abi_long target_restore_sigframe(CPUE2KState *env,
     __get_user(env->ctprs[0].raw, &frame->uc.uc_extra.ctpr1);
     __get_user(env->ctprs[1].raw, &frame->uc.uc_extra.ctpr2);
     __get_user(env->ctprs[2].raw, &frame->uc.uc_extra.ctpr3);
-
-    copy_from_user(&env->aau, (uintptr_t) &frame->aau, sizeof(env->aau));
 
     return 0;
 }
@@ -302,8 +304,8 @@ long do_rt_sigreturn(CPUE2KState *env)
     sigset_t set;
 
     /* restore fake kernel frame */
-    helper_signal_return(env);
-    frame_addr = env->regs[0].lo;
+    e2k_proc_return(env, false);
+    frame_addr = env->usd.base;
 
     trace_user_do_rt_sigreturn(env, frame_addr);
     if (!lock_user_struct(VERIFY_READ, frame, frame_addr, 1)) {
@@ -316,6 +318,14 @@ long do_rt_sigreturn(CPUE2KState *env)
     if (target_restore_sigframe(env, frame)) {
         goto badframe;
     }
+    copy_from_user(&env->aau, frame_addr
+        + offsetof(struct target_sigframe, aau), sizeof(env->aau));
+    __get_user(env->lsr, &frame->lsr);
+    __get_user(env->lsr_lcnt, &frame->lsr_lcnt);
+    copy_from_user(&env->regs[E2K_NR_COUNT + 16], frame_addr
+        + offsetof(struct target_sigframe, gregs), 16 * sizeof(E2KReg));
+    copy_from_user(&env->tags[E2K_NR_COUNT + 16], frame_addr
+        + offsetof(struct target_sigframe, gtags), 16);
 
     if (do_sigaltstack(frame_addr +
             offsetof(struct target_sigframe, uc.uc_stack),
@@ -324,7 +334,8 @@ long do_rt_sigreturn(CPUE2KState *env)
         goto badframe;
     }
 
-    env->ip = E2K_SIGRET_ADDR;
+    /* restore user */
+    e2k_proc_return(env, false);
 
     unlock_user_struct(frame, frame_addr, 0);
     return -TARGET_QEMU_ESIGRETURN;
