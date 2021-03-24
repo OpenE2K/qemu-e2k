@@ -558,6 +558,7 @@ typedef struct {
     uint32_t cdi;   /* current data index */
     uint32_t ldi;   /* loaded data index */
     target_ulong last_page;
+    bool last_page_valid;
 } E2KAauAreaState;
 
 typedef struct {
