@@ -7761,10 +7761,12 @@ static void gen_loop_end_init(DisasContext *ctx)
         break;
     }
 
-    for (i = 0; !need && i < 6; i++) {
-        if (is_alop_store(&ctx->alops[i])) {
-            need = true;
-            break;
+    if (!need && ctx->loop_mode) {
+        for (i = 0; i < 6; i++) {
+            if (is_alop_store(&ctx->alops[i])) {
+                need = true;
+                break;
+            }
         }
     }
 
