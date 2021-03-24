@@ -318,7 +318,7 @@ void HELPER(setwd)(CPUE2KState *env, int wsz, int nfx, int dbl)
         memset(&env->regs[env->wd.size], 0, diff * sizeof(env->regs[0]));
 #endif
 #ifdef E2K_TAGS_ENABLE
-        memset(&env->tags[env->wd.size], E2K_TAG_NON_NUMBER64, diff);
+        memset(&env->tags[env->wd.size], E2K_TAG_NON_NUMBER128, diff);
 #endif
     }
 

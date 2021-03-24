@@ -504,6 +504,9 @@ typedef struct DisasContext {
     /* optional, can be NULL */
     TCGv_i32 mlock;
     TCGv_i32 loop_end;
+#ifdef E2K_TAGS_ENABLE
+    TCGv_i32 delayed_illop;
+#endif
 
     int version;
     /* Force ILLOP for bad instruction format for cases where real CPU
@@ -1891,7 +1894,7 @@ static bool is_alop_affected_by_dbl(Alop *alop)
     return true;
 }
 
-#if 0
+#ifdef E2K_TAGS_ENABLE
 static bool is_alop_check_tag(Alop *alop)
 {
     if (alop->format == ALOPF2) {
@@ -1912,7 +1915,9 @@ static bool is_alop_check_tag(Alop *alop)
 
     return true;
 }
+#endif
 
+#if 0
 static bool is_alop_poison_result(Alop *alop)
 {
     if (alop->format == ALOPF2) {
@@ -2443,25 +2448,28 @@ static void gen_reg_set_s(DisasContext *ctx, bool is_dbl,
             TCGv_ptr t0 = tcg_temp_local_new_ptr();
             TCGv_i32 t1 = tcg_temp_local_new_i32();
             TCGv_i64 t2 = tcg_temp_local_new_i64();
+            TCGv_i32 t3 = tcg_temp_local_new_i32();
 
             gen_reg_lo_ptr(t0, index);
             tcg_gen_mov_i32(t1, tag);
             tcg_gen_mov_i64(t2, val);
+            tcg_gen_mov_i32(t3, index);
             tcg_gen_brcondi_i32(TCG_COND_NE, cpu_wdbl, 0, l0);
 
             /* wdbl is not set */
-            gen_reg_tag_set_i32(ctx, t1, index);
+            gen_reg_tag_set_i32(ctx, t1, t3);
             tcg_gen_st32_i64(t2, t0, 0);
             tcg_gen_br(l1);
 
             /* wdbl is set */
             gen_set_label(l0);
             gen_tag1_i64(t1, t1);
-            gen_reg_tag_set_i64(ctx, t1, index);
+            gen_reg_tag_set_i64(ctx, t1, t3);
             tcg_gen_st_i64(t2, t0, 0);
 
             gen_set_label(l1);
 
+            tcg_temp_free_i32(t3);
             tcg_temp_free_i64(t2);
             tcg_temp_free_i32(t1);
             tcg_temp_free_ptr(t0);
@@ -2477,9 +2485,33 @@ static void gen_reg_set_s(DisasContext *ctx, bool is_dbl,
     }
 }
 
+#ifdef E2K_TAGS_ENABLE
+static void gen_delayed_tag_check(DisasContext *ctx, TCGv_i32 tag)
+{
+    TCGv_i32 t0 = tcg_temp_new_i32();
+
+    tcg_gen_setcondi_i32(TCG_COND_NE, t0, tag, 0);
+    tcg_gen_or_i32(ctx->delayed_illop, ctx->delayed_illop, t0);
+    tcg_temp_free_i32(t0);
+}
+
+static inline void gen_delayed_alop_tag_check(Alop *alop, TCGv_i32 tag)
+{
+    if (!alop->als.sm && is_alop_check_tag(alop)) {
+        gen_delayed_tag_check(alop->ctx, tag);
+    }
+}
+#else
+static inline void gen_delayed_alop_tag_check(Alop *alop, TCGv_i32 tag)
+{
+}
+#endif
+
 static void gen_al_result_q(Alop *alop, Tagged_ptr arg)
 {
     uint8_t dst = alop->als.dst;
+
+    gen_delayed_alop_tag_check(alop, arg.tag);
 
     if (dst == 0xdf) {
         /* %empty */
@@ -2499,6 +2531,8 @@ static void gen_al_result_x(Alop *alop, Tagged_ptr arg)
 {
     uint8_t dst = alop->als.dst;
 
+    gen_delayed_alop_tag_check(alop, arg.tag);
+
     if (dst == 0xdf) {
         /* %empty */
     } else if (IS_REG(dst)) {
@@ -2516,6 +2550,8 @@ static void gen_al_result_x(Alop *alop, Tagged_ptr arg)
 static void gen_al_result_d(Alop *alop, Tagged_i64 arg)
 {
     uint8_t dst = alop->als.dst;
+
+    gen_delayed_alop_tag_check(alop, arg.tag);
 
     if (dst == 0xdf) {
         /* %empty */
@@ -2548,6 +2584,8 @@ static void gen_al_result_s(Alop *alop, Tagged_i32 arg)
 {
     uint8_t dst = alop->als.dst;
 
+    gen_delayed_alop_tag_check(alop, arg.tag);
+
     if (dst == 0xdf) {
         /* %empty */
     } else if (IS_REG(dst)) {
@@ -2579,7 +2617,6 @@ static void gen_al_result_s(Alop *alop, Tagged_i32 arg)
 
 static void gen_al_result_b(Alop *alop, Tagged_i32 arg)
 {
-    // TODO: preg tag
     gen_preg_set_i32(alop->als.dst_preg, arg.val);
 }
 
@@ -6711,7 +6748,7 @@ static void gen_alop_pred(Alop *alop, TCGLabel *l)
     tcg_temp_free_i32(t0);
 }
 
-static void alop_decode(Alop *alop, AlesFlag ales_present)
+static void decode_alop(Alop *alop, AlesFlag ales_present)
 {
     DisasContext *ctx = alop->ctx;
 
@@ -6942,7 +6979,7 @@ static void decode_alops(DisasContext *ctx)
             alop->als.raw = ctx->bundle.als[i];
             alop->ales.raw = ctx->bundle.ales[i];
 
-            alop_decode(alop, ctx->bundle.ales_present[i]);
+            decode_alop(alop, ctx->bundle.ales_present[i]);
         }
     }
 }
@@ -7298,14 +7335,6 @@ static inline void gen_setbp(DisasContext *ctx)
         tcg_gen_movi_i32(cpu_psize, setr->psz + 1);
         tcg_gen_movi_i32(cpu_pcur, 0);
     }
-}
-
-static inline void gen_setr(DisasContext *ctx)
-{
-    gen_vfrpsz(ctx);
-    gen_setwd(ctx);
-    gen_setbn(ctx);
-    gen_setbp(ctx);
 }
 
 static inline void gen_cs1(DisasContext *ctx)
@@ -7776,14 +7805,24 @@ static void gen_loop_end_init(DisasContext *ctx)
     }
 }
 
-static inline void do_branch(DisasContext *ctx, target_ulong pc_next)
+static void do_branch(DisasContext *ctx, target_ulong pc_next)
 {
+    gen_save_pc(ctx->base.pc_next);
+
+#ifdef E2K_TAGS_ENABLE
+    {
+        TCGLabel *l0 = gen_new_label();
+        tcg_gen_brcondi_i32(TCG_COND_EQ, ctx->delayed_illop, 0, l0);
+        gen_excp_illopc();
+        gen_set_label(l0);
+    }
+#endif
+
     if (ctx->ct.type == CT_NONE) {
         return;
     }
 
     ctx->base.is_jmp = DISAS_NORETURN;
-    gen_save_pc(ctx->base.pc_next);
 
     if (ctx->ct.cond_type > 1) {
         TCGLabel *l0 = gen_new_label();
@@ -7905,8 +7944,12 @@ static void e2k_tr_insn_start(DisasContextBase *db, CPUState *cs)
     tcg_gen_insn_start(ctx->base.pc_next);
 
     ctx->cs0.type = CS0_NONE;
-    ctx->cs1.type = CS0_NONE;
+    ctx->cs1.type = CS1_NONE;
     ctx->mlock = NULL;
+#ifdef E2K_TAGS_ENABLE
+    ctx->delayed_illop = e2k_get_temp_i32(ctx);
+    tcg_gen_movi_i32(ctx->delayed_illop, 0);
+#endif
     ctx->saved_reg_len = 0;
     ctx->saved_preg_len = 0;
 }
@@ -7958,6 +8001,7 @@ static void e2k_tr_translate_insn(DisasContextBase *db, CPUState *cs)
 
         ctx->loop_mode = (ctx->bundle.hs & (1 << 10)) != 0;
         gen_alop_reg_indices_check(ctx);
+        gen_setwd(ctx);
         gen_cs0(ctx);
         gen_cs1(ctx);
         gen_mlock_init(ctx);
@@ -7966,7 +8010,9 @@ static void e2k_tr_translate_insn(DisasContextBase *db, CPUState *cs)
         gen_aau(ctx);
         gen_plu(ctx);
         gen_ct_cond(ctx);
-        gen_setr(ctx);
+        gen_vfrpsz(ctx);
+        gen_setbn(ctx);
+        gen_setbp(ctx);
         gen_stubs(ctx);
         do_branch(ctx, pc_next);
         ctx->base.pc_next = pc_next;
