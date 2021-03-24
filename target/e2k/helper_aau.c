@@ -9,6 +9,7 @@ static inline void init_prefetch_area(E2KAauAreaState *s, E2KAauPrefInstr pi,
     uint32_t *inds)
 {
     s->last_page = 0;
+    s->last_page_valid = false;
     if (pi.fmt != 0) {
         s->pi = pi;
         s->ldi = 0;
@@ -52,19 +53,22 @@ target_ulong HELPER(mova_ptr)(CPUE2KState *env, int chan, int area, int ind,
     E2KAauAreaState *as = &ps->area[area];
     E2KAauPrefInstr instr = as->pi;
     E2KAad aad = env->aau.ds[instr.aad];
-    target_ulong ptr = aad.base + as->cdi + instr.disp + ind;
-    target_ulong page = ptr & ~(TARGET_PAGE_SIZE - 1);
+    target_ulong addr = aad.base + as->cdi + instr.disp + ind;
+    target_ulong page = addr & TARGET_PAGE_MASK;
 
-    if (ptr & (size - 1)) {
-        ptr = 0;
-    } else if (as->last_page == 0 || page != as->last_page) {
-        if (!helper_probe_read_access(env, page, size, mmu_idx)) {
-            ptr = 0;
-        }
+    if (addr & (size - 1)) {
+        return 0;
+    } else if (page != as->last_page) {
+        void *ignore;
+        int flags;
+
+        flags = probe_access_flags(env, page, MMU_DATA_LOAD, mmu_idx,
+            true, &ignore, 0);
         as->last_page = page;
+        as->last_page_valid = !(flags & TLB_INVALID_MASK);
     }
 
-    return ptr;
+    return as->last_page_valid ? addr : 0;
 }
 
 void HELPER(aau_am)(CPUE2KState *env, int chan, int area)
