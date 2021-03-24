@@ -209,11 +209,23 @@ int e2k_cpu_gdb_read_register(CPUState *cs, GByteArray *mem_buf, int n)
     }
 
     if (356 <= n && n < 360) {
-        return gdb_get_reg64(mem_buf, 0); // gN tags (tag len is 1 byte)
+        uint64_t tags = 0;
+        int i, offset = E2K_NR_COUNT + (n - 356) * 8;
+
+        for (i = 0; i < 8; i++) {
+            tags |= (uint64_t) env->tags[offset + i] << (i * 8);
+        }
+        return gdb_get_reg64(mem_buf, tags); // gN tags (tag len is 1 byte)
     }
 
     if (360 <= n && n < 368) {
-        return gdb_get_reg64(mem_buf, 0); // xgN
+        uint64_t ext = 0;
+        int i, offset = E2K_NR_COUNT + (n - 360) * 4;
+
+        for (i = 0; i < 4; i++) {
+            ext |= ((uint64_t) env->regs[offset + i].hi & 0xffff) << (i * 16);
+        }
+        return gdb_get_reg64(mem_buf, ext); // xgN
     }
 
     if (n == 368) {
