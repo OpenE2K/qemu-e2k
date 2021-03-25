@@ -6,7 +6,6 @@
 #include "tcg/tcg-op-gvec.h"
 
 //#define FORCE_SAVE_PLU_PREG
-//#define FORCE_SAVE_ALC_REG
 //#define FORCE_SAVE_ALC_PREG
 
 #define glue3(a, b, c) glue(glue(a, b), c)
@@ -504,11 +503,11 @@ typedef struct DisasContext {
     /* optional, can be NULL */
     TCGv_i32 mlock;
     TCGv_i32 loop_end;
-#ifdef E2K_TAGS_ENABLE
     TCGv_i32 delayed_illop;
-#endif
 
     int version;
+    bool enable_tags;
+    bool force_save_alc_dst;
     /* Force ILLOP for bad instruction format for cases where real CPU
        do not generate it. */
     bool strict;
@@ -1276,7 +1275,6 @@ static void gen_preg_set_i32(int index, TCGv_i32 val)
     tcg_temp_free_i64(t0);
 }
 
-#ifdef E2K_TAGS_ENABLE
 static void gen_reg_tag_ptr(TCGv_ptr ret, TCGv_i32 idx)
 {
     TCGv_ptr t0 = tcg_temp_new_ptr();
@@ -1302,30 +1300,28 @@ static inline bool is_tag_mask_all(DisasContext *ctx, uint8_t mask)
 static void gen_reg_tag_mask(DisasContext *ctx, TCGv_i32 ret,
     TCGv_i32 index, uint8_t mask)
 {
-    TCGv_ptr t0 = tcg_temp_new_ptr();
+    if (ctx->enable_tags) {
+        TCGv_ptr t0 = tcg_temp_new_ptr();
 
-    gen_reg_tag_ptr(t0, index);
 
-    if (is_tag_mask_all(ctx, mask)) {
-        tcg_gen_ld8u_i32(ret, t0, 0);
+        gen_reg_tag_ptr(t0, index);
+
+        if (is_tag_mask_all(ctx, mask)) {
+            tcg_gen_ld8u_i32(ret, t0, 0);
+        } else {
+            TCGv_i32 t1 = tcg_temp_new_i32();
+
+            tcg_gen_ld8u_i32(t1, t0, 0);
+            tcg_gen_andi_i32(ret, t1, mask);
+
+            tcg_temp_free_i32(t1);
+        }
+
+        tcg_temp_free_ptr(t0);
     } else {
-        TCGv_i32 t1 = tcg_temp_new_i32();
-
-        tcg_gen_ld8u_i32(t1, t0, 0);
-        tcg_gen_andi_i32(ret, t1, mask);
-
-        tcg_temp_free_i32(t1);
+        tcg_gen_movi_i32(ret, 0);
     }
-
-    tcg_temp_free_ptr(t0);
 }
-#else
-static void gen_reg_tag_mask(DisasContext *ctx, TCGv_i32 ret,
-    TCGv_i32 index, uint8_t mask)
-{
-    tcg_gen_movi_i32(ret, 0);
-}
-#endif
 
 #define gen_reg_tag_i32(c, r, i) \
     gen_reg_tag_mask(c, r, i, E2K_TAG_MASK_32)
@@ -1339,12 +1335,16 @@ static void gen_reg_tag_mask(DisasContext *ctx, TCGv_i32 ret,
 #define gen_reg_tag_i128(c, r, i) \
     gen_reg_tag_mask(c, r, i, E2K_TAG_MASK_128)
 
-#ifdef E2K_TAGS_ENABLE
 static void gen_reg_tag_mask_set(DisasContext *ctx, TCGv_i32 tag,
     TCGv_i32 index, uint8_t mask)
 {
-    TCGv_ptr t0 = tcg_temp_new_ptr();
+    TCGv_ptr t0;
 
+    if (!ctx->enable_tags) {
+        return;
+    }
+
+    t0 = tcg_temp_new_ptr();
     gen_reg_tag_ptr(t0, index);
 
     if (mask == E2K_TAG_MASK_128) {
@@ -1376,13 +1376,6 @@ static void gen_reg_tag_mask_set(DisasContext *ctx, TCGv_i32 tag,
 
     tcg_temp_free_ptr(t0);
 }
-#else
-static void gen_reg_tag_mask_set(DisasContext *ctx, TCGv_i32 tag,
-    TCGv_i32 index, uint8_t mask)
-{
-    tcg_gen_discard_i32(tag);
-}
-#endif
 
 #define gen_reg_tag_set_i32(c, t, i) \
     gen_reg_tag_mask_set(c, t, i, E2K_TAG_MASK_32)
@@ -1894,7 +1887,6 @@ static bool is_alop_affected_by_dbl(Alop *alop)
     return true;
 }
 
-#ifdef E2K_TAGS_ENABLE
 static bool is_alop_check_tag(Alop *alop)
 {
     if (alop->format == ALOPF2) {
@@ -1915,7 +1907,6 @@ static bool is_alop_check_tag(Alop *alop)
 
     return true;
 }
-#endif
 
 #if 0
 static bool is_alop_poison_result(Alop *alop)
@@ -2143,7 +2134,6 @@ static void gen_plu(DisasContext *ctx)
     }
 }
 
-#ifndef FORCE_SAVE_ALC_REG
 static inline ArgSize alop_reg_max_size(uint8_t src1, ArgSize size1,
     uint8_t src2, ArgSize size2)
 {
@@ -2206,7 +2196,6 @@ static ArgSize alop_opn_max_size(Alop *alop, uint8_t src)
 
     return r;
 }
-#endif
 
 static bool is_reg_saved(DisasContext *ctx, uint8_t dst)
 {
@@ -2327,8 +2316,7 @@ static void gen_alop_save_dst(Alop *alop)
             int chan = alop->chan;
             ArgSize size;
 
-#ifndef FORCE_SAVE_ALC_REG
-            if (IS_REG_SAVE_SAFE(dst)) {
+            if (!ctx->force_save_alc_dst && IS_REG_SAVE_SAFE(dst)) {
                 int i;
 
                 size = alop_opn_max_size(alop, dst);
@@ -2342,9 +2330,6 @@ static void gen_alop_save_dst(Alop *alop)
             } else {
                 size = ctx->version >= 5 ? ARG_SIZE_P : ARG_SIZE_X;
             }
-#else
-            size = ctx->version >= 5 ? ARG_SIZE_P : ARG_SIZE_X;
-#endif
             gen_save_reg(ctx, chan, size, dst);
         }
         break;
@@ -2485,11 +2470,11 @@ static void gen_reg_set_s(DisasContext *ctx, bool is_dbl,
     }
 }
 
-#ifdef E2K_TAGS_ENABLE
 static void gen_delayed_tag_check(DisasContext *ctx, TCGv_i32 tag)
 {
     TCGv_i32 t0 = tcg_temp_new_i32();
 
+    assert(ctx->delayed_illop);
     tcg_gen_setcondi_i32(TCG_COND_NE, t0, tag, 0);
     tcg_gen_or_i32(ctx->delayed_illop, ctx->delayed_illop, t0);
     tcg_temp_free_i32(t0);
@@ -2497,15 +2482,10 @@ static void gen_delayed_tag_check(DisasContext *ctx, TCGv_i32 tag)
 
 static inline void gen_delayed_alop_tag_check(Alop *alop, TCGv_i32 tag)
 {
-    if (!alop->als.sm && is_alop_check_tag(alop)) {
+    if (alop->ctx->enable_tags && !alop->als.sm && is_alop_check_tag(alop)) {
         gen_delayed_tag_check(alop->ctx, tag);
     }
 }
-#else
-static inline void gen_delayed_alop_tag_check(Alop *alop, TCGv_i32 tag)
-{
-}
-#endif
 
 static void gen_al_result_q(Alop *alop, Tagged_ptr arg)
 {
@@ -7042,6 +7022,18 @@ static void gen_alc(DisasContext *ctx)
 {
     int i;
 
+    if (ctx->enable_tags) {
+        for (i = 0; i < 6; i++) {
+            Alop *alop = &ctx->alops[i];
+
+            if (!alop->als.sm && is_alop_check_tag(alop)) {
+                ctx->delayed_illop = e2k_get_temp_i32(ctx);
+                tcg_gen_movi_i32(ctx->delayed_illop, 0);
+                break;
+            }
+        }
+    }
+
     for (i = 0; i < 6; i++) {
         gen_alop(&ctx->alops[i]);
     }
@@ -7809,14 +7801,12 @@ static void do_branch(DisasContext *ctx, target_ulong pc_next)
 {
     gen_save_pc(ctx->base.pc_next);
 
-#ifdef E2K_TAGS_ENABLE
-    {
+    if (ctx->enable_tags && ctx->delayed_illop) {
         TCGLabel *l0 = gen_new_label();
         tcg_gen_brcondi_i32(TCG_COND_EQ, ctx->delayed_illop, 0, l0);
         gen_excp_illopc();
         gen_set_label(l0);
     }
-#endif
 
     if (ctx->ct.type == CT_NONE) {
         return;
@@ -7879,6 +7869,8 @@ static void e2k_tr_init_disas_context(DisasContextBase *db, CPUState *cs)
     CPUE2KState *env = &cpu->env;
 
     ctx->version = env->version;
+    ctx->enable_tags = env->enable_tags;
+    ctx->force_save_alc_dst = env->force_save_alc_dst;
 
     if (version != ctx->version) {
         if (version > 0) {
@@ -7946,10 +7938,7 @@ static void e2k_tr_insn_start(DisasContextBase *db, CPUState *cs)
     ctx->cs0.type = CS0_NONE;
     ctx->cs1.type = CS1_NONE;
     ctx->mlock = NULL;
-#ifdef E2K_TAGS_ENABLE
-    ctx->delayed_illop = e2k_get_temp_i32(ctx);
-    tcg_gen_movi_i32(ctx->delayed_illop, 0);
-#endif
+    ctx->delayed_illop = NULL;
     ctx->saved_reg_len = 0;
     ctx->saved_preg_len = 0;
 }

@@ -28,8 +28,6 @@ void e2k_tcg_initialize(void);
  */
 #define E2K_FORCE_FX true
 
-//#define E2K_TAGS_ENABLE
-
 #define GEN_MASK(start, len) (((1UL << (len)) - 1) << (start))
 #define GET_BIT(v, index) (((v) >> (index)) & 1)
 
@@ -785,6 +783,12 @@ typedef struct {
     struct {} end_reset_fields;
 
     uint32_t version;
+    /* Force alop to preserve the destination register before writing to it.
+     * Default: false */
+    bool force_save_alc_dst;
+    /* Enable tags handling.
+     * Default: false */
+    bool enable_tags;
 
     struct e2k_def_t def;
 

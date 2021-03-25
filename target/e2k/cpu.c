@@ -270,6 +270,12 @@ static struct TCGCPUOps e2k_tcg_ops = {
     .tlb_fill = e2k_cpu_tlb_fill,
 };
 
+static Property e2k_cpu_properties[] = {
+    DEFINE_PROP_BOOL("force_save_alc_dst", E2KCPU, env.force_save_alc_dst, false),
+    DEFINE_PROP_BOOL("tags", E2KCPU, env.enable_tags, false),
+    DEFINE_PROP_END_OF_LIST()
+};
+
 static void e2k_cpu_class_init(ObjectClass *oc, void *data)
 {
     E2KCPUClass *ecc = E2K_CPU_CLASS(oc);
@@ -278,7 +284,7 @@ static void e2k_cpu_class_init(ObjectClass *oc, void *data)
 
     device_class_set_parent_realize(dc, e2k_cpu_realizefn,
                                     &ecc->parent_realize);
-
+    device_class_set_props(dc, e2k_cpu_properties);
     device_class_set_parent_reset(dc, e2k_cpu_reset, &ecc->parent_reset);
 
     cc->has_work = e2k_cpu_has_work;
@@ -341,6 +347,7 @@ type_init(e2k_cpu_register_types)
 void e2k_cpu_list(void)
 {
     unsigned int i;
+    size_t len = 0;
     
     for (i = 0; i < ARRAY_SIZE(e2k_defs); i++) {
         qemu_printf("%6s (%-30s) ISA version: v%d\n",
@@ -349,4 +356,17 @@ void e2k_cpu_list(void)
             e2k_defs[i].isa_version
         );
     }
+
+    qemu_printf("\nFeatures:\n");
+    for (i = 0; i < ARRAY_SIZE(e2k_cpu_properties); i++) {
+        const char *name = e2k_cpu_properties[i].name;
+        size_t l = strlen(name) + 1;
+        if (len + l >= 75) {
+            qemu_printf("\n");
+            len = 0;
+        }
+        qemu_printf("%s%s", len ? " " : "  ", name);
+        len += l;
+    }
+    qemu_printf("\n");
 }
