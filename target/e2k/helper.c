@@ -21,9 +21,9 @@ static inline void ps_push(CPUE2KState *env, uint64_t value, uint8_t tag)
 #endif
 
     cpu_stq_le_data(env, env->psp.base + env->psp.index, value);
-#ifdef E2K_TAGS_ENABLE
-    cpu_stb_data(env, env->psp.base_tag + env->psp.index / 8, tag);
-#endif
+    if (env->enable_tags) {
+        cpu_stb_data(env, env->psp.base_tag + env->psp.index / 8, tag);
+    }
     env->psp.index += 8;
 }
 
@@ -34,11 +34,12 @@ static inline uint64_t ps_pop(CPUE2KState *env, uint8_t *ret_tag)
     }
     env->psp.index -= 8;
     if (ret_tag != NULL) {
-#ifdef E2K_TAGS_ENABLE
-        *ret_tag = cpu_ldub_data(env, env->psp.base_tag + env->psp.index / 8);
-#else
-        *ret_tag = 0;
-#endif
+        if (env->enable_tags) {
+            abi_ptr ptr = env->psp.base_tag + env->psp.index / 8;
+            *ret_tag = cpu_ldub_data(env, ptr);
+        } else {
+            *ret_tag = 0;
+        }
     }
     return cpu_ldq_le_data(env, env->psp.base + env->psp.index);
 }
@@ -97,9 +98,9 @@ static void ps_fill(CPUE2KState *env, int n, bool fx)
 static void move_regs(CPUE2KState *env, int dst, int src, int n)
 {
     memmove(&env->regs[dst], &env->regs[src], n * sizeof(env->regs[0]));
-#ifdef E2K_TAGS_ENABLE
-    memmove(&env->tags[dst], &env->tags[src], n * sizeof(env->tags[0]));
-#endif
+    if (env->enable_tags) {
+        memmove(&env->tags[dst], &env->tags[src], n * sizeof(env->tags[0]));
+    }
 }
 
 static void callee_window(CPUE2KState *env, int base, int size, bool fx)
@@ -317,9 +318,9 @@ void HELPER(setwd)(CPUE2KState *env, int wsz, int nfx, int dbl)
 #if 0
         memset(&env->regs[env->wd.size], 0, diff * sizeof(env->regs[0]));
 #endif
-#ifdef E2K_TAGS_ENABLE
-        memset(&env->tags[env->wd.size], E2K_TAG_NON_NUMBER128, diff);
-#endif
+        if (env->enable_tags) {
+            memset(&env->tags[env->wd.size], E2K_TAG_NON_NUMBER128, diff);
+        }
     }
 
     env->wd.size = size;
