@@ -203,13 +203,6 @@ static inline void do_call(CPUE2KState *env, int wbs, target_ulong ret_ip)
     reset_ctprs(env);
 }
 
-void HELPER(syscall)(CPUE2KState *env)
-{
-    CPUState *cs = env_cpu(env);
-    cs->exception_index = EXCP_SYSCALL;
-    cpu_loop_exit(cs);
-}
-
 void HELPER(call)(CPUE2KState *env, uint64_t ctpr_raw, int call_wbs,
     target_ulong pc_next)
 {
@@ -249,7 +242,12 @@ uint64_t HELPER(prep_return)(CPUE2KState *env, int ipd)
     ret.ipd = ipd;
     ret.base = cr0_hi;
     ret.tag = CTPR_TAG_RETURN;
+#ifdef CONFIG_USER_ONLY
     ret.opc = cr0_hi == E2K_SIGRET_ADDR ? CTPR_OPC_SIGRET : 0;
+#else
+    // TODO: set ctpr.opc
+    ret.opc = 0;
+#endif
 
     return ret.raw;
 }
@@ -258,6 +256,7 @@ void HELPER(return)(CPUE2KState *env)
 {
     CtprOpc opc = env->ctprs[2].opc;
 
+#ifdef CONFIG_USER_ONLY
     if (opc == CTPR_OPC_SIGRET) {
         CPUState *cs = env_cpu(env);
         env->wd.psize = 2;
@@ -265,14 +264,15 @@ void HELPER(return)(CPUE2KState *env)
         env->tags[0] = E2K_TAG_NUMBER64;
         cs->exception_index = EXCP_SYSCALL;
         cpu_loop_exit(cs);
-    } else {
-        if (opc != 0) {
-            qemu_log(TARGET_FMT_lx ": unknown return ctpr opc %d\n", env->ip, opc);
-        }
-
-        e2k_proc_return(env, false);
-        reset_ctprs(env);
     }
+#endif
+
+    if (opc != 0) {
+        qemu_log(TARGET_FMT_lx ": unknown return ctpr opc %d\n", env->ip, opc);
+    }
+
+    e2k_proc_return(env, false);
+    reset_ctprs(env);
 }
 
 void QEMU_NORETURN raise_exception(CPUE2KState *env, int exception_index)
@@ -285,6 +285,9 @@ void QEMU_NORETURN raise_exception_ra(CPUE2KState *env, int exception_index,
 {
     CPUState *cs = env_cpu(env);
     switch (exception_index) {
+#ifdef CONFIG_USER_ONLY
+    case EXCP_SYSCALL:
+#endif
     case EXCP_PROC_STACK_BOUNDS:
     case EXCP_CHAIN_STACK_BOUNDS:
         /* ignore */

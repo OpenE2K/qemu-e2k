@@ -1,5 +1,4 @@
 #include "qemu/osdep.h"
-#include "qemu.h"
 #include "exec/log.h"
 #include "exec/translator.h"
 #include "tcg/tcg-op.h"
@@ -7374,11 +7373,15 @@ static inline void gen_cs0(DisasContext *ctx)
         break;
     }
     case CS0_SDISP: {
+#ifdef CONFIG_USER_ONLY
         // TODO: real sdisp target address
         target_ulong target = E2K_FAKE_KERN_START;
         target = deposit64(target, 11, 17, cs0->sdisp.disp);
         uint64_t ctpr = ctpr_new(CTPR_TAG_SDISP, 0, cs0->sdisp.ipd, target);
         gen_set_ctpr(cs0->sdisp.ctpr, ctpr);
+#else
+        e2k_todo(ctx, "sdisp");
+#endif
         break;
     }
     case CS0_RETURN: {
@@ -7958,7 +7961,7 @@ static void e2k_tr_translate_insn(DisasContextBase *db, CPUState *cs)
 # endif
         /* fake enter into syscall handler */
         ctx->base.is_jmp = DISAS_NORETURN;
-        gen_helper_syscall(cpu_env);
+        gen_tr_exception(ctx, EXCP_SYSCALL);
         tcg_gen_exit_tb(NULL, TB_EXIT_IDX0);
         break;
     case E2K_SYSRET_BACKTRACE_ADDR:
