@@ -1,6 +1,7 @@
 e2k_ss = ss.source_set()
 e2k_ss.add(files(
   'cpu.c',
+  'cpu-dump.c',
   'gdbstub.c',
   'helper.c',
   'helper_aau.c',

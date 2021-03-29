@@ -30,8 +30,6 @@
 
 //#define DEBUG_FEATURES
 
-void e2k_cpu_dump_state(CPUState *cs, FILE *f, int flags);
-
 static void e2k_cpu_reset(DeviceState *dev)
 {
     CPUState *cs = CPU(dev);
@@ -129,51 +127,6 @@ static const struct e2k_def_t e2k_defs[] = {
         .isa_version    = 6,
     },
 };
-
-static inline void cpu_dump_state_br(CPUE2KState *env, FILE *f, int flags)
-{
-    uint32_t br = env_br_get(env);
-    E2KBnState *bn = &env->bn;
-    E2KBpState *bp = &env->bp;
-
-    qemu_fprintf(f, "br         0x%x\n", br);
-    qemu_fprintf(f, "    rbs    %d\n", bn->base / 2);
-    qemu_fprintf(f, "    rsz    %d\n", bn->size / 2 - 1);
-    qemu_fprintf(f, "    rcur   %d\n", bn->cur / 2);
-    qemu_fprintf(f, "    psz    %d\n", bp->size);
-    qemu_fprintf(f, "    pcur   %d\n", bp->cur);
-}
-
-void e2k_cpu_dump_state(CPUState *cs, FILE *f, int flags)
-{
-    E2KCPU *cpu = E2K_CPU(cs);
-    CPUE2KState *env = &cpu->env;
-    unsigned int i;
-
-    qemu_fprintf(f, "       ip = " TARGET_FMT_lx "\n", env->ip);
-    qemu_fprintf(f, "    pregs = 0x%016lx\n", env->pregs);
-    qemu_fprintf(f, "  pcsp_lo = 0x%016lx\n", env->pcsp.lo);
-    qemu_fprintf(f, "  pcsp_hi = 0x%016lx\n", env->pcsp.hi);
-    qemu_fprintf(f, "   psp_lo = 0x%016lx\n", env->psp.lo);
-    qemu_fprintf(f, "   psp_hi = 0x%016lx\n", env->psp.hi);
-    qemu_fprintf(f, "   usd_lo = 0x%016lx\n", env->usd.lo);
-    qemu_fprintf(f, "   usd_hi = 0x%016lx\n", env->usd.hi);
-    qemu_fprintf(f, "      lsr = 0x%016lx\n", env->lsr);
-    cpu_dump_state_br(env, f, flags);
-
-    for (i = 0; i < E2K_REG_COUNT; i++) {
-        char name = i < E2K_NR_COUNT ? 'r' : 'g';
-        int tag = env->tags[i];
-        qemu_fprintf(f, "%%%c%d\t<%d%d> 0x%lx\n", name, i, tag >> 2, tag & 3,
-            env->regs[i].lo);
-    }
-
-    for (i = 0; i < 32; i++) {
-        int preg = (env->pregs >> (i * 2)) & 3;
-        qemu_fprintf(f, "pred%d\t<%d> %s\n", i, preg >> 1,
-            preg & 1 ? "true" : "false");
-    }
-}
 
 static void e2k_cpu_set_pc(CPUState *cs, vaddr value)
 {
