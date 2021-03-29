@@ -31,8 +31,8 @@ struct target_pt_regs {
     
     // uint64_t tr; // current type register
     
-    E2KPcsState pcsp;
-    E2KPsState psp;
+    E2KPsp pcsp;
+    E2KPsp psp;
 
     uint32_t psr; // Processor State Register (PSR)
     uint32_t upsr; // User processor status register (UPSR)
