@@ -18,9 +18,15 @@
  */
 #include "qemu/osdep.h"
 #include "qemu/thread.h"
-#include "hw/i386/apic_internal.h"
-#include "hw/i386/apic.h"
-#include "hw/i386/ioapic.h"
+#if defined(TARGET_E2K)
+# include "hw/e2k/apic_internal.h"
+# include "hw/e2k/apic.h"
+# include "hw/e2k/ioapic.h"
+#else
+# include "hw/i386/apic_internal.h"
+# include "hw/i386/apic.h"
+# include "hw/i386/ioapic.h"
+#endif
 #include "hw/intc/i8259.h"
 #include "hw/pci/msi.h"
 #include "qemu/host-utils.h"
@@ -497,6 +503,10 @@ static void apic_startup(APICCommonState *s, int vector_num)
 
 void apic_sipi(DeviceState *dev)
 {
+#if defined(TARGET_E2K)
+    /* TODO: e2k */
+    abort();
+#else
     APICCommonState *s = APIC(dev);
 
     cpu_reset_interrupt(CPU(s->cpu), CPU_INTERRUPT_SIPI);
@@ -505,6 +515,7 @@ void apic_sipi(DeviceState *dev)
         return;
     cpu_x86_load_seg_cache_sipi(s->cpu, s->sipi_vector);
     s->wait_for_sipi = 0;
+#endif
 }
 
 static void apic_deliver(DeviceState *dev, uint8_t dest, uint8_t dest_mode,
@@ -653,6 +664,11 @@ static uint64_t apic_mem_read(void *opaque, hwaddr addr, unsigned size)
 
     index = (addr >> 4) & 0xff;
     switch(index) {
+#ifdef TARGET_E2K
+    case 0x01: /* base */
+        val = cpu_get_apic_base(dev);
+        break;
+#endif
     case 0x02: /* id */
         val = s->id << 24;
         break;
@@ -766,6 +782,11 @@ static void apic_mem_write(void *opaque, hwaddr addr, uint64_t val,
     trace_apic_mem_writel(addr, val);
 
     switch(index) {
+#ifdef TARGET_E2K
+    case 0x01: /* base */
+        cpu_set_apic_base(dev, val);
+        break;
+#endif
     case 0x02:
         s->id = (val >> 24);
         break;

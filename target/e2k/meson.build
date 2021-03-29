@@ -12,6 +12,7 @@ e2k_ss.add(files(
   'translate.c',
 ))
 
-# no softmmu support yet
+e2k_softmmu_ss = ss.source_set()
 
 target_arch += {'e2k': e2k_ss}
+target_softmmu_arch += {'e2k': e2k_softmmu_ss}

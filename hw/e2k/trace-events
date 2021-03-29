@@ -1,0 +1,4 @@
+# See docs/devel/tracing.txt for syntax documentation.
+
+sic_mem_readl(uint64_t addr, uint32_t val)  "0x%"PRIx64" = 0x%08x"
+sic_mem_writel(uint64_t addr, uint32_t val) "0x%"PRIx64" = 0x%08x"

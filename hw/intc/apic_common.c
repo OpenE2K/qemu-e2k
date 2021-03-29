@@ -23,8 +23,13 @@
 #include "qemu/module.h"
 #include "qapi/error.h"
 #include "qapi/visitor.h"
-#include "hw/i386/apic.h"
-#include "hw/i386/apic_internal.h"
+#if defined(TARGET_E2K)
+# include "hw/e2k/apic.h"
+# include "hw/e2k/apic_internal.h"
+#else
+# include "hw/i386/apic.h"
+# include "hw/i386/apic_internal.h"
+#endif
 #include "trace.h"
 #include "hw/boards.h"
 #include "sysemu/hax.h"
@@ -117,9 +122,14 @@ void apic_enable_vapic(DeviceState *dev, hwaddr paddr)
 void apic_handle_tpr_access_report(DeviceState *dev, target_ulong ip,
                                    TPRAccess access)
 {
+#if defined(TARGET_E2K)
+    /* TODO: e2k */
+    abort();
+#else
     APICCommonState *s = APIC_COMMON(dev);
 
     vapic_report_tpr_access(s->vapic, CPU(s->cpu), ip, access);
+#endif
 }
 
 void apic_report_irq_delivered(int delivered)
@@ -295,6 +305,7 @@ static void apic_common_realize(DeviceState *dev, Error **errp)
     info = APIC_COMMON_GET_CLASS(s);
     info->realize(dev, errp);
 
+#if !defined(TARGET_E2K)
     /* Note: We need at least 1M to map the VAPIC option ROM */
     if (!vapic && s->vapic_control & VAPIC_ENABLE_MASK &&
         !hax_enabled() && current_machine->ram_size >= 1024 * 1024) {
@@ -310,6 +321,7 @@ static void apic_common_realize(DeviceState *dev, Error **errp)
     }
     vmstate_register_with_alias_id(NULL, instance_id, &vmstate_apic_common,
                                    s, -1, 0, NULL);
+#endif
 }
 
 static void apic_common_unrealize(DeviceState *dev)

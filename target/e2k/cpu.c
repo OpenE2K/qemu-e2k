@@ -18,15 +18,24 @@
  */
 
 #include "qemu/osdep.h"
-#include "qapi/error.h"
-#include "cpu.h"
-#include "helper-tcg.h"
 #include "qemu/module.h"
 #include "qemu/qemu-print.h"
+#include "qapi/error.h"
+#include "qapi/visitor.h"
+#include "cpu.h"
+#include "helper-tcg.h"
 #include "exec/exec-all.h"
 #include "hw/qdev-properties.h"
-#include "qapi/visitor.h"
 #include "hw/core/tcg-cpu-ops.h"
+
+#include "sysemu/sysemu.h"
+#include "sysemu/tcg.h"
+#include "sysemu/reset.h"
+#ifndef CONFIG_USER_ONLY
+#include "exec/address-spaces.h"
+#include "hw/e2k/apic_internal.h"
+#include "hw/boards.h"
+#endif
 
 //#define DEBUG_FEATURES
 
@@ -41,6 +50,8 @@ static void e2k_cpu_reset(DeviceState *dev)
 
     memset(env, 0, offsetof(CPUE2KState, end_reset_fields));
 
+//    env->ip = 0x10000;
+    env->ip = FIRMWARE_LOAD_ADDR;
     env->psr = PSR_PM;
     env->upsr = UPSR_NMIE | UPSR_FE;
     env->wd.base = 0;
@@ -66,6 +77,13 @@ static void e2k_cpu_reset(DeviceState *dev)
     env->psp.size = 0x100000;
     env->pcsp.base = 0x910000;
     env->pcsp.size = 0xa10000;
+
+#if !defined(CONFIG_USER_ONLY)
+    /* We hard-wire the BSP to the first CPU. */
+    apic_designate_bsp(cpu->apic_state, cs->cpu_index == 0);
+
+    cs->halted = !cpu_is_bsp(cpu);
+#endif
 }
 
 static bool e2k_cpu_exec_interrupt(CPUState *cs, int interrupt_request)
@@ -80,8 +98,12 @@ static bool e2k_cpu_exec_interrupt(CPUState *cs, int interrupt_request)
 
 void e2k_cpu_do_interrupt(CPUState *cs)
 {
-    qemu_log_mask(LOG_UNIMP, "e2k_cpu_do_interrupt: not implemented\n");
-    cs->exception_index = -1;
+    E2KCPU *cpu = E2K_CPU(cs);
+    CPUE2KState *env = &cpu->env;
+
+    qemu_log_mask(LOG_UNIMP, "e2k_cpu_do_interrupt: not implemented %d at " TARGET_FMT_lx "\n",
+        cs->exception_index, env->ip);
+    exit(1);
 }
 
 static void cpu_e2k_disas_set_info(CPUState *cs, disassemble_info *info)
@@ -128,6 +150,14 @@ static const struct e2k_def_t e2k_defs[] = {
     },
 };
 
+static bool e2k_get_paging_enabled(const CPUState *cs)
+{
+    E2KCPU *cpu = E2K_CPU(cs);
+    CPUE2KState *env = &cpu->env;
+
+    return env->mmu.cr & MMU_CR_TLB_EN;
+}
+
 static void e2k_cpu_set_pc(CPUState *cs, vaddr value)
 {
     E2KCPU *cpu = E2K_CPU(cs);
@@ -171,6 +201,73 @@ static ObjectClass *e2k_cpu_class_by_name(const char *cpu_model)
     return oc;
 }
 
+#ifndef CONFIG_USER_ONLY
+bool cpu_is_bsp(E2KCPU *cpu)
+{
+    return cpu_get_apic_base(cpu->apic_state) & MSR_IA32_APICBASE_BSP;
+}
+
+/* TODO: remove me, when reset over QOM tree is implemented */
+static void e2k_cpu_machine_reset_cb(void *opaque)
+{
+    E2KCPU *cpu = opaque;
+    cpu_reset(CPU(cpu));
+}
+
+void cpu_clear_apic_feature(CPUE2KState *env)
+{
+}
+
+APICCommonClass *apic_get_class(void)
+{
+    const char *apic_type = "apic";
+
+    /* TODO: kvm */
+
+    return APIC_COMMON_CLASS(object_class_by_name(apic_type));
+}
+
+static void e2k_cpu_apic_create(E2KCPU *cpu, Error **errp)
+{
+    APICCommonState *apic;
+    ObjectClass *apic_class = OBJECT_CLASS(apic_get_class());
+
+    cpu->apic_state = DEVICE(object_new_with_class(apic_class));
+
+    object_property_add_child(OBJECT(cpu), "lapic",
+                              OBJECT(cpu->apic_state));
+    object_unref(OBJECT(cpu->apic_state));
+
+    qdev_prop_set_uint32(cpu->apic_state, "id", cpu->apic_id);
+    /* TODO: convert to link<> */
+    apic = APIC_COMMON(cpu->apic_state);
+    apic->cpu = cpu;
+    apic->apicbase = APIC_DEFAULT_ADDRESS | MSR_IA32_APICBASE_ENABLE;
+}
+
+static void e2k_cpu_apic_realize(E2KCPU *cpu, Error **errp)
+{
+    APICCommonState *apic;
+    static bool apic_mmio_map_once;
+
+    if (cpu->apic_state == NULL) {
+        return;
+    }
+    qdev_realize(DEVICE(cpu->apic_state), NULL, errp);
+
+    /* Map APIC MMIO area */
+    apic = APIC_COMMON(cpu->apic_state);
+    if (!apic_mmio_map_once) {
+        memory_region_add_subregion_overlap(get_system_memory(),
+                                            apic->apicbase &
+                                            MSR_IA32_APICBASE_BASE,
+                                            &apic->io_memory,
+                                            0x1000);
+        apic_mmio_map_once = true;
+     }
+}
+#endif /* !CONFIG_USER_ONLY */
+
 static void e2k_cpu_realizefn(DeviceState *dev, Error **errp)
 {
     CPUState *cs = CPU(dev);
@@ -183,15 +280,38 @@ static void e2k_cpu_realizefn(DeviceState *dev, Error **errp)
 
     cpu_exec_realizefn(cs, &local_err);
     if (local_err != NULL) {
-        error_propagate(errp, local_err);
-        return;
+        goto out;
     }
 
     e2k_cpu_register_gdb_regs_for_features(cs);
 
+#ifndef CONFIG_USER_ONLY
+    MachineState *ms = MACHINE(qdev_get_machine());
+    qemu_register_reset(e2k_cpu_machine_reset_cb, cpu);
+
+//    if (ms->smp.cpus > 1) {
+        e2k_cpu_apic_create(cpu, &local_err);
+        if (local_err != NULL) {
+            goto out;
+        }
+//    }
+#endif
+
     qemu_init_vcpu(cs);
 
+    e2k_cpu_apic_realize(cpu, &local_err);
+    if (local_err != NULL) {
+        goto out;
+    }
+    cpu_reset(cs);
+
     ecc->parent_realize(dev, errp);
+
+out:
+    if (local_err != NULL) {
+        error_propagate(errp, local_err);
+        return;
+    }
 }
 
 static void e2k_cpu_initfn(Object* obj)
@@ -245,6 +365,11 @@ static void e2k_cpu_class_init(ObjectClass *oc, void *data)
     cc->set_pc = e2k_cpu_set_pc;
     cc->class_by_name = e2k_cpu_class_by_name;
     cc->disas_set_info = cpu_e2k_disas_set_info;
+    cc->get_paging_enabled = e2k_get_paging_enabled;
+
+#ifndef CONFIG_USER_ONLY
+    cc->get_phys_page_debug = e2k_get_phys_page_debug;
+#endif
 
     cc->gdb_core_xml_file  = "e2k-v1.xml";
     cc->gdb_arch_name      = e2k_cpu_gdb_arch_name;

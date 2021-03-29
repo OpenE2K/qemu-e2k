@@ -152,6 +152,7 @@ typedef enum {
 #define USD_LO_READ_BIT (1ULL << USD_LO_READ_OFF)
 #define USD_LO_WRITE_OFF 60
 #define USD_LO_WRITE_BIT (1ULL << USD_LO_WRITE_OFF)
+#define USD_LO_WRITE_BIT (1ULL << USD_LO_WRITE_OFF)
 
 #define USD_HI_CURPTR_OFF 0
 #define USD_HI_CURPTR_LEN 32
@@ -267,6 +268,28 @@ typedef enum {
 #define IDR_WBL_256 0x4
 #define IDR_WBL_TO_BYTES(wbl) ((wbl) ? (1 << ((wbs) + 4)) : 1)
 
+#define MMU_CR_TLB_EN 0x0000000000000001 /* translation enable */
+
+#define E2K_4K_PAGE_SHIFT 12
+#define E2K_2M_PAGE_SHIFT 21
+#define E2K_4M_PAGE_SHIFT 22
+
+#define E2K_SMALL_PAGE_SHIFT E2K_4K_PAGE_SHIFT
+
+// TODO: E2K_LARGE_PAGE_SHIFT
+
+#define PAGE_SHIFT E2K_SMALL_PAGE_SHIFT
+
+#define PTE_SHIFT (PAGE_SHIFT)
+#define PTE_SIZE (1 << PTE_SHIFT)
+#define PTE_MASK (~(PTE_SIZE - 1))
+
+#define MSR_IA32_APICBASE               0x1b
+#define MSR_IA32_APICBASE_BSP           (1<<8)
+#define MSR_IA32_APICBASE_ENABLE        (1<<11)
+#define MSR_IA32_APICBASE_EXTD          (1 << 10)
+#define MSR_IA32_APICBASE_BASE          (0xfffffU<<12)
+
 typedef enum {
     EXCP_ILLEGAL_OPCODE = 0,
     EXCP_PRIV_ACTION = 1,
@@ -318,6 +341,18 @@ typedef enum {
     EXCP_SYSCALL = 100,
 #endif
 } Exception;
+
+/* e2k-specific interrupt pending bits.  */
+#define CPU_INTERRUPT_POLL      CPU_INTERRUPT_TGT_EXT_1
+#define CPU_INTERRUPT_SMI       CPU_INTERRUPT_TGT_EXT_2
+#define CPU_INTERRUPT_NMI       CPU_INTERRUPT_TGT_EXT_3
+#define CPU_INTERRUPT_MCE       CPU_INTERRUPT_TGT_EXT_4
+#define CPU_INTERRUPT_VIRQ      CPU_INTERRUPT_TGT_INT_0
+#define CPU_INTERRUPT_SIPI      CPU_INTERRUPT_TGT_INT_1
+#define CPU_INTERRUPT_TPR       CPU_INTERRUPT_TGT_INT_2
+
+/* Use a clearer name for this.  */
+#define CPU_INTERRUPT_INIT      CPU_INTERRUPT_RESET
 
 typedef enum {
     SR_PSR          = 0x00,
@@ -758,6 +793,10 @@ typedef union {
     uint64_t raw;
 } E2KDamEntry;
 
+typedef struct E2KMMU {
+    uint64_t cr;
+} E2KMMU;
+
 typedef union {
     uint32_t u32;
     uint64_t u64;
@@ -778,6 +817,11 @@ typedef union {
         uint64_t hi;
     };
 } E2KReg;
+
+typedef enum TPRAccess {
+    TPR_ACCESS_READ,
+    TPR_ACCESS_WRITE,
+} TPRAccess;
 
 typedef struct {
     /* Registers Tags File */
@@ -861,6 +905,9 @@ typedef struct {
     E2KRwap gs;
     E2KRwap ss;
 
+    E2KMMU mmu;
+    uintptr_t retaddr;
+
     /* Array Access Unit State */
     E2KAauState aau;
 
@@ -923,6 +970,20 @@ struct E2KCPU {
 
     CPUNegativeOffsetState neg;
     CPUE2KState env;
+
+    uint32_t apic_id;
+
+    /* in order to simplify APIC support, we leave this pointer to the
+       user */
+    struct DeviceState *apic_state;
+//    struct MemoryRegion *cpu_as_root, *cpu_as_mem, *smram;
+//    Notifier machine_done;
+
+    int32_t node_id; /* NUMA node this CPU belongs to */
+    int32_t socket_id;
+    int32_t die_id;
+    int32_t core_id;
+    int32_t thread_id;
 };
 
 static inline void cpu_get_tb_cpu_state(CPUE2KState *env, target_ulong *pc,
@@ -943,6 +1004,25 @@ void e2k_cpu_register_gdb_regs_for_features(CPUState *cs);
 bool e2k_cpu_tlb_fill(CPUState *cpu, vaddr address, int size,
                  MMUAccessType access_type, int mmu_idx,
                  bool probe, uintptr_t retaddr);
+#ifndef CONFIG_USER_ONLY
+hwaddr e2k_get_phys_page_debug(CPUState *cpu, vaddr addr);
+
+static inline AddressSpace *cpu_addressspace(CPUState *cs, MemTxAttrs attrs)
+{
+    return cpu_get_address_space(cs, cpu_asidx_from_attrs(cs, attrs));
+}
+
+uint32_t e2k_ldub_phys(CPUState *cs, hwaddr addr);
+uint32_t e2k_lduw_phys(CPUState *cs, hwaddr addr);
+uint32_t e2k_ldul_phys(CPUState *cs, hwaddr addr);
+uint64_t e2k_lduq_phys(CPUState *cs, hwaddr addr);
+
+void e2k_stb_phys(CPUState *cs, hwaddr addr, uint32_t val);
+void e2k_stw_phys(CPUState *cs, hwaddr addr, uint32_t val);
+void e2k_stl_phys(CPUState *cs, hwaddr addr, uint32_t val);
+void e2k_stq_phys(CPUState *cs, hwaddr addr, uint64_t val);
+#endif
+
 void e2k_update_fp_status(CPUE2KState *env);
 void e2k_update_fx_status(CPUE2KState *env);
 #ifdef CONFIG_USER_ONLY
@@ -955,9 +1035,36 @@ void e2k_proc_return(CPUE2KState *env, bool force_fx);
 #define cpu_signal_handler e2k_cpu_signal_handler
 #define cpu_list e2k_cpu_list
 
+/* TODO: set correct CPU start address */
+#define FIRMWARE_LOAD_ADDR 0x100000000
+
+#define APIC_DEFAULT_ADDRESS 0xfee00000
+#define APIC_SPACE_SIZE      0x100000
+
+static inline int cpu_mmu_index(CPUE2KState *env, bool ifetch)
+{
+    // TODO: cpu_mmu_index
+    return 0;
+}
+
 typedef CPUE2KState CPUArchState;
 typedef E2KCPU ArchCPU;
 
 #include "exec/cpu-all.h"
+
+#ifndef CONFIG_USER_ONLY
+# include "hw/e2k/apic.h"
+
+/* helper.c */
+void cpu_report_tpr_access(CPUE2KState *env, TPRAccess access);
+
+/* apic_common.c */
+void apic_handle_tpr_access_report(DeviceState *d, target_ulong ip,
+                                   TPRAccess access);
+#endif /* !CONFIG_USER_ONLY */
+
+/* cpu.c */
+void cpu_clear_apic_feature(CPUE2KState *env);
+bool cpu_is_bsp(E2KCPU *cpu);
 
 #endif

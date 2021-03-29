@@ -7379,6 +7379,9 @@ static inline void gen_cs1(DisasContext *ctx)
     case CS1_FLUSH:
         // TODO: flush
         break;
+    case CS1_SETEI:
+        e2k_todo(ctx, "setei");
+        break;
     default:
         e2k_todo_illop(ctx, "unimplemented %d", cs1->type);
         break;

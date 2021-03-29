@@ -1,7 +1,10 @@
-#include "helper-tcg.h"
+#include "qemu/osdep.h"
+#include "cpu.h"
+#include "exec/exec-all.h"
 #include "qemu/log.h"
-#include "qemu/host-utils.h"
+#include "sysemu/runstate.h"
 #include "exec/helper-proto.h"
+#include "helper-tcg.h"
 
 static inline void reset_ctprs(CPUE2KState *env)
 {
@@ -335,15 +338,62 @@ void HELPER(setwd)(CPUE2KState *env, int wsz, int nfx, int dbl)
     env->wdbl = dbl;
 }
 
+#ifndef CONFIG_USER_ONLY
+hwaddr e2k_get_phys_page_debug(CPUState *cs, vaddr addr)
+{
+    E2KCPU *cpu = E2K_CPU(cs);
+    CPUE2KState *env = &cpu->env;
+    uint64_t pte;
+    uint32_t page_offset;
+    int page_size;
+
+    if (!(env->mmu.cr & MMU_CR_TLB_EN)) {
+        pte = addr & PTE_MASK;
+        page_size = PTE_SIZE;
+    } else {
+        // TODO: page table walk
+        abort();
+    }
+
+    pte &= ((1ULL << (env->version >= 6 ? 48 : 40)) - 1) & ~(page_size - 1);
+    page_offset = (addr & TARGET_PAGE_MASK) & (page_size - 1);
+    return pte | page_offset;
+}
+
+static int handle_mmu_fault(CPUState *cs, vaddr addr, int size,
+    MMUAccessType access_type, int mmu_idx)
+{
+    E2KCPU *cpu = E2K_CPU(cs);
+    CPUE2KState *env = &cpu->env;
+
+    if (!(env->mmu.cr & MMU_CR_TLB_EN)) {
+        int prot = PAGE_READ | PAGE_WRITE | PAGE_EXEC;
+
+        tlb_set_page(cs, addr, addr, prot, mmu_idx, PTE_SIZE);
+    } else {
+        // TODO: page table walk
+        abort();
+    }
+
+    return 0;
+}
+#endif
+
 bool e2k_cpu_tlb_fill(CPUState *cs, vaddr address, int size,
      MMUAccessType access_type, int mmu_idx, bool probe, uintptr_t retaddr)
 {
     E2KCPU *cpu = E2K_CPU(cs);
     CPUE2KState *env = &cpu->env;
 
-    e2k_proc_call(env, env->wd.size, env->ip, true);
-    cs->exception_index = EXCP_DATA_PAGE;
-    cpu_loop_exit_restore(cs, retaddr);
+#ifdef CONFIG_USER_ONLY
+    raise_exception_ra(env, EXCP_DATA_PAGE, retaddr);
+#else
+    env->retaddr = retaddr;
+    if (handle_mmu_fault(cs, address, size, access_type, mmu_idx)) {
+        raise_exception_ra(env, EXCP_DATA_PAGE, retaddr);
+    }
+    return true;
+#endif
 }
 
 void HELPER(break_restore_state)(CPUE2KState *env)
@@ -360,3 +410,89 @@ void HELPER(debug)(CPUE2KState *env)
     cs->exception_index = EXCP_DEBUG;
     cpu_loop_exit(cs);
 }
+
+#ifndef CONFIG_USER_ONLY
+uint32_t e2k_ldub_phys(CPUState *cs, hwaddr addr)
+{
+    MemTxAttrs attrs = MEMTXATTRS_UNSPECIFIED;
+    AddressSpace *as = cpu_addressspace(cs, attrs);
+
+    return address_space_ldub(as, addr, attrs, NULL);
+}
+
+uint32_t e2k_lduw_phys(CPUState *cs, hwaddr addr)
+{
+    MemTxAttrs attrs = MEMTXATTRS_UNSPECIFIED;
+    AddressSpace *as = cpu_addressspace(cs, attrs);
+
+    return address_space_lduw(as, addr, attrs, NULL);
+}
+
+uint32_t e2k_ldul_phys(CPUState *cs, hwaddr addr)
+{
+    MemTxAttrs attrs = MEMTXATTRS_UNSPECIFIED;
+    AddressSpace *as = cpu_addressspace(cs, attrs);
+
+    return address_space_ldl(as, addr, attrs, NULL);
+}
+
+uint64_t e2k_lduq_phys(CPUState *cs, hwaddr addr)
+{
+    MemTxAttrs attrs = MEMTXATTRS_UNSPECIFIED;
+    AddressSpace *as = cpu_addressspace(cs, attrs);
+
+    return address_space_ldq(as, addr, attrs, NULL);
+}
+
+void e2k_stb_phys(CPUState *cs, hwaddr addr, uint32_t val)
+{
+    MemTxAttrs attrs = MEMTXATTRS_UNSPECIFIED;
+    AddressSpace *as = cpu_addressspace(cs, attrs);
+
+    return address_space_stb(as, addr, val, attrs, NULL);
+}
+
+void e2k_stw_phys(CPUState *cs, hwaddr addr, uint32_t val)
+{
+    MemTxAttrs attrs = MEMTXATTRS_UNSPECIFIED;
+    AddressSpace *as = cpu_addressspace(cs, attrs);
+
+    return address_space_stw(as, addr, val, attrs, NULL);
+}
+
+void e2k_stl_phys(CPUState *cs, hwaddr addr, uint32_t val)
+{
+    MemTxAttrs attrs = MEMTXATTRS_UNSPECIFIED;
+    AddressSpace *as = cpu_addressspace(cs, attrs);
+
+    return address_space_stl(as, addr, val, attrs, NULL);
+}
+
+void e2k_stq_phys(CPUState *cs, hwaddr addr, uint64_t val)
+{
+    MemTxAttrs attrs = MEMTXATTRS_UNSPECIFIED;
+    AddressSpace *as = cpu_addressspace(cs, attrs);
+
+    return address_space_stq(as, addr, val, attrs, NULL);
+}
+
+void cpu_report_tpr_access(CPUE2KState *env, TPRAccess access)
+{
+#if 0
+    E2KCPU *cpu = env_archcpu(env);
+    CPUState *cs = env_cpu(env);
+
+    if (kvm_enabled() || whpx_enabled()) {
+        env->tpr_access_type = access;
+
+        cpu_interrupt(cs, CPU_INTERRUPT_TPR);
+    } else if (tcg_enabled()) {
+        cpu_restore_state(cs, cs->mem_io_pc, false);
+
+        apic_handle_tpr_access_report(cpu->apic_state, env->eip, access);
+    }
+#else
+    abort();
+#endif
+}
+#endif
