@@ -942,6 +942,7 @@ static inline int cpu_mmu_index(CPUE2KState *env, bool ifetch)
 #endif
 }
 
+void e2k_cpu_dump_state(CPUState *cs, FILE *f, int flags);
 void e2k_cpu_do_interrupt(CPUState *cs);
 void e2k_cpu_list(void);
 int e2k_cpu_signal_handler(int host_signum, void *pinfo, void *puc);
