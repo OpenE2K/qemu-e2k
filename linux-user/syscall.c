@@ -6807,7 +6807,7 @@ abi_long e2k_copy_to_user_crs(abi_ulong target_crs_addr, E2KCrs *crs)
 
 static abi_long do_e2k_longjmp2(CPUE2KState *env, struct target_jmp_info *jmp_info)
 {
-    E2KPcsState jmp_pcsp;
+    E2KPsp jmp_pcsp;
     E2KCrs crs;
     int level; /* how many CRs need to restore */
     int ps_index = env->psp.index;

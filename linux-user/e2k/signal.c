@@ -111,6 +111,8 @@ struct target_sigframe {
     E2KAauState aau;
     uint64_t lsr;
     uint64_t lsr_lcnt;
+    uint32_t ilcr;
+    uint64_t ilcr_lcnt;
     // FIXME: according to ABI only 16-31 must be saved
     E2KReg gregs[16];
     uint8_t gtags[16];
@@ -220,6 +222,8 @@ static void target_setup_frame(int sig, struct target_sigaction *ka,
         &env->aau, sizeof(env->aau));
     __put_user(env_lsr_get(env), &frame->lsr);
     __put_user(env->lsr_lcnt, &frame->lsr_lcnt);
+    __put_user(env->ilcr, &frame->ilcr);
+    __put_user(env->ilcr_lcnt, &frame->ilcr_lcnt);
     copy_to_user(frame_addr + offsetof(struct target_sigframe, gregs),
         &env->regs[E2K_NR_COUNT + 16], 16 * sizeof(E2KReg));
     copy_to_user(frame_addr + offsetof(struct target_sigframe, gtags),
@@ -322,6 +326,8 @@ long do_rt_sigreturn(CPUE2KState *env)
         + offsetof(struct target_sigframe, aau), sizeof(env->aau));
     __get_user(env->lsr, &frame->lsr);
     __get_user(env->lsr_lcnt, &frame->lsr_lcnt);
+    __get_user(env->ilcr, &frame->ilcr);
+    __get_user(env->ilcr_lcnt, &frame->ilcr_lcnt);
     copy_from_user(&env->regs[E2K_NR_COUNT + 16], frame_addr
         + offsetof(struct target_sigframe, gregs), 16 * sizeof(E2KReg));
     copy_from_user(&env->tags[E2K_NR_COUNT + 16], frame_addr

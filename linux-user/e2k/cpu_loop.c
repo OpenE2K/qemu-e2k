@@ -35,7 +35,7 @@ static void gen_signal(CPUE2KState *env, int signo, int code, abi_ulong addr)
     queue_signal(env, signo, QEMU_SI_FAULT, &info);
 }
 
-static void stack_expand(CPUE2KState *env, E2KStackState *s)
+static void stack_expand(CPUE2KState *env, E2KPsp *s)
 {
     abi_ulong new_size, new_size_tag;
     abi_long new_base, new_base_tag = 0;
@@ -95,6 +95,7 @@ void cpu_loop(CPUE2KState *env)
             break;
         }
         case EXCP_ILLEGAL_OPCODE:
+        case EXCP_PRIV_ACTION:
             gen_signal(env, TARGET_SIGILL, TARGET_ILL_ILLOPC, env->ip);
             break;
         case EXCP_ILLEGAL_OPERAND:
@@ -145,6 +146,8 @@ void target_cpu_copy_regs(CPUE2KState *env, struct target_pt_regs *regs)
     struct image_info *info = ts->info;
     uint32_t eflags = info->elf_flags;
 
+    env->psr = PSR_NMIE | PSR_SGE | PSR_IE;
+    env->upsr = UPSR_NMIE | UPSR_IE | UPSR_FE;
     env->ip = regs->ip;
     env->pcsp = regs->pcsp;
     env->psp = regs->psp;

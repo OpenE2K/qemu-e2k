@@ -30,7 +30,6 @@
 
 //#define DEBUG_FEATURES
 
-void cpu_e2k_set_id(CPUE2KState *env, unsigned int cpu);
 void e2k_cpu_dump_state(CPUState *cs, FILE *f, int flags);
 
 static void e2k_cpu_reset(DeviceState *dev)
@@ -44,6 +43,8 @@ static void e2k_cpu_reset(DeviceState *dev)
 
     memset(env, 0, offsetof(CPUE2KState, end_reset_fields));
 
+    env->psr = PSR_PM;
+    env->upsr = UPSR_NMIE | UPSR_FE;
     env->wd.base = 0;
     env->wd.size = 16;
     env->wd.psize = 8;
@@ -61,6 +62,12 @@ static void e2k_cpu_reset(DeviceState *dev)
 
     // FIXME: testing
     env->idr = 0x3a207; /* mimic 8c */
+
+    // FIXME: correct values
+    env->psp.base = 0x810000;
+    env->psp.size = 0x100000;
+    env->pcsp.base = 0x910000;
+    env->pcsp.size = 0xa10000;
 }
 
 static bool e2k_cpu_exec_interrupt(CPUState *cs, int interrupt_request)
@@ -86,13 +93,6 @@ static void cpu_e2k_disas_set_info(CPUState *cs, disassemble_info *info)
 
     info->mach = env->version * 3;
     info->print_insn = print_insn_e2k;
-}
-
-
-void cpu_e2k_set_id(CPUE2KState *env, unsigned int cpu)
-{
-    // TODO: cpu_e2k_set_id
-    qemu_log_mask(LOG_UNIMP, "cpu_e2k_set_id: not implemented\n");
 }
 
 /* https://www.altlinux.org/Модели_процессоров_Эльбрус */
@@ -152,10 +152,10 @@ void e2k_cpu_dump_state(CPUState *cs, FILE *f, int flags)
 
     qemu_fprintf(f, "       ip = " TARGET_FMT_lx "\n", env->ip);
     qemu_fprintf(f, "    pregs = 0x%016lx\n", env->pregs);
-    qemu_fprintf(f, "  pcsp_lo = 0x%016lx\n", env_pcsp_lo_get(env));
-    qemu_fprintf(f, "  pcsp_hi = 0x%016lx\n", env_pcsp_hi_get(env));
-    qemu_fprintf(f, "   psp_lo = 0x%016lx\n", env_psp_lo_get(env));
-    qemu_fprintf(f, "   psp_hi = 0x%016lx\n", env_psp_hi_get(env));
+    qemu_fprintf(f, "  pcsp_lo = 0x%016lx\n", env->pcsp.lo);
+    qemu_fprintf(f, "  pcsp_hi = 0x%016lx\n", env->pcsp.hi);
+    qemu_fprintf(f, "   psp_lo = 0x%016lx\n", env->psp.lo);
+    qemu_fprintf(f, "   psp_hi = 0x%016lx\n", env->psp.hi);
     qemu_fprintf(f, "   usd_lo = 0x%016lx\n", env->usd.lo);
     qemu_fprintf(f, "   usd_hi = 0x%016lx\n", env->usd.hi);
     qemu_fprintf(f, "      lsr = 0x%016lx\n", env->lsr);

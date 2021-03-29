@@ -3520,9 +3520,8 @@ static void gen_rrd(Alop *alop)
     Tagged_i64 r = tagged_new_i64();
     TCGv_i32 t0 = tcg_const_i32(alop->als.src1);
 
-    // TODO: check version
     gen_save_cpu_state(alop->ctx);
-    gen_helper_rrd(r.val, cpu_env, t0);
+    gen_helper_state_reg_get(r.val, cpu_env, t0);
     tcg_gen_movi_i32(r.tag, 0);
     gen_al_result_d(alop, r);
 
@@ -3530,22 +3529,36 @@ static void gen_rrd(Alop *alop)
     tagged_free_i64(r);
 }
 
-#define IMPL_GEN_RW(name, S, helper) \
-    static void name(Alop *alop) \
-    { \
-        tagged(S) b = tagged_new(S); \
-        TCGv_i32 t0 = tcg_const_i32(alop->als.dst); \
-        \
-        /* TODO: check version */ \
-        gen_tagged_src(2, S, alop, b); \
-        helper(cpu_env, t0, b.val); \
-        \
-        tcg_temp_free_i32(t0); \
-        tagged_free(S, b); \
-    }
+static inline void gen_state_reg_write(Alop *alop, TCGv_i64 value)
+{
+    TCGv_i32 t0 = tcg_const_i32(alop->als.dst);
 
-IMPL_GEN_RW(gen_rwd, d, gen_helper_rwd)
-IMPL_GEN_RW(gen_rws, s, gen_helper_rws)
+    gen_helper_state_reg_set(cpu_env, value, t0);
+    tcg_temp_free_i32(t0);
+}
+
+static void gen_rws(Alop *alop)
+{
+    Tagged_i32 s2 = tagged_new_i32();
+    TCGv_i64 t0 = tcg_temp_new_i64();
+
+    gen_tagged_src2_s(alop, s2);
+    gen_delayed_alop_tag_check(alop, s2.tag);
+    tcg_gen_extu_i32_i64(t0, s2.val);
+    gen_state_reg_write(alop, t0);
+    tcg_temp_free_i64(t0);
+    tagged_free_i32(s2);
+}
+
+static void gen_rwd(Alop *alop)
+{
+    Tagged_i64 s2 = tagged_new_i64();
+
+    gen_tagged_src2_d(alop, s2);
+    gen_delayed_alop_tag_check(alop, s2.tag);
+    gen_state_reg_write(alop, s2.val);
+    tagged_free_i64(s2);
+}
 
 #define IMPL_GEN_MOV(name, S, code) \
     static void name(Alop *alop) \
@@ -7667,7 +7680,7 @@ static void gen_stubs(DisasContext *ctx)
     }
 }
 
-static inline target_ulong do_decode(DisasContext *ctx, CPUState *cs)
+static target_ulong do_decode(DisasContext *ctx, CPUState *cs)
 {
     E2KCPU *cpu = E2K_CPU(cs);
     CPUE2KState *env = &cpu->env;
@@ -7686,6 +7699,127 @@ static inline target_ulong do_decode(DisasContext *ctx, CPUState *cs)
     decode_alops(ctx);
 
     return ctx->pc + len;
+}
+
+static bool validate_state_reg(DisasContext *ctx, int index, bool write)
+{
+    switch (index) {
+    case SR_PSR:
+    case SR_WD:
+    case SR_CWD:
+    case SR_PSP_HI:
+    case SR_PSP_LO:
+    case SR_PSHTP:
+    case SR_PCSP_HI:
+    case SR_PCSP_LO:
+    case SR_PCSHTP:
+    case SR_CTPR1:
+    case SR_CTPR2:
+    case SR_CTPR3:
+    case SR_SBR:
+    case SR_CUTD:
+    case SR_CUIR:
+    case SR_OSCUD_HI:
+    case SR_OSCUD_LO:
+    case SR_OSGD_HI:
+    case SR_OSGD_LO:
+    case SR_OSEM:
+    case SR_USD_HI:
+    case SR_USD_LO:
+    case SR_OSR0:
+    case SR_CUD_HI:
+    case SR_CUD_LO:
+    case SR_GD_HI:
+    case SR_GD_LO:
+    case SR_CS_HI:
+    case SR_CS_LO:
+    case SR_DS_HI:
+    case SR_DS_LO:
+    case SR_ES_HI:
+    case SR_ES_LO:
+    case SR_FS_HI:
+    case SR_FS_LO:
+    case SR_GS_HI:
+    case SR_GS_LO:
+    case SR_SS_HI:
+    case SR_SS_LO:
+    case SR_DIBCR:
+    case SR_DIMCR:
+    case SR_DIBSR:
+    case SR_DTCR:
+    case SR_DIBAR0:
+    case SR_DIBAR1:
+    case SR_DIBAR2:
+    case SR_DIBAR3:
+    case SR_DIMAR0:
+    case SR_DIMAR1:
+    case SR_DTRAF:
+    case SR_DTART:
+    case SR_CR0_HI:
+    case SR_CR0_LO:
+    case SR_CR1_HI:
+    case SR_CR1_LO:
+    case SR_SCLKM1:
+    case SR_SCLKM2:
+    case SR_CU_HW0:
+    case SR_UPSR:
+    case SR_NIP:
+    case SR_LSR:
+    case SR_PFPFR:
+    case SR_FPCR:
+    case SR_FPSR:
+    case SR_ILCR:
+    case SR_BR:
+    case SR_BGR:
+    case SR_CLKR:
+    case SR_RNDPR:
+    case SR_SCLKR:
+    case SR_TIR_HI:
+    case SR_TIR_LO:
+    case SR_RPR:
+    case SR_SBBP:
+    case SR_RPR_HI:
+    case SR_UPSRM:
+        return true;
+    case SR_IDR:
+    case SR_IP:
+        return !write;
+    case SR_EIR:
+    case SR_TSD:
+    case SR_TR:
+        return false; /* FIXME */
+    case SR_CORE_MODE:
+        return ctx->version >= 3;
+    case SR_LSR1:
+    case SR_ILCR1:
+        return ctx->version >= 5;
+    default:
+        return false;
+    }
+}
+
+static void validate_bundle(DisasContext *ctx)
+{
+    int i;
+
+    for (i = 0; i < 6; i++) {
+        Alop *alop = &ctx->alops[i];
+
+        switch (alop->format) {
+        case ALOPF15:
+            if (!validate_state_reg(ctx, alop->als.dst, true)) {
+                gen_tr_excp_illopc(alop->ctx);
+            }
+            break;
+        case ALOPF16:
+            if (!validate_state_reg(ctx, alop->als.src2, false)) {
+                gen_tr_excp_illopc(alop->ctx);
+            }
+            break;
+        default:
+            break;
+        }
+    }
 }
 
 static inline void gen_window_bounds_checki_i32(TCGCond cond, TCGv_i32 arg1,
@@ -7992,6 +8126,7 @@ static void e2k_tr_translate_insn(DisasContextBase *db, CPUState *cs)
 #endif /* CONFIG_USER_ONLY */
 
         ctx->loop_mode = (ctx->bundle.hs & (1 << 10)) != 0;
+        validate_bundle(ctx);
         gen_alop_reg_indices_check(ctx);
         gen_setwd(ctx);
         gen_cs0(ctx);

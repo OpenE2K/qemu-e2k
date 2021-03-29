@@ -29,9 +29,8 @@ DEF_HELPER_4(dam_unlock_addr, int, env, i64, int, int)
 
 DEF_HELPER_2(getsp, i64, env, i32)
 
-DEF_HELPER_FLAGS_2(rrd, TCG_CALL_NO_WG_SE, i64, env, int)
-DEF_HELPER_3(rwd, void, env, int, i64)
-DEF_HELPER_3(rws, void, env, int, i32)
+DEF_HELPER_FLAGS_2(state_reg_get, TCG_CALL_NO_WG_SE, i64, env, int)
+DEF_HELPER_3(state_reg_set, void, env, i64, int)
 
 DEF_HELPER_FLAGS_2(sxt, TCG_CALL_NO_RWG_SE, i64, i32, i32)
 DEF_HELPER_FLAGS_2(clmull, TCG_CALL_NO_RWG_SE, i64, i64, i64)

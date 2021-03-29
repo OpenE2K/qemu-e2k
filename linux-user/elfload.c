@@ -1590,23 +1590,14 @@ static abi_ulong e2k_mmap(abi_ulong size)
     return addr;
 }
 
-void e2k_pcs_new(E2KPcsState *pcs)
+void e2k_psp_new(E2KPsp *psp, unsigned int size, bool tags)
 {
-    pcs->is_readable = true;
-    pcs->is_writable = true;
-    pcs->index = 0;
-    pcs->size = E2K_DEFAULT_PCS_SIZE;
-    pcs->base = e2k_mmap(pcs->size);
-}
-
-void e2k_ps_new(E2KPsState *ps)
-{
-    ps->is_readable = true;
-    ps->is_writable = true;
-    ps->index = 0;
-    ps->size = E2K_DEFAULT_PS_SIZE;
-    ps->base = e2k_mmap(ps->size);
-    ps->base_tag = e2k_mmap(ps->size / 8);
+    psp->is_readable = true;
+    psp->is_writable = true;
+    psp->index = 0;
+    psp->size = size;
+    psp->base = e2k_mmap(size);
+    psp->base_tag = tags ? e2k_mmap(size / 8) : 0;
 }
 
 static inline void init_thread(struct target_pt_regs *regs, struct image_info *infop)
@@ -1620,8 +1611,8 @@ static inline void init_thread(struct target_pt_regs *regs, struct image_info *i
     regs->usd_lo = (0x1800UL << 48) | start_stack;
     regs->usd_hi = (regs->sbr - start_stack) << 32;
 
-    e2k_pcs_new(&regs->pcsp);
-    e2k_ps_new(&regs->psp);
+    e2k_psp_new(&regs->pcsp, E2K_DEFAULT_PCS_SIZE, false);
+    e2k_psp_new(&regs->psp, E2K_DEFAULT_PS_SIZE, true);
 }
 
 static void elf_core_copy_regs(target_elf_gregset_t *regs, const CPUE2KState *env)

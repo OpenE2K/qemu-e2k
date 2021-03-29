@@ -35,36 +35,9 @@
 #define ident(x) (x)
 
 /* helper.c */
-void QEMU_NORETURN raise_exception(CPUE2KState *env, int exception_index);
-void QEMU_NORETURN raise_exception_ra(CPUE2KState *env, int exception_index,
+void QEMU_NORETURN raise_exception(CPUE2KState *desc, int exception_index);
+void QEMU_NORETURN raise_exception_ra(CPUE2KState *desc, int exception_index,
     uintptr_t retaddr);
-
-static inline uint64_t stack_desc_lo(E2KStackState *desc)
-{
-    uint64_t lo = 0;
-
-    lo = deposit64(lo, DESC_LO_BASE_OFF, DESC_LO_BASE_LEN,
-        (uint64_t) desc->base);
-    lo = deposit64(lo, DESC_LO_READ_OFF, 1, desc->is_readable);
-    lo = deposit64(lo, DESC_LO_WRITE_OFF, 1, desc->is_writable);
-
-    return lo;
-}
-
-static inline uint64_t stack_desc_hi(E2KStackState *env)
-{
-    uint64_t hi = 0;
-
-    hi = deposit64(hi, DESC_HI_IND_OFF, DESC_HI_IND_LEN, env->index);
-    hi = deposit64(hi, DESC_HI_SIZE_OFF, DESC_HI_SIZE_OFF, env->size);
-
-    return hi;
-}
-
-#define env_pcsp_lo_get(env) stack_desc_lo(&(env)->pcsp)
-#define env_pcsp_hi_get(env) stack_desc_hi(&(env)->pcsp)
-#define env_psp_lo_get(env) stack_desc_lo(&(env)->psp)
-#define env_psp_hi_get(env) stack_desc_hi(&(env)->psp)
 
 static inline uint64_t env_wd_get(CPUE2KState *env)
 {
@@ -135,6 +108,37 @@ static inline void env_lsr_set(CPUE2KState *env, uint64_t val)
     env->lsr_over = extract64(val, LSR_OVER_OFF, 1);
     env->lsr_pcnt = extract64(val, LSR_PCNT_OFF, LSR_PCNT_LEN);
     env->lsr_strmd = extract64(val, LSR_STRMD_OFF, LSR_STRMD_LEN);
+}
+
+static inline uint64_t env_ilcr_get(CPUE2KState *env)
+{
+    return ((uint64_t) env->ilcr << LSR_ECNT_OFF)
+        | (env->ilcr_lcnt & GEN_MASK(0, LSR_LCNT_LEN));
+}
+
+static inline void env_ilcr_set(CPUE2KState *env, uint64_t value)
+{
+    env->ilcr = (value >> LSR_ECNT_OFF) & ILCR_MASK;
+    env->ilcr_lcnt = value & GEN_MASK(0, LSR_LCNT_LEN);
+}
+
+static inline uint64_t env_usd_lo_get(CPUE2KState *env)
+{
+    uint64_t r = 0;
+
+    r = deposit64(r, USD_LO_BASE_OFF, USD_LO_BASE_LEN, env->usd.base);
+    r |= env->usd.protected ? USD_LO_PROTECTED_BIT : 0;
+    r |= env->usd.read ? USD_LO_READ_BIT : 0;
+    r |= env->usd.write ? USD_LO_WRITE_BIT : 0;
+    return r;
+}
+
+static inline void env_usd_lo_set(CPUE2KState *env, uint64_t value)
+{
+    env->usd.base = extract64(value, USD_LO_BASE_OFF, USD_LO_BASE_LEN);
+    env->usd.protected = (value & USD_LO_PROTECTED_BIT) != 0;
+    env->usd.read = (value & USD_LO_READ_BIT) != 0;
+    env->usd.write = (value & USD_LO_WRITE_BIT) != 0;
 }
 
 #endif /* E2K_HELPER_TCG_H */

@@ -52,22 +52,22 @@ int e2k_cpu_gdb_read_register(CPUState *cs, GByteArray *mem_buf, int n)
     }
     
     switch (n) {
-    case 35: return gdb_get_reg64(mem_buf, 0); // psr
+    case 35: return gdb_get_reg64(mem_buf, env->psr); // psr
     case 36: return gdb_get_reg64(mem_buf, env->upsr); // upsr
-    case 37: return gdb_get_reg64(mem_buf, 0); // oscud_lo
-    case 38: return gdb_get_reg64(mem_buf, 0); // oscud_hi
-    case 39: return gdb_get_reg64(mem_buf, 0); // osgd_lo
-    case 40: return gdb_get_reg64(mem_buf, 0); // osgd_hi
+    case 37: return gdb_get_reg64(mem_buf, env->oscud.lo); // oscud_lo
+    case 38: return gdb_get_reg64(mem_buf, env->oscud.hi); // oscud_hi
+    case 39: return gdb_get_reg64(mem_buf, env->osgd.lo); // osgd_lo
+    case 40: return gdb_get_reg64(mem_buf, env->osgd.hi); // osgd_hi
     case 41: return gdb_get_reg64(mem_buf, 0); // osem
-    case 42: return gdb_get_reg64(mem_buf, 0); // osr0
-    case 43: return gdb_get_reg64(mem_buf, 0); // pfpfr
-    case 44: return gdb_get_reg64(mem_buf, 0); // fpcr
-    case 45: return gdb_get_reg64(mem_buf, 0); // fpsr
+    case 42: return gdb_get_reg64(mem_buf, env->osr0); // osr0
+    case 43: return gdb_get_reg64(mem_buf, env->pfpfr.raw); // pfpfr
+    case 44: return gdb_get_reg64(mem_buf, env->fpcr.raw); // fpcr
+    case 45: return gdb_get_reg64(mem_buf, env->fpsr.raw); // fpsr
     case 46: return gdb_get_reg64(mem_buf, 0); // usbr
     case 47: return gdb_get_reg64(mem_buf, env->usd.lo); // usd_lo
     case 48: return gdb_get_reg64(mem_buf, env->usd.hi); // usd_hi
-    case 49: return gdb_get_reg64(mem_buf, env_psp_lo_get(env)); // psp_lo
-    case 50: return gdb_get_reg64(mem_buf, env_psp_hi_get(env)); // psp_hi
+    case 49: return gdb_get_reg64(mem_buf, env->psp.lo); // psp_lo
+    case 50: return gdb_get_reg64(mem_buf, env->psp.hi); // psp_hi
     case 51: return gdb_get_reg64(mem_buf, 0); // pshtp
     case 52: return gdb_get_reg64(mem_buf, env->pregs); // pregs
     case 53: return gdb_get_reg64(mem_buf, env->ip); // ip
@@ -80,25 +80,25 @@ int e2k_cpu_gdb_read_register(CPUState *cs, GByteArray *mem_buf, int n)
         return gdb_get_reg64(mem_buf, cr1_hi);
     }
     case 56: return gdb_get_reg64(mem_buf, 0); // cwd
-    case 57: return gdb_get_reg64(mem_buf, env_pcsp_lo_get(env)); // pcsp_lo
-    case 58: return gdb_get_reg64(mem_buf, env_pcsp_hi_get(env)); // pcsp_hi
+    case 57: return gdb_get_reg64(mem_buf, env->pcsp.lo); // pcsp_lo
+    case 58: return gdb_get_reg64(mem_buf, env->pcsp.hi); // pcsp_hi
     case 59: return gdb_get_reg64(mem_buf, 0); // pcshtp
-    case 60: return gdb_get_reg64(mem_buf, 0); // cud_lo
-    case 61: return gdb_get_reg64(mem_buf, 0); // cud_hi
-    case 62: return gdb_get_reg64(mem_buf, 0); // gd_lo
-    case 63: return gdb_get_reg64(mem_buf, 0); // gd_hi
-    case 64: return gdb_get_reg64(mem_buf, 0); // cs_lo
-    case 65: return gdb_get_reg64(mem_buf, 0); // cs_hi
-    case 66: return gdb_get_reg64(mem_buf, 0); // ds_lo
-    case 67: return gdb_get_reg64(mem_buf, 0); // ds_hi
-    case 68: return gdb_get_reg64(mem_buf, 0); // es_lo
-    case 69: return gdb_get_reg64(mem_buf, 0); // es_hi
-    case 70: return gdb_get_reg64(mem_buf, 0); // fs_lo
-    case 71: return gdb_get_reg64(mem_buf, 0); // fs_hi
-    case 72: return gdb_get_reg64(mem_buf, 0); // gs_lo
-    case 73: return gdb_get_reg64(mem_buf, 0); // gs_hi
-    case 74: return gdb_get_reg64(mem_buf, 0); // ss_lo
-    case 75: return gdb_get_reg64(mem_buf, 0); // ss_hi
+    case 60: return gdb_get_reg64(mem_buf, env->cud.lo); // cud_lo
+    case 61: return gdb_get_reg64(mem_buf, env->cud.hi); // cud_hi
+    case 62: return gdb_get_reg64(mem_buf, env->gd.lo); // gd_lo
+    case 63: return gdb_get_reg64(mem_buf, env->gd.hi); // gd_hi
+    case 64: return gdb_get_reg64(mem_buf, env->cs.lo); // cs_lo
+    case 65: return gdb_get_reg64(mem_buf, env->cs.hi); // cs_hi
+    case 66: return gdb_get_reg64(mem_buf, env->ds.lo); // ds_lo
+    case 67: return gdb_get_reg64(mem_buf, env->ds.hi); // ds_hi
+    case 68: return gdb_get_reg64(mem_buf, env->es.lo); // es_lo
+    case 69: return gdb_get_reg64(mem_buf, env->es.hi); // es_hi
+    case 70: return gdb_get_reg64(mem_buf, env->fs.lo); // fs_lo
+    case 71: return gdb_get_reg64(mem_buf, env->fs.hi); // fs_hi
+    case 72: return gdb_get_reg64(mem_buf, env->gs.lo); // gs_lo
+    case 73: return gdb_get_reg64(mem_buf, env->gs.hi); // gs_hi
+    case 74: return gdb_get_reg64(mem_buf, env->ss.lo); // ss_lo
+    case 75: return gdb_get_reg64(mem_buf, env->ss.hi); // ss_hi
     default:
         break;
     }
@@ -178,9 +178,9 @@ int e2k_cpu_gdb_read_register(CPUState *cs, GByteArray *mem_buf, int n)
     case 333: return gdb_get_reg64(mem_buf, 0); // dtart
     case 334: return gdb_get_reg64(mem_buf, env_wd_get(env)); // wd
     case 335: return gdb_get_reg64(mem_buf, 0); // unk
-    case 336: return gdb_get_reg64(mem_buf, 0); // bgr
+    case 336: return gdb_get_reg64(mem_buf, env->bgr); // bgr
     case 337: return gdb_get_reg64(mem_buf, 0); // unk
-    case 338: return gdb_get_reg64(mem_buf, 0); // nip
+    case 338: return gdb_get_reg64(mem_buf, env->nip); // nip
     case 339: return gdb_get_reg64(mem_buf, env->ctprs[0].raw); // ctpr1
     case 340: return gdb_get_reg64(mem_buf, env->ctprs[1].raw); // ctpr2
     case 341: return gdb_get_reg64(mem_buf, env->ctprs[2].raw); // ctpr3
@@ -189,17 +189,8 @@ int e2k_cpu_gdb_read_register(CPUState *cs, GByteArray *mem_buf, int n)
     case 344: return gdb_get_reg64(mem_buf, 0); // cutd
     case 345: return gdb_get_reg64(mem_buf, 0); // cuir
     case 346: return gdb_get_reg64(mem_buf, 0); // tsd
-    case 347: { // lsr
-        uint64_t lsr = env->lsr;
-        lsr = deposit64(lsr, LSR_LCNT_OFF, LSR_LCNT_LEN, env->lsr_lcnt);
-        lsr = deposit64(lsr, LSR_ECNT_OFF, LSR_ECNT_LEN, env->lsr_ecnt);
-        lsr = deposit64(lsr, LSR_VLC_OFF, 1, env->lsr_vlc);
-        lsr = deposit64(lsr, LSR_OVER_OFF, 1, env->lsr_over);
-        lsr = deposit64(lsr, LSR_PCNT_OFF, LSR_PCNT_LEN, env->lsr_pcnt);
-        lsr = deposit64(lsr, LSR_STRMD_OFF, LSR_STRMD_LEN, env->lsr_strmd);
-        return gdb_get_reg64(mem_buf, lsr);
-    }
-    case 348: return gdb_get_reg64(mem_buf, env->lsr & LSR_ILCR_MASK); // ilcr
+    case 347: return gdb_get_reg64(mem_buf, env_lsr_get(env)); /* lsr */
+    case 348: return gdb_get_reg64(mem_buf, env_ilcr_get(env)); /* ilcr */
     default:
         break;
     }
@@ -328,8 +319,8 @@ static int gdb_set_v2(CPUE2KState *env, uint8_t *mem_buf, int n)
 static int gdb_get_v3(CPUE2KState *env, GByteArray *buf, int n)
 {
     if (n == 0) {
-        /* TODO: core_mode */
-        return gdb_get_reg64(buf, 0);
+        /* core_mode */
+        return gdb_get_reg64(buf, env->core_mode);
     }
 
     return 0;
@@ -344,13 +335,16 @@ static int gdb_set_v3(CPUE2KState *env, uint8_t *mem_buf, int n)
 static int gdb_get_v5(CPUE2KState *env, GByteArray *buf, int n)
 {
     if (n == 0) {
+        /* lsr1 */
         return gdb_get_reg64(buf, env->lsr_lcnt);
     } else if (n == 1) {
-        // TODO: ilcr1
-        return gdb_get_reg64(buf, 0);
+        /* ilcr1 */
+        return gdb_get_reg64(buf, env->ilcr_lcnt);
     } else if (n >= 2 && n < 34) {
+        /* xgN (upper 64-bit) */
         return gdb_get_reg64(buf, env->regs[E2K_NR_COUNT + n - 2].hi);
     } else if (n >= 34 && n < 66) {
+        /* qpgN tags */
         return gdb_get_reg8(buf, env->tags[E2K_NR_COUNT + n - 34]);
     }
 

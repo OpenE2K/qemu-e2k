@@ -28,10 +28,13 @@ void e2k_tcg_initialize(void);
  */
 #define E2K_FORCE_FX true
 
-#define GEN_MASK(start, len) (((1UL << (len)) - 1) << (start))
+#define GEN_MASK(start, len) (((1ULL << (len)) - 1) << (start))
 #define GET_BIT(v, index) (((v) >> (index)) & 1)
 
 #define MMU_USER_IDX 1
+#define E2K_VA_SIZE 48
+#define E2K_VA_MSB (E2K_VA_SIZE - 1)
+
 #define CPU_RESOLVING_TYPE TYPE_E2K_CPU
 
 #define E2K_REG_LEN sizeof(uint64_t)
@@ -141,135 +144,107 @@ typedef enum {
 #define DESC_LO_WRITE_OFF 60
 #define DESC_LO_WRITE_BIT (1UL << DESC_LO_WRITE_OFF)
 
-#define PSHTP_IND_OFF 0
-#define PSHTP_IND_END 11
-#define PSHTP_IND_LEN (PSHTP_IND_END - PSHTP_IND_OFF + 1)
-#define PSHTP_FXIND_OFF 16
-#define PSHTP_FXIND_END 26
-#define PSHTP_FXIND_LEN (PSHTP_FXIND_END - PSHTP_FXIND_OFF + 1)
-#define PSHTP_TIND_OFF 32
-#define PSHTP_TIND_END 42
-#define PSHTP_TIND_LEN (PSHTP_TIND_END - PSHTP_TIND_OFF + 1)
-#define PSHTP_FX_OFF 48
-#define PSHTP_FX_BIT (1UL << PSHTP_FX_OFF)
-
 #define USD_LO_BASE_OFF 0
-#define USD_LO_BASE_END 47
-#define USD_LO_BASE_LEN (USD_LO_BASE_END - USD_LO_BASE_OFF + 1)
+#define USD_LO_BASE_LEN 48
 #define USD_LO_PROTECTED_OFF 58
-#define USD_LO_PROTECTED_BIT (1UL << USD_LO_PROTECTED_OFF)
+#define USD_LO_PROTECTED_BIT (1ULL << USD_LO_PROTECTED_OFF)
 #define USD_LO_READ_OFF 59
-#define USD_LO_READ_BIT (1UL << USD_LO_READ_OFF)
+#define USD_LO_READ_BIT (1ULL << USD_LO_READ_OFF)
 #define USD_LO_WRITE_OFF 60
-#define USD_LO_WRITE_BIT (1UL << USD_LO_WRITE_OFF)
+#define USD_LO_WRITE_BIT (1ULL << USD_LO_WRITE_OFF)
 
 #define USD_HI_CURPTR_OFF 0
-#define USD_HI_CURPTR_END 31
-#define USD_HI_CURPTR_LEN (USD_HI_CURPTR_END - USD_HI_CURPTR_OFF + 1)
+#define USD_HI_CURPTR_LEN 32
 #define USD_HI_SIZE_OFF 32
-#define USD_HI_SIZE_END 63
-#define USD_HI_SIZE_LEN (USD_HI_SIZE_END - USD_HI_SIZE_OFF + 1)
+#define USD_HI_SIZE_LEN 32
 
 #define CR1_HI_BR_OFF 0
-#define CR1_HI_BR_END 27
-#define CR1_HI_BR_LEN (CR1_HI_BR_END - CR1_HI_BR_OFF + 1)
+#define CR1_HI_BR_LEN 28
 #define CR1_HI_WDBL_OFF 35
-#define CR1_HI_WDBL_BIT (1UL << CR1_HI_WDBL_OFF)
+#define CR1_HI_WDBL_BIT (1ULL << CR1_HI_WDBL_OFF)
 #define CR1_HI_USSZ_OFF 36
-#define CR1_HI_USSZ_END 63
-#define CR1_HI_USSZ_LEN (CR1_HI_USSZ_END - CR1_HI_USSZ_OFF + 1)
+#define CR1_HI_USSZ_LEN 28
 
 #define CR1_LO_TR_OFF 0
-#define CR1_LO_TR_END 14
-#define CR1_LO_TR_LEN (CR1_LO_TR_END - CR1_LO_TR_OFF + 1)
+#define CR1_LO_TR_LEN 15
 #define CR1_LO_EIN_OFF 16
-#define CR1_LO_EIN_END 23
-#define CR1_LO_EIN_LEN (CR1_LO_EIN_END - CR1_LO_EIN_OFF + 1)
+#define CR1_LO_EIN_LEN 8
 #define CR1_LO_SS_OFF 24
-#define CR1_LO_SS_BIT (1UL << CR1_LO_SS_OFF)
+#define CR1_LO_SS_BIT (1ULL << CR1_LO_SS_OFF)
 #define CR1_LO_WFX_OFF 25
-#define CR1_LO_WFX_BIT (1UL << CR1_LO_WFX_OFF)
+#define CR1_LO_WFX_BIT (1ULL << CR1_LO_WFX_OFF)
 #define CR1_LO_WPSZ_OFF 26
-#define CR1_LO_WPSZ_END 32
-#define CR1_LO_WPSZ_LEN (CR1_LO_WPSZ_END - CR1_LO_WPSZ_OFF + 1)
+#define CR1_LO_WPSZ_LEN 7
 #define CR1_LO_WBS_OFF 33
-#define CR1_LO_WBS_END 39
-#define CR1_LO_WBS_LEN (CR1_LO_WBS_END - CR1_LO_WBS_OFF + 1)
+#define CR1_LO_WBS_LEN 7
 #define CR1_LO_CUIR_OFF 40
-#define CR1_LO_CUIR_END 56
-#define CR1_LO_CUIR_LEN (CR1_LO_CUIR_END - CR1_LO_CUIR_OFF + 1)
+#define CR1_LO_CUIR_LEN 17
 #define CR1_LO_PSR_OFF 57
-#define CR1_LO_PSR_END 63
-#define CR1_LO_PSR_LEN (CR1_LO_PSR_END - CR1_LO_PSR_OFF + 1)
+#define CR1_LO_PSR_LEN 7
 
 #define BR_RBS_OFF 0        /* based regs window offset */
-#define BR_RBS_END 5
-#define BR_RBS_LEN (BR_RBS_END - BR_RBS_OFF + 1)
+#define BR_RBS_LEN 6
 #define BR_RSZ_OFF 6        /* based regs window size */
-#define BR_RSZ_END 11
-#define BR_RSZ_LEN (BR_RSZ_END - BR_RSZ_OFF + 1)
+#define BR_RSZ_LEN 6
 #define BR_RCUR_OFF 12      /* based regs current index */
-#define BR_RCUR_END 17
-#define BR_RCUR_LEN (BR_RCUR_END - BR_RCUR_OFF + 1)
-#define BR_BN_OFF BR_RBS_OFF
-#define BR_BN_END BR_RCUR_END
-#define BR_BN_LEN (BR_BN_END - BR_BN_OFF + 1)
+#define BR_RCUR_LEN 6
+#define BR_BN_OFF 0
+#define BR_BN_LEN 18
 #define BR_PSZ_OFF 18       /* based pregs window size */
-#define BR_PSZ_END 22
-#define BR_PSZ_LEN (BR_PSZ_END - BR_PSZ_OFF + 1)
+#define BR_PSZ_LEN 5
 #define BR_PCUR_OFF 23      /* based pregs current index */
-#define BR_PCUR_END 27
-#define BR_PCUR_LEN (BR_PCUR_END - BR_PCUR_OFF + 1)
-#define BR_BP_OFF BR_PSZ_OFF
-#define BR_BP_END BR_PCUR_END
-#define BR_BP_LEN (BR_BP_END - BR_BP_OFF + 1)
+#define BR_PCUR_LEN 5
+#define BR_BP_OFF 18
+#define BR_BP_LEN 10
+
+#define BGR_VAL_OFF 0
+#define BGR_VAL_LEN 8
+#define BGR_CUR_OFF 8
+#define BGR_CUR_LEN 3
+#define BGR_MASK 0x7ff
 
 #define LSR_LCNT_OFF 0      /* loop counter */
-#define LSR_LCNT_END 31
-#define LSR_LCNT_LEN (LSR_LCNT_END - LSR_LCNT_OFF + 1)
+#define LSR_LCNT_LEN 32
 #define LSR_ECNT_OFF 32     /* epilogue counter */
-#define LSR_ECNT_END 36
-#define LSR_ECNT_LEN (LSR_ECNT_END - LSR_ECNT_OFF + 1)
+#define LSR_ECNT_LEN 5
 #define LSR_VLC_OFF 37      /* loop count valid bit */
 #define LSR_VLC_BIT (1UL << LSR_VLC_OFF)
 #define LSR_OVER_OFF 38     /* loop count overflow */
 #define LSR_LDMC_OFF 39     /* loads manual control */
 #define LSR_LDOVL_OFF 40    /* load overlap */
-#define LSR_LDOVL_END 47
-#define LSR_LDOVL_SIZE (LSR_LDOVL_END - LSR_LDOVL_OFF + 1)
+#define LSR_LDOVL_LEN 8
 #define LSR_PCNT_OFF 48     /* prologue counter */
-#define LSR_PCNT_END 52
-#define LSR_PCNT_LEN (LSR_PCNT_END - LSR_PCNT_OFF + 1)
+#define LSR_PCNT_LEN 5
 #define LSR_STRMD_OFF 53    /* store remainder counter */
-#define LSR_STRMD_END 59
-#define LSR_STRMD_LEN (LSR_STRMD_END - LSR_STRMD_OFF + 1)
-#define LSR_SEMC_OFF        /* side effects manual control */
-#define LSR_ILCR_MASK 0x1f001fffffffffUL
+#define LSR_STRMD_LEN 7
+#define LSR_SEMC_OFF 60     /* side effects manual control */
+#define ILCR_MASK 0x1f001f
 
-#define UPSR_FE_OFF 0 /* floating point enable */
-#define UPSR_FE_BIT 1
-#define UPSR_SE_OFF 1 /* supervisor mode enable (only for Intel) */
-#define UPSR_SE_BIT (1 << UPSR_SE_OFF)
-#define UPSR_AC_OFF 2 /* not-aligned access control */
-#define UPSR_AC_BIT (1 << UPSR_AC_OFF)
-#define UPSR_DI_OFF 3 /* delayed interrupt (only for Intel) */
-#define UPSR_DI_BIT (1 << UPSR_DI_OFF)
-#define UPSR_WP_OFF 4 /* write protection (only for Intel) */
-#define UPSR_WP_BIT (1 << UPSR_WP_OFF)
-#define UPSR_IE_OFF 5 /* interrupt enable */
-#define UPSR_IE_BIT (1 << UPSR_IE_OFF)
-#define UPSR_A20_OFF 6 /* emulation of 1 Mb memory (only for Intel) */
-#define UPSR_A20_BIT (1 << UPSR_A20_OFF)
-#define UPSR_NMIE_OFF 7 /* not masked interrupt enable */
-#define UPSR_NMIE_BIT (1 << UPSR_NMIE_OFF)
-/* next field of register exist only on E3S/ES2/E2S/E8C/E1C+ CPUs */
-#define UPSR_FSM_OFF 8 /* floating comparison mode flag */
-                       /* 1 - compatible with x86/x87 */
-#define UPSR_FSM_BIT (1 << UPSR_FSM_OFF)
-#define UPSR_IMPT_OFF 9 /* ignore Memory Protection Table flag */
-#define UPSR_IMPT_BIT (1 << UPSR_IMPT_OFF)
-#define UPSR_IUC_OFF 10 /* ignore access right for uncached pages */
-#define UPSR_IUC_BIT (1 << UPSR_IUC_OFF)
+#define PSR_PM      0x01U   /* privileged mode */
+#define PSR_IE      0x02U
+#define PSR_SGE     0x04U
+#define PSR_LW      0x08U
+#define PSR_UIE     0x10U
+#define PSR_NMIE    0x20U
+#define PSR_UNMIE   0x40U
+#define PSR_MASK    0x7fU
+
+#define UPSR_FE     0x01U   /* floating point enable */
+#define UPSR_SE     0x02U   /* supervisor mode enable (only for Intel) */
+#define UPSR_AC     0x04U   /* not-aligned access control */
+#define UPSR_DI     0x08U   /* delayed interrupt (only for Intel) */
+#define UPSR_WP     0x10U   /* write protection (only for Intel) */
+#define UPSR_IE     0x20U   /* interrupt enable */
+#define UPSR_A20    0x40U   /* emulation of 1 Mb memory (only for Intel) */
+#define UPSR_NMIE   0x80U   /* not masked interrupt enable */
+#define UPSR_FSM    0x100U  /* only on E3S/ES2/E2S/E8C/E1C+ CPUs */
+                            /* floating comparison mode flag */
+                            /* 1 - compatible with x86/x87 */
+#define UPSR_IMPT   0x200U  /* ignore Memory Protection Table flag */
+#define UPSR_IUC    0x400U  /* ignore access right for uncached pages */
+#define UPSR_MASK   0x7ff
+
+#define CUIR_MASK 0x1ffff
 
 #define IDR_MDL_OFF 0 /* CPU model number */
 #define IDR_MDL_END 7
@@ -343,6 +318,93 @@ typedef enum {
     EXCP_SYSCALL = 100,
 #endif
 } Exception;
+
+typedef enum {
+    SR_PSR          = 0x00,
+    SR_WD           = 0x01,
+    SR_CORE_MODE    = 0x04,
+    SR_CWD          = 0x06,
+    SR_PSP_HI       = 0x07,
+    SR_PSP_LO       = 0x09,
+    SR_PSHTP        = 0x0b,
+    SR_PCSP_HI      = 0x0d,
+    SR_PCSP_LO      = 0x0f,
+    SR_PCSHTP       = 0x13,
+    SR_CTPR1        = 0x15,
+    SR_CTPR2        = 0x16,
+    SR_CTPR3        = 0x17,
+    SR_SBR          = 0x1e,
+    SR_CUTD         = 0x21,
+    SR_EIR          = 0x23,
+    SR_TSD          = 0x24,
+    SR_CUIR         = 0x25,
+    SR_OSCUD_HI     = 0x26,
+    SR_OSCUD_LO     = 0x27,
+    SR_OSGD_HI      = 0x28,
+    SR_OSGD_LO      = 0x29,
+    SR_OSEM         = 0x2a,
+    SR_USD_HI       = 0x2c,
+    SR_USD_LO       = 0x2d,
+    SR_TR           = 0x2e,
+    SR_OSR0         = 0x2f,
+    SR_CUD_HI       = 0x30,
+    SR_CUD_LO       = 0x31,
+    SR_GD_HI        = 0x32,
+    SR_GD_LO        = 0x33,
+    SR_CS_HI        = 0x34,
+    SR_CS_LO        = 0x35,
+    SR_DS_HI        = 0x36,
+    SR_DS_LO        = 0x37,
+    SR_ES_HI        = 0x38,
+    SR_ES_LO        = 0x39,
+    SR_FS_HI        = 0x3a,
+    SR_FS_LO        = 0x3b,
+    SR_GS_HI        = 0x3c,
+    SR_GS_LO        = 0x3d,
+    SR_SS_HI        = 0x3e,
+    SR_SS_LO        = 0x3f,
+    SR_DIBCR        = 0x40,
+    SR_DIMCR        = 0x41,
+    SR_DIBSR        = 0x42,
+    SR_DTCR         = 0x43,
+    SR_DIBAR0       = 0x48,
+    SR_DIBAR1       = 0x49,
+    SR_DIBAR2       = 0x4a,
+    SR_DIBAR3       = 0x4b,
+    SR_DIMAR0       = 0x4c,
+    SR_DIMAR1       = 0x4d,
+    SR_DTRAF        = 0x4e,
+    SR_DTART        = 0x4f,
+    SR_CR0_HI       = 0x51,
+    SR_CR0_LO       = 0x53,
+    SR_CR1_HI       = 0x55,
+    SR_CR1_LO       = 0x57,
+    SR_SCLKM1       = 0x70,
+    SR_SCLKM2       = 0x71,
+    SR_CU_HW0       = 0x78,
+    SR_UPSR         = 0x80,
+    SR_IP           = 0x81,
+    SR_NIP          = 0x82,
+    SR_LSR          = 0x83,
+    SR_PFPFR        = 0x84,
+    SR_FPCR         = 0x85,
+    SR_FPSR         = 0x86,
+    SR_ILCR         = 0x87,
+    SR_BR           = 0x88,
+    SR_BGR          = 0x89,
+    SR_IDR          = 0x8A,
+    SR_CLKR         = 0x90,
+    SR_RNDPR        = 0x91,
+    SR_SCLKR        = 0x92,
+    SR_TIR_HI       = 0x9C,
+    SR_TIR_LO       = 0x9D,
+    SR_RPR          = 0xA0,
+    SR_SBBP         = 0xA1,
+    SR_RPR_HI       = 0xA2,
+    SR_UPSRM        = 0xC0,
+    SR_LSR1         = 0xC3,
+    SR_ILCR1        = 0xC7,
+} StateReg;
 
 struct e2k_def_t {
     const char *name;
@@ -436,8 +498,11 @@ typedef struct {
         };
         uint64_t hi;
     };
+    /* FIXME: HACK: pointer to tag storage */
     target_ulong base_tag;
-} E2KStackState, E2KPsState, E2KPcsState;
+} E2KPsp;
+
+#define E2K_PSP_LO_MASK (GEN_MASK(56, 8) | GEN_MASK(0, E2K_VA_SIZE))
 
 typedef struct {
     int32_t base;
@@ -659,22 +724,24 @@ typedef struct {
     union {
         uint64_t lo;
         struct {
-            uint64_t base: 48;
-            uint64_t unused1: 10;
-            uint64_t protected: 1;
-            uint64_t read: 1;
-            uint64_t write: 1;
-            uint64_t unsued2: 3;
+            uint64_t base      : E2K_VA_SIZE;       /* [47: 0] */
+            uint64_t unused1   : 57 - E2K_VA_MSB;   /* [57:48] */
+            uint64_t protected :  1;                /* [58] */
+            uint64_t read      :  1;                /* [59] */
+            uint64_t write     :  1;                /* [60] */
+            uint64_t unsued2   :  3;                /* [63:61] */
         };
     };
     union {
         uint64_t hi;
         struct {
-            uint64_t curptr: 32;
-            uint64_t size: 32;
+            uint64_t curptr    : 32; /* [31: 0] */
+            uint64_t size      : 32; /* [63:32] */
         };
     };
-} E2KUserStackDesc;
+} E2KRwap;
+
+#define E2K_RWAP_LO_MASK (GEN_MASK(58, 3) | GEN_MASK(0, E2K_VA_SIZE))
 
 typedef union {
     struct {
@@ -713,33 +780,37 @@ typedef union {
 } E2KReg;
 
 typedef struct {
-    /* register file */
-    uint8_t tags[E2K_REG_COUNT]; /* registers tags */
-    E2KReg regs[E2K_REG_COUNT]; /* low parts of registers */
-    uint64_t pregs; /* predicate file */
-    target_ulong ip; /* instruction address */
+    /* Registers Tags File */
+    uint8_t tags[E2K_REG_COUNT];
+    /* Registers File */
+    E2KReg regs[E2K_REG_COUNT];
+    /* Predicate Registers File */
+    uint64_t pregs;
+    /* Instruction Address */
+    target_ulong ip;
+    /* Next Instruction Address */
+    target_ulong nip;
 
-    /* big constant values */
-    E2KReg tmp[12];
-    /* pre saved registers */
-    E2KReg tmp_saved[6];
-    /* alops results */
-    E2KReg al_result[12];
-
-    /* DAM */
-    E2KDamEntry dam[32];
-
-    /* Procedure chain info = cr0_lo, cr0_hi, cr1_lo, cr1_hi */
-    E2KPcsState pcsp;
-
-    /* Procedure stack pointer (for regs)  */
-    E2KPsState psp;
-
+    /* Procedure Chain Stack Pointer (control registers) */
+    E2KPsp pcsp;
+    /* Procedure Stack Pointer (window registers)  */
+    E2KPsp psp;
+    /* Non-Protected User Stack Pointer */
+    E2KRwap usd;
+    /* Non-Protected User Stack Base address */
+    uint64_t sbr;
+    /* Procedure Registers Window state */
     E2KWdState wd;
+    /* Flag to clear the upper half of the register for 32-bit operations */
+    uint32_t wdbl;
+    /* Based Registers Window state */
     E2KBnState bn;
+    /* Based Predicate Registers Window state */
     E2KBpState bp;
+    /* Based Global Registers Window state */
+    uint32_t bgr;
 
-    /* loop status register */
+    /* Loop Status Register */
     uint64_t lsr;
     uint64_t lsr_lcnt;
     uint32_t lsr_ecnt;
@@ -748,40 +819,84 @@ typedef struct {
     uint32_t lsr_pcnt;
     uint32_t lsr_strmd;
 
-    uint64_t sbr;
-    E2KUserStackDesc usd;
+    /* Initial Loop Counter Register */
+    uint32_t ilcr;
+    uint64_t ilcr_lcnt;
 
-    /* control registers */
-    E2KCtpr ctprs[3]; // Control Transfer Preparation Register (CTPR)
+    /* Control Transfer Preparation Register (CTPR) */
+    E2KCtpr ctprs[3];
+    /* Control Transfer Condition */
     target_ulong ct_cond;
-
-    target_ulong nip; /* next instruction address */
     
-    uint64_t upsr;
+    uint32_t psr;
+    uint32_t upsr;
+    uint32_t cuir;
+    /* System Register */
+    uint64_t osr0;
     uint64_t idr;
+    uint64_t core_mode;
 
-    E2KPfpfr pfpfr; // Packed Floating Point Flag Register (PFPFR)
-    E2KFpsrState fpsr; // Floating point state register (FPSR)
-    E2KFpcrState fpcr; // Floating point control register (FPCR)
+    /* Packed Floating Point Flag Register (PFPFR) */
+    E2KPfpfr pfpfr;
+    /* Floating point state register (FPSR) */
+    E2KFpsrState fpsr;
+    /* Floating point control register (FPCR) */
+    E2KFpcrState fpcr;
 
-    float_status fp_status;
-    float_status fx_status;
-    
+    /* OS Compilation Unit Descriptor */
+    E2KRwap oscud;
+    /* OS Compilation Unit Globals Descriptor */
+    E2KRwap osgd;
+
+    /* User Compilation Unit Descriptor */
+    E2KRwap cud;
+    /* User Compilation Unit Globals Descriptor */
+    E2KRwap gd;
+
+    /* Segment Registers */
+    E2KRwap cs;
+    E2KRwap ds;
+    E2KRwap es;
+    E2KRwap fs;
+    E2KRwap gs;
+    E2KRwap ss;
+
+    /* Array Access Unit State */
     E2KAauState aau;
 
+    /* DAM */
+    E2KDamEntry dam[32];
+
+    /*
+     * Internal use
+     */
+
+    /* TODO */
     int interrupt_index;
 
-    /* internal use */
-    uint32_t is_bp; /* breakpoint flag */
-    uint64_t last_val0; /* ld mas=7 + st mas=2 */
-    uint64_t last_val1; /* ld mas=7 + st mas=2 */
+    /* 32/64-bit scalar/packed float status */
+    float_status fp_status;
+    /* 80-bit float status */
+    float_status fx_status;
 
-    /* zeroing upper register half for 32-bit instructions */
-    uint32_t wdbl;
+    /* Temporary storage for big constant values */
+    E2KReg tmp[12];
+    /* Temporary storage for pre saved registers */
+    E2KReg tmp_saved[6];
+    /* Temporary storage for empty and temporary results of alops */
+    E2KReg al_result[12];
+
+    /* breakpoint flag */
+    uint32_t is_bp;
+
+    /* FIXME: DAM? ld mas=7 + st mas=2 */
+    uint64_t last_val0;
+    uint64_t last_val1;
 
     /* Fields up to this point are cleared by a CPU reset */
     struct {} end_reset_fields;
 
+    /* ISA version */
     uint32_t version;
     /* Force alop to preserve the destination register before writing to it.
      * Default: false */
@@ -829,8 +944,9 @@ bool e2k_cpu_tlb_fill(CPUState *cpu, vaddr address, int size,
                  bool probe, uintptr_t retaddr);
 void e2k_update_fp_status(CPUE2KState *env);
 void e2k_update_fx_status(CPUE2KState *env);
-void e2k_pcs_new(E2KPcsState *pcs);
-void e2k_ps_new(E2KPsState *ps);
+#ifdef CONFIG_USER_ONLY
+void e2k_psp_new(E2KPsp *psp, unsigned int size, bool tags);
+#endif
 void e2k_proc_call(CPUE2KState *env, int base, target_ulong ret_ip,
     bool force_fx);
 void e2k_proc_return(CPUE2KState *env, bool force_fx);
