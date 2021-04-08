@@ -25,6 +25,9 @@
 #include "hw/loader.h"
 #include "hw/e2k/e2k.h"
 #include "target/e2k/cpu.h"
+#include "elf.h"
+
+#include "hw/char/escc.h"
 
 #define ES2_NSR_AREA_PHYS_BASE      0x0000000110000000UL    /* node 0 */
 #define ES2_NSR_AREA_MAX_SIZE       0x0000000010000000UL    /* max NSRs */
@@ -56,6 +59,36 @@ static void cpus_init(MachineState *ms)
         }
     }
 }
+
+static bool e2k_kernel_init(MachineState *ms, MemoryRegion *rom_memory)
+{
+    uint64_t entry, kernel_high;
+    long size;
+    MemoryRegion *kernel;
+
+    if (!ms->kernel_filename)
+        return false;
+
+    /* FIXME: set ip to entry, for now it just equals to FIRMWARE_LOAD_ADDR */
+    size = load_elf(ms->kernel_filename, NULL, NULL, NULL,
+                    &entry, NULL, &kernel_high, NULL, 0, EM_MCST_ELBRUS,
+                    0, 0);
+
+    if (size <= 0) {
+        error_report("could not load kernel '%s': %s",
+                     ms->kernel_filename, load_elf_strerror(size));
+        return false;
+    }
+
+    /* TODO: load initrd */
+
+    kernel = g_malloc(sizeof(*kernel));
+    memory_region_init_ram(kernel, NULL, "e2k.kernel", size, &error_fatal);
+    memory_region_add_subregion(rom_memory, entry, kernel);
+
+    return true;
+}
+
 
 static void firmware_init(MachineState *ms, const char *default_filename,
     MemoryRegion *rom_memory)
@@ -117,7 +150,7 @@ static void sic_mem_write(void *opaque, hwaddr addr, uint64_t val,
 {
 //    MachineState *ms = opaque;
 
-    trace_sic_mem_writel(addr, val);
+//     trace_sic_mem_writel(addr, val);
 }
 
 static const MemoryRegionOps sic_io_ops = {
@@ -149,7 +182,8 @@ static void machine_init(MachineState *ms)
     cpus_init(ms);
     memory_region_add_subregion(get_system_memory(), 0, ms->ram);
     sic_init(ms);
-    firmware_init(ms, "e2k.bin", rom_memory);
+    if (!e2k_kernel_init(ms, rom_memory))
+        firmware_init(ms, "e2k.bin", rom_memory);
 }
 
 static void test_machine_init(MachineClass *mc)
