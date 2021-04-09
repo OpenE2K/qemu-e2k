@@ -150,7 +150,7 @@ static void sic_mem_write(void *opaque, hwaddr addr, uint64_t val,
 {
 //    MachineState *ms = opaque;
 
-//     trace_sic_mem_writel(addr, val);
+     trace_sic_mem_writel(addr, val);
 }
 
 static const MemoryRegionOps sic_io_ops = {
@@ -174,7 +174,7 @@ static void sic_init(MachineState *ms)
         io_memory);
 }
 
-static void machine_init(MachineState *ms)
+static void e2k_machine_init(MachineState *ms)
 {
     MemoryRegion *rom_memory;
 
@@ -186,10 +186,12 @@ static void machine_init(MachineState *ms)
         firmware_init(ms, "e2k.bin", rom_memory);
 }
 
-static void test_machine_init(MachineClass *mc)
+static void e2k_machine_class_init(ObjectClass *oc, void *data)
 {
-    mc->desc = "Test E2K";
-    mc->init = machine_init;
+    MachineClass *mc = MACHINE_CLASS(oc);
+
+    mc->desc = "Generic E2K Machine";
+    mc->init = e2k_machine_init;
     mc->default_machine_opts = "firmware=e2k.bin";
     mc->is_default = true;
     mc->max_cpus = 8;
@@ -197,4 +199,16 @@ static void test_machine_init(MachineClass *mc)
     mc->default_ram_id = "e2k.ram";
 }
 
-DEFINE_MACHINE("test", test_machine_init)
+static const TypeInfo e2k_machine_info = {
+    .name = TYPE_E2K_MACHINE,
+    .parent = TYPE_MACHINE,
+    .class_size = sizeof(E2KMachineClass),
+    .class_init = e2k_machine_class_init,
+};
+
+static void e2k_machine_register_types(void)
+{
+    type_register_static(&e2k_machine_info);
+}
+
+type_init(e2k_machine_register_types)
