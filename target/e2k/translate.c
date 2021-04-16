@@ -292,6 +292,7 @@ typedef struct {
 typedef enum {
     ALOPF_NONE,
     ALOPF1,
+    ALOPF1_MAS,
     ALOPF1_MERGE,
     ALOPF2,
     ALOPF3,
@@ -299,6 +300,7 @@ typedef enum {
     ALOPF8,
     ALOPF10,
     ALOPF11,
+    ALOPF11_MAS,
     ALOPF11_MERGE,
     ALOPF11_LIT8,
     ALOPF12,
@@ -2151,9 +2153,11 @@ static ArgSize alop_opn_max_size(Alop *alop, uint8_t src)
     case ALOPF_NONE:
         break;
     case ALOPF1:
+    case ALOPF1_MAS:
     case ALOPF1_MERGE:
     case ALOPF7:
     case ALOPF11:
+    case ALOPF11_MAS:
     case ALOPF11_MERGE:
     case ALOPF11_LIT8:
     case ALOPF17:
@@ -2294,10 +2298,19 @@ static void gen_alop_save_dst(Alop *alop)
     uint8_t dst;
 
     switch (alop->format) {
+    case ALOPF_NONE:
+    case ALOPF3:
+    case ALOPF10:
+    case ALOPF13:
+    case ALOPF15:
+        /* no dst reg */
+        break;
     case ALOPF1:
+    case ALOPF1_MAS:
     case ALOPF1_MERGE:
     case ALOPF2:
     case ALOPF11:
+    case ALOPF11_MAS:
     case ALOPF11_MERGE:
     case ALOPF11_LIT8:
     case ALOPF12:
@@ -2352,6 +2365,7 @@ static void gen_alop_save_dst(Alop *alop)
 #endif
         break;
     default:
+        g_assert_not_reached();
         break;
     }
 }
@@ -5419,6 +5433,7 @@ static void alop_table_find(DisasContext *ctx, Alop *alop, AlesFlag ales_present
         AlopDesc *desc = &alops[index];
         switch(desc->alopf) {
         case ALOPF1:
+        case ALOPF1_MAS:
         case ALOPF1_MERGE:
         case ALOPF3:
         case ALOPF10:
@@ -5439,6 +5454,7 @@ static void alop_table_find(DisasContext *ctx, Alop *alop, AlesFlag ales_present
                 && alop->als.opce1 == 0xc0;
             break;
         case ALOPF11:
+        case ALOPF11_MAS:
         case ALOPF11_MERGE:
         case ALOPF13:
         case ALOPF17:
@@ -6902,8 +6918,10 @@ static void alop_find_max_reg_indices(Alop *alop, int *max_r_src,
     case ALOPF_NONE:
         break;
     case ALOPF1:
+    case ALOPF1_MAS:
     case ALOPF1_MERGE:
     case ALOPF11:
+    case ALOPF11_MAS:
     case ALOPF11_MERGE:
     case ALOPF11_LIT8:
         check_reg_src(max_r_src, max_b, alop->als.src1);
@@ -6949,7 +6967,7 @@ static void alop_find_max_reg_indices(Alop *alop, int *max_r_src,
         check_reg_dst(max_r_dst, max_b, alop->als.dst);
         break;
     default:
-        e2k_todo(alop->ctx, "check_args %d", alop->format);
+        g_assert_not_reached();
         break;
     }
 }
@@ -7806,6 +7824,19 @@ static void validate_bundle(DisasContext *ctx)
         Alop *alop = &ctx->alops[i];
 
         switch (alop->format) {
+        case ALOPF3:
+        case ALOPF13:
+            switch (ctx->alops[i == 2 ? 3 : 0].format) {
+            case ALOPF1_MAS:
+            case ALOPF11_MAS:
+                /* Read and write operations cannot be executed simultaneously
+                 * on the mirrored channels (2+3 or 0+5). */
+                gen_tr_excp_illopc(alop->ctx);
+                break;
+            default:
+                break;
+            }
+            break;
         case ALOPF15:
             if (!validate_state_reg(ctx, alop->als.dst, true)) {
                 gen_tr_excp_illopc(alop->ctx);
