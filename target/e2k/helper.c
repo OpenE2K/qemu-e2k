@@ -4,6 +4,7 @@
 #include "qemu/log.h"
 #include "sysemu/runstate.h"
 #include "exec/helper-proto.h"
+#include "exec/address-spaces.h"
 #include "helper-tcg.h"
 
 static inline void reset_ctprs(CPUE2KState *env)
@@ -412,6 +413,37 @@ void HELPER(debug)(CPUE2KState *env)
 }
 
 #ifndef CONFIG_USER_ONLY
+#define GEN_IO_LD_IMPL(T, f, op) \
+    T HELPER(f)(CPUE2KState *env, target_ulong port) \
+    { \
+        MemTxAttrs attrs = MEMTXATTRS_UNSPECIFIED; \
+        AddressSpace *as = cpu_addressspace(env_cpu(env), attrs); \
+        qemu_log_mask(LOG_UNIMP, "MAS_IOADDR %s\tread\t0x%lx", #f, port);\
+        T ret = address_space_ ## op (as, port, attrs, NULL); \
+        uint64_t data = ret; \
+        fprintf(stderr, " 0x%lx\n", data); \
+        return ret; \
+    }
+
+#define GET_IO_ST_IMPL(T, f, op) \
+    void HELPER(f)(CPUE2KState *env, target_ulong port, T val) \
+    { \
+        MemTxAttrs attrs = MEMTXATTRS_UNSPECIFIED; \
+        AddressSpace *as = cpu_addressspace(env_cpu(env), attrs); \
+        uint64_t data = val; \
+        qemu_log_mask(LOG_UNIMP, "MAS_IOADDR %s\twrite\t0x%lx 0x%lx\n", #f, port, data);\
+        address_space_ ## op (as, port, val, attrs, NULL); \
+    }
+
+GEN_IO_LD_IMPL(uint64_t, inb, ldub)
+GEN_IO_LD_IMPL(uint64_t, inh, lduw)
+GEN_IO_LD_IMPL(uint64_t, inw, ldl)
+GEN_IO_LD_IMPL(uint64_t, ind, ldq)
+GET_IO_ST_IMPL(uint32_t, outb, stb)
+GET_IO_ST_IMPL(uint32_t, outh, stw)
+GET_IO_ST_IMPL(uint32_t, outw, stl)
+GET_IO_ST_IMPL(uint64_t, outd, stq)
+
 uint32_t e2k_ldub_phys(CPUState *cs, hwaddr addr)
 {
     MemTxAttrs attrs = MEMTXATTRS_UNSPECIFIED;

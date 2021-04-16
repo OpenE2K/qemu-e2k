@@ -10,6 +10,15 @@ DEF_HELPER_1(debug, noreturn, env)
 DEF_HELPER_1(break_restore_state, void, env)
 #ifdef CONFIG_USER_ONLY
 DEF_HELPER_1(expand_stacks, void, env)
+#else
+DEF_HELPER_2(inb, i64, env, tl)
+DEF_HELPER_2(inh, i64, env, tl)
+DEF_HELPER_2(inw, i64, env, tl)
+DEF_HELPER_2(ind, i64, env, tl)
+DEF_HELPER_3(outb, void, env, tl, i32)
+DEF_HELPER_3(outh, void, env, tl, i32)
+DEF_HELPER_3(outw, void, env, tl, i32)
+DEF_HELPER_3(outd, void, env, tl, i64)
 #endif
 
 DEF_HELPER_4(call, void, env, i64, int, tl)

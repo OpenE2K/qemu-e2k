@@ -478,6 +478,63 @@ typedef enum {
     MAS_OPC_RESERVED2 = 15,
 } MasSpecialOpc;
 
+#define MAS_MODE_MASK ((1U << 3) - 1)
+
+typedef enum {
+    /* an operation */
+    MAS_MODE_LOAD_OPERATION = 0,
+    /* reading by physical address */
+    MAS_MODE_LOAD_PA = 1,
+    /* conditional operation depending on the "check" lock state */
+    MAS_MODE_LOAD_OP_CHECK = 2,
+    /* an operation with memory location depending on the "check"
+     * lock state and memory location unlocking */
+    MAS_MODE_LOAD_OP_UNLOCK = 3,
+    /* speculative load */
+    MAS_MODE_LOAD_OP_SPEC = 3,
+    /* fill operation */
+    MAS_MODE_FILL_OP = 4,
+    /* semi-speculative operation with memory lock check */
+    MAS_MODE_LOAD_OP_LOCK_CHECK = 4,
+    /* an operation with locking of the memory location by the "trap on store" lock */
+    MAS_MODE_LOAD03_OP_TRAP_ON_STORE = 5,
+    /* reserved */
+    MAS_MODE_LOAD25_RESERVED = 5,
+    /* an operation with locking of the memory location by the "trap on load" lock */
+    MAS_MODE_LOAD03_OP_TRAP_ON_LD = 6,
+    /* I/O page access operation */
+    MAS_MODE_LOAD25_IOPAGE = 6,
+    /* an operation with locking of the memory location by the "wait" lock */
+    MAS_MODE_LOAD03_OP_WAIT = 7,
+    /* an operation with locking of the disambiguation memory table */
+    MAS_MODE_LOAD03_DAM_LOAD = 7,
+    /* special MMU or AAU operation */
+    MAS_MODE_LOAD25_MMU_AAU_SPEC = 7,
+    /* speculative operation with memory lock check */
+    MAS_MODE_LOAD_OP_SPEC_LOCK_CHECK = 7
+} MasLoadMode;
+
+typedef enum {
+    /* an operation */
+    MAS_MODE_STORE_OPERATION = 0,
+    /* writing by physical address */
+    MAS_MODE_STORE_PA = 1,
+    /* conditional operation depending on the "wait"
+     * lock state with memory location unlocking */
+    MAS_MODE_STORE_OP_WAIT = 2,
+    /* an operation with memory location unlocking */
+    MAS_MODE_STORE_OP_UNLOCK = 3,
+    /* reserved */
+    MAS_MODE_STORE_RESERVED = 4,
+    /* same as MAS_MODE_STORE_OP_UNLOCK but no operation
+     * performed */
+    MAS_MODE_STORE_NOP_UNLOCK = 5,
+    /* I/O page access operation */
+    MAS_MODE_STORE_IOPAGE = 6,
+    /* special MMU or AAU operation */
+    MAS_MODE_STORE_MMU_AAU_SPEC = 7
+} MasStoreMode;
+
 typedef struct {
     Tagged tagged;
     uint8_t dst;
@@ -4241,9 +4298,9 @@ static MemOp memop_from_mas(uint8_t mas)
     return r;
 }
 
-static MemOp scan_ld_mas(Alop *alop, bool *skip, bool *save)
+static MemOp scan_ld_mas(Alop *alop, bool *skip, bool *save, bool *io)
 {
-    int mod = alop->mas & 0x7;
+    MasLoadMode mod = alop->mas & 0x7;
     MemOp memop = 0;
 
     if (mod == 0x7) {
@@ -4275,7 +4332,7 @@ static MemOp scan_ld_mas(Alop *alop, bool *skip, bool *save)
         memop |= memop_from_mas(alop->mas);
 
         switch (mod) {
-        case 0:
+        case MAS_MODE_LOAD_OPERATION:
             /* normal load */
             break;
         case 3:
@@ -4300,6 +4357,13 @@ static MemOp scan_ld_mas(Alop *alop, bool *skip, bool *save)
                 warn = true;
             }
             break;
+        case MAS_MODE_LOAD25_IOPAGE:
+            if (is_chan_25(alop->chan)) {
+                *io = true;
+            } else {
+                warn = true;
+            }
+            break;
         default:
             warn = true;
             break;
@@ -4313,12 +4377,12 @@ static MemOp scan_ld_mas(Alop *alop, bool *skip, bool *save)
     return memop;
 }
 
-static MemOp scan_st_mas(Alop *alop, bool *skip, bool *check)
+static MemOp scan_st_mas(Alop *alop, bool *skip, bool *check, bool *io)
 {
-    int mod = alop->mas & 0x7;
+    MasStoreMode mod = alop->mas & MAS_MODE_MASK;
     MemOp memop = 0;
 
-    if (mod == 0x7) {
+    if (mod == MAS_MODE_STORE_MMU_AAU_SPEC) {
         int opc = alop->mas >> 3;
         bool warn = false;
 
@@ -4352,11 +4416,14 @@ static MemOp scan_st_mas(Alop *alop, bool *skip, bool *check)
         memop |= memop_from_mas(alop->mas);
 
         switch (mod) {
-        case 0:
+        case MAS_MODE_STORE_OPERATION:
             /* normal store */
             break;
-        case 2:
+        case MAS_MODE_STORE_OP_WAIT:
             *check = true;
+            break;
+        case MAS_MODE_STORE_IOPAGE:
+            *io = true;
             break;
         default:
             warn = true;
@@ -4396,7 +4463,7 @@ static void gen_probe_write_access(TCGv_i32 ret, TCGv addr, int size,
 }
 
 static void gen_ld_raw_i64(Alop *alop, TCGv_i32 tag, TCGv addr,
-    MemOp memop, bool skip, bool save)
+    MemOp memop, bool skip, bool save, bool io)
 {
     TCGLabel *l0 = gen_new_label();
     Tagged_i64 r = tagged_local_new_i64();
@@ -4420,7 +4487,19 @@ static void gen_ld_raw_i64(Alop *alop, TCGv_i32 tag, TCGv addr,
     }
 
     gen_tag1_i64(r.tag, tag);
-    tcg_gen_qemu_ld_i64(r.val, addr, alop->ctx->mmuidx, memop);
+    if (io) {
+        switch(memop_size(memop))
+        {
+        case 1: gen_helper_inb(r.val, cpu_env, addr); break;
+        case 2: gen_helper_inh(r.val, cpu_env, addr); break;
+        case 4: gen_helper_inw(r.val, cpu_env, addr); break;
+        case 8: gen_helper_ind(r.val, cpu_env, addr); break;
+        default: g_assert_not_reached(); break;
+        }
+    }
+    else {
+        tcg_gen_qemu_ld_i64(r.val, addr, alop->ctx->mmuidx, memop);
+    }
     gen_set_label(l0);
 
     if (save) {
@@ -4452,7 +4531,7 @@ static void gen_qemu_ld_i128(TCGv_i64 hi, TCGv_i64 lo, TCGv addr, TCGArg idx,
 }
 
 static void gen_ld_raw_i128(Alop *alop, TCGv_i32 tag, TCGv addr,
-    MemOp memop, bool skip, bool save)
+    MemOp memop, bool skip, bool save, bool io)
 {
     TCGLabel *l0 = gen_new_label();
     Tagged_ptr r = tagged_local_new_ptr();
@@ -4481,6 +4560,7 @@ static void gen_ld_raw_i128(Alop *alop, TCGv_i32 tag, TCGv addr,
     }
 
     gen_tag1_i128(r.tag, tag);
+    /* a1ba: should there be 128-bit IOADDR access? */
     gen_qemu_ld_i128(t1, t0, addr, alop->ctx->mmuidx, memop);
 
     gen_set_label(l0);
@@ -4561,9 +4641,9 @@ static void gen_atomic_cmpxchg_i32(Alop *alop, TCGv_i32 value, TCGv addr,
     tcg_temp_free_i32(t0);
 }
 
-#define IMPL_GEN_ST(name, S, st1, st2) \
+#define IMPL_GEN_ST(name, S, st1, st2, st3) \
     static void name(Alop *alop, TCGv addr, \
-        MemOp memop, bool skip, bool check) \
+        MemOp memop, bool skip, bool check, bool io) \
     { \
         TCGLabel *l0 = gen_new_label(); \
         tagged(S) s4 = tagged_local_new(S); \
@@ -4581,7 +4661,9 @@ static void gen_atomic_cmpxchg_i32(Alop *alop, TCGv_i32 value, TCGv addr,
                 tcg_temp_free_i32(t0); \
             } \
             \
-            if (check && alop->ctx->mlock) { \
+            if (io) { \
+                st3(addr, s4.val, memop); \
+            } else if (check && alop->ctx->mlock) { \
                 st1(alop, s4.val, addr, memop); \
             } else { \
                 st2(s4.val, addr, alop->ctx->mmuidx, memop); \
@@ -4592,8 +4674,24 @@ static void gen_atomic_cmpxchg_i32(Alop *alop, TCGv_i32 value, TCGv addr,
         tagged_free(S, s4); \
     }
 
-IMPL_GEN_ST(gen_st_raw_i32, s, gen_atomic_cmpxchg_i32, tcg_gen_qemu_st_i32)
-IMPL_GEN_ST(gen_st_raw_i64, d, gen_atomic_cmpxchg_i64, tcg_gen_qemu_st_i64)
+static inline void gen_helper_out_i32(TCGv addr, TCGv_i32 val, MemOp memop)
+{
+    switch(memop_size(memop))
+    {
+    case 1: gen_helper_outb(cpu_env, addr, val); break;
+    case 2: gen_helper_outh(cpu_env, addr, val); break;
+    case 4: gen_helper_outw(cpu_env, addr, val); break;
+    default: g_assert_not_reached(); break;
+    }
+}
+
+static inline void gen_helper_out_i64(TCGv addr, TCGv_i64 val, MemOp memop)
+{
+    gen_helper_outd(cpu_env, addr, val);
+}
+
+IMPL_GEN_ST(gen_st_raw_i32, s, gen_atomic_cmpxchg_i32, tcg_gen_qemu_st_i32, gen_helper_out_i32)
+IMPL_GEN_ST(gen_st_raw_i64, d, gen_atomic_cmpxchg_i64, tcg_gen_qemu_st_i64, gen_helper_out_i64)
 
 static void gen_qemu_st_i128(TCGv_i64 hi, TCGv_i64 lo, TCGv addr,
     TCGArg idx, MemOp memop)
@@ -4614,7 +4712,7 @@ static void gen_qemu_st_i128(TCGv_i64 hi, TCGv_i64 lo, TCGv addr,
 }
 
 static void gen_st_raw_i128(Alop *alop, TCGv addr,
-    MemOp memop, bool skip, bool check)
+    MemOp memop, bool skip, bool check, bool io)
 {
     TCGLabel *l0 = gen_new_label();
     Tagged_ptr s4 = tagged_local_new_ptr();
@@ -4636,6 +4734,7 @@ static void gen_st_raw_i128(Alop *alop, TCGv addr,
 
         gen_qpunpackdl(t1, t0, s4.val);
 
+        /* a1ba: 128-bit IOADDR access? */
         if (check && alop->ctx->mlock) {
             gen_atomic_cmpxchg_i128(alop, t1, t0, addr, memop);
         } else {
@@ -4686,7 +4785,7 @@ static void gen_pmerge_i64(TCGv_i64 ret, TCGv_i64 a, TCGv_i64 b,
 }
 
 static void gen_stm_raw_i128(Alop *alop, TCGv addr,
-    MemOp memop, bool skip, bool check)
+    MemOp memop, bool skip, bool check, bool io)
 {
     TCGLabel *l0 = gen_new_label();
     Tagged_i32 s2 = tagged_new_i32();
@@ -4721,6 +4820,7 @@ static void gen_stm_raw_i128(Alop *alop, TCGv addr,
         gen_pmerge_i64(t0, t0, t2, mask);
         gen_pmerge_i64(t1, t1, t3, t4);
 
+        /* a1ba: 128-bit IOADDR access? */
         if (check && alop->ctx->mlock) {
             gen_atomic_cmpxchg_i128(alop, t1, t0, addr, memop);
         } else {
@@ -4754,20 +4854,20 @@ typedef enum {
 
 typedef void (*GenAddrFn)(Alop *alop, TCGv_i32 tag, TCGv addr, AddrBase base);
 typedef void (*GenLoadFn)(Alop *alop, TCGv_i32 tag, TCGv addr,
-    MemOp memop, bool skip, bool save);
+    MemOp memop, bool skip, bool save, bool io);
 typedef void (*GenStoreFn)(Alop *alop, TCGv addr,
-    MemOp memop, bool skip, bool check);
+    MemOp memop, bool skip, bool check, bool io);
 
 static void gen_alopf1_mas(Alop *alop, GenAddrFn addr_fn,
     GenLoadFn ld_fn, MemOp memop, AddrBase base)
 {
-    bool skip = false, save = false;
+    bool skip = false, save = false, io = false;
     TCGv_i32 tag = tcg_temp_local_new_i32();
     TCGv addr = tcg_temp_local_new();
 
-    memop |= scan_ld_mas(alop, &skip, &save);
+    memop |= scan_ld_mas(alop, &skip, &save, &io);
     (*addr_fn)(alop, tag, addr, base);
-    (*ld_fn)(alop, tag, addr, memop, skip, save);
+    (*ld_fn)(alop, tag, addr, memop, skip, save, io);
 
     tcg_temp_free(addr);
     tcg_temp_free_i32(tag);
@@ -4776,13 +4876,13 @@ static void gen_alopf1_mas(Alop *alop, GenAddrFn addr_fn,
 static void gen_alopf3_mas(Alop *alop, GenAddrFn addr_fn,
     GenStoreFn st_fn, MemOp memop, AddrBase base)
 {
-    bool skip = false, check = false;
+    bool skip = false, check = false, io = false;
     TCGv_i32 tag = tcg_temp_new_i32();
     TCGv addr = tcg_temp_local_new();
 
-    memop |= scan_st_mas(alop, &skip, &check);
+    memop |= scan_st_mas(alop, &skip, &check, &io);
     (*addr_fn)(alop, tag, addr, base);
-    (*st_fn)(alop, addr, memop, skip, check);
+    (*st_fn)(alop, addr, memop, skip, check, io);
 
     tcg_temp_free(addr);
     tcg_temp_free_i32(tag);
