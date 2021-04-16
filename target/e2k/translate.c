@@ -24,10 +24,8 @@
 #define IS_GLOBAL(i) (((i) & 0xe0) == 0xe0)
 #define IS_REG(i) ((i) < 192 || (i) >= 224)
 #if 0
-/* these registers are safe not to keep the old value
- * %r[0..8], %b[56..128], %g[0..32] */
-# define IS_REG_SAVE_SAFE(i) \
-    (((i) >= 56 && (i) < 136) || (i) >= 224)
+/* these registers are safe not to keep the old value %g[0..32] */
+# define IS_REG_SAVE_SAFE(i) ((i) >= 224)
 #else
 /* this could potentially create an RAW conflict for next ops in a bundle */
 #define IS_REG_SAVE_SAFE(i) (true)
@@ -940,6 +938,9 @@ static inline void decode_cs1(DisasContext *ctx, const UnpackedBundle *raw)
             setr->nfx = extract32(lts0, 4, 1);
             if (ctx->version >= 3) {
                 setr->dbl = extract32(lts0, 3, 1);
+            }
+            if (setr->wsz > 112) {
+                gen_tr_excp_illopc(ctx);
             }
         }
         if (extract32(cs1, 26, 1)) {
