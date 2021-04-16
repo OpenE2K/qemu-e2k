@@ -1,4 +1,7 @@
 # See docs/devel/tracing.txt for syntax documentation.
 
+# e2k.c
+e2k_gsi_interrupt(int irqn, int level) "GSI interrupt #%d level:%d"
+
 sic_mem_readl(uint64_t addr, uint32_t val)  "0x%"PRIx64" = 0x%08x"
 sic_mem_writel(uint64_t addr, uint32_t val) "0x%"PRIx64" = 0x%08x"

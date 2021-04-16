@@ -21,6 +21,7 @@
 
 #include "hw/boards.h"
 #include "qom/object.h"
+#include "hw/e2k/ioapic.h"
 
 struct E2KMachineClass {
     /*< private >*/
@@ -34,9 +35,14 @@ struct E2KMachineState {
     MachineClass parent;
 
     /*< public >*/
+    qemu_irq *pic;
 };
 
 #define TYPE_E2K_MACHINE    MACHINE_TYPE_NAME("e2k")
 OBJECT_DECLARE_TYPE(E2KMachineState, E2KMachineClass, E2K_MACHINE)
+
+typedef struct GSIState {
+    qemu_irq ioapic_irq[IOAPIC_NUM_PINS];
+} GSIState;
 
 #endif /* HW_E2K_H */

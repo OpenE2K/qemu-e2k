@@ -24,6 +24,7 @@
 #include "sysemu/reset.h"
 #include "hw/loader.h"
 #include "hw/e2k/e2k.h"
+#include "hw/e2k/iohub.h"
 #include "target/e2k/cpu.h"
 #include "elf.h"
 
@@ -46,8 +47,9 @@ DeviceState *cpu_get_current_apic(void)
     }
 }
 
-static void cpus_init(MachineState *ms)
+static void cpus_init(E2KMachineState *e2kms)
 {
+    MachineState *ms = MACHINE(e2kms);
     int i;
 
     for (i = 0; i < ms->smp.cpus; i++) {
@@ -60,8 +62,9 @@ static void cpus_init(MachineState *ms)
     }
 }
 
-static bool e2k_kernel_init(MachineState *ms, MemoryRegion *rom_memory)
+static bool e2k_kernel_init(E2KMachineState *e2kms, MemoryRegion *rom_memory)
 {
+    MachineState *ms = MACHINE(e2kms);
     uint64_t entry, kernel_high;
     long size;
     MemoryRegion *kernel;
@@ -89,10 +92,10 @@ static bool e2k_kernel_init(MachineState *ms, MemoryRegion *rom_memory)
     return true;
 }
 
-
-static void firmware_init(MachineState *ms, const char *default_filename,
+static void firmware_init(E2KMachineState *e2kms, const char *default_filename,
     MemoryRegion *rom_memory)
 {
+    MachineState *ms = MACHINE(e2kms);
     const char *firmware_name;
     char *filename;
     int size;
@@ -121,7 +124,7 @@ static void firmware_init(MachineState *ms, const char *default_filename,
 
 static uint64_t sic_mem_read(void *opaque, hwaddr addr, unsigned size)
 {
-//    MachineState *ms = opaque;
+//    E2KMachineState *ms = opaque;
     uint64_t val;
     int index;
 
@@ -148,7 +151,7 @@ static uint64_t sic_mem_read(void *opaque, hwaddr addr, unsigned size)
 static void sic_mem_write(void *opaque, hwaddr addr, uint64_t val,
     unsigned size)
 {
-//    MachineState *ms = opaque;
+//    E2KMachineState *ms = opaque;
 
      trace_sic_mem_writel(addr, val);
 }
@@ -163,7 +166,7 @@ static const MemoryRegionOps sic_io_ops = {
     .endianness = DEVICE_NATIVE_ENDIAN,
 };
 
-static void sic_init(MachineState *ms)
+static void sic_init(E2KMachineState *ms)
 {
     MemoryRegion *io_memory;
 
@@ -176,14 +179,17 @@ static void sic_init(MachineState *ms)
 
 static void e2k_machine_init(MachineState *ms)
 {
+    E2KMachineState *e2kms = E2K_MACHINE(ms);
     MemoryRegion *rom_memory;
 
     rom_memory = get_system_memory();
-    cpus_init(ms);
+    cpus_init(e2kms);
+    iohub_init(e2kms);
     memory_region_add_subregion(get_system_memory(), 0, ms->ram);
-    sic_init(ms);
-    if (!e2k_kernel_init(ms, rom_memory))
-        firmware_init(ms, "e2k.bin", rom_memory);
+    sic_init(e2kms);
+    
+    if (!e2k_kernel_init(e2kms, rom_memory))
+        firmware_init(e2kms, "e2k.bin", rom_memory);
 }
 
 static void e2k_machine_class_init(ObjectClass *oc, void *data)
