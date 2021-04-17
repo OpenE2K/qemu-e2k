@@ -99,3 +99,7 @@ exynos_uart_rx_timeout(uint32_t channel, uint32_t stat, uint32_t intsp) "UART%d:
 
 # cadence_uart.c
 cadence_uart_baudrate(unsigned baudrate) "baudrate %u"
+
+# lmscon.c
+lmscon_read(uint64_t addr, uint64_t r, unsigned int size) "addr 0x%" PRIx64 " value 0x%" PRIx64 " size %u"
+lmscon_write(uint64_t addr, uint64_t val, unsigned int size) "addr 0x%" PRIx64 " value 0x%" PRIx64 " size %u"
