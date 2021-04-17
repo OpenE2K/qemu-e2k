@@ -418,10 +418,7 @@ void HELPER(debug)(CPUE2KState *env)
     { \
         MemTxAttrs attrs = MEMTXATTRS_UNSPECIFIED; \
         AddressSpace *as = cpu_addressspace(env_cpu(env), attrs); \
-        qemu_log_mask(LOG_UNIMP, "MAS_IOADDR %s\tread\t0x%lx", #f, port);\
         T ret = address_space_ ## op (as, port, attrs, NULL); \
-        uint64_t data = ret; \
-        fprintf(stderr, " 0x%lx\n", data); \
         return ret; \
     }
 
@@ -430,8 +427,6 @@ void HELPER(debug)(CPUE2KState *env)
     { \
         MemTxAttrs attrs = MEMTXATTRS_UNSPECIFIED; \
         AddressSpace *as = cpu_addressspace(env_cpu(env), attrs); \
-        uint64_t data = val; \
-        qemu_log_mask(LOG_UNIMP, "MAS_IOADDR %s\twrite\t0x%lx 0x%lx\n", #f, port, data);\
         address_space_ ## op (as, port, val, attrs, NULL); \
     }
 
