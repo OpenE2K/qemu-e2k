@@ -37,6 +37,11 @@
                                 /* by follow */
                                 /* LAPICINT */
 
+struct
+{
+    target_ulong loadaddr;
+} reset_params;
+
 DeviceState *cpu_get_current_apic(void)
 {
     if (current_cpu) {
@@ -45,6 +50,16 @@ DeviceState *cpu_get_current_apic(void)
     } else {
         return NULL;
     }
+}
+
+static void e2k_cpu_reset(void *opaque)
+{
+    E2KCPU *cpu = opaque;
+    CPUState *cs = CPU(cpu);
+
+    cpu_reset(cs);
+
+    cpu_set_pc(cs, reset_params.loadaddr);
 }
 
 static void cpus_init(E2KMachineState *e2kms)
@@ -59,6 +74,8 @@ static void cpus_init(E2KMachineState *e2kms)
             error_report("failed to create cpu");
             exit(1);
         }
+
+        qemu_register_reset(e2k_cpu_reset, cpu);
     }
 }
 
@@ -88,6 +105,8 @@ static bool e2k_kernel_init(E2KMachineState *e2kms, MemoryRegion *rom_memory)
     kernel = g_malloc(sizeof(*kernel));
     memory_region_init_ram(kernel, NULL, "e2k.kernel", size, &error_fatal);
     memory_region_add_subregion(rom_memory, entry, kernel);
+
+    reset_params.loadaddr = entry;
 
     return true;
 }
@@ -120,6 +139,8 @@ static void firmware_init(E2KMachineState *e2kms, const char *default_filename,
     firmware = g_malloc(sizeof(*firmware));
     memory_region_init_ram(firmware, NULL, "e2k.firmware", size, &error_fatal);
     memory_region_add_subregion(rom_memory, FIRMWARE_LOAD_ADDR, firmware);
+
+    reset_params.loadaddr = FIRMWARE_LOAD_ADDR;
 }
 
 static uint64_t sic_mem_read(void *opaque, hwaddr addr, unsigned size)
@@ -183,13 +204,14 @@ static void e2k_machine_init(MachineState *ms)
     MemoryRegion *rom_memory;
 
     rom_memory = get_system_memory();
-    cpus_init(e2kms);
-    iohub_init(e2kms);
     memory_region_add_subregion(get_system_memory(), 0, ms->ram);
-    sic_init(e2kms);
     
     if (!e2k_kernel_init(e2kms, rom_memory))
         firmware_init(e2kms, "e2k.bin", rom_memory);
+
+    cpus_init(e2kms);
+    iohub_init(e2kms);
+    sic_init(e2kms);
 }
 
 static void e2k_machine_class_init(ObjectClass *oc, void *data)
