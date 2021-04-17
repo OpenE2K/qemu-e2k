@@ -45,4 +45,6 @@ typedef struct GSIState {
     qemu_irq ioapic_irq[IOAPIC_NUM_PINS];
 } GSIState;
 
+void sic_init(E2KMachineState *ms);
+
 #endif /* HW_E2K_H */

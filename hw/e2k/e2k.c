@@ -149,61 +149,6 @@ static void firmware_init(E2KMachineState *e2kms, const char *default_filename,
     reset_params.loadaddr = E2K_FULL_SIC_BIOS_AREA_PHYS_BASE;
 }
 
-static uint64_t sic_mem_read(void *opaque, hwaddr addr, unsigned size)
-{
-//    E2KMachineState *ms = opaque;
-    uint64_t val;
-    int index;
-
-    if (size < 4) {
-        return 0;
-    }
-
-    index = (addr >> 4) & 0xfff;
-    switch (index) {
-    case 0x09:
-        // TODO: io page address [48:12]
-        // TODO: page + 0x8044 = 16-bit reg
-        val = 0xdeadbeef000 >> 12;
-        break;
-    default:
-        val = 0;
-        break;
-    }
-
-    trace_sic_mem_readl(addr, val);
-    return val;
-}
-
-static void sic_mem_write(void *opaque, hwaddr addr, uint64_t val,
-    unsigned size)
-{
-//    E2KMachineState *ms = opaque;
-
-     trace_sic_mem_writel(addr, val);
-}
-
-static const MemoryRegionOps sic_io_ops = {
-    .read = sic_mem_read,
-    .write = sic_mem_write,
-    .impl.min_access_size = 1,
-    .impl.max_access_size = 4,
-    .valid.min_access_size = 1,
-    .valid.max_access_size = 4,
-    .endianness = DEVICE_NATIVE_ENDIAN,
-};
-
-static void sic_init(E2KMachineState *ms)
-{
-    MemoryRegion *io_memory;
-
-    io_memory = g_malloc(sizeof(*io_memory));
-    memory_region_init_io(io_memory, OBJECT(ms), &sic_io_ops, ms, "sic-msi",
-        ES2_NSR_AREA_MAX_SIZE);
-    memory_region_add_subregion(get_system_memory(), ES2_NSR_AREA_PHYS_BASE,
-        io_memory);
-}
-
 static void e2k_machine_init(MachineState *ms)
 {
     E2KMachineState *e2kms = E2K_MACHINE(ms);
