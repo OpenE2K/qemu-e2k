@@ -20,25 +20,24 @@
 #include "qapi/error.h"
 #include "trace.h"
 
+#include "chardev/char-fe.h"
+#include "sysemu/sysemu.h"
 #include "sysemu/cpus.h"
 #include "sysemu/reset.h"
 #include "hw/loader.h"
+#include "hw/qdev-properties.h"
 #include "hw/e2k/e2k.h"
 #include "hw/e2k/iohub.h"
 #include "target/e2k/cpu.h"
 #include "elf.h"
 
 #include "hw/char/escc.h"
+#include "hw/char/lmscon.h"
 
 #define E2K_FULL_SIC_BIOS_AREA_PHYS_BASE        0x0000000100000000UL
 #define E2K_FULL_SIC_BIOS_AREA_SIZE             0x0000000001000000UL
-
-#define ES2_NSR_AREA_PHYS_BASE      0x0000000110000000UL    /* node 0 */
-#define ES2_NSR_AREA_MAX_SIZE       0x0000000010000000UL    /* max NSRs */
-                                /* area: */
-                                /* limited */
-                                /* by follow */
-                                /* LAPICINT */
+#define E2K_FULL_SIC_IO_AREA_PHYS_BASE          0x0000000101000000UL
+#define E2K_FULL_SIC_IO_AREA_SIZE               0x0000000000010000UL /* 64K */
 
 struct
 {
@@ -79,6 +78,21 @@ static void cpus_init(E2KMachineState *e2kms)
         }
 
         qemu_register_reset(e2k_cpu_reset, cpu);
+    }
+}
+
+static void lmscon_init(E2KMachineState *e2kms)
+{
+    DeviceState *dev;
+
+    dev = qdev_new(TYPE_LMSCON);
+
+    qdev_prop_set_uint64(dev, "baseaddr", E2K_FULL_SIC_IO_AREA_PHYS_BASE);
+    qdev_prop_set_chr(dev, "chr", serial_hd(0));
+
+    if (!qdev_realize(dev, NULL, &error_fatal)) {
+        error_report("failed to create lmscon");
+        exit(1);
     }
 }
 
@@ -161,6 +175,7 @@ static void e2k_machine_init(MachineState *ms)
         firmware_init(e2kms, "e2k.bin", rom_memory);
 
     cpus_init(e2kms);
+    lmscon_init(e2kms);
     iohub_init(e2kms);
     sic_init(e2kms);
 }
