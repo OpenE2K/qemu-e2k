@@ -33,10 +33,36 @@
 enum SICRegsAddrs
 {
     SIC_node_offset = 0x4,
-    
+
+    SIC_st_p        = 0x0,
+
+    SIC_rt_lcfg0    = 0x10, /* node configuration, max nodes 4 */
+
+    SIC_rt_mhi0     = 0x20,
+
+    SIC_rt_mlo0     = 0x30,
+
     SIC_rt_pcim0    = 0x40,
+
     SIC_rt_pciio0   = 0x50,
-    SIC_rt_pcicfgb  = 0x90
+
+    SIC_rt_ioapic0  = 0x60,
+
+    SIC_rt_pcicfgb  = 0x90,
+
+    SIC_st_core     = 0x100, /* core configuration, max cores 16 */
+
+    /* IO link & RDMA */
+    SIC_iol_csr     = 0x900,
+
+    SIC_unknown_0x1040 = 0x1040,
+
+    SIC_unknown_0x1050 = 0x1050,
+
+    SIC_rt_ioapic10 = 0x1060,
+
+    /* Second IO link */
+    SIC_iol_csr1    = 0x1900,
 };
 
 static uint64_t sic_mem_read(void *opaque, hwaddr addr, unsigned size)
