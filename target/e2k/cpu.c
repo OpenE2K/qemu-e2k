@@ -50,8 +50,8 @@ static void e2k_cpu_reset(DeviceState *dev)
 
     memset(env, 0, offsetof(CPUE2KState, end_reset_fields));
 
-//    env->ip = 0x10000;
-    env->ip = FIRMWARE_LOAD_ADDR;
+    /* must be set by set_pc */
+    /* env->ip = 0x10000; */
     env->psr = PSR_PM;
     env->upsr = UPSR_NMIE | UPSR_FE;
     env->wd.base = 0;

@@ -1035,9 +1035,6 @@ void e2k_proc_return(CPUE2KState *env, bool force_fx);
 #define cpu_signal_handler e2k_cpu_signal_handler
 #define cpu_list e2k_cpu_list
 
-/* TODO: set correct CPU start address */
-#define FIRMWARE_LOAD_ADDR 0x100000000
-
 #define APIC_DEFAULT_ADDRESS 0xfee00000
 #define APIC_SPACE_SIZE      0x100000
 

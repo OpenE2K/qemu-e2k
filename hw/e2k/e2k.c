@@ -30,6 +30,9 @@
 
 #include "hw/char/escc.h"
 
+#define E2K_FULL_SIC_BIOS_AREA_PHYS_BASE        0x0000000100000000UL
+#define E2K_FULL_SIC_BIOS_AREA_SIZE             0x0000000001000000UL
+
 #define ES2_NSR_AREA_PHYS_BASE      0x0000000110000000UL    /* node 0 */
 #define ES2_NSR_AREA_MAX_SIZE       0x0000000010000000UL    /* max NSRs */
                                 /* area: */
@@ -131,16 +134,19 @@ static void firmware_init(E2KMachineState *e2kms, const char *default_filename,
         error_report("failed to get firmware size '%s'", filename);
         exit(1);
     }
-    if (rom_add_file_fixed(firmware_name, FIRMWARE_LOAD_ADDR, -1) != 0) {
+    if (rom_add_file_fixed(firmware_name,
+                           E2K_FULL_SIC_BIOS_AREA_PHYS_BASE, -1) != 0) {
         error_report("could not load firmware '%s'", firmware_name);
         exit(1);
     }
     g_free(filename);
     firmware = g_malloc(sizeof(*firmware));
-    memory_region_init_ram(firmware, NULL, "e2k.firmware", size, &error_fatal);
-    memory_region_add_subregion(rom_memory, FIRMWARE_LOAD_ADDR, firmware);
+    memory_region_init_ram(firmware, NULL, "e2k.firmware",
+                           E2K_FULL_SIC_BIOS_AREA_SIZE, &error_fatal);
+    memory_region_add_subregion(rom_memory,
+                                E2K_FULL_SIC_BIOS_AREA_PHYS_BASE, firmware);
 
-    reset_params.loadaddr = FIRMWARE_LOAD_ADDR;
+    reset_params.loadaddr = E2K_FULL_SIC_BIOS_AREA_PHYS_BASE;
 }
 
 static uint64_t sic_mem_read(void *opaque, hwaddr addr, unsigned size)
