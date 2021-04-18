@@ -7158,7 +7158,7 @@ static abi_long do_e2k_set_backtrace(CPUState *cpu, abi_ulong buf_addr,
             continue;
         }
 
-        if (!is_privileged_return(ip) && !access_ok(VERIFY_READ, ip, 8)) {
+        if (!is_privileged_return(ip) && !access_ok(cpu, VERIFY_READ, ip, 8)) {
             ret = -TARGET_EFAULT;
             break;
         }
@@ -7242,7 +7242,7 @@ static abi_long do_e2k_get_backtrace(CPUState *cpu, abi_ulong buf_addr,
             continue;
         }
 
-        if (!is_privileged_return(ip) && !access_ok(VERIFY_READ, ip, 8)) {
+        if (!is_privileged_return(ip) && !access_ok(cpu, VERIFY_READ, ip, 8)) {
             ret = -TARGET_EFAULT;
             break;
         }
