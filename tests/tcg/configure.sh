@@ -48,6 +48,8 @@ fi
 : ${cross_cc_cflags_aarch64_be="-mbig-endian"}
 : $(cross_cc_alpha="alpha-linux-gnu-gcc")
 : ${cross_cc_arm="arm-linux-gnueabihf-gcc"}
+: ${cross_cc_e2k="e2k-linux-as"} # C compiler isn't public yet
+: ${cross_cc_e2k_ignore_checks="yes"}
 : ${cross_cc_cflags_armeb="-mbig-endian"}
 : ${cross_cc_hexagon="hexagon-unknown-linux-musl-clang"}
 : ${cross_cc_cflags_hexagon="-mv67 -O2 -static"}
@@ -71,7 +73,6 @@ fi
 : ${cross_cc_cflags_sparc64="-m64 -mcpu=ultrasparc"}
 : ${cross_cc_x86_64="x86_64-linux-gnu-gcc"}
 : ${cross_cc_cflags_x86_64="-m64"}
-: ${cross_cc_e2k="e2k-linux-cc"}
 
 # tricore is special as it doesn't have a compiler
 : ${cross_as_tricore="tricore-as"}
