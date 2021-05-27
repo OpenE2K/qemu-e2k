@@ -96,7 +96,9 @@ ifdef CONFIG_USER_ONLY
 # sub-targets (e.g. ARM & AArch64) then it is up to
 # $(TARGET_NAME)/Makefile.target to include the common parent
 # architecture in its VPATH.
+ifneq ($(CROSS_CC_GUEST_NO_MULTIARCH_TESTS),y)
 -include $(SRC_PATH)/tests/tcg/multiarch/Makefile.target
+endif
 -include $(SRC_PATH)/tests/tcg/$(TARGET_NAME)/Makefile.target
 
 # Add the common build options
