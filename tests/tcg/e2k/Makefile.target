@@ -1,15 +1,23 @@
 # -*- Mode: makefile -*-
 #
-# Elbrus 2000 tests
-
-E2K_SRC=$(SRC_PATH)/tests/tcg/e2k
-VPATH+=$(E2K_SRC)
-
-E2K_TESTS=hello-e2k
-TESTS+=$(E2K_TESTS)
-
+# E2K tests
 #
-# hello-e2k is a barebones app
-#
-hello-e2k: CFLAGS+=-ffreestanding
-hello-e2k: LDFLAGS+=-nostdlib
+
+E2K_SRC = $(SRC_PATH)/tests/tcg/e2k
+E2K_ALL = $(wildcard $(E2K_SRC)/*.s)
+
+TESTS = $(patsubst $(E2K_SRC)/%.s, %, $(E2K_ALL))
+VPATH = $(E2K_SRC)
+
+CROSS   = e2k-linux-
+AS	= $(CROSS)as
+LD      = $(CROSS)ld
+
+ASFLAGS = -mcpu=elbrus-v4 -g -I$(E2K_SRC)
+LDFLAGS =
+
+%.o: %.s
+	$(AS) $(ASFLAGS) $< -o $@
+
+%: %.o
+	$(LD) $(LDFLAGS) $< -o $@
