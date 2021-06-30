@@ -2326,12 +2326,12 @@ static void handle_set_qemu_phy_mem_mode(GArray *params, void *user_ctx)
 #endif
 
 #ifdef TARGET_E2K
-static void handle_query_e2k_tags_read(GdbCmdContext *gdb_ctx, void *user_ctx)
+static void handle_query_e2k_tags_read(GArray *params, void *user_ctx)
 {
     E2KCPU *cpu = E2K_CPU(gdbserver_state.g_cpu);
     CPUE2KState *env = &cpu->env;
-    target_ulong addr = gdb_ctx->params[0].val_ull;
-    unsigned long len = gdb_ctx->params[1].val_ul;
+    target_ulong addr = get_param(params, 0)->val_ull;
+    unsigned long len = get_param(params, 1)->val_ul;
     unsigned int i;
     int tags = 0;
 
