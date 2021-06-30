@@ -335,7 +335,7 @@ long do_rt_sigreturn(CPUE2KState *env)
 
     if (do_sigaltstack(frame_addr +
             offsetof(struct target_sigframe, uc.uc_stack),
-            0, env))
+            0, env) == -EFAULT)
     {
         goto badframe;
     }

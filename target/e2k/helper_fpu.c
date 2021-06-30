@@ -58,9 +58,9 @@ void e2k_update_fx_status(CPUE2KState *env)
     set_float_rounding_mode(rm[env->fpcr.rc], &env->fx_status);
         
     switch(env->fpcr.pc) {
-        case FPCR_PC_XP: x = 80; break;
-        case FPCR_PC_DP: x = 64; break;
-        case FPCR_PC_SP: x = 32; break;
+        case FPCR_PC_XP: x = floatx80_precision_x; break;
+        case FPCR_PC_DP: x = floatx80_precision_d; break;
+        case FPCR_PC_SP: x = floatx80_precision_s; break;
         case FPCR_PC_RESERVED:
         default:
             qemu_log_mask(LOG_UNIMP, "unknown precision mode 0x%x\n", env->fpcr.pc);

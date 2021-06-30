@@ -8115,6 +8115,7 @@ static void e2k_tr_insn_start(DisasContextBase *db, CPUState *cs)
 static void e2k_tr_translate_insn(DisasContextBase *db, CPUState *cs)
 {
     DisasContext *ctx = container_of(db, DisasContext, base);
+    target_ulong pc_next;
 
     switch (ctx->base.pc_next) {
 #ifdef CONFIG_USER_ONLY
@@ -8127,6 +8128,8 @@ static void e2k_tr_translate_insn(DisasContextBase *db, CPUState *cs)
 # endif
         /* fake enter into syscall handler */
         ctx->base.is_jmp = DISAS_NORETURN;
+        /* force non-zero tb size */
+        pc_next = ctx->base.pc_next + 8;
         gen_tr_exception(ctx, EXCP_SYSCALL);
         tcg_gen_exit_tb(NULL, TB_EXIT_IDX0);
         break;
@@ -8137,6 +8140,8 @@ static void e2k_tr_translate_insn(DisasContextBase *db, CPUState *cs)
         TCGv_i32 t0 = tcg_const_i32(0);
 
         ctx->base.is_jmp = DISAS_NORETURN;
+        /* force non-zero tb size */
+        pc_next = ctx->base.pc_next + 8;
         gen_helper_prep_return(cpu_ctprs[2], cpu_env, t0);
         gen_helper_return(cpu_env);
         tcg_gen_exit_tb(NULL, TB_EXIT_IDX0);
@@ -8147,8 +8152,6 @@ static void e2k_tr_translate_insn(DisasContextBase *db, CPUState *cs)
 #endif /* CONFIG_USER_ONLY */
     default:
     {
-        target_ulong pc_next;
-
         pc_next = do_decode(ctx, cs);
 #ifdef CONFIG_USER_ONLY
         if (ctx->cs1.type == CS1_CALL) {
@@ -8174,10 +8177,11 @@ static void e2k_tr_translate_insn(DisasContextBase *db, CPUState *cs)
         gen_setbp(ctx);
         gen_stubs(ctx);
         do_branch(ctx, pc_next);
-        ctx->base.pc_next = pc_next;
         break;
     }
     }
+
+    ctx->base.pc_next = pc_next;
 
     /* Free temporary values */
     while(ctx->t32_len) {
