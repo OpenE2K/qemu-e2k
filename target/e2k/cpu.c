@@ -79,6 +79,11 @@ static void e2k_cpu_reset(DeviceState *dev)
     env->pcsp.size = 0xa10000;
 
 #if !defined(CONFIG_USER_ONLY)
+    /* FIXME: default values calculated from E2K E1CP firmware */
+    env->sbr = 0xb000;
+    env->usd.hi = 0x400000000000;
+    env->usd.lo = env->sbr + 0x1800000000000000;
+
     /* We hard-wire the BSP to the first CPU. */
     apic_designate_bsp(cpu->apic_state, cs->cpu_index == 0);
 
