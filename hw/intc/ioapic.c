@@ -23,10 +23,17 @@
 #include "qemu/osdep.h"
 #include "qapi/error.h"
 #include "monitor/monitor.h"
+
+#if defined(TARGET_E2K)
+#include "hw/e2k/apic.h"
+#include "hw/e2k/ioapic.h"
+#include "hw/e2k/e2k.h"
+#else
 #include "hw/i386/apic.h"
 #include "hw/i386/ioapic.h"
-#include "hw/i386/ioapic_internal.h"
 #include "hw/i386/x86.h"
+#endif
+#include "hw/i386/ioapic_internal.h"
 #include "hw/intc/i8259.h"
 #include "hw/pci/msi.h"
 #include "hw/qdev-properties.h"
@@ -90,7 +97,11 @@ static void ioapic_entry_parse(uint64_t entry, struct ioapic_entry_info *info)
 
 static void ioapic_service(IOAPICCommonState *s)
 {
+#ifdef TARGET_E2K
+    AddressSpace *ioapic_as = E2K_MACHINE(qdev_get_machine())->ioapic_as;
+#else
     AddressSpace *ioapic_as = X86_MACHINE(qdev_get_machine())->ioapic_as;
+#endif
     struct ioapic_entry_info info;
     uint8_t i;
     uint32_t mask;
