@@ -18,6 +18,12 @@ static uint64_t cr_read(CPUE2KState *env, size_t offset)
     return cpu_ldq_le_data(env, addr);
 }
 
+static void cr_write(CPUE2KState *env, size_t offset, uint64_t data)
+{
+    target_ulong addr = env->pcsp.base + env->pcsp.index + offset;
+    cpu_stq_le_data(env, addr, data);
+}
+
 uint64_t HELPER(state_reg_get)(CPUE2KState *env, int index)
 {
     switch (index) {
@@ -235,9 +241,17 @@ void HELPER(state_reg_set)(CPUE2KState *env, uint64_t value, int index)
     case SR_DTRAF:
     case SR_DTART:
     case SR_CR0_HI:
+        cr_write(env, offsetof(E2KCrs, cr0_hi), value);
+        break;
     case SR_CR0_LO:
+        cr_write(env, offsetof(E2KCrs, cr0_lo), value);
+        break;
     case SR_CR1_HI:
+        cr_write(env, offsetof(E2KCrs, cr1.hi), value);
+        break;
     case SR_CR1_LO:
+        cr_write(env, offsetof(E2KCrs, cr1.lo), value);
+        break;
     case SR_SCLKM1:
     case SR_SCLKM2:
     case SR_CU_HW0:
