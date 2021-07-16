@@ -539,12 +539,14 @@ typedef struct {
     bool skip;
     bool save;
     bool io;
+    bool mmu;
 } GenLoadFnArgs;
 
 typedef struct {
     bool skip;
     bool check;
     bool io;
+    bool mmu;
 } GenStoreFnArgs;
 
 typedef enum {
@@ -4344,6 +4346,13 @@ static MemOp scan_ld_mas(Alop *alop, GenLoadFnArgs *args)
                 warn = true;
             }
             break;
+        case MAS_OPC_MMU_REG:
+            if (is_chan_25(alop->chan)) {
+                args->mmu = true;
+            } else {
+                warn = true;
+            }
+            break;
         default:
             warn = true;
             break;
@@ -4362,7 +4371,7 @@ static MemOp scan_ld_mas(Alop *alop, GenLoadFnArgs *args)
         case MAS_MODE_LOAD_OPERATION:
             /* normal load */
             break;
-        case 3:
+        case MAS_MODE_LOAD_OP_UNLOCK:
             if (is_chan_25(alop->chan)) {
                 /* TODO: DAM */
                 /* always go to fixing code */
@@ -4373,7 +4382,7 @@ static MemOp scan_ld_mas(Alop *alop, GenLoadFnArgs *args)
                 warn = true;
             }
             break;
-        case 4:
+        case MAS_MODE_LOAD_OP_LOCK_CHECK:
             if (alop->als.sm && is_chan_03(alop->chan)) {
                 /* TODO: DAM */
                 /* always ignore lock load */
@@ -4427,6 +4436,9 @@ static MemOp scan_st_mas(Alop *alop, GenStoreFnArgs *args)
             } else {
                 warn = true;
             }
+            break;
+        case MAS_OPC_MMU_REG:
+            args->mmu = true;
             break;
         default:
             warn = true;
@@ -4523,8 +4535,15 @@ static void gen_ld_raw_i64(Alop *alop, TCGv_i32 tag, TCGv addr,
         case 8: gen_helper_ind(r.val, cpu_env, addr); break;
         default: g_assert_not_reached(); break;
         }
-    }
-    else {
+    } else if (args->mmu) {
+        switch(memop_size(memop))
+        {
+        case 8: gen_helper_mmu_ind(r.val, cpu_env, addr); break;
+        default:
+            e2k_todo_illop(alop->ctx, "ld mmu reg size=%d", memop_size(memop)); 
+            break;
+        }
+    } else {
         tcg_gen_qemu_ld_i64(r.val, addr, alop->ctx->mmuidx, memop);
     }
     gen_set_label(l0);
@@ -4587,8 +4606,13 @@ static void gen_ld_raw_i128(Alop *alop, TCGv_i32 tag, TCGv addr,
     }
 
     gen_tag1_i128(r.tag, tag);
-    /* a1ba: should there be 128-bit IOADDR access? */
-    gen_qemu_ld_i128(t1, t0, addr, alop->ctx->mmuidx, memop);
+    if (args->io) {
+        e2k_todo_illop(alop->ctx, "ld ioaddr size=16"); 
+    } else (args->mmu) {
+        e2k_todo_illop(alop->ctx, "ld mmu reg size=16"); 
+    } else {
+        gen_qemu_ld_i128(t1, t0, addr, alop->ctx->mmuidx, memop);
+    }
 
     gen_set_label(l0);
 
@@ -4689,11 +4713,13 @@ static void gen_atomic_cmpxchg_i32(Alop *alop, TCGv_i32 value, TCGv addr,
             } \
             \
             if (args->io) { \
-                st3(addr, s4.val, memop); \
+                glue(gen_helper_out_, st)(addr, s4.val, memop); \
+            } else if (args->mmu) { \
+                glue(gen_helper_mmu_out_, st)(alop, addr, s4.val, memop);\
             } else if (args->check && alop->ctx->mlock) { \
-                st1(alop, s4.val, addr, memop); \
+                glue(gen_atomix_cmpxchg_, st)(alop, s4.val, addr, memop); \
             } else { \
-                st2(s4.val, addr, alop->ctx->mmuidx, memop); \
+                glue(tcg_gen_qemu_st_, st)(s4.val, addr, alop->ctx->mmuidx, memop); \
             } \
         } \
         gen_set_label(l0); \
@@ -4717,8 +4743,18 @@ static inline void gen_helper_out_i64(TCGv addr, TCGv_i64 val, MemOp memop)
     gen_helper_outd(cpu_env, addr, val);
 }
 
-IMPL_GEN_ST(gen_st_raw_i32, s, gen_atomic_cmpxchg_i32, tcg_gen_qemu_st_i32, gen_helper_out_i32)
-IMPL_GEN_ST(gen_st_raw_i64, d, gen_atomic_cmpxchg_i64, tcg_gen_qemu_st_i64, gen_helper_out_i64)
+static inline void gen_helper_mmu_out_i32(Alop *alop, TCGv addr, TCGv_i64 val, MemOp memop)
+{
+    e2k_todo_illop(alop->ctx, "st mmu reg size=%d", memop_size(memop));
+}
+
+static inline void gen_helper_mmu_out_i64(Alop *alop, TCGv addr, TCGv_i64 val, MemOp memop)
+{
+    gen_helper_mmu_outd(cpu_env, addr, val);
+}
+
+IMPL_GEN_ST(gen_st_raw_i32, s, i32)
+IMPL_GEN_ST(gen_st_raw_i64, d, i64)
 
 static void gen_qemu_st_i128(TCGv_i64 hi, TCGv_i64 lo, TCGv addr,
     TCGArg idx, MemOp memop)
@@ -4761,8 +4797,11 @@ static void gen_st_raw_i128(Alop *alop, TCGv addr,
 
         gen_qpunpackdl(t1, t0, s4.val);
 
-        /* a1ba: 128-bit IOADDR access? */
-        if (args->check && alop->ctx->mlock) {
+        if (args->io) {
+            e2k_todo_illop(alop->ctx, "st ioaddr size=16");
+        } else if (args->mmu) {
+            e2k_todo_illop(alop->ctx, "st mmu reg size=16");
+        } else if (args->check && alop->ctx->mlock) {
             gen_atomic_cmpxchg_i128(alop, t1, t0, addr, memop);
         } else {
             gen_qemu_st_i128(t1, t0, addr, alop->ctx->mmuidx, memop);
@@ -5703,6 +5742,7 @@ static void gen_alop_simple(Alop *alop)
     case OP_STB: gen_stb(alop, gen_addr_i64, ADDR_FLAT); break;
     case OP_STH: gen_sth(alop, gen_addr_i64, ADDR_FLAT); break;
     case OP_STW: gen_stw(alop, gen_addr_i64, ADDR_FLAT); break;
+    case OP_STRD:
     case OP_STD: gen_std(alop, gen_addr_i64, ADDR_FLAT); break;
     case OP_STQP: gen_stqp(alop, gen_addr_i64, ADDR_FLAT); break;
     case OP_STMQP: gen_stmqp(alop, gen_addr_src1_i64, ADDR_FLAT); break;
@@ -5751,6 +5791,7 @@ static void gen_alop_simple(Alop *alop)
     case OP_LDB: gen_ldb(alop, gen_addr_i64, ADDR_FLAT); break;
     case OP_LDH: gen_ldh(alop, gen_addr_i64, ADDR_FLAT); break;
     case OP_LDW: gen_ldw(alop, gen_addr_i64, ADDR_FLAT); break;
+    case OP_LDRD:
     case OP_LDD: gen_ldd(alop, gen_addr_i64, ADDR_FLAT); break;
     case OP_LDQP: gen_ldqp(alop, gen_addr_i64, ADDR_FLAT); break;
 #ifdef TARGET_E2K32
@@ -6378,7 +6419,6 @@ static void gen_alop_simple(Alop *alop)
     case OP_APTOAP:
     case OP_APTOAPB:
     case OP_GETVA:
-    case OP_LDRD:
     case OP_PUTTC:
     case OP_CAST:
     case OP_TDTOMP:
@@ -6426,7 +6466,6 @@ static void gen_alop_simple(Alop *alop)
     case OP_STGDQ:
     case OP_STGSQ:
     case OP_STSSQ:
-    case OP_STRD:
     case OP_STAPB:
     case OP_STAPH:
     case OP_STAPW:
