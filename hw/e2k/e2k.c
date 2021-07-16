@@ -170,7 +170,9 @@ static void e2k_machine_init(MachineState *ms)
 
     rom_memory = get_system_memory();
     memory_region_add_subregion(get_system_memory(), 0, ms->ram);
-    
+
+    e2kms->ioapic_as = &address_space_memory;
+
     if (!e2k_kernel_init(e2kms, rom_memory))
         firmware_init(e2kms, "e2k.bin", rom_memory);
 
