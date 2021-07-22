@@ -1011,16 +1011,6 @@ static inline AddressSpace *cpu_addressspace(CPUState *cs, MemTxAttrs attrs)
 {
     return cpu_get_address_space(cs, cpu_asidx_from_attrs(cs, attrs));
 }
-
-uint32_t e2k_ldub_phys(CPUState *cs, hwaddr addr);
-uint32_t e2k_lduw_phys(CPUState *cs, hwaddr addr);
-uint32_t e2k_ldul_phys(CPUState *cs, hwaddr addr);
-uint64_t e2k_lduq_phys(CPUState *cs, hwaddr addr);
-
-void e2k_stb_phys(CPUState *cs, hwaddr addr, uint32_t val);
-void e2k_stw_phys(CPUState *cs, hwaddr addr, uint32_t val);
-void e2k_stl_phys(CPUState *cs, hwaddr addr, uint32_t val);
-void e2k_stq_phys(CPUState *cs, hwaddr addr, uint64_t val);
 #endif
 
 void e2k_update_fp_status(CPUE2KState *env);

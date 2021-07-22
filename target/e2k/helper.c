@@ -6,6 +6,7 @@
 #include "exec/helper-proto.h"
 #include "exec/address-spaces.h"
 #include "helper-tcg.h"
+#include "trace.h"
 
 static inline void reset_ctprs(CPUE2KState *env)
 {
@@ -439,68 +440,16 @@ GET_IO_ST_IMPL(uint32_t, outh, stw)
 GET_IO_ST_IMPL(uint32_t, outw, stl)
 GET_IO_ST_IMPL(uint64_t, outd, stq)
 
-uint32_t e2k_ldub_phys(CPUState *cs, hwaddr addr)
+uint64_t HELPER(mmu_ind)(CPUE2KState *env, target_ulong reg)
 {
-    MemTxAttrs attrs = MEMTXATTRS_UNSPECIFIED;
-    AddressSpace *as = cpu_addressspace(cs, attrs);
-
-    return address_space_ldub(as, addr, attrs, NULL);
+    trace_mmu_ind(reg, 0);
+    
+    return 0;
 }
 
-uint32_t e2k_lduw_phys(CPUState *cs, hwaddr addr)
+void HELPER(mmu_outd)(CPUE2KState *env, target_ulong reg, uint64_t val)
 {
-    MemTxAttrs attrs = MEMTXATTRS_UNSPECIFIED;
-    AddressSpace *as = cpu_addressspace(cs, attrs);
-
-    return address_space_lduw(as, addr, attrs, NULL);
-}
-
-uint32_t e2k_ldul_phys(CPUState *cs, hwaddr addr)
-{
-    MemTxAttrs attrs = MEMTXATTRS_UNSPECIFIED;
-    AddressSpace *as = cpu_addressspace(cs, attrs);
-
-    return address_space_ldl(as, addr, attrs, NULL);
-}
-
-uint64_t e2k_lduq_phys(CPUState *cs, hwaddr addr)
-{
-    MemTxAttrs attrs = MEMTXATTRS_UNSPECIFIED;
-    AddressSpace *as = cpu_addressspace(cs, attrs);
-
-    return address_space_ldq(as, addr, attrs, NULL);
-}
-
-void e2k_stb_phys(CPUState *cs, hwaddr addr, uint32_t val)
-{
-    MemTxAttrs attrs = MEMTXATTRS_UNSPECIFIED;
-    AddressSpace *as = cpu_addressspace(cs, attrs);
-
-    return address_space_stb(as, addr, val, attrs, NULL);
-}
-
-void e2k_stw_phys(CPUState *cs, hwaddr addr, uint32_t val)
-{
-    MemTxAttrs attrs = MEMTXATTRS_UNSPECIFIED;
-    AddressSpace *as = cpu_addressspace(cs, attrs);
-
-    return address_space_stw(as, addr, val, attrs, NULL);
-}
-
-void e2k_stl_phys(CPUState *cs, hwaddr addr, uint32_t val)
-{
-    MemTxAttrs attrs = MEMTXATTRS_UNSPECIFIED;
-    AddressSpace *as = cpu_addressspace(cs, attrs);
-
-    return address_space_stl(as, addr, val, attrs, NULL);
-}
-
-void e2k_stq_phys(CPUState *cs, hwaddr addr, uint64_t val)
-{
-    MemTxAttrs attrs = MEMTXATTRS_UNSPECIFIED;
-    AddressSpace *as = cpu_addressspace(cs, attrs);
-
-    return address_space_stq(as, addr, val, attrs, NULL);
+    trace_mmu_outd(reg, val);
 }
 
 void cpu_report_tpr_access(CPUE2KState *env, TPRAccess access)

@@ -1,0 +1,5 @@
+# See docs/devel/tracing.txt for syntax documentation.
+
+# helper.c 
+mmu_ind(uint64_t reg, uint64_t ret) "MMU reg read 0x%lx -> 0x%lx"
+mmu_outd(uint64_t reg, uint64_t ret) "MMU reg write 0x%lx <- 0x%lx"

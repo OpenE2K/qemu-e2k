@@ -2162,6 +2162,7 @@ if have_system or have_user
     'accel/tcg',
     'hw/core',
     'target/arm',
+    'target/e2k',
     'target/hppa',
     'target/i386',
     'target/i386/kvm',

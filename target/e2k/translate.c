@@ -4506,12 +4506,13 @@ static void gen_ld_raw_i64(Alop *alop, TCGv_i32 tag, TCGv addr,
 {
     TCGLabel *l0 = gen_new_label();
     Tagged_i64 r = tagged_local_new_i64();
+    int size = memop_size(memop);
 
     if (alop->als.sm) {
         TCGLabel *l1 = gen_new_label();
         TCGv_i32 t0 = tcg_temp_new_i32();
 
-        gen_probe_read_access(t0, addr, memop_size(memop), alop->ctx->mmuidx);
+        gen_probe_read_access(t0, addr, size, alop->ctx->mmuidx);
         tcg_gen_brcondi_i32(TCG_COND_NE, t0, 0, l1);
 
         /* address is not available */
@@ -4527,7 +4528,7 @@ static void gen_ld_raw_i64(Alop *alop, TCGv_i32 tag, TCGv addr,
 
     gen_tag1_i64(r.tag, tag);
     if (args->io) {
-        switch(memop_size(memop))
+        switch(size)
         {
         case 1: gen_helper_inb(r.val, cpu_env, addr); break;
         case 2: gen_helper_inh(r.val, cpu_env, addr); break;
@@ -4536,11 +4537,11 @@ static void gen_ld_raw_i64(Alop *alop, TCGv_i32 tag, TCGv addr,
         default: g_assert_not_reached(); break;
         }
     } else if (args->mmu) {
-        switch(memop_size(memop))
+        switch(size)
         {
         case 8: gen_helper_mmu_ind(r.val, cpu_env, addr); break;
         default:
-            e2k_todo_illop(alop->ctx, "ld mmu reg size=%d", memop_size(memop)); 
+            e2k_todo_illop(alop->ctx, "ld mmu reg size=%d", size); 
             break;
         }
     } else {
@@ -4608,7 +4609,7 @@ static void gen_ld_raw_i128(Alop *alop, TCGv_i32 tag, TCGv addr,
     gen_tag1_i128(r.tag, tag);
     if (args->io) {
         e2k_todo_illop(alop->ctx, "ld ioaddr size=16"); 
-    } else (args->mmu) {
+    } else if (args->mmu) {
         e2k_todo_illop(alop->ctx, "ld mmu reg size=16"); 
     } else {
         gen_qemu_ld_i128(t1, t0, addr, alop->ctx->mmuidx, memop);
@@ -4692,7 +4693,7 @@ static void gen_atomic_cmpxchg_i32(Alop *alop, TCGv_i32 value, TCGv addr,
     tcg_temp_free_i32(t0);
 }
 
-#define IMPL_GEN_ST(name, S, st1, st2, st3) \
+#define IMPL_GEN_ST(name, S, st) \
     static void name(Alop *alop, TCGv addr, \
         MemOp memop, GenStoreFnArgs *args) \
     { \
@@ -4717,7 +4718,7 @@ static void gen_atomic_cmpxchg_i32(Alop *alop, TCGv_i32 value, TCGv addr,
             } else if (args->mmu) { \
                 glue(gen_helper_mmu_out_, st)(alop, addr, s4.val, memop);\
             } else if (args->check && alop->ctx->mlock) { \
-                glue(gen_atomix_cmpxchg_, st)(alop, s4.val, addr, memop); \
+                glue(gen_atomic_cmpxchg_, st)(alop, s4.val, addr, memop); \
             } else { \
                 glue(tcg_gen_qemu_st_, st)(s4.val, addr, alop->ctx->mmuidx, memop); \
             } \

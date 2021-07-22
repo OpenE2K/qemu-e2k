@@ -20,8 +20,8 @@ DEF_HELPER_3(outh, void, env, tl, i32)
 DEF_HELPER_3(outw, void, env, tl, i32)
 DEF_HELPER_3(outd, void, env, tl, i64)
 
-DEF_HELPER_2(mmu_inw, i64, env, tl)
-DEF_HELPER_3(mmu_outw, void, env, tl, i32)
+DEF_HELPER_2(mmu_ind, i64, env, tl)
+DEF_HELPER_3(mmu_outd, void, env, tl, i64)
 #endif
 
 DEF_HELPER_4(call, void, env, i64, int, tl)
