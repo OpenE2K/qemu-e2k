@@ -28,6 +28,7 @@
 #include "hw/qdev-properties.h"
 #include "hw/e2k/e2k.h"
 #include "hw/e2k/iohub.h"
+#include "hw/e2k/bootinfo.h"
 #include "target/e2k/cpu.h"
 #include "elf.h"
 
@@ -96,11 +97,56 @@ static void lmscon_init(E2KMachineState *e2kms)
     }
 }
 
+static bootblock_struct_t *generate_bootblock(E2KMachineState *e2kms,
+    ram_addr_t kernel_base, long kernel_size)
+{
+    static bootblock_struct_t bootblock;
+    boot_info_t *const bootinfo = &bootblock.info;
+    bios_info_t *const biosinfo = &bootblock.bios;
+    MachineState *ms = MACHINE(e2kms);
+    
+    memset(&bootblock, 0, sizeof(bootblock));
+    
+    /* Set signature */
+    bootinfo->signature = bootblock.x86_marker = X86BOOT_SIGNATURE;
+    bootblock.bootblock_ver = BOOTBLOCK_VER;
+    
+    /* Init CPU info */
+    bootinfo->num_of_nodes = 1; /* TODO: numa */
+    bootinfo->nodes_map = 0x1;
+    bootinfo->num_of_cpus = ms->smp.cpus;
+    
+    /* Init RAM banks */
+    if(ms->ram_size > 0x80000000) {
+        /* high mem */
+        bootinfo->num_of_banks = 2;
+        bootinfo->nodes_mem[0].banks[0].address = 0;
+        bootinfo->nodes_mem[0].banks[0].size = 0x80000000;
+        
+        bootinfo->nodes_mem[0].banks[1].address = 0x400000000ULL;
+        bootinfo->nodes_mem[0].banks[1].size = ms->ram_size - 0x80000000;
+    } else {
+        /* low mem only */
+        bootinfo->num_of_banks = 1;
+        bootinfo->nodes_mem[0].banks[0].address = 0;
+        bootinfo->nodes_mem[0].banks[0].size = ms->ram_size;
+    }
+    
+    bootinfo->kernel_base = kernel_base;
+    bootinfo->kernel_size = kernel_size;
+    
+    strncpy(bootinfo->kernel_args_string, ms->kernel_cmdline, sizeof(*bootinfo->kernel_args_string));
+    bootinfo->kernel_args_string[sizeof(*bootinfo->kernel_args_string)] = 0;
+    
+    return &bootblock;
+}
+
 static bool e2k_kernel_init(E2KMachineState *e2kms, MemoryRegion *rom_memory)
 {
     MachineState *ms = MACHINE(e2kms);
     uint64_t entry, kernel_high;
     long size;
+    bootblock_struct_t *bootblock;
     MemoryRegion *kernel;
 
     if (!ms->kernel_filename)
@@ -116,6 +162,8 @@ static bool e2k_kernel_init(E2KMachineState *e2kms, MemoryRegion *rom_memory)
                      ms->kernel_filename, load_elf_strerror(size));
         return false;
     }
+    
+    bootblock = generate_bootblock(e2kms, entry, size);
 
     /* TODO: load initrd */
 
