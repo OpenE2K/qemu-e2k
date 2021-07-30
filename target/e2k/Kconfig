@@ -1,0 +1,6 @@
+config E2K
+    bool
+
+config E2K32
+    bool
+    select E2K
