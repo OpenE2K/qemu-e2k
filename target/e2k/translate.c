@@ -4744,7 +4744,7 @@ static inline void gen_helper_out_i64(TCGv addr, TCGv_i64 val, MemOp memop)
     gen_helper_outd(cpu_env, addr, val);
 }
 
-static inline void gen_helper_mmu_out_i32(Alop *alop, TCGv addr, TCGv_i64 val, MemOp memop)
+static inline void gen_helper_mmu_out_i32(Alop *alop, TCGv addr, TCGv_i32 val, MemOp memop)
 {
     e2k_todo_illop(alop->ctx, "st mmu reg size=%d", memop_size(memop));
 }

@@ -3,3 +3,5 @@
 # helper.c 
 mmu_ind(uint64_t reg, uint64_t ret) "MMU reg read 0x%lx -> 0x%lx"
 mmu_outd(uint64_t reg, uint64_t ret) "MMU reg write 0x%lx <- 0x%lx"
+ioaddr_in(const char *op, uint64_t reg, uint64_t ret) "MAS_IOADDR %s read 0x%lx -> 0x%lx"
+ioaddr_out(const char *op, uint64_t reg, uint64_t ret) "MAS_IOADDR %s write 0x%lx <- 0x%lx"

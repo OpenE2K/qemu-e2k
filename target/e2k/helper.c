@@ -420,6 +420,7 @@ void HELPER(debug)(CPUE2KState *env)
         MemTxAttrs attrs = MEMTXATTRS_UNSPECIFIED; \
         AddressSpace *as = cpu_addressspace(env_cpu(env), attrs); \
         T ret = address_space_ ## op (as, port, attrs, NULL); \
+        trace_ioaddr_in(#f, port, ret); \
         return ret; \
     }
 
@@ -429,6 +430,7 @@ void HELPER(debug)(CPUE2KState *env)
         MemTxAttrs attrs = MEMTXATTRS_UNSPECIFIED; \
         AddressSpace *as = cpu_addressspace(env_cpu(env), attrs); \
         address_space_ ## op (as, port, val, attrs, NULL); \
+        trace_ioaddr_out(#f, port, val); \
     }
 
 GEN_IO_LD_IMPL(uint64_t, inb, ldub)
