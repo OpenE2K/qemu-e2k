@@ -120,6 +120,8 @@ void cpu_loop(CPUE2KState *env)
             /* just indicate that signals should be handled asap */
             break;
         case EXCP_DEBUG:
+            env->is_bp = true;
+            e2k_proc_call(env, env->wd.size, env->ip, true);
             gen_signal(env, TARGET_SIGTRAP, TARGET_TRAP_BRKPT, 0);
             break;
         case EXCP_ATOMIC:

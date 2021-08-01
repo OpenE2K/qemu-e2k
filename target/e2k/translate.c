@@ -681,32 +681,16 @@ static inline uint64_t ctpr_new_disp(DisasContext *ctx, Cs0Disp *disp)
     return ctpr_new(CTPR_TAG_DISP, disp->opc, disp->ipd, base);
 }
 
-static inline bool use_goto_tb(DisasContext *s, target_ulong pc,
-                               target_ulong npc)
+static void gen_goto_tb(DisasContext *ctx, int tb_num, target_ulong pc)
 {
-    if (unlikely(s->base.singlestep_enabled || singlestep)) {
-        return false;
-    }
-
-#ifndef CONFIG_USER_ONLY
-    return (pc & TARGET_PAGE_MASK) == (s->base.tb->pc & TARGET_PAGE_MASK) &&
-           (npc & TARGET_PAGE_MASK) == (s->base.tb->pc & TARGET_PAGE_MASK);
-#else
-    return true;
-#endif
-}
-
-static inline void gen_goto_tb(DisasContext *ctx, int tb_num,
-    target_ulong pc, target_ulong npc)
-{
-    if (use_goto_tb(ctx, pc, npc))  {
+    if (translator_use_goto_tb(&ctx->base, pc))  {
         /* jump to same page: we can use a direct jump */
         tcg_gen_goto_tb(tb_num);
-        tcg_gen_movi_tl(cpu_pc, npc);
+        tcg_gen_movi_tl(cpu_pc, pc);
         tcg_gen_exit_tb(ctx->base.tb, tb_num);
     } else {
         /* jump to another page: currently not optimized */
-        tcg_gen_movi_tl(cpu_pc, npc);
+        tcg_gen_movi_tl(cpu_pc, pc);
         tcg_gen_exit_tb(NULL, 0);
     }
 }
@@ -7968,6 +7952,7 @@ static void gen_loop_end_init(DisasContext *ctx)
 
 static void do_branch(DisasContext *ctx, target_ulong pc_next)
 {
+    /* FIXME: save PC only when necessary.  */
     gen_save_pc(ctx->base.pc_next);
 
     if (ctx->enable_tags && ctx->delayed_illop) {
@@ -7986,13 +7971,15 @@ static void do_branch(DisasContext *ctx, target_ulong pc_next)
     if (ctx->ct.cond_type > 1) {
         TCGLabel *l0 = gen_new_label();
         tcg_gen_brcondi_i32(TCG_COND_NE, cpu_ct_cond, 0, l0);
-        gen_goto_tb(ctx, TB_EXIT_IDX0, ctx->pc, pc_next);
+        gen_goto_tb(ctx, TB_EXIT_IDX1, pc_next);
         gen_set_label(l0);
     }
 
     switch(ctx->ct.type) {
+    case CT_NONE:
+        break;
     case CT_IBRANCH:
-        gen_goto_tb(ctx, TB_EXIT_IDX1, ctx->pc, ctx->ct.u.target);
+        gen_goto_tb(ctx, TB_EXIT_IDX0, ctx->ct.u.target);
         break;
     case CT_JUMP: {
         TCGLabel *l0 = gen_new_label();
@@ -8025,8 +8012,6 @@ static void do_branch(DisasContext *ctx, target_ulong pc_next)
         tcg_temp_free_i32(wbs);
         break;
     }
-    default:
-        break;
     }
 }
 
@@ -8176,7 +8161,7 @@ static void e2k_tr_tb_stop(DisasContextBase *db, CPUState *cs)
     DisasContext *ctx = container_of(db, DisasContext, base);
 
     if (ctx->base.is_jmp == DISAS_TOO_MANY) {
-        gen_goto_tb(ctx, TB_EXIT_IDX0, ctx->pc, ctx->base.pc_next);
+        gen_goto_tb(ctx, TB_EXIT_IDX0, ctx->base.pc_next);
     }
 }
 

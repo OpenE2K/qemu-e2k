@@ -6,7 +6,6 @@
 #define dh_is_signed_f80 dh_is_signed_ptr
 
 DEF_HELPER_2(raise_exception, noreturn, env, int)
-DEF_HELPER_1(debug, noreturn, env)
 DEF_HELPER_1(break_restore_state, void, env)
 #ifdef CONFIG_USER_ONLY
 DEF_HELPER_1(expand_stacks, void, env)

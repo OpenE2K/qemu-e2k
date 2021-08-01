@@ -351,12 +351,3 @@ void HELPER(break_restore_state)(CPUE2KState *env)
     e2k_proc_return(env, true);
     env->is_bp = false;
 }
-
-void HELPER(debug)(CPUE2KState *env)
-{
-    CPUState *cs = env_cpu(env);
-    env->is_bp = true;
-    e2k_proc_call(env, env->wd.size, env->ip, true);
-    cs->exception_index = EXCP_DEBUG;
-    cpu_loop_exit(cs);
-}
