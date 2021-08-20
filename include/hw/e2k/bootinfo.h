@@ -13,6 +13,8 @@
  * You should have received a copy of the GNU General Public License along with
  * this program.  If not, see <http://www.gnu.org/licenses/>.
  */
+#ifndef HW_E2K_BOOTINFO
+#define HW_E2K_BOOTINFO
 
 /*
  * Ripped from Linux MCST fork
@@ -72,8 +74,8 @@ boot_va_to_pa(KERNEL_ARGS_STRING_EX_SIGNATURE)
 #ifndef	__ASSEMBLY__
 
 typedef struct bank_info {
-    __u64	address;	/* start address of bank */
-    __u64	size;		/* size of bank in bytes */
+    uint64_t	address;	/* start address of bank */
+    uint64_t	size;		/* size of bank in bytes */
 } bank_info_t;
 
 typedef struct node_banks {
@@ -82,33 +84,33 @@ typedef struct node_banks {
 } node_banks_t;
 
 typedef struct boot_times {
-    __u64 arch;
-    __u64 unpack;
-    __u64 pci;
-    __u64 drivers1;
-    __u64 drivers2;
-    __u64 menu;
-    __u64 sm;
-    __u64 kernel;
-    __u64 reserved[8];
+    uint64_t arch;
+    uint64_t unpack;
+    uint64_t pci;
+    uint64_t drivers1;
+    uint64_t drivers2;
+    uint64_t menu;
+    uint64_t sm;
+    uint64_t kernel;
+    uint64_t reserved[8];
 } boot_times_t;
 
 typedef struct bios_info {
-    __u8	signature[BIOS_INFO_SIGN_SIZE];		/* signature, */
+    uint8_t	signature[BIOS_INFO_SIGN_SIZE];		/* signature, */
     /* 'E2KBIOS' */
-    __u8	boot_ver[BOOT_VER_STR_SIZE];		/* boot version */
-    __u8	mb_type;				/* mother board type */
-    __u8	chipset_type;				/* chipset type */
-    __u8	cpu_type;				/* cpu type */
-    __u8	kernel_args_string_ex[KSTRMAX_SIZE_EX];	/* extended command */
+    uint8_t	boot_ver[BOOT_VER_STR_SIZE];		/* boot version */
+    uint8_t	mb_type;				/* mother board type */
+    uint8_t	chipset_type;				/* chipset type */
+    uint8_t	cpu_type;				/* cpu type */
+    uint8_t	kernel_args_string_ex[KSTRMAX_SIZE_EX];	/* extended command */
     /* line of kernel */
     /* used to pass */
     /* command line */
     /* from e2k BIOS */
-    __u8	reserved1;				/* reserved1 */
-    __u32	cache_lines_damaged;			/* number of damaged */
+    uint8_t	reserved1;				/* reserved1 */
+    uint32_t	cache_lines_damaged;			/* number of damaged */
     /* cache lines */
-    __u64	nodes_mem_slabs_deprecated[52];		/* array of slabs */
+    uint64_t	nodes_mem_slabs_deprecated[52];		/* array of slabs */
     /* accessible memory */
     /* on each node */
     /* accessible memory */
@@ -117,43 +119,43 @@ typedef struct bios_info {
     /* descriptors of */
     /* banks of available */
     /* physical memory */
-    __u64	devtree;				/* devtree pointer */
-    __u32	bootlog_addr;				/* bootlog address */
-    __u32	bootlog_len;				/* bootlog length */
-    __u8	uuid[16];				/* UUID boot device */
+    uint64_t	devtree;				/* devtree pointer */
+    uint32_t	bootlog_addr;				/* bootlog address */
+    uint32_t	bootlog_len;				/* bootlog length */
+    uint8_t	uuid[16];				/* UUID boot device */
 } bios_info_t;
 
 typedef struct boot_info {
-    __u16	signature;	/* signature, 0x8086 */
-    __u8	target_mdl;	/* target cpu model number */
-    __u8	reserved1;	/* reserved1 */
-    __u16	reserved2;	/* reserved2 */
-    __u8	vga_mode;	/* vga mode */
-    __u8	num_of_banks;	/* number of available physical memory banks */
+    uint16_t	signature;	/* signature, 0x8086 */
+    uint8_t	target_mdl;	/* target cpu model number */
+    uint8_t	reserved1;	/* reserved1 */
+    uint16_t	reserved2;	/* reserved2 */
+    uint8_t	vga_mode;	/* vga mode */
+    uint8_t	num_of_banks;	/* number of available physical memory banks */
     /* see below bank array */
     /* total number on all nodes or 0 */
-    __u64	kernel_base;	/* base address to load kernel image */
+    uint64_t	kernel_base;	/* base address to load kernel image */
     /* if 0 then BIOS can load at any address */
     /* but address should be large page size */
     /* aligned - 4 Mb */
-    __u64	kernel_size;	/* kernel image byte's size */
-    __u64	ramdisk_base;	/* base address to load RAM-disk */
+    uint64_t	kernel_size;	/* kernel image byte's size */
+    uint64_t	ramdisk_base;	/* base address to load RAM-disk */
     /* now not used */
-    __u64	ramdisk_size;	/* RAM-disk byte's size */
+    uint64_t	ramdisk_size;	/* RAM-disk byte's size */
     
-    __u16	num_of_cpus;	/* number of started physical CPU(s) */
-    __u16	mach_flags;	/* machine identifacition flags */
+    uint16_t	num_of_cpus;	/* number of started physical CPU(s) */
+    uint16_t	mach_flags;	/* machine identifacition flags */
     /* should be set by our romloader and BIOS */
-    __u16	num_of_busy;	/* number of busy areas occupied by BIOS */
+    uint16_t	num_of_busy;	/* number of busy areas occupied by BIOS */
     /* see below busy array */
-    __u16	num_of_nodes;	/* number of nodes on NUMA system */
-    __u64	mp_table_base;	/* MP-table base address */
-    __u64	serial_base;	/* base address of serial port for Am85c30 */
+    uint16_t	num_of_nodes;	/* number of nodes on NUMA system */
+    uint64_t	mp_table_base;	/* MP-table base address */
+    uint64_t	serial_base;	/* base address of serial port for Am85c30 */
     /* Used for debugging purpose */
-    __u64	nodes_map;	/* online nodes map */
-    __u64	mach_serialn;	/* serial number of the machine */
-    __u8	mac_addr[6];	/* base MAC address for ethernet cards */
-    __u16	reserved3;	/* reserved3 */
+    uint64_t	nodes_map;	/* online nodes map */
+    uint64_t	mach_serialn;	/* serial number of the machine */
+    uint8_t	mac_addr[6];	/* base MAC address for ethernet cards */
+    uint16_t	reserved3;	/* reserved3 */
     
     char	kernel_args_string[KSTRMAX_SIZE]; /* command line of kernel */
     /* used to pass command line */
@@ -166,15 +168,15 @@ typedef struct boot_info {
     /* occupied by BIOS, all this */
     /* shoud be kept in system */
     /* recovery mode */
-    u64		cntp_info_deprecated[32];	/* control points */
+    uint64_t		cntp_info_deprecated[32];	/* control points */
     /* info to save and */
     /* restore them state */
-    u64		dmp_deprecated[20];	/* Info for future work of */
+    uint64_t		dmp_deprecated[20];	/* Info for future work of */
     /* dump analyzer */
-    __u64		reserved4[13];	/* reserved4 */
-    __u8		mb_name[16];	/* Motherboard product name */
-    __u32		reserved5;	/* reserved5 */
-    __u32		kernel_csum;	/* kernel image control sum */
+    uint64_t		reserved4[13];	/* reserved4 */
+    uint8_t		mb_name[16];	/* Motherboard product name */
+    uint32_t		reserved5;	/* reserved5 */
+    uint32_t		kernel_csum;	/* kernel image control sum */
     bios_info_t	bios;		/* extended BIOS info */
     /* SHOULD BE LAST ITEM into this */
     /* structure */
@@ -182,7 +184,7 @@ typedef struct boot_info {
 
 typedef struct bootblock_struct {
     boot_info_t	info;			/* general kernel<->BIOS info */
-    __u8					/* zip area to make size of */
+    uint8_t					/* zip area to make size of */
     /* bootblock struct - constant */
     gap[BOOTBLOCK_SIZE -
     sizeof (boot_info_t)  -
@@ -205,42 +207,44 @@ typedef struct bootblock_struct {
     2 -		/* u16 : cnt point device */
     2 -		/* u16 : boot_flags */
     2];		/* u16 : x86_marker */
-    __u8		bootblock_ver;		/* bootblock version number */
-    __u32		reserved1;		/* reserved1 */
+    uint8_t		bootblock_ver;		/* bootblock version number */
+    uint32_t		reserved1;		/* reserved1 */
     boot_times_t	boot_times;		/* boot load times */
-    __u16		kernel_flags;		/* kernel flags, boot should */
+    uint16_t		kernel_flags;		/* kernel flags, boot should */
     /* not modify it */
-    __u8		reserved2;		/* reserved2 */
+    uint8_t		reserved2;		/* reserved2 */
     
-    __u8	cnt_points_num_deprecated;	/* number of control points */
+    uint8_t	cnt_points_num_deprecated;	/* number of control points */
     /* all memory will be devided */
     /* on this number of parts */
-    __u8	cur_cnt_point_deprecated;	/* current # of active */
+    uint8_t	cur_cnt_point_deprecated;	/* current # of active */
     /* control point (running */
     /* part) */
-    __u8	mem_cnt_points_deprecated;	/* number of started control */
+    uint8_t	mem_cnt_points_deprecated;	/* number of started control */
     /* points (ready in the memory) */
-    __u8	disk_cnt_points_deprecated;	/* number of control points */
+    uint8_t	disk_cnt_points_deprecated;	/* number of control points */
     /* saved on the disk (ready  */
     /* to be loaded from disk) */
-    __u8	cnt_points_created_deprecated;	/* all control points created */
+    uint8_t	cnt_points_created_deprecated;	/* all control points created */
     /* in the memory and on disk */
-    __u64	dump_sector_deprecated;		/* start sector # to dump */
+    uint64_t	dump_sector_deprecated;		/* start sector # to dump */
     /* physical memory */
-    __u64	cnt_point_sector_deprecated;	/* start sector # to save */
+    uint64_t	cnt_point_sector_deprecated;	/* start sector # to save */
     /* restore control points */
-    __u16	dump_dev_deprecated;		/* disk # to dump memory */
-    __u16	cnt_point_dev_deprecated;	/* disk # for save/restore */
+    uint16_t	dump_dev_deprecated;		/* disk # to dump memory */
+    uint16_t	cnt_point_dev_deprecated;	/* disk # for save/restore */
     /* control point */
     
-    __u16		boot_flags;		/* boot flags: if non */
+    uint16_t		boot_flags;		/* boot flags: if non */
     /* zero then this structure */
     /* is recovery info */
     /* structure instead of boot */
     /* info structure */
-    __u16		x86_marker;		/* marker of the end of x86 */
+    uint16_t		x86_marker;		/* marker of the end of x86 */
     /* boot block (0xAA55) */
 } bootblock_struct_t;
+
+#endif /* __ASSEMBLY__ */
 
 /*
  * The mother board types
@@ -447,3 +451,5 @@ typedef struct bootblock_struct {
     \
     name;							\
 })
+
+#endif /* HW_E2K_BOOTINFO */
