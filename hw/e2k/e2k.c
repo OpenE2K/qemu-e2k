@@ -24,6 +24,7 @@
 #include "sysemu/sysemu.h"
 #include "sysemu/cpus.h"
 #include "sysemu/reset.h"
+#include "hw/irq.h"
 #include "hw/loader.h"
 #include "hw/qdev-properties.h"
 #include "hw/e2k/e2k.h"
@@ -102,7 +103,7 @@ static bootblock_struct_t *generate_bootblock(E2KMachineState *e2kms,
 {
     static bootblock_struct_t bootblock;
     boot_info_t *const bootinfo = &bootblock.info;
-    bios_info_t *const biosinfo = &bootblock.bios;
+    bios_info_t *const biosinfo = &bootblock.info.bios;
     MachineState *ms = MACHINE(e2kms);
     
     memset(&bootblock, 0, sizeof(bootblock));
@@ -117,14 +118,14 @@ static bootblock_struct_t *generate_bootblock(E2KMachineState *e2kms,
     bootinfo->num_of_cpus = ms->smp.cpus;
     
     /* Init RAM banks */
-    if(ms->ram_size > 0x80000000) {
+    if(ms->ram_size > E2K_LOWMEM) {
         /* high mem */
         bootinfo->num_of_banks = 2;
         bootinfo->nodes_mem[0].banks[0].address = 0;
-        bootinfo->nodes_mem[0].banks[0].size = 0x80000000;
+        bootinfo->nodes_mem[0].banks[0].size = E2K_LOWMEM;
         
-        bootinfo->nodes_mem[0].banks[1].address = 0x400000000ULL;
-        bootinfo->nodes_mem[0].banks[1].size = ms->ram_size - 0x80000000;
+        bootinfo->nodes_mem[0].banks[1].address = E2K_HIMEM;
+        bootinfo->nodes_mem[0].banks[1].size = ms->ram_size - E2K_LOWMEM;
     } else {
         /* low mem only */
         bootinfo->num_of_banks = 1;
@@ -163,8 +164,8 @@ static bool e2k_kernel_init(E2KMachineState *e2kms, MemoryRegion *rom_memory)
         return false;
     }
     
-    bootblock = generate_bootblock(e2kms, entry, size);
-
+    e2kms->bootblock = generate_bootblock(e2kms, entry, size);
+    
     /* TODO: load initrd */
 
     kernel = g_malloc(sizeof(*kernel));
@@ -211,23 +212,62 @@ static void firmware_init(E2KMachineState *e2kms, const char *default_filename,
     reset_params.loadaddr = E2K_FULL_SIC_BIOS_AREA_PHYS_BASE;
 }
 
+static void e2k_gsi_handler(void *opaque, int n, int level)
+{
+    GSIState *s = opaque;
+    qemu_set_irq(s->ioapic_irq[n], level);
+}
+
 static void e2k_machine_init(MachineState *ms)
 {
     E2KMachineState *e2kms = E2K_MACHINE(ms);
     MemoryRegion *rom_memory;
+    MemoryRegion *ram_below_4g, *ram_above_4g;
+    qemu_irq *pic;
+    MemTxAttrs attrs = { };
 
     rom_memory = get_system_memory();
-    memory_region_add_subregion(get_system_memory(), 0, ms->ram);
-
+    
+    /* Init RAM banks */
+    if(ms->ram_size > E2K_LOWMEM) {
+        e2kms->above_4g_mem_size = ms->ram_size - E2K_LOWMEM;
+        e2kms->below_4g_mem_size = E2K_LOWMEM;
+    } else {
+        e2kms->above_4g_mem_size = 0;
+        e2kms->below_4g_mem_size = ms->ram_size;
+    }
+    
+    ram_below_4g = g_malloc(sizeof(*ram_below_4g));
+    memory_region_init_alias(ram_below_4g, NULL, "ram-below-4g", ms->ram,
+                             0, e2kms->below_4g_mem_size);
+    memory_region_add_subregion(rom_memory, 0, ram_below_4g);
+    if(e2kms->above_4g_mem_size > 0) {
+        ram_above_4g = g_malloc(sizeof(*ram_above_4g));
+        memory_region_init_alias(ram_above_4g, NULL, "ram-above-4g",
+                                 ms->ram,
+                                 e2kms->below_4g_mem_size, 
+                                 e2kms->above_4g_mem_size);
+        memory_region_add_subregion(rom_memory, E2K_HIMEM, ram_above_4g);
+    }
+    
+    //address_space_write(&address_space_memory, 0xb000, attrs, e2kms->bootblock, sizeof(e2kms->bootblock));
+    
     e2kms->ioapic_as = &address_space_memory;
 
     if (!e2k_kernel_init(e2kms, rom_memory))
         firmware_init(e2kms, "e2k.bin", rom_memory);
+    
+    e2kms->gsi_state = g_new0(GSIState, 1);
+    pic = qemu_allocate_irqs(e2k_gsi_handler, e2kms->gsi_state, IOAPIC_NUM_PINS);
+    
+    qemu_log_mask(LOG_UNIMP, "HI :)\n");
 
     cpus_init(e2kms);
     lmscon_init(e2kms);
-    iohub_init(e2kms);
     sic_init(e2kms);
+    iohub_pci_create(e2kms, pic, get_system_memory(), get_system_io());
+
+    setup_iohub_devices(e2kms);
 }
 
 static void e2k_machine_class_init(ObjectClass *oc, void *data)
