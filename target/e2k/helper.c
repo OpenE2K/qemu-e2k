@@ -341,7 +341,7 @@ void HELPER(setwd)(CPUE2KState *env, int wsz, int nfx, int dbl)
 }
 
 #ifndef CONFIG_USER_ONLY
-hwaddr e2k_get_phys_page_debug(CPUState *cs, vaddr addr)
+hwaddr e2k_get_phys_page_attrs_debug(CPUState *cs, vaddr addr, MemTxAttrs *attrs)
 {
     E2KCPU *cpu = E2K_CPU(cs);
     CPUE2KState *env = &cpu->env;

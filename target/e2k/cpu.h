@@ -1005,7 +1005,7 @@ bool e2k_cpu_tlb_fill(CPUState *cpu, vaddr address, int size,
                  MMUAccessType access_type, int mmu_idx,
                  bool probe, uintptr_t retaddr);
 #ifndef CONFIG_USER_ONLY
-hwaddr e2k_get_phys_page_debug(CPUState *cpu, vaddr addr);
+hwaddr e2k_get_phys_page_attrs_debug(CPUState *cpu, vaddr addr, MemTxAttrs *attrs);
 
 static inline AddressSpace *cpu_addressspace(CPUState *cs, MemTxAttrs attrs)
 {

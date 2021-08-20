@@ -354,6 +354,15 @@ static Property e2k_cpu_properties[] = {
     DEFINE_PROP_END_OF_LIST()
 };
 
+#ifndef CONFIG_USER_ONLY
+#include "hw/core/sysemu-cpu-ops.h"
+
+static const struct SysemuCPUOps e2k_sysemu_ops = {
+    .get_paging_enabled = e2k_get_paging_enabled,
+    .get_phys_page_attrs_debug = e2k_get_phys_page_attrs_debug,
+};
+#endif
+
 static void e2k_cpu_class_init(ObjectClass *oc, void *data)
 {
     E2KCPUClass *ecc = E2K_CPU_CLASS(oc);
@@ -370,11 +379,10 @@ static void e2k_cpu_class_init(ObjectClass *oc, void *data)
     cc->set_pc = e2k_cpu_set_pc;
     cc->class_by_name = e2k_cpu_class_by_name;
     cc->disas_set_info = cpu_e2k_disas_set_info;
-    cc->get_paging_enabled = e2k_get_paging_enabled;
 
 #ifndef CONFIG_USER_ONLY
-    cc->get_phys_page_debug = e2k_get_phys_page_debug;
-#endif
+    cc->sysemu_ops = &e2k_sysemu_ops;
+#endif /* !CONFIG_USER_ONLY */
 
     cc->gdb_core_xml_file  = "e2k-v1.xml";
     cc->gdb_arch_name      = e2k_cpu_gdb_arch_name;
