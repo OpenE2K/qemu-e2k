@@ -63,12 +63,12 @@ static void lmscon_mem_write(void *opaque, hwaddr addr,
             qemu_chr_fe_write_all(&s->chr, (uint8_t*)&s->tx, size);
         } else {
             qemu_log_mask(LOG_UNIMP, "%s: LMS_CONS_DATA_PORT unknown size %d\n",
-                          __FUNCTION__, size);
+                          __func__, size);
         }
         break;
     default:
         qemu_log_mask(LOG_UNIMP, "%s: unimplemented lmscon packet %lx\n",
-                      __FUNCTION__, LMS_CONS_DATA_PORT + addr);
+                      __func__, LMS_CONS_DATA_PORT + addr);
         break;
     }
 }
@@ -87,7 +87,7 @@ static uint64_t lmscon_mem_read(void *opaque, hwaddr addr, unsigned size)
         break;
     default:
         qemu_log_mask(LOG_UNIMP, "%s: unimplemented lmscon packet %lx\n",
-                      __FUNCTION__, LMS_CONS_DATA_PORT + addr);
+                      __func__, LMS_CONS_DATA_PORT + addr);
         break;
     }
 
