@@ -29,8 +29,25 @@
 #include "target/e2k/cpu.h"
 #include "elf.h"
 
+struct SICState *sicregs;
+
 #define ES2_NSR_AREA_PHYS_BASE      0x0000000110000000UL    /* node 0 */
 #define ES2_NBSR_AREA_SIZE          0x0000000000100000UL
+
+#define SIC_rt_lcfg0    0x10
+#define SIC_rt_lcfg1    0x14
+#define SIC_rt_lcfg2    0x18
+#define SIC_rt_lcfg3    0x1c
+
+#define SIC_rt_mhi0     0x20
+#define SIC_rt_mhi1     0x24
+#define SIC_rt_mhi2     0x28
+#define SIC_rt_mhi3     0x2c
+
+#define SIC_rt_mlo0     0x30
+#define SIC_rt_mlo1     0x34
+#define SIC_rt_mlo2     0x38
+#define SIC_rt_mlo3     0x3c
 
 #define SIC_rt_msi      0xb0
 #define SIC_rt_msi_h    0xb4
@@ -75,6 +92,42 @@ static uint64_t sic_mem_read(void *opaque, hwaddr addr, unsigned size)
 
     index = addr & (ES2_NBSR_AREA_SIZE - 1);
     switch (index) {
+    case SIC_rt_lcfg0:
+        ret = regs->rt_lcfg0;
+        break;
+    case SIC_rt_lcfg1:
+        ret = regs->rt_lcfg1;
+        break;
+    case SIC_rt_lcfg2:
+        ret = regs->rt_lcfg2;
+        break;
+    case SIC_rt_lcfg3:
+        ret = regs->rt_lcfg3;
+        break;
+    case SIC_rt_mhi0:
+        ret = regs->rt_mhi0.word;
+        break;
+    case SIC_rt_mhi1:
+        ret = regs->rt_mhi1.word;
+        break;
+    case SIC_rt_mhi2:
+        ret = regs->rt_mhi2.word;
+        break;
+    case SIC_rt_mhi3:
+        ret = regs->rt_mhi3.word;
+        break;
+    case SIC_rt_mlo0:
+        ret = regs->rt_mlo0.word;
+        break;
+    case SIC_rt_mlo1:
+        ret = regs->rt_mlo1.word;
+        break;
+    case SIC_rt_mlo2:
+        ret = regs->rt_mlo2.word;
+        break;
+    case SIC_rt_mlo3:
+        ret = regs->rt_mlo3.word;
+        break;
     case SIC_rt_msi:
         ret = regs->rt_msi & 0xffffffff;
         break;
@@ -82,55 +135,55 @@ static uint64_t sic_mem_read(void *opaque, hwaddr addr, unsigned size)
         ret = regs->rt_msi >> 32;
         break;
     case SIC_rt_pcim0:
-        ret = regs->rt_pcim0;
+        ret = regs->rt_pcim0.word;
         break;
     case SIC_rt_pcim1:
-        ret = regs->rt_pcim1;
+        ret = regs->rt_pcim1.word;
         break;
     case SIC_rt_pcim2:
-        ret = regs->rt_pcim2;
+        ret = regs->rt_pcim2.word;
         break;
     case SIC_rt_pcim3:
-        ret = regs->rt_pcim3;
+        ret = regs->rt_pcim3.word;
         break;
     case SIC_rt_pciio0:
-        ret = regs->rt_pciio0;
+        ret = regs->rt_pciio0.word;
         break;
     case SIC_rt_pciio1:
-        ret = regs->rt_pciio1;
+        ret = regs->rt_pciio1.word;
         break;
     case SIC_rt_pciio2:
-        ret = regs->rt_pciio2;
+        ret = regs->rt_pciio2.word;
         break;
     case SIC_rt_pciio3:
-        ret = regs->rt_pciio3;
+        ret = regs->rt_pciio3.word;
         break;
     case SIC_rt_pcimp_b0:
-        ret = regs->rt_pcimp_b0;
+        ret = regs->rt_pcimp_b0.addr;
         break;
     case SIC_rt_pcimp_b1:
-        ret = regs->rt_pcimp_b1;
+        ret = regs->rt_pcimp_b1.addr;
         break;
     case SIC_rt_pcimp_b2:
-        ret = regs->rt_pcimp_b2;
+        ret = regs->rt_pcimp_b2.addr;
         break;
     case SIC_rt_pcimp_b3:
-        ret = regs->rt_pcimp_b3;
+        ret = regs->rt_pcimp_b3.addr;
         break;
     case SIC_rt_pcimp_e0:
-        ret = regs->rt_pcimp_e0;
+        ret = regs->rt_pcimp_e0.addr;
         break;
     case SIC_rt_pcimp_e1:
-        ret = regs->rt_pcimp_e1;
+        ret = regs->rt_pcimp_e1.addr;
         break;
     case SIC_rt_pcimp_e2:
-        ret = regs->rt_pcimp_e2;
+        ret = regs->rt_pcimp_e2.addr;
         break;
     case SIC_rt_pcimp_e3:
-        ret = regs->rt_pcimp_e3;
+        ret = regs->rt_pcimp_e3.addr;
         break;
     case SIC_rt_pcicfgb:
-        ret = regs->rt_pcicfgb;
+        ret = regs->rt_pcicfgb.word;
         break;
     case SIC_prepic_ctrl2:
         ret = regs->prepic_ctrl2;
@@ -164,9 +217,10 @@ static uint64_t sic_mem_read(void *opaque, hwaddr addr, unsigned size)
         break;
     case SIC_iommu_err_info_lo:
         ret = regs->iommu_err_info;
+        ;
         break;
     default:
-        qemu_log_mask(LOG_UNIMP, "%s: unknown SIC register 0x%x\n", __FUNCTION__, index);
+        qemu_log_mask(LOG_UNIMP, "%s: unknown SIC register 0x%x\n", __func__, index);
         ret = 0;
         break;
     }
@@ -191,56 +245,80 @@ static void sic_mem_write(void *opaque, hwaddr addr, uint64_t val,
     case SIC_rt_msi_h:
         regs->rt_msi = (regs->rt_msi & 0x00000000ffffffff) | (val << 32);
         break;
+    case SIC_rt_mhi0:
+        regs->rt_mhi0.word = val;
+        break;
+    case SIC_rt_mhi1:
+        regs->rt_mhi1.word = val;
+        break;
+    case SIC_rt_mhi2:
+        regs->rt_mhi2.word = val;
+        break;
+    case SIC_rt_mhi3:
+        regs->rt_mhi3.word = val;
+        break;
+    case SIC_rt_mlo0:
+        regs->rt_mlo0.word = val;
+        break;
+    case SIC_rt_mlo1:
+        regs->rt_mlo1.word = val;
+        break;
+    case SIC_rt_mlo2:
+        regs->rt_mlo2.word = val;
+        break;
+    case SIC_rt_mlo3:
+        regs->rt_mlo3.word = val;
+        break;
     case SIC_rt_pcim0:
-        regs->rt_pcim0 = val;
+        regs->rt_pcim0.word = val;
         break;
     case SIC_rt_pcim1:
-        regs->rt_pcim1 = val;
+        regs->rt_pcim1.word = val;
         break;
     case SIC_rt_pcim2:
-        regs->rt_pcim2 = val;
+        regs->rt_pcim2.word = val;
         break;
     case SIC_rt_pcim3:
-        regs->rt_pcim3 = val;
+        regs->rt_pcim3.word = val;
         break;
     case SIC_rt_pciio0:
-        regs->rt_pciio0 = val;
+        regs->rt_pciio0.word = val;
         break;
     case SIC_rt_pciio1:
-        regs->rt_pciio1 = val;
+        regs->rt_pciio1.word = val;
         break;
     case SIC_rt_pciio2:
-        regs->rt_pciio2 = val;
+        regs->rt_pciio2.word = val;
         break;
     case SIC_rt_pciio3:
-        regs->rt_pciio3 = val;
+        regs->rt_pciio3.word = val;
         break;
     case SIC_rt_pcimp_b0:
-        regs->rt_pcimp_b0 = val;
+        regs->rt_pcimp_b0.addr = val;
         break;
     case SIC_rt_pcimp_b1:
-        regs->rt_pcimp_b1 = val;
+        regs->rt_pcimp_b1.addr = val;
         break;
     case SIC_rt_pcimp_b2:
-        regs->rt_pcimp_b2 = val;
+        regs->rt_pcimp_b2.addr = val;
         break;
     case SIC_rt_pcimp_b3:
-        regs->rt_pcimp_b3 = val;
+        regs->rt_pcimp_b3.addr = val;
         break;
     case SIC_rt_pcimp_e0:
-        regs->rt_pcimp_e0 = val;
+        regs->rt_pcimp_e0.addr = val;
         break;
     case SIC_rt_pcimp_e1:
-        regs->rt_pcimp_e1 = val;
+        regs->rt_pcimp_e1.addr = val;
         break;
     case SIC_rt_pcimp_e2:
-        regs->rt_pcimp_e2 = val;
+        regs->rt_pcimp_e2.addr = val;
         break;
     case SIC_rt_pcimp_e3:
-        regs->rt_pcimp_e3 = val;
+        regs->rt_pcimp_e3.addr = val;
         break;
     case SIC_rt_pcicfgb:
-        regs->rt_pcicfgb = val;
+        regs->rt_pcicfgb.word = val;
         break;
     case SIC_prepic_ctrl2:
         regs->prepic_ctrl2 = val;
@@ -279,33 +357,109 @@ static void sic_mem_write(void *opaque, hwaddr addr, uint64_t val,
         regs->iommu_dtbar = val;
         break;
     default:
-        qemu_log_mask(LOG_UNIMP, "%s: unknown SIC register 0x%x\n", __FUNCTION__, index);
+        qemu_log_mask(LOG_UNIMP, "%s: unknown SIC register 0x%x\n", __func__, index);
         break;
     }
-    
+
     trace_sic_mem_writel(addr, val);
 }
 
 static const MemoryRegionOps sic_io_ops = {
     .read = sic_mem_read,
     .write = sic_mem_write,
-    .impl.min_access_size = 1,
-    .impl.max_access_size = 4,
-    .valid.min_access_size = 1,
-    .valid.max_access_size = 4,
+    .impl = {
+        .min_access_size = 1,
+        .max_access_size = 4,
+    },
+    .valid = {
+        .min_access_size = 1,
+        .max_access_size = 4,
+    },
     .endianness = DEVICE_NATIVE_ENDIAN,
 };
 
+static void sic_reset(SICState *sic)
+{
+    memset(sic, 0, sizeof(*sic));
+
+    sic->rt_lcfg0 = 0xb; /* BSP node */
+    sic->rt_lcfg1 = 0x30;
+    sic->rt_lcfg2 = 0x30;
+    sic->rt_lcfg3 = 0x30;
+
+    sic->rt_mhi0.E2K_RT_MHI_reg =
+        sic->rt_mhi1.E2K_RT_MHI_reg =
+        sic->rt_mhi2.E2K_RT_MHI_reg =
+        sic->rt_mhi3.E2K_RT_MHI_reg = 0;
+    sic->rt_mhi0.E2K_RT_MHI_bgn =
+        sic->rt_mhi1.E2K_RT_MHI_bgn =
+        sic->rt_mhi2.E2K_RT_MHI_bgn =
+        sic->rt_mhi3.E2K_RT_MHI_bgn = ~0;
+    sic->rt_mhi0.E2K_RT_MHI_end =
+        sic->rt_mhi1.E2K_RT_MHI_end =
+        sic->rt_mhi2.E2K_RT_MHI_end =
+        sic->rt_mhi3.E2K_RT_MHI_end = 0;
+
+    sic->rt_mlo0.E2K_RT_MLO_reg =
+        sic->rt_mlo1.E2K_RT_MLO_reg =
+        sic->rt_mlo2.E2K_RT_MLO_reg =
+        sic->rt_mlo3.E2K_RT_MLO_reg = 0;
+    sic->rt_mlo0.E2K_RT_MLO_bgn =
+        sic->rt_mlo1.E2K_RT_MLO_bgn =
+        sic->rt_mlo2.E2K_RT_MLO_bgn =
+        sic->rt_mlo3.E2K_RT_MLO_bgn = ~0;
+    sic->rt_mlo0.E2K_RT_MLO_end =
+        sic->rt_mlo1.E2K_RT_MLO_end =
+        sic->rt_mlo2.E2K_RT_MLO_end =
+        sic->rt_mlo3.E2K_RT_MLO_end = 0;
+
+    sic->rt_pcim0.E2K_RT_PCIM_reg =
+        sic->rt_pcim1.E2K_RT_PCIM_reg =
+        sic->rt_pcim2.E2K_RT_PCIM_reg =
+        sic->rt_pcim3.E2K_RT_PCIM_reg = 0;
+    sic->rt_pcim0.E2K_RT_PCIM_bgn =
+        sic->rt_pcim1.E2K_RT_PCIM_bgn =
+        sic->rt_pcim2.E2K_RT_PCIM_bgn =
+        sic->rt_pcim3.E2K_RT_PCIM_bgn = ~0;
+    sic->rt_pcim0.E2K_RT_PCIM_end =
+        sic->rt_pcim1.E2K_RT_PCIM_end =
+        sic->rt_pcim2.E2K_RT_PCIM_end =
+        sic->rt_pcim3.E2K_RT_PCIM_end = 0;
+
+    sic->rt_pciio0.E2K_RT_PCIIO_reg =
+        sic->rt_pciio1.E2K_RT_PCIIO_reg =
+        sic->rt_pciio2.E2K_RT_PCIIO_reg =
+        sic->rt_pciio3.E2K_RT_PCIIO_reg = 0;
+    sic->rt_pciio0.E2K_RT_PCIIO_bgn =
+        sic->rt_pciio1.E2K_RT_PCIIO_bgn =
+        sic->rt_pciio2.E2K_RT_PCIIO_bgn =
+        sic->rt_pciio3.E2K_RT_PCIIO_bgn = ~0;
+    sic->rt_pciio0.E2K_RT_PCIIO_end =
+        sic->rt_pciio1.E2K_RT_PCIIO_end =
+        sic->rt_pciio2.E2K_RT_PCIIO_end =
+        sic->rt_pciio3.E2K_RT_PCIIO_end = 0;
+
+    sic->rt_pcimp_b0.E2K_RT_PCIMP_reg =
+        sic->rt_pcimp_b1.E2K_RT_PCIMP_reg =
+        sic->rt_pcimp_b2.E2K_RT_PCIMP_reg =
+        sic->rt_pcimp_b3.E2K_RT_PCIMP_reg = 0;
+    sic->rt_pcimp_b0.E2K_RT_PCIMP_bgn =
+        sic->rt_pcimp_b1.E2K_RT_PCIMP_bgn =
+        sic->rt_pcimp_b2.E2K_RT_PCIMP_bgn =
+        sic->rt_pcimp_b3.E2K_RT_PCIMP_bgn = ~0;
+
+    sic->rt_pcimp_e0.E2K_RT_PCIMP_reg =
+        sic->rt_pcimp_e1.E2K_RT_PCIMP_reg =
+        sic->rt_pcimp_e2.E2K_RT_PCIMP_reg =
+        sic->rt_pcimp_e3.E2K_RT_PCIMP_reg = 0;
+
+    sic->rt_pcicfgb.E2K_RT_PCICFGB_bgn = 0x8;    /* 0x0002 0000 0000 */
+}
+
 void sic_init(E2KMachineState *ms)
 {
-    MemoryRegion *io_memory;
-    const hwaddr base = ES2_NSR_AREA_PHYS_BASE;
-    const uint64_t size = ES2_NBSR_AREA_SIZE;
-
-    memset(&ms->sicregs, 0, sizeof(ms->sicregs));
-    
-    io_memory = g_malloc(sizeof(*io_memory));
-    memory_region_init_io(io_memory, OBJECT(ms), &sic_io_ops, ms, "sic-msi",
-        size);
-    memory_region_add_subregion(get_system_memory(), base, io_memory);
+    sic_reset(&ms->sicregs);
+    memory_region_init_io(&ms->sicregion, OBJECT(ms), &sic_io_ops, ms, "sic-nbsr",
+        ES2_NBSR_AREA_SIZE);
+    memory_region_add_subregion(get_system_memory(), ES2_NSR_AREA_PHYS_BASE, &ms->sicregion);
 }
