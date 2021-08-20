@@ -7,6 +7,7 @@
 #include "exec/address-spaces.h"
 #include "helper-tcg.h"
 #include "trace.h"
+#include "hw/e2k/memmap.h"
 
 static inline void reset_ctprs(CPUE2KState *env)
 {
@@ -414,11 +415,22 @@ void HELPER(debug)(CPUE2KState *env)
 }
 
 #ifndef CONFIG_USER_ONLY
+static AddressSpace *get_addressspace_by_addr(target_ulong *addr, CPUState *env, MemTxAttrs attrs)
+{
+    if (addr >= E2K_IO_AREA_BASE && addr < E2K_IO_AREA_BASE + E2K_IO_AREA_SIZE)
+    {
+        addr -= E2K_IO_AREA_BASE;
+        return &address_space_io;
+    }
+    
+    return cpu_addressspace(env, attrs);
+}
+
 #define GEN_IO_LD_IMPL(T, f, op) \
     T HELPER(f)(CPUE2KState *env, target_ulong port) \
     { \
         MemTxAttrs attrs = MEMTXATTRS_UNSPECIFIED; \
-        AddressSpace *as = cpu_addressspace(env_cpu(env), attrs); \
+        AddressSpace *as = get_addressspace_by_addr(&port, env_cpu(env), attrs); \
         T ret = address_space_ ## op (as, port, attrs, NULL); \
         trace_ioaddr_in(#f, port, ret); \
         return ret; \
@@ -428,7 +440,7 @@ void HELPER(debug)(CPUE2KState *env)
     void HELPER(f)(CPUE2KState *env, target_ulong port, T val) \
     { \
         MemTxAttrs attrs = MEMTXATTRS_UNSPECIFIED; \
-        AddressSpace *as = cpu_addressspace(env_cpu(env), attrs); \
+        AddressSpace *as = get_addressspace_by_addr(&port, env_cpu(env), attrs); \
         address_space_ ## op (as, port, val, attrs, NULL); \
         trace_ioaddr_out(#f, port, val); \
     }

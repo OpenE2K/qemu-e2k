@@ -28,18 +28,12 @@
 #include "hw/loader.h"
 #include "hw/qdev-properties.h"
 #include "hw/e2k/e2k.h"
-#include "hw/e2k/iohub.h"
 #include "hw/e2k/bootinfo.h"
 #include "target/e2k/cpu.h"
 #include "elf.h"
 
 #include "hw/char/escc.h"
 #include "hw/char/lmscon.h"
-
-#define E2K_FULL_SIC_BIOS_AREA_PHYS_BASE        0x0000000100000000UL
-#define E2K_FULL_SIC_BIOS_AREA_SIZE             0x0000000001000000UL
-#define E2K_FULL_SIC_IO_AREA_PHYS_BASE          0x0000000101000000UL
-#define E2K_FULL_SIC_IO_AREA_SIZE               0x0000000000010000UL /* 64K */
 
 struct
 {
@@ -89,7 +83,7 @@ static void lmscon_init(E2KMachineState *e2kms)
 
     dev = qdev_new(TYPE_LMSCON);
 
-    qdev_prop_set_uint64(dev, "baseaddr", E2K_FULL_SIC_IO_AREA_PHYS_BASE);
+    qdev_prop_set_uint64(dev, "baseaddr", E2K_IO_AREA_BASE);
     qdev_prop_set_chr(dev, "chr", serial_hd(0));
 
     if (!qdev_realize(dev, NULL, &error_fatal)) {
@@ -118,14 +112,14 @@ static bootblock_struct_t *generate_bootblock(E2KMachineState *e2kms,
     bootinfo->num_of_cpus = ms->smp.cpus;
     
     /* Init RAM banks */
-    if(ms->ram_size > E2K_LOWMEM) {
+    if(ms->ram_size > E2K_MLO_SIZE) {
         /* high mem */
         bootinfo->num_of_banks = 2;
         bootinfo->nodes_mem[0].banks[0].address = 0;
-        bootinfo->nodes_mem[0].banks[0].size = E2K_LOWMEM;
+        bootinfo->nodes_mem[0].banks[0].size = E2K_MLO_SIZE;
         
-        bootinfo->nodes_mem[0].banks[1].address = E2K_HIMEM;
-        bootinfo->nodes_mem[0].banks[1].size = ms->ram_size - E2K_LOWMEM;
+        bootinfo->nodes_mem[0].banks[1].address = E2K_HIMEM_BASE;
+        bootinfo->nodes_mem[0].banks[1].size = ms->ram_size - E2K_MLO_SIZE;
     } else {
         /* low mem only */
         bootinfo->num_of_banks = 1;
@@ -198,18 +192,18 @@ static void firmware_init(E2KMachineState *e2kms, const char *default_filename,
         exit(1);
     }
     if (rom_add_file_fixed(firmware_name,
-                           E2K_FULL_SIC_BIOS_AREA_PHYS_BASE, -1) != 0) {
+                           E2K_BIOS_AREA_BASE, -1) != 0) {
         error_report("could not load firmware '%s'", firmware_name);
         exit(1);
     }
     g_free(filename);
     firmware = g_malloc(sizeof(*firmware));
     memory_region_init_ram(firmware, NULL, "e2k.firmware",
-                           E2K_FULL_SIC_BIOS_AREA_SIZE, &error_fatal);
+                           E2K_BIOS_AREA_SIZE, &error_fatal);
     memory_region_add_subregion(rom_memory,
-                                E2K_FULL_SIC_BIOS_AREA_PHYS_BASE, firmware);
+                                E2K_BIOS_AREA_BASE, firmware);
 
-    reset_params.loadaddr = E2K_FULL_SIC_BIOS_AREA_PHYS_BASE;
+    reset_params.loadaddr = E2K_BIOS_AREA_BASE;
 }
 
 static void e2k_gsi_handler(void *opaque, int n, int level)
@@ -229,11 +223,11 @@ static void e2k_machine_init(MachineState *ms)
     rom_memory = get_system_memory();
     
     /* Init RAM banks */
-    if(ms->ram_size > E2K_LOWMEM) {
-        e2kms->above_4g_mem_size = ms->ram_size - E2K_LOWMEM;
-        e2kms->below_4g_mem_size = E2K_LOWMEM;
+    if(ms->ram_size > E2K_MLO_SIZE) {
+        e2kms->above_4g_mem_size = ms->ram_size - E2K_MLO_SIZE;
+        e2kms->below_4g_mem_size = E2K_MLO_SIZE;
     } else {
-        e2kms->above_4g_mem_size = 0;
+        e2kms->above_4g_mem_size = E2K_MLO_BASE;
         e2kms->below_4g_mem_size = ms->ram_size;
     }
     
@@ -247,10 +241,8 @@ static void e2k_machine_init(MachineState *ms)
                                  ms->ram,
                                  e2kms->below_4g_mem_size, 
                                  e2kms->above_4g_mem_size);
-        memory_region_add_subregion(rom_memory, E2K_HIMEM, ram_above_4g);
+        memory_region_add_subregion(rom_memory, E2K_HIMEM_BASE, ram_above_4g);
     }
-    
-    //address_space_write(&address_space_memory, 0xb000, attrs, e2kms->bootblock, sizeof(e2kms->bootblock));
     
     e2kms->ioapic_as = &address_space_memory;
 
@@ -265,9 +257,9 @@ static void e2k_machine_init(MachineState *ms)
     cpus_init(e2kms);
     lmscon_init(e2kms);
     sic_init(e2kms);
-    iohub_pci_create(e2kms, pic, get_system_memory(), get_system_io());
-
-    setup_iohub_devices(e2kms);
+    e2kms->bus = iohub_init(TYPE_IOHUB_PCI_HOST_BRIDGE, TYPE_IOHUB_PCI_DEVICE,
+               &e2kms->iohub,
+               rom_memory, get_system_io());
 }
 
 static void e2k_machine_class_init(ObjectClass *oc, void *data)

@@ -25,14 +25,10 @@
 #include "sysemu/reset.h"
 #include "hw/loader.h"
 #include "hw/e2k/e2k.h"
-#include "hw/e2k/iohub.h"
 #include "target/e2k/cpu.h"
 #include "elf.h"
 
 struct SICState *sicregs;
-
-#define ES2_NSR_AREA_PHYS_BASE      0x0000000110000000UL    /* node 0 */
-#define ES2_NBSR_AREA_SIZE          0x0000000000100000UL
 
 #define SIC_rt_lcfg0    0x10
 #define SIC_rt_lcfg1    0x14
@@ -90,7 +86,7 @@ static uint64_t sic_mem_read(void *opaque, hwaddr addr, unsigned size)
     uint64_t ret;
     int index;
 
-    index = addr & (ES2_NBSR_AREA_SIZE - 1);
+    index = addr & (E2K_SICREGS_SIZE - 1);
     switch (index) {
     case SIC_rt_lcfg0:
         ret = regs->rt_lcfg0;
@@ -236,7 +232,7 @@ static void sic_mem_write(void *opaque, hwaddr addr, uint64_t val,
     SICState *regs = &ms->sicregs;
     int index;
 
-    index = addr & (ES2_NBSR_AREA_SIZE - 1);
+    index = addr & (E2K_SICREGS_SIZE - 1);
 
     switch (index) {
     case SIC_rt_msi:
@@ -453,13 +449,13 @@ static void sic_reset(SICState *sic)
         sic->rt_pcimp_e2.E2K_RT_PCIMP_reg =
         sic->rt_pcimp_e3.E2K_RT_PCIMP_reg = 0;
 
-    sic->rt_pcicfgb.E2K_RT_PCICFGB_bgn = 0x8;    /* 0x0002 0000 0000 */
+    sic->rt_pcicfgb.E2K_RT_PCICFGB_bgn = 0x8; /* see E2K_PCICFG_BASE */
 }
 
 void sic_init(E2KMachineState *ms)
 {
     sic_reset(&ms->sicregs);
     memory_region_init_io(&ms->sicregion, OBJECT(ms), &sic_io_ops, ms, "sic-nbsr",
-        ES2_NBSR_AREA_SIZE);
-    memory_region_add_subregion(get_system_memory(), ES2_NSR_AREA_PHYS_BASE, &ms->sicregion);
+        E2K_SICREGS_SIZE);
+    memory_region_add_subregion(get_system_memory(), E2K_SICREGS_BASE, &ms->sicregion);
 }

@@ -22,11 +22,9 @@
 #include "hw/boards.h"
 #include "qom/object.h"
 #include "hw/e2k/ioapic.h"
-#include "hw/e2k/iohub.h"
 #include "hw/e2k/bootinfo.h"
-
-#define E2K_LOWMEM 0x80000000
-#define E2K_HIMEM  0x400000000ULL
+#include "hw/e2k/memmap.h"
+#include "hw/pci-host/iohub.h"
 
 /*
  *   Read/Write RT_PCIIOj Regs
@@ -216,31 +214,22 @@ struct E2KMachineState {
     GSIState *gsi_state;
     AddressSpace *ioapic_as;
     
+    PCIBus *bus;
+    PCIIOHUBState *iohub;
+    
     MemoryRegion sicregion;
     struct SICState sicregs;
-    
-    IOHubPCIState *iohub_sys_bus;
-    
+        
     ram_addr_t above_4g_mem_size;
     ram_addr_t below_4g_mem_size;
     
     bootblock_struct_t *bootblock;
 };
 
-extern struct SICState *sicregs; /* TODO: remove this!!!!!!!! */
-extern IOHubPCIState *iohub_sys_bus; /* AND THIS!!!! */
 
 #define TYPE_E2K_MACHINE    MACHINE_TYPE_NAME("e2k")
 OBJECT_DECLARE_TYPE(E2KMachineState, E2KMachineClass, E2K_MACHINE)
 
 void sic_init(E2KMachineState *ms);
-void iohub_pci_create(E2KMachineState *e2kms, qemu_irq *pic,
-    MemoryRegion *address_space_mem, MemoryRegion *system_io);
-void setup_iohub_devices(E2KMachineState *ms);
-
-static inline uint64_t nbsr_get_pcicfg_base(void)
-{
-    return ((uint64_t)sicregs->rt_pcicfgb.E2K_RT_PCICFGB_bgn) << (E2K_SIC_ALIGN_RT_PCICFGB + RT_PCICFGB_NODE_BITS + RT_PCICFGB_IOLINK_BITS);
-}
 
 #endif /* HW_E2K_H */
