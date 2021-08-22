@@ -20,6 +20,7 @@
 #include "exec/address-spaces.h"
 #include "hw/qdev-properties.h"
 #include "hw/qdev-properties-system.h"
+#include "hw/sysbus.h"
 #include "chardev/char-fe.h"
 #include "hw/char/lmscon.h"
 #include "trace.h"
@@ -108,20 +109,17 @@ static const MemoryRegionOps lmscon_mem_ops = {
 
 static void lmscon_realize(DeviceState *dev, Error **errp)
 {
-    MemoryRegion *io;
+    SysBusDevice *sb = SYS_BUS_DEVICE(dev);
     LMSCONState *s = LMSCON(dev);
-    hwaddr base = s->baseaddr + LMS_CONS_DATA_PORT;
-    const uint64_t size = LMS_TRACE_CNTL_PORT - LMS_CONS_DATA_PORT;
+    const uint64_t size = LMS_TRACE_CNTL_PORT - LMS_CONS_DATA_PORT + 1;
 
-    io = g_malloc(sizeof(*io));
-
-    memory_region_init_io(io, OBJECT(dev), &lmscon_mem_ops, s, "lmscon",
-                          size);
-    memory_region_add_subregion_overlap(get_system_memory(), base, io, 999);
+    memory_region_init_io(&s->io, OBJECT(dev), &lmscon_mem_ops, s, "lmscon", size);
+    
+    sysbus_add_io(sb, LMS_CONS_DATA_PORT, &s->io);
+    sysbus_init_ioports(sb, LMS_CONS_DATA_PORT, size);
 }
 
 static Property lmscon_properties[] = {
-    DEFINE_PROP_UINT64("baseaddr", LMSCONState, baseaddr, 0),
     DEFINE_PROP_CHR("chr", LMSCONState, chr),
     DEFINE_PROP_END_OF_LIST(),
 };
@@ -137,10 +135,10 @@ static void lmscon_class_init(ObjectClass *oc, void *data)
 }
 
 static TypeInfo lmscon_info = {
-    .name = TYPE_LMSCON,
-    .parent = TYPE_DEVICE,
+    .name          = TYPE_LMSCON,
+    .parent        = TYPE_SYS_BUS_DEVICE,
     .instance_size = sizeof(LMSCONState),
-    .class_init = lmscon_class_init
+    .class_init    = lmscon_class_init
 };
 
 static void lmscon_register_types(void)

@@ -1,6 +1,11 @@
 config ESCC
     bool
 
+config ESCC_PCI
+    bool
+    depends on PCI
+    select ESCC
+
 config HTIF
     bool
 

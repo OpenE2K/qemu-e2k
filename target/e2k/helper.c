@@ -417,9 +417,9 @@ void HELPER(debug)(CPUE2KState *env)
 #ifndef CONFIG_USER_ONLY
 static AddressSpace *get_addressspace_by_addr(target_ulong *addr, CPUState *env, MemTxAttrs attrs)
 {
-    if (addr >= E2K_IO_AREA_BASE && addr < E2K_IO_AREA_BASE + E2K_IO_AREA_SIZE)
+    if (*addr >= E2K_IO_AREA_BASE && *addr < E2K_IO_AREA_BASE + E2K_IO_AREA_SIZE)
     {
-        addr -= E2K_IO_AREA_BASE;
+        *addr -= E2K_IO_AREA_BASE;
         return &address_space_io;
     }
     

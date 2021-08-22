@@ -27,6 +27,8 @@
 #include "hw/irq.h"
 #include "hw/loader.h"
 #include "hw/qdev-properties.h"
+#include "hw/sysbus.h"
+#include "hw/pci/pci_bridge.h"
 #include "hw/e2k/e2k.h"
 #include "hw/e2k/bootinfo.h"
 #include "target/e2k/cpu.h"
@@ -77,27 +79,27 @@ static void cpus_init(E2KMachineState *e2kms)
     }
 }
 
+/*
 static void lmscon_init(E2KMachineState *e2kms)
 {
     DeviceState *dev;
 
     dev = qdev_new(TYPE_LMSCON);
 
-    qdev_prop_set_uint64(dev, "baseaddr", E2K_IO_AREA_BASE);
     qdev_prop_set_chr(dev, "chr", serial_hd(0));
 
-    if (!qdev_realize(dev, NULL, &error_fatal)) {
+    if (!sysbus_realize_and_unref(SYS_BUS_DEVICE(dev), &error_fatal)) {
         error_report("failed to create lmscon");
         exit(1);
     }
 }
+*/
 
 static bootblock_struct_t *generate_bootblock(E2KMachineState *e2kms,
     ram_addr_t kernel_base, long kernel_size)
 {
     static bootblock_struct_t bootblock;
     boot_info_t *const bootinfo = &bootblock.info;
-    bios_info_t *const biosinfo = &bootblock.info.bios;
     MachineState *ms = MACHINE(e2kms);
     
     memset(&bootblock, 0, sizeof(bootblock));
@@ -141,7 +143,6 @@ static bool e2k_kernel_init(E2KMachineState *e2kms, MemoryRegion *rom_memory)
     MachineState *ms = MACHINE(e2kms);
     uint64_t entry, kernel_high;
     long size;
-    bootblock_struct_t *bootblock;
     MemoryRegion *kernel;
 
     if (!ms->kernel_filename)
@@ -206,10 +207,42 @@ static void firmware_init(E2KMachineState *e2kms, const char *default_filename,
     reset_params.loadaddr = E2K_BIOS_AREA_BASE;
 }
 
-static void e2k_gsi_handler(void *opaque, int n, int level)
+/*static void e2k_gsi_handler(void *opaque, int n, int level)
 {
     GSIState *s = opaque;
     qemu_set_irq(s->ioapic_irq[n], level);
+}*/
+
+
+#define ESCC_CLOCK 2457600
+
+static PCIDevice *pci_init(E2KMachineState *e2kms)
+{
+    PCIDevice *br, *d;
+    
+    e2kms->bus = iohub_init(TYPE_IOHUB_PCI_HOST_BRIDGE, TYPE_IOHUB_PCI_DEVICE,
+                            &e2kms->iohub,
+                            get_system_memory(), get_system_io());
+    
+    br = d = pci_new_multifunction(PCI_DEVFN(0, 0), false, "pci-bridge");
+    qdev_prop_set_uint8(DEVICE(d), PCI_BRIDGE_DEV_PROP_CHASSIS_NR, 1);
+    
+    pci_realize_and_unref(d, e2kms->bus, &error_fatal);
+    
+    d = pci_new_multifunction(PCI_DEVFN(2, 2), false, "escc-pci");
+    qdev_prop_set_uint32(DEVICE(d), "disabled", 0);
+    qdev_prop_set_uint32(DEVICE(d), "frequency", ESCC_CLOCK);
+    qdev_prop_set_uint32(DEVICE(d), "it_shift", 1);
+    qdev_prop_set_chr(DEVICE(d), "chrA", serial_hd(0));
+    qdev_prop_set_chr(DEVICE(d), "chrB", serial_hd(1));
+    qdev_prop_set_uint32(DEVICE(d), "chnBtype", escc_serial);
+    qdev_prop_set_uint32(DEVICE(d), "chnAtype", escc_serial);
+    
+    pci_realize_and_unref(d, pci_bridge_get_sec_bus(PCI_BRIDGE(br)), &error_fatal);
+    
+    /* pci_vga_init(); */
+    
+    return d;
 }
 
 static void e2k_machine_init(MachineState *ms)
@@ -217,11 +250,9 @@ static void e2k_machine_init(MachineState *ms)
     E2KMachineState *e2kms = E2K_MACHINE(ms);
     MemoryRegion *rom_memory;
     MemoryRegion *ram_below_4g, *ram_above_4g;
-    qemu_irq *pic;
-    MemTxAttrs attrs = { };
 
     rom_memory = get_system_memory();
-    
+
     /* Init RAM banks */
     if(ms->ram_size > E2K_MLO_SIZE) {
         e2kms->above_4g_mem_size = ms->ram_size - E2K_MLO_SIZE;
@@ -250,16 +281,12 @@ static void e2k_machine_init(MachineState *ms)
         firmware_init(e2kms, "e2k.bin", rom_memory);
     
     e2kms->gsi_state = g_new0(GSIState, 1);
-    pic = qemu_allocate_irqs(e2k_gsi_handler, e2kms->gsi_state, IOAPIC_NUM_PINS);
-    
-    qemu_log_mask(LOG_UNIMP, "HI :)\n");
+    // pic = qemu_allocate_irqs(e2k_gsi_handler, e2kms->gsi_state, IOAPIC_NUM_PINS);
 
     cpus_init(e2kms);
-    lmscon_init(e2kms);
+    /* lmscon_init(e2kms); */
     sic_init(e2kms);
-    e2kms->bus = iohub_init(TYPE_IOHUB_PCI_HOST_BRIDGE, TYPE_IOHUB_PCI_DEVICE,
-               &e2kms->iohub,
-               rom_memory, get_system_io());
+    pci_init(e2kms);
 }
 
 static void e2k_machine_class_init(ObjectClass *oc, void *data)
@@ -278,7 +305,7 @@ static void e2k_machine_class_init(ObjectClass *oc, void *data)
 static const TypeInfo e2k_machine_info = {
     .name = TYPE_E2K_MACHINE,
     .parent = TYPE_MACHINE,
-    .class_size = sizeof(E2KMachineClass),
+    .instance_size = sizeof(E2KMachineState),
     .class_init = e2k_machine_class_init,
 };
 

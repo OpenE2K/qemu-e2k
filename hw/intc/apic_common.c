@@ -296,7 +296,6 @@ static void apic_common_realize(DeviceState *dev, Error **errp)
 {
     APICCommonState *s = APIC_COMMON(dev);
     APICCommonClass *info;
-    static DeviceState *vapic;
     uint32_t instance_id = s->initial_apic_id;
 
     /* Normally initial APIC ID should be no more than hundreds */
@@ -306,6 +305,8 @@ static void apic_common_realize(DeviceState *dev, Error **errp)
     info->realize(dev, errp);
 
 #if !defined(TARGET_E2K)
+    static DeviceState *vapic;
+
     /* Note: We need at least 1M to map the VAPIC option ROM */
     if (!vapic && s->vapic_control & VAPIC_ENABLE_MASK &&
         !hax_enabled() && current_machine->ram_size >= 1024 * 1024) {

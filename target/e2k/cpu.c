@@ -291,7 +291,6 @@ static void e2k_cpu_realizefn(DeviceState *dev, Error **errp)
     e2k_cpu_register_gdb_regs_for_features(cs);
 
 #ifndef CONFIG_USER_ONLY
-    MachineState *ms = MACHINE(qdev_get_machine());
     qemu_register_reset(e2k_cpu_machine_reset_cb, cpu);
 
 //    if (ms->smp.cpus > 1) {

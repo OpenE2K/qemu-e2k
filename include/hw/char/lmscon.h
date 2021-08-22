@@ -21,9 +21,9 @@
 OBJECT_DECLARE_SIMPLE_TYPE(LMSCONState, LMSCON)
 
 struct LMSCONState {
-    DeviceState parent;
+    SysBusDevice parent;
 
-    uint64_t baseaddr;
+    MemoryRegion io;
     CharBackend chr;
     uint8_t tx;
 };

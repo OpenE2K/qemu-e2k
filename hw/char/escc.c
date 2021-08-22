@@ -33,6 +33,11 @@
 #include "ui/console.h"
 #include "trace.h"
 
+#define CONFIG_ESCC_PCI 
+#ifdef CONFIG_ESCC_PCI
+#include "hw/pci/pci.h"
+#endif
+
 /*
  * Chipset docs:
  * "Z80C30/Z85C30/Z80230/Z85230/Z85233 SCC/ESCC User Manual",
@@ -878,9 +883,81 @@ static const TypeInfo escc_info = {
     .class_init    = escc_class_init,
 };
 
+#ifdef CONFIG_ESCC_PCI
+
+#define TYPE_ESCC_PCI "escc-pci"
+struct ESCCPCIState {
+    PCIDevice dev;
+    
+    ESCCState escc;
+};
+
+OBJECT_DECLARE_SIMPLE_TYPE(ESCCPCIState, ESCC_PCI)
+
+static void escc_pci_realize(PCIDevice *dev, Error **errp)
+{
+    ESCCPCIState *pci = ESCC_PCI(dev);
+    ESCCState *s = &pci->escc;
+    
+    if (!sysbus_realize(SYS_BUS_DEVICE(s), errp)) {
+        return;
+    }
+    
+    pci->dev.config[PCI_INTERRUPT_PIN] = 0x01;
+    
+    pci_register_bar(&pci->dev, 0, PCI_BASE_ADDRESS_SPACE_IO, &s->mmio);
+}
+
+static void escc_pci_exit(PCIDevice *dev)
+{
+    /*ESCCPCIState *pci = ESCC_PCI(dev);
+    ESCCState *s = &pci->escc;
+    
+    sysbus_unrealize(SYS_BUS_DEVICE(s));*/
+}
+
+static void escc_pci_class_init(ObjectClass *klass, void *data)
+{
+    DeviceClass *dc = DEVICE_CLASS(klass);
+    PCIDeviceClass *pc = PCI_DEVICE_CLASS(klass);
+    pc->realize = escc_pci_realize;
+    pc->exit = escc_pci_exit;
+    pc->vendor_id = 0x1fff;
+    pc->device_id = 0x8019;
+    pc->revision = 1;
+    pc->class_id = PCI_CLASS_COMMUNICATION_SERIAL;
+    /* dc->vmsd = &vmstate_pci_serial; */
+    set_bit(DEVICE_CATEGORY_INPUT, dc->categories);
+}
+
+static void escc_pci_init(Object *o)
+{
+    ESCCPCIState *ps = ESCC_PCI(o);
+    
+    object_initialize_child(o, "escc", &ps->escc, TYPE_ESCC);
+    
+    qdev_alias_all_properties(DEVICE(&ps->escc), o);
+}
+
+static const TypeInfo escc_pci_info = {
+    .name          = TYPE_ESCC_PCI,
+    .parent        = TYPE_PCI_DEVICE,
+    .instance_size = sizeof(ESCCPCIState),
+    .instance_init = escc_pci_init,
+    .class_init    = escc_pci_class_init,
+    .interfaces = (InterfaceInfo[]) {
+        { INTERFACE_CONVENTIONAL_PCI_DEVICE },
+        { },
+    },
+};
+#endif /* CONFIG_ESCC_PCI */
+
 static void escc_register_types(void)
 {
     type_register_static(&escc_info);
+#ifdef CONFIG_ESCC_PCI
+    type_register_static(&escc_pci_info);
+#endif /* CONFIG_ESCC_PCI */
 }
 
 type_init(escc_register_types)

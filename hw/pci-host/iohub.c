@@ -33,6 +33,7 @@
 #include "qapi/visitor.h"
 #include "qemu/error-report.h"
 #include "qom/object.h"
+#include "trace.h"
 
 OBJECT_DECLARE_SIMPLE_TYPE(IOHUBState, IOHUB_PCI_HOST_BRIDGE)
 
@@ -40,38 +41,99 @@ struct IOHUBState {
     PCIHostState parent_obj;
 };
 
+/* PCI config address are 27-bit in length.
+ * bit 20-27: bus number
+ * bit 12-19: devfn 
+ * bit 0-11:  device register address
+ */
+
+#define IOHUB_CONFIG_ADDR_BUS(addr)     (((addr) >> 20) & 0xff)
+#define IOHUB_CONFIG_ADDR_DEVFN(addr)   (((addr) >> 12) & 0xff)
+#define IOHUB_CONFIG_ADDR_REG(addr)     (((addr) >> 0) & 0xfff)
+#define TO_IOHUB_CONFIG_ADDR(bus, devfn, where) ((((bus) & 0xff) << 20) | (((devfn) & 0xff) << 12) | ((where) & 0xfff))
+#define TO_PCI_CONFIG_ADDR(bus, devfn, reg) ((((bus) & 0xff) << 16) | (((devfn) & 0xff) << 8) | (((reg) & 0xff) << 0))
+
+static inline uint32_t
+iohub_pci_config_addr(hwaddr addr, uint8_t *bus, uint8_t *devfn, uint16_t *reg)
+{
+    *bus   = IOHUB_CONFIG_ADDR_BUS(addr);
+    *devfn = IOHUB_CONFIG_ADDR_DEVFN(addr);
+    *reg   = IOHUB_CONFIG_ADDR_REG(addr);
+    
+    return TO_PCI_CONFIG_ADDR(*bus, *devfn, *reg);
+}
+
+static uint64_t iohub_pci_config_read(void *opaque, hwaddr addr, unsigned size)
+{
+    uint8_t bus, devfn;
+    uint16_t reg;
+    uint64_t val;
+    hwaddr conf_addr = iohub_pci_config_addr(addr, &bus, &devfn, &reg);
+    
+    val = pci_data_read(opaque, conf_addr, size);
+    
+    trace_iohub_pci_config_read(addr, conf_addr, bus, PCI_SLOT(devfn), PCI_FUNC(devfn), reg, val);
+    
+    return val;
+}
+
+static void iohub_pci_config_write(void *opaque, hwaddr addr, uint64_t val, unsigned size)
+{
+    uint8_t bus, devfn;
+    uint16_t reg;
+    hwaddr conf_addr = iohub_pci_config_addr(addr, &bus, &devfn, &reg);
+    
+    trace_iohub_pci_config_write(addr, conf_addr, bus, PCI_SLOT(devfn), PCI_FUNC(devfn), reg, val);
+    
+    pci_data_write(opaque, conf_addr, val, size);
+}
+
+static const MemoryRegionOps iohub_pci_config_ops = {
+    .read = iohub_pci_config_read,
+    .write = iohub_pci_config_write,
+    .endianness = DEVICE_NATIVE_ENDIAN,
+};
+
 PCIBus *iohub_init(const char *host_type, const char *pci_type,
                    PCIIOHUBState **piohub_state,
-                    MemoryRegion *address_space_mem,
-                    MemoryRegion *address_space_io)
+                   MemoryRegion *address_space_mem,
+                   MemoryRegion *address_space_io)
 {
     DeviceState *dev;
+    SysBusDevice *sb;
     PCIDevice *d;
     PCIHostState *s;
     PCIBus *b;
     PCIIOHUBState *f;
-    MemoryRegion *pci_address_space;
+    MemoryRegion *pci_address_space, *pci_config_as;
     
     dev = qdev_new(host_type);
     s = PCI_HOST_BRIDGE(dev);
+    sb = SYS_BUS_DEVICE(dev);
     
     pci_address_space = g_malloc(sizeof(*pci_address_space));
-    memory_region_init_alias(pci_address_space, OBJECT(dev),
-                             "pcimem", address_space_mem, 0, E2K_PCIMEM_SIZE);
+    memory_region_init_io(pci_address_space, OBJECT(dev), NULL, NULL, "pcimem", E2K_PCIMEM_SIZE);
     memory_region_add_subregion(address_space_mem, E2K_PCIMEM_BASE, pci_address_space);
-    
+        
     s->bus = b = pci_root_bus_new(dev, NULL, 
                                   pci_address_space, 
-                                  address_space_io, 
+                                  address_space_io,
                                   0, TYPE_PCI_BUS);
-
-    object_property_add_child(qdev_get_machine(), "iohub", OBJECT(dev));
-    sysbus_realize_and_unref(SYS_BUS_DEVICE(dev), &error_fatal);
     
-    d = pci_create_simple(b, 0, pci_type);
+    object_property_add_child(qdev_get_machine(), "iohub", OBJECT(dev));
+    sysbus_realize_and_unref(sb, &error_fatal);
+    
+    pci_config_as = g_malloc(sizeof(*pci_config_as));
+    memory_region_init_io(pci_config_as, OBJECT(dev), &iohub_pci_config_ops, s->bus, "pcicfg", E2K_PCICFG_SIZE);
+    sysbus_init_mmio(sb, pci_config_as);
+    sysbus_mmio_map(sb, 0, E2K_PCICFG_BASE);
+    
+    d = pci_create_simple(b, PCI_DEVFN(1, 0), pci_type);
     f = *piohub_state = IOHUB_PCI_DEVICE(d);
     f->system_memory = address_space_mem;
     f->pci_address_space = pci_address_space;
+    
+    return b;
 }
 
 static void iohub_class_init(ObjectClass *oc, void *data)
@@ -128,7 +190,6 @@ static void iohub_pcihost_realize(DeviceState *dev, Error **errp)
 static void iohub_pcihost_class_init(ObjectClass *oc, void *data)
 {
     DeviceClass *dc = DEVICE_CLASS(oc);
-    PCIHostBridgeClass *hc = PCI_HOST_BRIDGE_CLASS(oc);
     
     dc->realize = iohub_pcihost_realize;
     dc->fw_name = "pci";

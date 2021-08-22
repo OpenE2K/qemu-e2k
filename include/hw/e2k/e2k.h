@@ -198,13 +198,6 @@ typedef struct GSIState {
     qemu_irq ioapic_irq[IOAPIC_NUM_PINS];
 } GSIState;
 
-struct E2KMachineClass {
-    /*< private >*/
-    MachineClass parent;
-
-    /*< public >*/
-};
-
 struct E2KMachineState {
     /*< private >*/
     MachineClass parent;
@@ -228,7 +221,7 @@ struct E2KMachineState {
 
 
 #define TYPE_E2K_MACHINE    MACHINE_TYPE_NAME("e2k")
-OBJECT_DECLARE_TYPE(E2KMachineState, E2KMachineClass, E2K_MACHINE)
+OBJECT_DECLARE_SIMPLE_TYPE(E2KMachineState, E2K_MACHINE)
 
 void sic_init(E2KMachineState *ms);
 
