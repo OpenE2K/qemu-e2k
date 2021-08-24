@@ -373,6 +373,8 @@ void pci_bridge_initfn(PCIDevice *dev, const char *typename)
     if (!br->bus_name && dev->qdev.id && *dev->qdev.id) {
             br->bus_name = dev->qdev.id;
     }
+    
+    printf("%s\n", br->bus_name);
 
     qbus_create_inplace(sec_bus, sizeof(br->sec_bus), typename, DEVICE(dev),
                         br->bus_name);

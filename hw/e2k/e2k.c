@@ -52,6 +52,12 @@ DeviceState *cpu_get_current_apic(void)
     }
 }
 
+int pci_e2k_map_irq(PCIDevice *pci_dev, int irq_num)
+{
+    return (irq_num + (pci_dev->devfn >> 3)) & 3;
+}
+
+
 static void e2k_cpu_reset(void *opaque)
 {
     E2KCPU *cpu = opaque;
@@ -207,30 +213,30 @@ static void firmware_init(E2KMachineState *e2kms, const char *default_filename,
     reset_params.loadaddr = E2K_BIOS_AREA_BASE;
 }
 
-/*static void e2k_gsi_handler(void *opaque, int n, int level)
+static void e2k_gsi_handler(void *opaque, int n, int level)
 {
     GSIState *s = opaque;
     qemu_set_irq(s->ioapic_irq[n], level);
-}*/
-
+}
 
 #define ESCC_CLOCK 2457600
 
-static PCIDevice *pci_init(E2KMachineState *e2kms)
+static PCIDevice *pci_init(E2KMachineState *e2kms, qemu_irq *pic)
 {
-    PCIDevice *br, *d;
+    PCIDevice *d;
+    PCIBridge *br;
     
     e2kms->bus = iohub_init(TYPE_IOHUB_PCI_HOST_BRIDGE, TYPE_IOHUB_PCI_DEVICE,
                             &e2kms->iohub,
-                            get_system_memory(), get_system_io());
+                            get_system_memory(), get_system_io(), pic);
     
-    br = d = pci_new_multifunction(PCI_DEVFN(0, 0), false, "pci-bridge");
-    qdev_prop_set_uint8(DEVICE(d), PCI_BRIDGE_DEV_PROP_CHASSIS_NR, 1);
-    
+    d = pci_new_multifunction(PCI_DEVFN(0, 0), true, TYPE_IOHUB_PCI_BRIDGE);
+    br = PCI_BRIDGE(d);
+    br->bus_name = "pci";
+    pci_bridge_map_irq(br, TYPE_IOHUB_PCI_BRIDGE, pci_e2k_map_irq);
     pci_realize_and_unref(d, e2kms->bus, &error_fatal);
     
-    d = pci_new_multifunction(PCI_DEVFN(2, 2), false, "escc-pci");
-    qdev_prop_set_uint32(DEVICE(d), "disabled", 0);
+    d = pci_new_multifunction(PCI_DEVFN(2, 2), true, "escc-pci");
     qdev_prop_set_uint32(DEVICE(d), "frequency", ESCC_CLOCK);
     qdev_prop_set_uint32(DEVICE(d), "it_shift", 1);
     qdev_prop_set_chr(DEVICE(d), "chrA", serial_hd(0));
@@ -238,11 +244,9 @@ static PCIDevice *pci_init(E2KMachineState *e2kms)
     qdev_prop_set_uint32(DEVICE(d), "chnBtype", escc_serial);
     qdev_prop_set_uint32(DEVICE(d), "chnAtype", escc_serial);
     
-    pci_realize_and_unref(d, pci_bridge_get_sec_bus(PCI_BRIDGE(br)), &error_fatal);
-    
-    /* pci_vga_init(); */
-    
-    return d;
+    pci_realize_and_unref(d, pci_bridge_get_sec_bus(br), &error_fatal);
+
+    return PCI_DEVICE(br);
 }
 
 static void e2k_machine_init(MachineState *ms)
@@ -250,6 +254,7 @@ static void e2k_machine_init(MachineState *ms)
     E2KMachineState *e2kms = E2K_MACHINE(ms);
     MemoryRegion *rom_memory;
     MemoryRegion *ram_below_4g, *ram_above_4g;
+    qemu_irq *pic;
 
     rom_memory = get_system_memory();
 
@@ -281,12 +286,12 @@ static void e2k_machine_init(MachineState *ms)
         firmware_init(e2kms, "e2k.bin", rom_memory);
     
     e2kms->gsi_state = g_new0(GSIState, 1);
-    // pic = qemu_allocate_irqs(e2k_gsi_handler, e2kms->gsi_state, IOAPIC_NUM_PINS);
+    pic = qemu_allocate_irqs(e2k_gsi_handler, e2kms->gsi_state, IOAPIC_NUM_PINS);
 
     cpus_init(e2kms);
     /* lmscon_init(e2kms); */
     sic_init(e2kms);
-    pci_init(e2kms);
+    pci_init(e2kms, pic);
 }
 
 static void e2k_machine_class_init(ObjectClass *oc, void *data)

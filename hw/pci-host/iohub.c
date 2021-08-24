@@ -26,8 +26,10 @@
 #include "hw/e2k/e2k.h"
 #include "hw/pci/pci.h"
 #include "hw/pci/pci_host.h"
+#include "hw/pci/pci_bridge.h"
 #include "hw/pci-host/iohub.h"
 #include "hw/qdev-properties.h"
+#include "hw/irq.h"
 #include "hw/sysbus.h"
 #include "qapi/error.h"
 #include "qapi/visitor.h"
@@ -39,6 +41,8 @@ OBJECT_DECLARE_SIMPLE_TYPE(IOHUBState, IOHUB_PCI_HOST_BRIDGE)
 
 struct IOHUBState {
     PCIHostState parent_obj;
+    
+    qemu_irq *pic;
 };
 
 /* PCI config address are 27-bit in length.
@@ -52,6 +56,19 @@ struct IOHUBState {
 #define IOHUB_CONFIG_ADDR_REG(addr)     (((addr) >> 0) & 0xfff)
 #define TO_IOHUB_CONFIG_ADDR(bus, devfn, where) ((((bus) & 0xff) << 20) | (((devfn) & 0xff) << 12) | ((where) & 0xfff))
 #define TO_PCI_CONFIG_ADDR(bus, devfn, reg) ((((bus) & 0xff) << 16) | (((devfn) & 0xff) << 8) | (((reg) & 0xff) << 0))
+
+static void pci_e2k_set_irq(void *opaque, int irq_num, int level)
+{
+    IOHUBState *s = opaque;
+    qemu_irq *pic = s->pic;
+    
+    int npic = irq_num + ISA_NUM_IRQS - 1;
+    if(npic == 15)
+    {
+      npic = 19;
+    }
+    qemu_set_irq(pic[npic], level);
+}
 
 static inline uint32_t
 iohub_pci_config_addr(hwaddr addr, uint8_t *bus, uint8_t *devfn, uint16_t *reg)
@@ -97,7 +114,8 @@ static const MemoryRegionOps iohub_pci_config_ops = {
 PCIBus *iohub_init(const char *host_type, const char *pci_type,
                    PCIIOHUBState **piohub_state,
                    MemoryRegion *address_space_mem,
-                   MemoryRegion *address_space_io)
+                   MemoryRegion *address_space_io,
+                   qemu_irq *pic)
 {
     DeviceState *dev;
     SysBusDevice *sb;
@@ -110,6 +128,7 @@ PCIBus *iohub_init(const char *host_type, const char *pci_type,
     dev = qdev_new(host_type);
     s = PCI_HOST_BRIDGE(dev);
     sb = SYS_BUS_DEVICE(dev);
+    IOHUB_PCI_HOST_BRIDGE(dev)->pic = pic;
     
     pci_address_space = g_malloc(sizeof(*pci_address_space));
     memory_region_init_io(pci_address_space, OBJECT(dev), NULL, NULL, "pcimem", E2K_PCIMEM_SIZE);
@@ -119,6 +138,8 @@ PCIBus *iohub_init(const char *host_type, const char *pci_type,
                                   pci_address_space, 
                                   address_space_io,
                                   0, TYPE_PCI_BUS);
+    
+    pci_bus_irqs(b, pci_e2k_set_irq, pci_e2k_map_irq, pic, 4);
     
     object_property_add_child(qdev_get_machine(), "iohub", OBJECT(dev));
     sysbus_realize_and_unref(sb, &error_fatal);
@@ -204,10 +225,78 @@ static const TypeInfo iohub_pcihost_info = {
     .class_init = iohub_pcihost_class_init,
 };
 
+static void iohub_pcibridge_realize(PCIDevice *dev, Error **errp)
+{
+    pci_set_word(dev->config + PCI_COMMAND, PCI_COMMAND_MEMORY);
+    pci_bridge_initfn(dev, TYPE_PCI_BUS);
+
+    /*
+     * command register:
+     * According to PCI bridge spec, after reset
+     *   bus master bit is off
+     *   PCI_COMMAND_MEMORY is ON
+     */
+    pci_set_word(dev->config + PCI_STATUS,
+        PCI_STATUS_FAST_BACK | PCI_STATUS_66MHZ |
+        PCI_STATUS_DEVSEL_MEDIUM);
+}
+
+static uint32_t iohub_pcibridge_read_config(PCIDevice *d, uint32_t addr, int size)
+{
+    uint8_t bus, devfn;
+    uint16_t reg;
+    uint32_t val;
+    hwaddr conf_addr = iohub_pci_config_addr(addr, &bus, &devfn, &reg);
+    
+    val = pci_default_read_config(d, conf_addr, size);
+    
+    return val;
+}
+
+static void iohub_pcibridge_write_config(PCIDevice *d, uint32_t addr, uint32_t val, int size)
+{
+    uint8_t bus, devfn;
+    uint16_t reg;
+    hwaddr conf_addr = iohub_pci_config_addr(addr, &bus, &devfn, &reg);
+    
+    pci_bridge_write_config(d, conf_addr, val, size);
+}
+
+static void iohub_pcibridge_class_init(ObjectClass *oc, void *data)
+{
+    DeviceClass *dc = DEVICE_CLASS(oc);
+    PCIDeviceClass *k = PCI_DEVICE_CLASS(oc);
+    
+    k->realize = iohub_pcibridge_realize;
+    k->exit = pci_bridge_exitfn;
+    k->vendor_id = 0x1fff;
+    k->device_id = 0x8000;
+    k->revision  = 0x10;
+    k->class_id = PCI_CLASS_BRIDGE_PCI;
+    k->config_write = iohub_pcibridge_write_config;
+    k->config_read = iohub_pcibridge_read_config;
+    k->is_bridge = true;
+    dc->desc = "IOHUB PCI2PCI Bridge";
+    dc->reset = pci_bridge_reset;
+    set_bit(DEVICE_CATEGORY_BRIDGE, dc->categories);
+}
+
+static const TypeInfo iohub_pcibridge_info = {
+    .name = TYPE_IOHUB_PCI_BRIDGE,
+    .parent = TYPE_PCI_BRIDGE,
+    .instance_size = sizeof(PCIBridge),
+    .class_init = iohub_pcibridge_class_init,
+    .interfaces = (InterfaceInfo[]) {
+        { INTERFACE_CONVENTIONAL_PCI_DEVICE },
+        { }
+    }
+};
+
 static void iohub_register_types(void)
 {
     type_register_static(&iohub_info);
     type_register_static(&iohub_pcihost_info);
+    type_register_static(&iohub_pcibridge_info);
 }
 
 type_init(iohub_register_types);

@@ -224,5 +224,6 @@ struct E2KMachineState {
 OBJECT_DECLARE_SIMPLE_TYPE(E2KMachineState, E2K_MACHINE)
 
 void sic_init(E2KMachineState *ms);
+int pci_e2k_map_irq(PCIDevice *pci_dev, int irq_num);
 
 #endif /* HW_E2K_H */

@@ -13,6 +13,7 @@
 #include "qom/object.h"
 
 #define TYPE_IOHUB_PCI_HOST_BRIDGE "iohub-pcihost"
+#define TYPE_IOHUB_PCI_BRIDGE "iohub-pcibridge"
 #define TYPE_IOHUB_PCI_DEVICE "iohub"
 
 OBJECT_DECLARE_SIMPLE_TYPE(PCIIOHUBState, IOHUB_PCI_DEVICE)
@@ -24,12 +25,15 @@ struct PCIIOHUBState {
 
     MemoryRegion *system_memory;
     MemoryRegion *pci_address_space;
+    
+    qemu_irq *pic;
 };
 
 PCIBus *iohub_init(const char *host_type, const char *pci_type,
                    PCIIOHUBState **piohub_state,
                     MemoryRegion *address_space_mem,
-                    MemoryRegion *address_space_io);
+                    MemoryRegion *address_space_io,
+                    qemu_irq *pic);
 
 PCIBus *find_iohub(void);
 
