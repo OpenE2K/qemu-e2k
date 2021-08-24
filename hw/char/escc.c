@@ -33,8 +33,8 @@
 #include "ui/console.h"
 #include "trace.h"
 
-#define CONFIG_ESCC_PCI 
-#ifdef CONFIG_ESCC_PCI
+#define CONFIG_ESCC_PCI0
+#ifdef CONFIG_ESCC_PCI0
 #include "hw/pci/pci.h"
 #endif
 
@@ -883,7 +883,8 @@ static const TypeInfo escc_info = {
     .class_init    = escc_class_init,
 };
 
-#ifdef CONFIG_ESCC_PCI
+#ifdef CONFIG_ESCC_PCI0
+#include "hw/pci/pci_bus.h"
 
 #define TYPE_ESCC_PCI "escc-pci"
 struct ESCCPCIState {
@@ -903,9 +904,10 @@ static void escc_pci_realize(PCIDevice *dev, Error **errp)
         return;
     }
     
+    pci->dev.config[PCI_CLASS_PROG] = 0x02;
     pci->dev.config[PCI_INTERRUPT_PIN] = 0x01;
     
-    pci_register_bar(&pci->dev, 0, PCI_BASE_ADDRESS_SPACE_IO, &s->mmio);
+    pci_register_bar(&pci->dev, 1, PCI_BASE_ADDRESS_SPACE_MEMORY, &s->mmio);
 }
 
 static void escc_pci_exit(PCIDevice *dev)
@@ -955,7 +957,7 @@ static const TypeInfo escc_pci_info = {
 static void escc_register_types(void)
 {
     type_register_static(&escc_info);
-#ifdef CONFIG_ESCC_PCI
+#ifdef CONFIG_ESCC_PCI0
     type_register_static(&escc_pci_info);
 #endif /* CONFIG_ESCC_PCI */
 }
