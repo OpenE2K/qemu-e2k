@@ -908,6 +908,8 @@ static void escc_pci_realize(PCIDevice *dev, Error **errp)
     pci->dev.config[PCI_INTERRUPT_PIN] = 0x01;
     
     pci_register_bar(&pci->dev, 1, PCI_BASE_ADDRESS_SPACE_MEMORY, &s->mmio);
+    
+    memory_region_add_subregion(pci_address_space(&pci->dev), 0x1000, &s->mmio);
 }
 
 static void escc_pci_exit(PCIDevice *dev)

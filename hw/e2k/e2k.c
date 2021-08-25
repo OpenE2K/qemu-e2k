@@ -238,13 +238,13 @@ static PCIDevice *pci_init(E2KMachineState *e2kms, qemu_irq *pic)
     
     d = pci_new_multifunction(PCI_DEVFN(2, 2), true, "escc-pci");
     qdev_prop_set_uint32(DEVICE(d), "frequency", ESCC_CLOCK);
-    qdev_prop_set_uint32(DEVICE(d), "it_shift", 1);
+    qdev_prop_set_uint32(DEVICE(d), "it_shift", 0);
     qdev_prop_set_chr(DEVICE(d), "chrA", serial_hd(0));
     qdev_prop_set_chr(DEVICE(d), "chrB", serial_hd(1));
     qdev_prop_set_uint32(DEVICE(d), "chnBtype", escc_serial);
     qdev_prop_set_uint32(DEVICE(d), "chnAtype", escc_serial);
     
-    pci_realize_and_unref(d, pci_bridge_get_sec_bus(br), &error_fatal);
+    pci_realize_and_unref(d, e2kms->bus, &error_fatal);
 
     return PCI_DEVICE(br);
 }
