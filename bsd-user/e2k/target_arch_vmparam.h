@@ -43,9 +43,10 @@
 
 #define TARGET_USRSTACK (TARGET_VM_MAXUSER_ADDRESS - TARGET_PAGE_SIZE)
 
+// see linux-user/e2k/target_cpu.h:get_sp_from_cpustate
 static inline abi_ulong get_sp_from_cpustate(CPUE2KState *state)
 {
-    return state->usd.curptr;
+    return state->usd.base;
 }
 
 static inline void set_second_rval(CPUE2KState *state, abi_ulong retval2)
