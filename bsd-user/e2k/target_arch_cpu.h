@@ -30,13 +30,39 @@
 #define _TARGET_ARCH_CPU_H_
 
 #include "target_arch.h"
+#include "target_arch_elf.h"
 
 #define TARGET_DEFAULT_CPU_MODEL "e8c"
 
 static inline void target_cpu_init(CPUE2KState *env,
         struct target_pt_regs *regs)
 {
-    assert(0 && "target_cpu_init not implemented yet");
+    CPUState *cpu = env_cpu(env);
+    TaskState *ts = cpu->opaque;
+    struct image_info *info = ts->info;
+    uint32_t eflags = info->elf_flags;
+
+    env->psr = PSR_NMIE | PSR_SGE | PSR_IE;
+    env->upsr = UPSR_NMIE | UPSR_IE | UPSR_FE;
+    env->ip = regs->ip;
+    env->pcsp = regs->pcsp;
+    env->psp = regs->psp;
+    env->usd.lo = regs->usd_lo;
+    env->usd.hi = regs->usd_hi;
+    env->sbr = regs->sbr;
+    env->elf_flags = info->elf_flags;
+
+    // TODO: set a chain info to return to kernel
+
+    if (eflags & E2K_ELF_PM) {
+        fprintf(stderr, "Protected mode is unsupported\n");
+        exit(EXIT_FAILURE);
+    }
+
+    if (eflags & E2K_ELF_X86APP) {
+        fprintf(stderr, "x86 recompiler is unsupported\n");
+        exit(EXIT_FAILURE);
+    }
 }
 
 static inline void target_cpu_loop(CPUE2KState *env)

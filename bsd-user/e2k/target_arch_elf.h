@@ -39,4 +39,10 @@
 
 #define ELF_HWCAP   0
 
+#define E2K_ELF_IPD_MASK  ((1U << 1)|(1U << 0))
+#define E2K_ELF_X86APP    (1U << 2)
+#define E2K_ELF_4MB_PAGES (1U << 3)
+#define E2K_ELF_INCOMPAT  (1U << 4)
+#define E2K_ELF_PM        (1U << 5)
+
 #endif /* _TARGET_ARCH_ELF_H_ */
