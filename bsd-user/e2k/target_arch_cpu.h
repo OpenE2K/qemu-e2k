@@ -89,8 +89,7 @@ static inline void target_cpu_loop(CPUE2KState *env)
 
 static inline void target_cpu_clone_regs(CPUE2KState *env, target_ulong newsp)
 {
-    if (newsp)
-        env->usd.curptr = newsp;
+    assert(0 && "target_cpu_clone_regs not implemented yet");
 }
 
 static inline void target_cpu_set_tls(CPUE2KState *env, target_ulong newtls)
