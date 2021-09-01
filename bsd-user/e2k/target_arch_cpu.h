@@ -65,6 +65,18 @@ static inline void target_cpu_init(CPUE2KState *env,
     }
 }
 
+static void gen_signal(CPUE2KState *env, int signo, int code, abi_ulong addr)
+{
+    target_siginfo_t info = {
+        .si_signo = signo,
+        .si_code = code,
+        .si_addr = addr,
+        // TODO: ._sifields._sigfault._trapno = trapnr
+    };
+
+    queue_signal(env, signo, &info);
+}
+
 static inline void target_cpu_loop(CPUE2KState *env)
 {
     CPUState *cs = env_cpu(env);
@@ -77,6 +89,37 @@ static inline void target_cpu_loop(CPUE2KState *env)
         process_queued_cpu_work(cs);
 
         switch (trapnr) {
+        case EXCP_SYSCALL: {
+            abi_ullong args[E2K_SYSCALL_MAX_ARGS] = { 0 };
+            int i, psize = MIN(E2K_SYSCALL_MAX_ARGS, env->wd.size);
+            abi_ulong ret;
+
+            // TODO: check what happens if env->wd.size is zero
+            for (i = 0; i < psize; i++) {
+                args[i] = env->regs[i].lo;
+            }
+
+            ret = do_freebsd_syscall(env, args[0], args[1], args[2], args[3],
+                args[4], args[5], args[6], args[7], args[8]);
+
+            if (ret == -TARGET_ERESTARTSYS) {
+                /* do not set sysret address and syscall will be restarted */
+            // TODO: Was it correct to replace TARGET_QEMU_ESIGRETURN with TARGET_EJUSTRETURN ?
+            //} else if (ret != -TARGET_QEMU_ESIGRETURN && env->wd.psize > 0) {
+            } else if (ret != -TARGET_EJUSTRETURN && env->wd.psize > 0) {
+                memset(env->tags, E2K_TAG_NON_NUMBER64,
+                    psize * sizeof(env->tags[0]));
+
+                env->regs[0].lo = ret;
+                env->tags[0] = E2K_TAG_NUMBER64;
+                env->ip = E2K_SYSRET_ADDR;
+            }
+            break;
+        }
+
+        case EXCP_DATA_PAGE:
+            gen_signal(env, TARGET_SIGSEGV, TARGET_SEGV_MAPERR, env->ip);
+            break;
 
         default:
             fprintf(stderr, "Unhandled trap: 0x%x\n", trapnr);
