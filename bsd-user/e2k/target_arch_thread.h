@@ -67,7 +67,8 @@ static inline void target_thread_init(struct target_pt_regs *regs,
     regs->ip = infop->entry;
 
     // FIXME: set real start stack address
-    regs->sbr = infop->arg_strings & ~0xf;
+    // regs->sbr = infop->arg_strings & ~0xf;
+    regs->sbr = 0;
     regs->usd_lo = (0x1800UL << 48) | start_stack;
     regs->usd_hi = (regs->sbr - start_stack) << 32;
 
