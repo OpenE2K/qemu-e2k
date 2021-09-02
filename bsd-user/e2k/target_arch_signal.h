@@ -40,6 +40,9 @@
 /* from user.h !!! */
 #define MLT_NUM (16 * 3)    /* common for E3M and E3S */
 
+/* TODO: Size of the signal trampolin code placed on the stack. */
+#define TARGET_SZSIGCODE    0
+
 #define TARGET_MINSIGSTKSZ      (512 * 4)   /* min sig stack size */
 
 #define TARGET_MC_GET_CLEAR_RET 0x0001
