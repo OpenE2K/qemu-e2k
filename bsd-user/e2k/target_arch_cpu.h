@@ -121,6 +121,10 @@ static inline void target_cpu_loop(CPUE2KState *env)
             gen_signal(env, TARGET_SIGSEGV, TARGET_SEGV_MAPERR, env->ip);
             break;
 
+        case EXCP_INTERRUPT:
+            /* just indicate that signals should be handled asap */
+            break;
+
         default:
             fprintf(stderr, "Unhandled trap: 0x%x\n", trapnr);
             cpu_dump_state(cs, stderr, 0);
