@@ -32,7 +32,7 @@
 static inline abi_long setup_sigtramp(abi_ulong offset, unsigned sigf_uc,
         unsigned sys_sigreturn)
 {
-    assert(0 && "setup_sigtramp is not implemented yet");
-    return -TARGET_EOPNOTSUPP;
+
+    return 0;
 }
 #endif /* _TARGET_ARCH_SIGTRAMP_H_ */
