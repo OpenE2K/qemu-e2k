@@ -158,6 +158,10 @@ void target_cpu_copy_regs(CPUE2KState *env, struct target_pt_regs *regs)
     env->sbr = regs->sbr;
     env->elf_flags = info->elf_flags;
 
+    // Save initial frame for gdb.
+    env->is_bp = true;
+    e2k_proc_call(env, env->wd.size, env->ip, true);
+
     // TODO: set a chain info to return to kernel
 
     if (eflags & E2K_ELF_PM) {
