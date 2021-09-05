@@ -126,6 +126,8 @@ static inline void target_cpu_loop(CPUE2KState *env)
             break;
 
         case EXCP_DEBUG:
+            env->is_bp = true;
+            e2k_proc_call(env, env->wd.size, env->ip, true);
             gen_signal(env, TARGET_SIGTRAP, TARGET_TRAP_BRKPT, 0);
             break;
 
@@ -145,6 +147,7 @@ static inline void target_cpu_clone_regs(CPUE2KState *env, target_ulong newsp)
 
 static inline void target_cpu_set_tls(CPUE2KState *env, target_ulong newtls)
 {
+    // According to docs, g13 register is used for TLS pointer
     assert(0 && "target_cpu_set_tls not implemented yet");
 }
 
