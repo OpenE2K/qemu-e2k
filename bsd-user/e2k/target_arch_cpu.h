@@ -34,6 +34,7 @@
 
 #define TARGET_DEFAULT_CPU_MODEL "e8c"
 
+// linux-user/e2k/cpu_loop.c:target_cpu_copy_regs
 static inline void target_cpu_init(CPUE2KState *env,
         struct target_pt_regs *regs)
 {
