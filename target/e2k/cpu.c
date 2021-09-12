@@ -49,6 +49,8 @@ static void e2k_cpu_reset(DeviceState *dev)
     env->bn.base = 8;
     env->bn.size = 8;
     env->bn.cur = 0;
+    /* Based predicate window must not be zero. */
+    env->bp.size = 1;
     env->aau.incrs[0] = 1; /* always one */
     env->fpcr._one = 1; 
     env->fpcr.pc = FPCR_PC_XP;
