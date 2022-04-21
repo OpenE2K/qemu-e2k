@@ -5399,6 +5399,32 @@ IMPL_ALOPF7(gen_alopf7_sss, s, s, s)
 IMPL_ALOPF7(gen_alopf7_ddd, d, d, d)
 IMPL_ALOPF7(gen_alopf7_qqd, q, q, d)
 
+enum {
+    X86_CF = 1 << 0,
+    X86_PF = 1 << 2,
+    X86_AF = 1 << 4,
+    X86_ZF = 1 << 6,
+    X86_SF = 1 << 7,
+    X86_DF = 1 << 10,
+    X86_OF = 1 << 11,
+};
+
+static void gen_alopf8(Alop *alop, uint32_t mask)
+{
+    Tagged_i32 s2 = tagged_local_new_i32();
+    Tagged_i32 r = tagged_new_i32();
+
+    gen_tagged_src2_s(alop, s2);
+    gen_result_init_s(alop, r);
+    gen_tag1s(r, s2);
+    tcg_gen_andi_i32(r.val, s2.val, mask);
+    tcg_gen_setcondi_i32(TCG_COND_NE, r.val, r.val, 0);
+    gen_al_result_b(alop, r);
+
+    tagged_free_i32(r);
+    tagged_free_i32(s2);
+}
+
 IMPL_ALOPF7_ENV(gen_alopf7_env_sss, s, s, s)
 IMPL_ALOPF7_ENV(gen_alopf7_env_ddd, d, d, d)
 IMPL_ALOPF7_ENV(gen_alopf7_env_xsd, x, s, d)
@@ -6233,6 +6259,14 @@ static void gen_alop_simple(Alop *alop)
     case OP_QPCEXT_0X7F: gen_alopf2_dq(alop, gen_qpcext_0x7f); break;
     case OP_QPCEXT_0X80: gen_alopf2_dq(alop, gen_qpcext_0x80); break;
     case OP_QPCEXT_0XFF: gen_alopf2_dq(alop, gen_qpcext_0xff); break;
+    case OP_CCTOPO:   gen_alopf8(alop, X86_OF); break;
+    case OP_CCTOPB:   gen_alopf8(alop, X86_CF); break;
+    case OP_CCTOPE:   gen_alopf8(alop, X86_ZF); break;
+    case OP_CCTOPBE:  gen_alopf8(alop, X86_CF | X86_ZF); break;
+    case OP_CCTOPS:   gen_alopf8(alop, X86_SF); break;
+    case OP_CCTOPP:   gen_alopf8(alop, X86_PF); break;
+    case OP_CCTOPL:   gen_alopf8(alop, X86_SF | X86_OF); break;
+    case OP_CCTOPLE:  gen_alopf8(alop, X86_ZF | X86_SF | X86_OF); break;
     case OP_VFSI:
     case OP_MOVTRS:
     case OP_MOVTRCS:
@@ -6241,14 +6275,6 @@ static void gen_alop_simple(Alop *alop)
     case OP_GETSAP:
     case OP_CUDTOAP:
     case OP_GDTOAP:
-    case OP_CCTOPO:
-    case OP_CCTOPB:
-    case OP_CCTOPE:
-    case OP_CCTOPBE:
-    case OP_CCTOPS:
-    case OP_CCTOPP:
-    case OP_CCTOPL:
-    case OP_CCTOPLE:
     /*
     case OP_AAURW:
     case OP_AAURWS:
