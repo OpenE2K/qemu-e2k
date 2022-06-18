@@ -1,7 +1,7 @@
 #ifndef E2K_TARGET_CPU_H
 #define E2K_TARGET_CPU_H
 
-#include "qemu/log.h"
+#include "user-mmap.h"
 
 abi_long e2k_copy_from_user_crs(E2KCrs *crs, abi_ulong target_crs_addr);
 abi_long e2k_copy_to_user_crs(abi_ulong target_crs_addr, E2KCrs *crs);
@@ -27,8 +27,9 @@ static inline void cpu_clone_regs_child(CPUE2KState *env, target_ulong newsp,
         target_ulong ps_base = env->psp.base + env->psp.index;
         int i;
 
-        e2k_psp_new(&pcs, E2K_DEFAULT_PCS_SIZE, false);
-        e2k_psp_new(&ps, E2K_DEFAULT_PS_SIZE, true);
+        e2k_psp_new(&pcs, E2K_DEFAULT_PCS_SIZE, e2k_mmap(E2K_DEFAULT_PCS_SIZE), 0);
+        e2k_psp_new(&ps, E2K_DEFAULT_PS_SIZE, e2k_mmap(E2K_DEFAULT_PS_SIZE),
+                    e2k_mmap(E2K_DEFAULT_PS_SIZE / 8));
 
         // TODO: size checks and a way to report errors
         // TODO: set a chain info to return to kernel

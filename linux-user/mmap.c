@@ -645,6 +645,31 @@ fail:
     return -1;
 }
 
+#ifdef TARGET_E2K
+abi_ulong e2k_mmap(abi_ulong size)
+{
+    abi_ulong addr;
+    abi_ulong guard = TARGET_PAGE_SIZE;
+
+    if (size < TARGET_PAGE_SIZE) {
+        size = TARGET_PAGE_SIZE;
+    }
+    if (guard < qemu_real_host_page_size()) {
+        guard = qemu_real_host_page_size();
+    }
+
+    addr = target_mmap(0, size + guard, PROT_READ | PROT_WRITE,
+        MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    if (addr == -1) {
+        perror("mmap e2k stack");
+        exit(-1);
+    }
+
+    target_mprotect(addr + size, guard, PROT_NONE);
+    return addr;
+}
+#endif
+
 static void mmap_reserve(abi_ulong start, abi_ulong size)
 {
     abi_ulong real_start;

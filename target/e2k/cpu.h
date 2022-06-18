@@ -954,9 +954,16 @@ bool e2k_cpu_tlb_fill(CPUState *cpu, vaddr address, int size,
                  bool probe, uintptr_t retaddr);
 void e2k_update_fp_status(CPUE2KState *env);
 void e2k_update_fx_status(CPUE2KState *env);
-#ifdef CONFIG_USER_ONLY
-void e2k_psp_new(E2KPsp *psp, unsigned int size, bool tags);
-#endif
+/*
+ * PCSP
+ * @base = mmap(size)
+ * @base_tags = 0
+ *
+ * PSP
+ * @base = mmap(size)
+ * @base_tags = mmap(size / 8)
+ */
+void e2k_psp_new(E2KPsp *psp, uint32_t size, uint64_t base, uint64_t base_tags);
 void e2k_proc_call(CPUE2KState *env, int base, target_ulong ret_ip,
     bool force_fx);
 void e2k_proc_return(CPUE2KState *env, bool force_fx);
