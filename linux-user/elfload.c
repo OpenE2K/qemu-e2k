@@ -1603,6 +1603,73 @@ static inline void init_thread(struct target_pt_regs *regs,
 
 #endif /* TARGET_HEXAGON */
 
+#ifdef TARGET_E2K
+
+#define elf_check_arch(x) ((x) == EM_MCST_ELBRUS || (x) == EM_E2K_OLD)
+#define ELF_START_MMAP          0x80000000
+#define ELF_CLASS               ELFCLASS64
+#define ELF_ARCH                EM_MCST_ELBRUS
+#define ELF_EXEC_PAGESIZE       4096
+#define ELF_NREG 256
+typedef target_elf_greg_t target_elf_gregset_t[ELF_NREG];
+#define USE_ELF_CORE_DUMP
+
+static abi_ulong e2k_mmap(abi_ulong size)
+{
+    abi_ulong addr;
+    abi_ulong guard = TARGET_PAGE_SIZE;
+
+    if (size < TARGET_PAGE_SIZE) {
+        size = TARGET_PAGE_SIZE;
+    }
+    if (guard < qemu_real_host_page_size()) {
+        guard = qemu_real_host_page_size();
+    }
+
+    addr = target_mmap(0, size + guard, PROT_READ | PROT_WRITE,
+        MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    if (addr == -1) {
+        perror("mmap e2k stack");
+        exit(-1);
+    }
+
+    target_mprotect(addr + size, guard, PROT_NONE);
+    return addr;
+}
+
+void e2k_psp_new(E2KPsp *psp, unsigned int size, bool tags)
+{
+    psp->is_readable = true;
+    psp->is_writable = true;
+    psp->index = 0;
+    psp->size = size;
+    psp->base = e2k_mmap(size);
+    psp->base_tag = tags ? e2k_mmap(size / 8) : 0;
+}
+
+static inline void init_thread(struct target_pt_regs *regs, struct image_info *infop)
+{
+    abi_ulong start_stack = infop->start_stack & ~0xf;
+
+    regs->ip = infop->entry;
+
+    // FIXME: set real start stack address
+    regs->sbr = infop->arg_strings & ~0xf;
+    regs->usd_lo = (0x1800UL << 48) | start_stack;
+    regs->usd_hi = (regs->sbr - start_stack) << 32;
+
+    e2k_psp_new(&regs->pcsp, E2K_DEFAULT_PCS_SIZE, false);
+    e2k_psp_new(&regs->psp, E2K_DEFAULT_PS_SIZE, true);
+}
+
+static void elf_core_copy_regs(target_elf_gregset_t *regs, const CPUE2KState *env)
+{
+    /* TODO */
+    qemu_log_mask(LOG_UNIMP, "elf_core_copy_regs: not implemented\n");
+}
+
+#endif /* TARGET_E2K */
+
 #ifndef ELF_PLATFORM
 #define ELF_PLATFORM (NULL)
 #endif

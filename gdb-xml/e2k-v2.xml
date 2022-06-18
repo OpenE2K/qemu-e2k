@@ -1,0 +1,6 @@
+<feature name="org.mcst.gdb.elbrus-v2.linux">
+
+  <!-- 840 -->
+  <reg name="idr" bitsize="64" type="uint64"/>
+
+</feature>

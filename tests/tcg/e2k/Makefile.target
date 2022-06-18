@@ -1,0 +1,23 @@
+# -*- Mode: makefile -*-
+#
+# E2K tests
+#
+
+E2K_SRC = $(SRC_PATH)/tests/tcg/e2k
+E2K_ALL = $(wildcard $(E2K_SRC)/*.s)
+
+TESTS = $(patsubst $(E2K_SRC)/%.s, %, $(E2K_ALL))
+VPATH = $(E2K_SRC)
+
+CROSS   = e2k-linux-
+AS	= $(CROSS)as
+LD      = $(CROSS)ld
+
+ASFLAGS = -mcpu=elbrus-v4 -g -I$(E2K_SRC)
+LDFLAGS =
+
+%.o: %.s
+	$(AS) $(ASFLAGS) $< -o $@
+
+%: %.o
+	$(LD) $(LDFLAGS) $< -o $@

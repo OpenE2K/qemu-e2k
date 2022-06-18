@@ -126,6 +126,19 @@
 #ifdef TARGET_NR_dup3
 { TARGET_NR_dup3, "dup3" , "%s(%d,%d,%d)", NULL, NULL },
 #endif
+#ifdef TARGET_NR_e2k_longjmp2
+{ TARGET_NR_e2k_longjmp2, "e2k_longjmp2", "%s(%p, %d)", NULL, NULL },
+#endif
+#ifdef TARGET_NR_access_hw_stacks
+{ TARGET_NR_access_hw_stacks, "access_hw_stacks", NULL,
+	print_access_hw_stacks, NULL },
+#endif
+#ifdef TARGET_NR_set_backtrace
+{ TARGET_NR_set_backtrace, "set_backtrace", "%s(%p,%lu,%lu,%lu)", NULL, NULL },
+#endif
+#ifdef TARGET_NR_get_backtrace
+{ TARGET_NR_get_backtrace, "get_backtrace", "%s(%p,%lu,%lu,%lu)", NULL, NULL },
+#endif
 #ifdef TARGET_NR_epoll_create
 { TARGET_NR_epoll_create, "epoll_create", "%s(%d)", NULL, NULL },
 #endif
