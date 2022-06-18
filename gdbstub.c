@@ -2267,7 +2267,7 @@ static void handle_query_xfer_features(GArray *params, void *user_ctx)
                       gdbserver_state.str_buf->len, true);
 }
 
-#if defined(CONFIG_USER_ONLY) && defined(CONFIG_LINUX_USER)
+#if defined(CONFIG_USER_ONLY)
 static void handle_query_xfer_auxv(GArray *params, void *user_ctx)
 {
     TaskState *ts;
@@ -2281,8 +2281,13 @@ static void handle_query_xfer_auxv(GArray *params, void *user_ctx)
     offset = get_param(params, 0)->val_ul;
     len = get_param(params, 1)->val_ul;
     ts = gdbserver_state.c_cpu->opaque;
+#if defined(CONFIG_BSD_USER)
+    saved_auxv = 0;
+    auxv_len = 0;
+#else
     saved_auxv = ts->info->saved_auxv;
     auxv_len = ts->info->auxv_len;
+#endif
 
     if (offset >= auxv_len) {
         put_packet("E00");
@@ -2419,7 +2424,7 @@ static const GdbCmdParseEntry gdb_gen_query_table[] = {
         .cmd_startswith = 1,
         .schema = "s:l,l0"
     },
-#if defined(CONFIG_USER_ONLY) && defined(CONFIG_LINUX_USER)
+#if defined(CONFIG_USER_ONLY)
     {
         .handler = handle_query_xfer_auxv,
         .cmd = "Xfer:auxv:read::",
