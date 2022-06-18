@@ -107,11 +107,7 @@ static inline void target_cpu_loop(CPUE2KState *env)
             ret = do_freebsd_syscall(env, args[0], args[1], args[2], args[3],
                 args[4], args[5], args[6], args[7], args[8]);
 
-            if (ret == -TARGET_ERESTARTSYS) {
-                /* do not set sysret address and syscall will be restarted */
-            // TODO: Was it correct to replace TARGET_QEMU_ESIGRETURN with TARGET_EJUSTRETURN ?
-            //} else if (ret != -TARGET_QEMU_ESIGRETURN && env->wd.psize > 0) {
-            } else if (ret != -TARGET_EJUSTRETURN && env->wd.psize > 0) {
+            if (ret != -TARGET_EJUSTRETURN && env->wd.psize > 0) {
                 memset(env->tags, E2K_TAG_NON_NUMBER64,
                     psize * sizeof(env->tags[0]));
 
