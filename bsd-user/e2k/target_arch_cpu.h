@@ -70,18 +70,6 @@ static inline void target_cpu_init(CPUE2KState *env,
     }
 }
 
-static void gen_signal(CPUE2KState *env, int signo, int code, abi_ulong addr)
-{
-    target_siginfo_t info = {
-        .si_signo = signo,
-        .si_code = code,
-        .si_addr = addr,
-        // TODO: ._sifields._sigfault._trapno = trapnr
-    };
-
-    queue_signal(env, signo, &info);
-}
-
 static inline void target_cpu_loop(CPUE2KState *env)
 {
     CPUState *cs = env_cpu(env);
@@ -119,7 +107,7 @@ static inline void target_cpu_loop(CPUE2KState *env)
         }
 
         case EXCP_DATA_PAGE:
-            gen_signal(env, TARGET_SIGSEGV, TARGET_SEGV_MAPERR, env->ip);
+            force_sig_fault(TARGET_SIGSEGV, TARGET_SEGV_MAPERR, env->ip);
             break;
 
         case EXCP_INTERRUPT:
@@ -129,7 +117,7 @@ static inline void target_cpu_loop(CPUE2KState *env)
         case EXCP_DEBUG:
             env->is_bp = true;
             e2k_proc_call(env, env->wd.size, env->ip, true);
-            gen_signal(env, TARGET_SIGTRAP, TARGET_TRAP_BRKPT, 0);
+            force_sig_fault(TARGET_SIGTRAP, TARGET_TRAP_BRKPT, env->ip);
             break;
 
         default:
