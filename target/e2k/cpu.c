@@ -330,3 +330,13 @@ void e2k_cpu_list(void)
     }
     qemu_printf("\n");
 }
+
+void e2k_psp_new(E2KPsp *psp, uint32_t size, uint64_t base, uint64_t base_tags)
+{
+    psp->is_readable = true;
+    psp->is_writable = true;
+    psp->index = 0;
+    psp->size = size;
+    psp->base = base;
+    psp->base_tag = base_tags;
+}

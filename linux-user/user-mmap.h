@@ -31,4 +31,8 @@ abi_ulong mmap_find_vma(abi_ulong, abi_ulong, abi_ulong);
 void mmap_fork_start(void);
 void mmap_fork_end(int child);
 
+#ifdef TARGET_E2K
+abi_ulong e2k_mmap(abi_ulong size);
+#endif
+
 #endif /* LINUX_USER_USER_MMAP_H */
