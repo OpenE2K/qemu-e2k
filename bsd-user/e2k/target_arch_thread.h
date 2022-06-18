@@ -43,8 +43,8 @@ static abi_ulong e2k_mmap(abi_ulong size)
     if (size < TARGET_PAGE_SIZE) {
         size = TARGET_PAGE_SIZE;
     }
-    if (guard < qemu_real_host_page_size) {
-        guard = qemu_real_host_page_size;
+    if (guard < qemu_real_host_page_size()) {
+        guard = qemu_real_host_page_size();
     }
 
     addr = target_mmap(0, size + guard, PROT_READ | PROT_WRITE,
@@ -72,8 +72,8 @@ static inline void target_thread_init(struct target_pt_regs *regs,
     regs->usd_lo = (0x1800UL << 48) | start_stack;
     regs->usd_hi = (regs->sbr - start_stack) << 32;
 
-    e2k_psp_new(&regs->pcsp, E2K_DEFAULT_PCS_SIZE, false);
-    e2k_psp_new(&regs->psp, E2K_DEFAULT_PS_SIZE, true);
+    e2k_psp_new(&regs->pcsp, E2K_DEFAULT_PCS_SIZE, e2k_mmap(E2K_DEFAULT_PCS_SIZE), 0);
+    e2k_psp_new(&regs->psp, E2K_DEFAULT_PS_SIZE, e2k_mmap(E2K_DEFAULT_PS_SIZE), e2k_mmap(E2K_DEFAULT_PS_SIZE / 8));
 }
 
 #endif /* !_TARGET_ARCH_THREAD_H_ */
