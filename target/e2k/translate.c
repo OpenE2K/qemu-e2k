@@ -8206,8 +8206,16 @@ static void e2k_tr_disas_log(const DisasContextBase *db,
 {
     DisasContext *dc = container_of(db, DisasContext, base);
 
-    fprintf(logfile, "IN: %s\n", lookup_symbol(dc->base.pc_first));
-    target_disas(logfile, cpu, dc->base.pc_first, dc->base.tb->size);
+
+    if (dc->base.pc_first >= E2K_FAKE_KERN_START &&
+            dc->base.pc_first <= E2K_FAKE_KERN_END) {
+        fprintf(logfile, "IN:\n");
+        fprintf(logfile, "0x" TARGET_FMT_lx ":\n", dc->base.pc_first);
+        fprintf(logfile, "  <fake kernel>\n");
+    } else {
+        fprintf(logfile, "IN: %s\n", lookup_symbol(dc->base.pc_first));
+        target_disas(logfile, cpu, dc->base.pc_first, dc->base.tb->size);
+    }
 }
 
 static const TranslatorOps e2k_tr_ops = {
