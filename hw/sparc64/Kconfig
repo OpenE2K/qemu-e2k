@@ -19,3 +19,7 @@ config NIAGARA
     select EMPTY_SLOT
     select SUN4V_RTC
     select UNIMP
+
+config E90S
+    bool
+    select ESCC
