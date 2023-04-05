@@ -287,6 +287,8 @@ struct sparc_def_t {
 #define CPU_FEATURE_CACHE_CTRL   (1 << 16)
 #define CPU_FEATURE_POWERDOWN    (1 << 17)
 #define CPU_FEATURE_CASA         (1 << 18)
+#define CPU_FEATURE_ELBRUS_R1000 (1 << 19) /* Elbrus R1000-specific extensions (few packed insns) */
+#define CPU_FEATURE_ELBRUS_R2000 (1 << 20) /* Elbrus R2000-specific extensions (HWCAP_SAPPHIRE) */
 
 #ifndef TARGET_SPARC64
 #define CPU_DEFAULT_FEATURES (CPU_FEATURE_FLOAT | CPU_FEATURE_SWAP |  \

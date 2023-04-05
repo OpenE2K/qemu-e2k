@@ -365,6 +365,24 @@ static const sparc_def_t sparc_defs[] = {
         .maxtl = 5,
         .features = CPU_DEFAULT_FEATURES,
     },
+    {
+        .name = "MCST Elbrus R1000", /* also called 4R */
+        .iu_version = ((0x3eULL << 48) | (0x14ULL << 32) | (0x34ULL << 24)), /* TODO: why? */
+        .fpu_version = 0x00000000,
+        .mmu_version = mmu_us_12,
+        .nwindows = 8,
+        .maxtl = 5,
+        .features = CPU_DEFAULT_FEATURES | CPU_FEATURE_ELBRUS_R1000,
+    },
+    {
+        .name = "MCST Elbrus R2000", /* also called Sapphire */
+        .iu_version = ((0x3eULL << 48) | (0x14ULL << 32) | (0x34ULL << 24)), /* TODO: why? */
+        .fpu_version = 0x00000000,
+        .mmu_version = mmu_us_12,
+        .nwindows = 8,
+        .maxtl = 5,
+        .features = CPU_DEFAULT_FEATURES | CPU_FEATURE_ELBRUS_R1000 | CPU_FEATURE_ELBRUS_R2000,
+    },
 #else
     {
         .name = "Fujitsu MB86904",
