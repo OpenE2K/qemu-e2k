@@ -24,7 +24,11 @@
 #include "cpu.h"
 #include "exec/memory.h"
 #include "qemu/timer.h"
+#if defined(TARGET_SPARC) || defined(TARGET_SPARC64)
+#include "target/sparc/cpu-qom.h"
+#else
 #include "target/i386/cpu-qom.h"
+#endif
 #include "qom/object.h"
 
 /* APIC Local Vector Table */
@@ -156,7 +160,11 @@ struct APICCommonState {
     /*< public >*/
 
     MemoryRegion io_memory;
+#if defined(TARGET_SPARC) || defined(TARGET_SPARC64)
+    SPARCCPU *cpu;
+#else
     X86CPU *cpu;
+#endif
     uint32_t apicbase;
     uint8_t id; /* legacy APIC ID */
     uint32_t initial_apic_id;
