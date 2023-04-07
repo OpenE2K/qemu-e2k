@@ -30,9 +30,26 @@
 #include "qemu/timer.h"
 #include "sysemu/reset.h"
 #include "trace.h"
-
+#include "qapi/error.h"
+#include "hw/i386/apic_internal.h"
 
 #define TICK_MAX             0x7fffffffffffffffULL
+
+DeviceState *cpu_get_current_apic(void)
+{
+    if (current_cpu) {
+        SPARCCPU *cpu = SPARC_CPU(current_cpu);
+        return cpu->apic_state;
+    } else {
+        return NULL;
+    }
+}
+
+void vapic_report_tpr_access(DeviceState *dev, CPUState *cs, target_ulong ip,
+                             TPRAccess access)
+{
+    // TODO: stub!
+}
 
 static void cpu_kick_irq(SPARCCPU *cpu)
 {
@@ -271,7 +288,9 @@ SPARCCPU *sparc64_cpu_devinit(const char *cpu_type, uint64_t prom_addr)
     uint32_t  stick_frequency = 100 * 1000000;
     uint32_t hstick_frequency = 100 * 1000000;
 
-    cpu = SPARC_CPU(cpu_create(cpu_type));
+    cpu = SPARC_CPU(object_new(cpu_type));
+    object_property_set_uint(OBJECT(cpu), "apic-id", 0, &error_fatal);
+    qdev_realize(DEVICE(cpu), NULL, &error_fatal);
     qdev_init_gpio_in_named(DEVICE(cpu), sparc64_cpu_set_ivec_irq,
                             "ivec-irq", IVEC_MAX);
     env = &cpu->env;

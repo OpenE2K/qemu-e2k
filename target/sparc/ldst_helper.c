@@ -25,6 +25,9 @@
 #include "exec/exec-all.h"
 #include "exec/cpu_ldst.h"
 #include "asi.h"
+#ifndef CONFIG_USER_ONLY
+#include "hw/i386/apic.h"
+#endif
 
 //#define DEBUG_MMU
 //#define DEBUG_MXCC
@@ -1564,6 +1567,9 @@ uint64_t helper_ld_asi(CPUSPARCState *env, target_ulong addr,
     case ASI_EC_W:            /* E-cache tag */
     case ASI_EC_R:            /* E-cache tag */
         break;
+    case ASI_LAPIC:           /* Elbrus LAPIC access */
+        ret = apic_mem_read(NULL, addr, size);
+        break;
     case ASI_DMMU_TSB_DIRECT_PTR: /* D-MMU data pointer */
     case ASI_ITLB_DATA_IN:        /* I-MMU data in, WO */
     case ASI_IMMU_DEMAP:          /* I-MMU demap, WO */
@@ -1917,6 +1923,9 @@ void helper_st_asi(CPUSPARCState *env, target_ulong addr, target_ulong val,
     case ASI_EC_W: /* E-cache tag */
     case ASI_EC_R: /* E-cache tag */
         return;
+    case ASI_LAPIC:           /* Elbrus LAPIC access */
+        apic_mem_write(NULL, addr, val, size);
+        break;
     case ASI_IMMU_TSB_8KB_PTR: /* I-MMU 8k TSB pointer, RO */
     case ASI_IMMU_TSB_64KB_PTR: /* I-MMU 64k TSB pointer, RO */
     case ASI_ITLB_TAG_READ: /* I-MMU tag read, RO */

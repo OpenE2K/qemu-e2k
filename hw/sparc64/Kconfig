@@ -23,3 +23,5 @@ config NIAGARA
 config E90S
     bool
     select ESCC
+    select APIC
+    select IOAPIC

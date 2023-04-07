@@ -26,8 +26,41 @@
 #include "hw/qdev-properties.h"
 #include "qapi/visitor.h"
 #include "tcg/tcg.h"
+#include "hw/i386/apic_internal.h"
 
 //#define DEBUG_FEATURES
+
+#ifndef CONFIG_USER_ONLY
+APICCommonClass *apic_get_class(Error **errp)
+{
+    return APIC_COMMON_CLASS(object_class_by_name("apic"));
+}
+
+static void sparc_cpu_apic_create(SPARCCPU *cpu, Error **errp)
+{
+    APICCommonState *apic;
+    APICCommonClass *apic_class = apic_get_class(errp);
+    
+    if (!apic_class) 
+        return;
+    
+    cpu->apic_state = DEVICE(object_new_with_class(OBJECT_CLASS(apic_class)));
+    
+    object_property_add_child(OBJECT(cpu), "lapic", OBJECT(cpu->apic_state));
+    object_unref(cpu->apic_state);
+    
+    object_property_set_bool(OBJECT(cpu->apic_state), "vapic", false, errp);
+    qdev_prop_set_uint32(cpu->apic_state, "id", cpu->apic_id);
+    apic = APIC_COMMON(cpu->apic_state);
+    apic->cpu = cpu;
+    apic->apicbase = MSR_IA32_APICBASE_ENABLE; // don't care about the address, it's handled through ASI
+}
+
+static void sparc_cpu_apic_realize(SPARCCPU *cpu, Error **errp)
+{
+    qdev_realize(DEVICE(cpu->apic_state), NULL, errp);
+}
+#endif
 
 static void sparc_cpu_reset_hold(Object *obj)
 {
@@ -60,6 +93,7 @@ static void sparc_cpu_reset_hold(Object *obj)
     env->psrs = 1;
     env->psrps = 1;
 #endif
+    apic_designate_bsp(cpu->apic_state, s->cpu_index == 0);
 #ifdef TARGET_SPARC64
     env->pstate = PS_PRIV | PS_RED | PS_PEF;
     if (!cpu_has_hypervisor(env)) {
@@ -800,7 +834,32 @@ static void sparc_cpu_realizefn(DeviceState *dev, Error **errp)
         return;
     }
 
+#if !defined(CONFIG_USER_ONLY)
+    if (env->def.features & CPU_FEATURE_ELBRUS_R1000) {
+        if (cpu->apic_id == UNASSIGNED_APIC_ID) {
+            error_setg(errp, "apic-id property was not initialized properly");
+            return;
+        }
+        
+        sparc_cpu_apic_create(cpu, &local_err);
+        if (local_err != NULL) {
+            error_propagate(errp, local_err);
+            return;
+        }
+    }
+#endif
+    
     qemu_init_vcpu(cs);
+    
+#if !defined(CONFIG_USER_ONLY)
+    if (env->def.features & CPU_FEATURE_ELBRUS_R1000) {
+        sparc_cpu_apic_realize(cpu, &local_err);
+        if (local_err != NULL) {
+            error_propagate(errp, local_err);
+            return;
+        }
+    }
+#endif
 
     scc->parent_realize(dev, errp);
 }
@@ -876,6 +935,7 @@ static Property sparc_cpu_properties[] = {
     DEFINE_PROP_UINT32("mmu-version", SPARCCPU, env.def.mmu_version, 0),
     DEFINE_PROP("nwindows", SPARCCPU, env.def.nwindows,
                 qdev_prop_nwindows, uint32_t),
+    DEFINE_PROP_UINT32("apic-id", SPARCCPU, apic_id, UNASSIGNED_APIC_ID),
     DEFINE_PROP_END_OF_LIST()
 };
 

@@ -6,6 +6,10 @@
 #include "exec/cpu-defs.h"
 #include "qemu/cpu-float.h"
 
+#ifndef CONFIG_USER_ONLY
+#include "hw/i386/apic.h"
+#endif
+
 #if !defined(TARGET_SPARC64)
 #define TARGET_DPREGS 16
 #else
@@ -422,6 +426,32 @@ struct CPUTimer
 
 typedef struct CPUTimer CPUTimer;
 
+#define UNASSIGNED_APIC_ID 0xFFFFFFFF
+#define APIC_DEFAULT_ADDRESS 0xfee00000
+#define APIC_SPACE_SIZE      0x100000
+#define MSR_IA32_APICBASE               0x1b
+#define MSR_IA32_APICBASE_BSP           (1<<8)
+#define MSR_IA32_APICBASE_ENABLE        (1<<11)
+#define MSR_IA32_APICBASE_EXTD          (1 << 10)
+#define MSR_IA32_APICBASE_BASE          (0xfffffU<<12)
+
+/* i386-specific interrupt pending bits.  */
+#define CPU_INTERRUPT_POLL      CPU_INTERRUPT_TGT_EXT_1
+#define CPU_INTERRUPT_SMI       CPU_INTERRUPT_TGT_EXT_2
+#define CPU_INTERRUPT_NMI       CPU_INTERRUPT_TGT_EXT_3
+#define CPU_INTERRUPT_MCE       CPU_INTERRUPT_TGT_EXT_4
+#define CPU_INTERRUPT_VIRQ      CPU_INTERRUPT_TGT_INT_0
+#define CPU_INTERRUPT_SIPI      CPU_INTERRUPT_TGT_INT_1
+#define CPU_INTERRUPT_TPR       CPU_INTERRUPT_TGT_INT_2
+
+typedef enum TPRAccess {
+    TPR_ACCESS_READ,
+    TPR_ACCESS_WRITE,
+} TPRAccess;
+
+/* Use a clearer name for this.  */
+#define CPU_INTERRUPT_INIT      CPU_INTERRUPT_RESET
+
 typedef struct CPUArchState CPUSPARCState;
 #if defined(TARGET_SPARC64)
 typedef union {
@@ -565,6 +595,10 @@ struct ArchCPU {
 
     CPUNegativeOffsetState neg;
     CPUSPARCState env;
+    
+    /* Elbrus APIC */
+    struct DeviceState *apic_state;
+    uint32_t apic_id;
 };
 
 
@@ -653,6 +687,9 @@ void sparc_cpu_do_transaction_failed(CPUState *cs, hwaddr physaddr,
 hwaddr cpu_get_phys_page_nofault(CPUSPARCState *env, target_ulong addr,
                                            int mmu_idx);
 #endif
+
+void apic_handle_tpr_access_report(DeviceState *d, target_ulong ip,
+                                   TPRAccess access);
 #endif
 
 #define SPARC_CPU_TYPE_SUFFIX "-" TYPE_SPARC_CPU
@@ -818,6 +855,29 @@ static inline bool tb_am_enabled(int tb_flags)
     return tb_flags & TB_FLAG_AM_ENABLED;
 #endif
 }
+
+#ifndef CONFIG_USER_ONLY
+static inline void cpu_clear_apic_feature(CPUArchState *env)
+{
+    env->def.features &= ~(CPU_FEATURE_ELBRUS_R1000|CPU_FEATURE_ELBRUS_R2000);
+}
+
+static inline void cpu_x86_load_seg_cache_sipi(ArchCPU *cpu, uint8_t sipi_vector)
+{
+    // TODO:
+    abort();
+}
+
+static inline void cpu_report_tpr_access(CPUArchState *env, TPRAccess access)
+{
+    // TODO:
+}
+
+static inline bool cpu_is_bsp(ArchCPU *cpu)
+{
+    return cpu_get_apic_base(cpu->apic_state) & MSR_IA32_APICBASE_BSP;
+}
+#endif
 
 #ifdef TARGET_SPARC64
 /* win_helper.c */
