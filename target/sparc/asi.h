@@ -142,7 +142,7 @@
  * UltraSparc-III and later specific ASIs.  The "(CMT)" marker designates
  * Chip Multi Threading specific ASIs.  "(NG)" designates Niagara specific
  * ASIs, "(4V)" designates SUN4V specific ASIs.  "(NG4)" designates SPARC-T4
- * and later ASIs.
+ * and later ASIs. "(E90)" designates Elbrus-90S specific ASIs.
  */
 #define ASI_REAL                0x14 /* Real address, cachable          */
 #define ASI_PHYS_USE_EC		0x14 /* PADDR, E-cachable		*/
@@ -234,6 +234,7 @@
 #define ASI_IC_INSTR		0x66 /* Insn cache instrucion ram diag	*/
 #define ASI_IC_TAG		0x67 /* Insn cache tag/valid ram diag 	*/
 #define ASI_IC_STAG		0x68 /* (III) Insn cache snoop tag ram	*/
+#define ASI_LAPIC		0x68 /* (E90S) LAPIC register		*/
 #define ASI_IC_PRE_DECODE	0x6e /* Insn cache pre-decode ram diag	*/
 #define ASI_IC_NEXT_FIELD	0x6f /* Insn cache next-field ram diag	*/
 #define ASI_BRPRED_ARRAY	0x6f /* (III) Branch Prediction RAM diag*/

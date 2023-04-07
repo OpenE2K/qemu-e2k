@@ -2139,6 +2139,7 @@ static const arg asi_table_v9[] =
   { 0x67, "#ASI_IC_TAG"},
   /* FIXME: There are dozens of them.  Not sure we want them all.
      Most are for kernel building but some are for vis type stuff.  */
+  { 0x68, "#ASI_LAPIC"},
   { 0, NULL }
 };
 
