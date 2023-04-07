@@ -655,6 +655,9 @@ uint64_t apic_mem_read(void *opaque, hwaddr addr, unsigned size)
 
     index = (addr >> 4) & 0xff;
     switch(index) {
+    case 0x01: /* elbrus bsp */
+        val = s->apicbase;
+        break;
     case 0x02: /* id */
         val = s->id << 24;
         break;
