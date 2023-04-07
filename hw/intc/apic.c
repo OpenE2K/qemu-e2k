@@ -636,7 +636,7 @@ static void apic_timer(void *opaque)
     apic_timer_update(s, s->next_time);
 }
 
-static uint64_t apic_mem_read(void *opaque, hwaddr addr, unsigned size)
+uint64_t apic_mem_read(void *opaque, hwaddr addr, unsigned size)
 {
     DeviceState *dev;
     APICCommonState *s;
@@ -737,7 +737,7 @@ static void apic_send_msi(MSIMessage *msi)
     apic_deliver_irq(dest, dest_mode, delivery, vector, trigger_mode);
 }
 
-static void apic_mem_write(void *opaque, hwaddr addr, uint64_t val,
+void apic_mem_write(void *opaque, hwaddr addr, uint64_t val,
                            unsigned size)
 {
     DeviceState *dev;

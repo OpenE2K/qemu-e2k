@@ -1,6 +1,7 @@
 #ifndef APIC_H
 #define APIC_H
 
+#include "exec/hwaddr.h"
 
 /* apic.c */
 void apic_deliver_irq(uint8_t dest, uint8_t dest_mode, uint8_t delivery_mode,
@@ -18,6 +19,8 @@ void apic_sipi(DeviceState *s);
 void apic_poll_irq(DeviceState *d);
 void apic_designate_bsp(DeviceState *d, bool bsp);
 int apic_get_highest_priority_irr(DeviceState *dev);
+void apic_mem_write(void *opaque, hwaddr addr, uint64_t val, unsigned size);
+uint64_t apic_mem_read(void *opaque, hwaddr addr, unsigned size);
 
 /* pc.c */
 DeviceState *cpu_get_current_apic(void);
