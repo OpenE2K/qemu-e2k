@@ -1,5 +1,9 @@
 # See docs/devel/tracing.rst for syntax documentation.
 
+# e90s.c
+nbsr_read(uint64_t addr, uint64_t val, int size) "addr: 0x%"PRIx64" val: 0x%"PRIx64" size: %d"
+nbsr_write(uint64_t addr, uint64_t val, int size) "addr: 0x%"PRIx64" val: 0x%"PRIx64" size: %d"
+
 # sun4u.c
 ebus_isa_irq_handler(int n, int level) "Set ISA IRQ %d level %d"
 
@@ -21,3 +25,4 @@ sparc64_cpu_tick_set_count(const char *name, uint64_t real_count, const char *np
 sparc64_cpu_tick_get_count(const char *name, uint64_t real_count, const char *npt, void *p) "%s get_count count=0x%"PRIx64" (npt %s) p=%p"
 sparc64_cpu_tick_set_limit(const char *name, uint64_t real_limit, const char *dis, void *p, uint64_t limit, uint64_t t, uint64_t dt) "%s set_limit limit=0x%"PRIx64 " (%s) p=%p called with limit=0x%"PRIx64" at 0x%"PRIx64" (delta=0x%"PRIx64")"
 sparc64_cpu_tick_set_limit_zero(const char *name) "%s set_limit limit=ZERO - not starting timer"
+
