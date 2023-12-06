@@ -378,3 +378,37 @@ void e2k_cpu_register_gdb_regs_for_features(CPUState *cs)
             66, "e2k-v5.xml", 576);
     }
 }
+
+void e2k_cpu_gdb_rw_tags(CPUState *cs, vaddr addr,
+                         uint8_t *buf, int len, bool is_write)
+{
+    E2KCPU *cpu = E2K_CPU(cs);
+    CPUE2KState *env = &cpu->env;
+
+    if (is_write) {
+        // TODO: e2k write tags
+        return;
+    }
+
+#ifdef CONFIG_USER_ONLY
+    if (env->psp.base <= addr && addr < (env->psp.base + env->psp.size)) {
+        target_ulong offset = addr - env->psp.base;
+        target_ulong ptr = env->psp.base_tag + offset / 8;
+
+        for (int i = 0; i < len; i += 4, ptr++) {
+            uint8_t tags;
+
+            cpu_memory_rw_debug(cs, ptr, &tags, sizeof(tags), false);
+
+            for (int j = 0; j < 4 && (i + j) < len; j++) {
+                buf[i + j] = (tags >> (j * 2)) & 3;
+            }
+        }
+    } else {
+        memset(buf, 0, len);
+    }
+#else
+    // TODO: e2k-softmmu read tags
+    memset(buf, 0, len);
+#endif
+}
