@@ -11,6 +11,7 @@
 #include "qemu/error-report.h"
 #include "qemu/module.h"
 #include "qapi/error.h"
+#include "exec/address-spaces.h"
 #include "cpu.h"
 #include "hw/sysbus.h"
 #include "migration/vmstate.h"
@@ -1305,6 +1306,8 @@ static int pxa2xx_i2c_event(I2CSlave *i2c, enum i2c_event event)
     case I2C_NACK:
         s->status |= 1 << 1;				/* set ACKNAK */
         break;
+    default:
+        return -1;
     }
     pxa2xx_i2c_update(s);
 
@@ -2089,9 +2092,9 @@ static void pxa2xx_reset(void *opaque, int line, int level)
 }
 
 /* Initialise a PXA270 integrated chip (ARM based core).  */
-PXA2xxState *pxa270_init(MemoryRegion *address_space,
-                         unsigned int sdram_size, const char *cpu_type)
+PXA2xxState *pxa270_init(unsigned int sdram_size, const char *cpu_type)
 {
+    MemoryRegion *address_space = get_system_memory();
     PXA2xxState *s;
     int i;
     DriveInfo *dinfo;
@@ -2228,8 +2231,9 @@ PXA2xxState *pxa270_init(MemoryRegion *address_space,
 }
 
 /* Initialise a PXA255 integrated chip (ARM based core).  */
-PXA2xxState *pxa255_init(MemoryRegion *address_space, unsigned int sdram_size)
+PXA2xxState *pxa255_init(unsigned int sdram_size)
 {
+    MemoryRegion *address_space = get_system_memory();
     PXA2xxState *s;
     int i;
     DriveInfo *dinfo;

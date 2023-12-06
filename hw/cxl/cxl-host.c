@@ -15,16 +15,18 @@
 
 #include "qapi/qapi-visit-machine.h"
 #include "hw/cxl/cxl.h"
+#include "hw/cxl/cxl_host.h"
 #include "hw/pci/pci_bus.h"
 #include "hw/pci/pci_bridge.h"
 #include "hw/pci/pci_host.h"
 #include "hw/pci/pcie_port.h"
+#include "hw/pci-bridge/pci_expander_bridge.h"
 
-void cxl_fixed_memory_window_config(MachineState *ms,
-                                    CXLFixedMemoryWindowOptions *object,
-                                    Error **errp)
+static void cxl_fixed_memory_window_config(CXLState *cxl_state,
+                                           CXLFixedMemoryWindowOptions *object,
+                                           Error **errp)
 {
-    CXLFixedWindow *fw = g_malloc0(sizeof(*fw));
+    g_autofree CXLFixedWindow *fw = g_malloc0(sizeof(*fw));
     strList *target;
     int i;
 
@@ -37,15 +39,9 @@ void cxl_fixed_memory_window_config(MachineState *ms,
         return;
     }
 
-    fw->targets = g_malloc0_n(fw->num_targets, sizeof(*fw->targets));
-    for (i = 0, target = object->targets; target; i++, target = target->next) {
-        /* This link cannot be resolved yet, so stash the name for now */
-        fw->targets[i] = g_strdup(target->value);
-    }
-
     if (object->size % (256 * MiB)) {
         error_setg(errp,
-                   "Size of a CXL fixed memory window must my a multiple of 256MiB");
+                   "Size of a CXL fixed memory window must be a multiple of 256MiB");
         return;
     }
     fw->size = object->size;
@@ -62,20 +58,24 @@ void cxl_fixed_memory_window_config(MachineState *ms,
         fw->enc_int_gran = 0;
     }
 
-    ms->cxl_devices_state->fixed_windows =
-        g_list_append(ms->cxl_devices_state->fixed_windows, fw);
+    fw->targets = g_malloc0_n(fw->num_targets, sizeof(*fw->targets));
+    for (i = 0, target = object->targets; target; i++, target = target->next) {
+        /* This link cannot be resolved yet, so stash the name for now */
+        fw->targets[i] = g_strdup(target->value);
+    }
+
+    cxl_state->fixed_windows = g_list_append(cxl_state->fixed_windows,
+                                             g_steal_pointer(&fw));
 
     return;
 }
 
-void cxl_fixed_memory_window_link_targets(Error **errp)
+void cxl_fmws_link_targets(CXLState *cxl_state, Error **errp)
 {
-    MachineState *ms = MACHINE(qdev_get_machine());
-
-    if (ms->cxl_devices_state && ms->cxl_devices_state->fixed_windows) {
+    if (cxl_state && cxl_state->fixed_windows) {
         GList *it;
 
-        for (it = ms->cxl_devices_state->fixed_windows; it; it = it->next) {
+        for (it = cxl_state->fixed_windows; it; it = it->next) {
             CXLFixedWindow *fw = it->data;
             int i;
 
@@ -84,7 +84,7 @@ void cxl_fixed_memory_window_link_targets(Error **errp)
                 bool ambig;
 
                 o = object_resolve_path_type(fw->targets[i],
-                                             TYPE_PXB_CXL_DEVICE,
+                                             TYPE_PXB_CXL_DEV,
                                              &ambig);
                 if (!o) {
                     error_setg(errp, "Could not resolve CXLFM target %s",
@@ -104,7 +104,6 @@ static bool cxl_hdm_find_target(uint32_t *cache_mem, hwaddr addr,
     uint32_t ctrl;
     uint32_t ig_enc;
     uint32_t iw_enc;
-    uint32_t target_reg;
     uint32_t target_idx;
 
     ctrl = cache_mem[R_CXL_HDM_DECODER0_CTRL];
@@ -116,22 +115,22 @@ static bool cxl_hdm_find_target(uint32_t *cache_mem, hwaddr addr,
     iw_enc = FIELD_EX32(ctrl, CXL_HDM_DECODER0_CTRL, IW);
     target_idx = (addr / cxl_decode_ig(ig_enc)) % (1 << iw_enc);
 
-    if (target_idx > 4) {
-        target_reg = cache_mem[R_CXL_HDM_DECODER0_TARGET_LIST_LO];
-        target_reg >>= target_idx * 8;
+    if (target_idx < 4) {
+        *target = extract32(cache_mem[R_CXL_HDM_DECODER0_TARGET_LIST_LO],
+                            target_idx * 8, 8);
     } else {
-        target_reg = cache_mem[R_CXL_HDM_DECODER0_TARGET_LIST_LO];
-        target_reg >>= (target_idx - 4) * 8;
+        *target = extract32(cache_mem[R_CXL_HDM_DECODER0_TARGET_LIST_HI],
+                            (target_idx - 4) * 8, 8);
     }
-    *target = target_reg & 0xff;
 
     return true;
 }
 
 static PCIDevice *cxl_cfmws_find_device(CXLFixedWindow *fw, hwaddr addr)
 {
-    CXLComponentState *hb_cstate;
+    CXLComponentState *hb_cstate, *usp_cstate;
     PCIHostState *hb;
+    CXLUpstreamPort *usp;
     int rb_index;
     uint32_t *cache_mem;
     uint8_t target;
@@ -142,31 +141,76 @@ static PCIDevice *cxl_cfmws_find_device(CXLFixedWindow *fw, hwaddr addr)
     addr += fw->base;
 
     rb_index = (addr / cxl_decode_ig(fw->enc_int_gran)) % fw->num_targets;
-    hb = PCI_HOST_BRIDGE(fw->target_hbs[rb_index]->cxl.cxl_host_bridge);
+    hb = PCI_HOST_BRIDGE(fw->target_hbs[rb_index]->cxl_host_bridge);
     if (!hb || !hb->bus || !pci_bus_is_cxl(hb->bus)) {
         return NULL;
     }
 
-    hb_cstate = cxl_get_hb_cstate(hb);
-    if (!hb_cstate) {
+    if (cxl_get_hb_passthrough(hb)) {
+        rp = pcie_find_port_first(hb->bus);
+        if (!rp) {
+            return NULL;
+        }
+    } else {
+        hb_cstate = cxl_get_hb_cstate(hb);
+        if (!hb_cstate) {
+            return NULL;
+        }
+
+        cache_mem = hb_cstate->crb.cache_mem_registers;
+
+        target_found = cxl_hdm_find_target(cache_mem, addr, &target);
+        if (!target_found) {
+            return NULL;
+        }
+
+        rp = pcie_find_port_by_pn(hb->bus, target);
+        if (!rp) {
+            return NULL;
+        }
+    }
+
+    d = pci_bridge_get_sec_bus(PCI_BRIDGE(rp))->devices[0];
+    if (!d) {
         return NULL;
     }
 
-    cache_mem = hb_cstate->crb.cache_mem_registers;
+    if (object_dynamic_cast(OBJECT(d), TYPE_CXL_TYPE3)) {
+        return d;
+    }
+
+    /*
+     * Could also be a switch.  Note only one level of switching currently
+     * supported.
+     */
+    if (!object_dynamic_cast(OBJECT(d), TYPE_CXL_USP)) {
+        return NULL;
+    }
+    usp = CXL_USP(d);
+
+    usp_cstate = cxl_usp_to_cstate(usp);
+    if (!usp_cstate) {
+        return NULL;
+    }
+
+    cache_mem = usp_cstate->crb.cache_mem_registers;
 
     target_found = cxl_hdm_find_target(cache_mem, addr, &target);
     if (!target_found) {
         return NULL;
     }
 
-    rp = pcie_find_port_by_pn(hb->bus, target);
-    if (!rp) {
+    d = pcie_find_port_by_pn(&PCI_BRIDGE(d)->sec_bus, target);
+    if (!d) {
         return NULL;
     }
 
-    d = pci_bridge_get_sec_bus(PCI_BRIDGE(rp))->devices[0];
+    d = pci_bridge_get_sec_bus(PCI_BRIDGE(d))->devices[0];
+    if (!d) {
+        return NULL;
+    }
 
-    if (!d || !object_dynamic_cast(OBJECT(d), TYPE_CXL_TYPE3)) {
+    if (!object_dynamic_cast(OBJECT(d), TYPE_CXL_TYPE3)) {
         return NULL;
     }
 
@@ -220,3 +264,84 @@ const MemoryRegionOps cfmws_ops = {
         .unaligned = true,
     },
 };
+
+static void machine_get_cxl(Object *obj, Visitor *v, const char *name,
+                            void *opaque, Error **errp)
+{
+    CXLState *cxl_state = opaque;
+    bool value = cxl_state->is_enabled;
+
+    visit_type_bool(v, name, &value, errp);
+}
+
+static void machine_set_cxl(Object *obj, Visitor *v, const char *name,
+                            void *opaque, Error **errp)
+{
+    CXLState *cxl_state = opaque;
+    bool value;
+
+    if (!visit_type_bool(v, name, &value, errp)) {
+        return;
+    }
+    cxl_state->is_enabled = value;
+}
+
+static void machine_get_cfmw(Object *obj, Visitor *v, const char *name,
+                             void *opaque, Error **errp)
+{
+    CXLFixedMemoryWindowOptionsList **list = opaque;
+
+    visit_type_CXLFixedMemoryWindowOptionsList(v, name, list, errp);
+}
+
+static void machine_set_cfmw(Object *obj, Visitor *v, const char *name,
+                             void *opaque, Error **errp)
+{
+    CXLState *state = opaque;
+    CXLFixedMemoryWindowOptionsList *cfmw_list = NULL;
+    CXLFixedMemoryWindowOptionsList *it;
+
+    visit_type_CXLFixedMemoryWindowOptionsList(v, name, &cfmw_list, errp);
+    if (!cfmw_list) {
+        return;
+    }
+
+    for (it = cfmw_list; it; it = it->next) {
+        cxl_fixed_memory_window_config(state, it->value, errp);
+    }
+    state->cfmw_list = cfmw_list;
+}
+
+void cxl_machine_init(Object *obj, CXLState *state)
+{
+    object_property_add(obj, "cxl", "bool", machine_get_cxl,
+                        machine_set_cxl, NULL, state);
+    object_property_set_description(obj, "cxl",
+                                    "Set on/off to enable/disable "
+                                    "CXL instantiation");
+
+    object_property_add(obj, "cxl-fmw", "CXLFixedMemoryWindow",
+                        machine_get_cfmw, machine_set_cfmw,
+                        NULL, state);
+    object_property_set_description(obj, "cxl-fmw",
+                                    "CXL Fixed Memory Windows (array)");
+}
+
+void cxl_hook_up_pxb_registers(PCIBus *bus, CXLState *state, Error **errp)
+{
+    /* Walk the pci busses looking for pxb busses to hook up */
+    if (bus) {
+        QLIST_FOREACH(bus, &bus->child, sibling) {
+            if (!pci_bus_is_root(bus)) {
+                continue;
+            }
+            if (pci_bus_is_cxl(bus)) {
+                if (!state->is_enabled) {
+                    error_setg(errp, "CXL host bridges present, but cxl=off");
+                    return;
+                }
+                pxb_cxl_hook_up_registers(state, bus, errp);
+            }
+        }
+    }
+}

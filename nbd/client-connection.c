@@ -23,11 +23,13 @@
  */
 
 #include "qemu/osdep.h"
+#include "trace.h"
 
 #include "block/nbd.h"
 
 #include "qapi/qapi-visit-sockets.h"
 #include "qapi/clone-visitor.h"
+#include "qemu/coroutine.h"
 
 struct NBDClientConnection {
     /* Initialization constants, never change */
@@ -154,7 +156,7 @@ static int nbd_connect(QIOChannelSocket *sioc, SocketAddress *addr,
          * channel.
          */
         if (outioc && *outioc) {
-            qio_channel_close(QIO_CHANNEL(*outioc), NULL);
+            qio_channel_close(*outioc, NULL);
             object_unref(OBJECT(*outioc));
             *outioc = NULL;
         } else {
@@ -210,6 +212,7 @@ static void *connect_thread_func(void *opaque)
             object_unref(OBJECT(conn->sioc));
             conn->sioc = NULL;
             if (conn->do_retry && !conn->detached) {
+                trace_nbd_connect_thread_sleep(timeout);
                 qemu_mutex_unlock(&conn->mutex);
 
                 sleep(timeout);

@@ -79,7 +79,9 @@ bool kvm_arm_create_scratch_host_vcpu(const uint32_t *cpus_to_try,
     if (max_vm_pa_size < 0) {
         max_vm_pa_size = 0;
     }
-    vmfd = ioctl(kvmfd, KVM_CREATE_VM, max_vm_pa_size);
+    do {
+        vmfd = ioctl(kvmfd, KVM_CREATE_VM, max_vm_pa_size);
+    } while (vmfd == -1 && errno == EINTR);
     if (vmfd < 0) {
         goto err;
     }
@@ -245,6 +247,13 @@ int kvm_arm_get_max_vm_ipa_size(MachineState *ms, bool *fixed_ipa)
     return ret > 0 ? ret : 40;
 }
 
+int kvm_arch_get_default_type(MachineState *ms)
+{
+    bool fixed_ipa;
+    int size = kvm_arm_get_max_vm_ipa_size(ms, &fixed_ipa);
+    return fixed_ipa ? 0 : size;
+}
+
 int kvm_arch_init(MachineState *ms, KVMState *s)
 {
     int ret = 0;
@@ -277,6 +286,8 @@ int kvm_arch_init(MachineState *ms, KVMState *s)
                                     KVM_CAP_ARM_INJECT_EXT_DABT);
         }
     }
+
+    kvm_arm_init_debug(s);
 
     return ret;
 }
@@ -337,6 +348,7 @@ static MemoryListener devlistener = {
     .name = "kvm-arm",
     .region_add = kvm_arm_devlistener_add,
     .region_del = kvm_arm_devlistener_del,
+    .priority = MEMORY_LISTENER_PRIORITY_MIN,
 };
 
 static void kvm_arm_set_device_addr(KVMDevice *kd)
@@ -959,7 +971,7 @@ void kvm_arch_init_irq_routing(KVMState *s)
 int kvm_arch_irqchip_create(KVMState *s)
 {
     if (kvm_kernel_irqchip_split()) {
-        perror("-machine kernel_irqchip=split is not supported on ARM.");
+        error_report("-machine kernel_irqchip=split is not supported on ARM.");
         exit(1);
     }
 
@@ -1055,4 +1067,8 @@ int kvm_arch_msi_data_to_gsi(uint32_t data)
 bool kvm_arch_cpu_check_are_resettable(void)
 {
     return true;
+}
+
+void kvm_arch_accel_class_init(ObjectClass *oc)
+{
 }

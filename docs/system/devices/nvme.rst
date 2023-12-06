@@ -104,8 +104,8 @@ multipath I/O.
 .. code-block:: console
 
    -device nvme-subsys,id=nvme-subsys-0,nqn=subsys0
-   -device nvme,serial=a,subsys=nvme-subsys-0
-   -device nvme,serial=b,subsys=nvme-subsys-0
+   -device nvme,serial=deadbeef,subsys=nvme-subsys-0
+   -device nvme,serial=deadbeef,subsys=nvme-subsys-0
 
 This will create an NVM subsystem with two controllers. Having controllers
 linked to an ``nvme-subsys`` device allows additional ``nvme-ns`` parameters:
@@ -212,6 +212,41 @@ The namespace may be configured with additional parameters
   the minimum memory page size (CAP.MPSMIN). The default value (``0``)
   has this property inherit the ``mdts`` value.
 
+Flexible Data Placement
+-----------------------
+
+The device may be configured to support TP4146 ("Flexible Data Placement") by
+configuring it (``fdp=on``) on the subsystem::
+
+    -device nvme-subsys,id=nvme-subsys-0,nqn=subsys0,fdp=on,fdp.nruh=16
+
+The subsystem emulates a single Endurance Group, on which Flexible Data
+Placement will be supported. Also note that the device emulation deviates
+slightly from the specification, by always enabling the "FDP Mode" feature on
+the controller if the subsystems is configured for Flexible Data Placement.
+
+Enabling Flexible Data Placement on the subsyste enables the following
+parameters:
+
+``fdp.nrg`` (default: ``1``)
+  Set the number of Reclaim Groups.
+
+``fdp.nruh`` (default: ``0``)
+  Set the number of Reclaim Unit Handles. This is a mandatory parameter and
+  must be non-zero.
+
+``fdp.runs`` (default: ``96M``)
+  Set the Reclaim Unit Nominal Size. Defaults to 96 MiB.
+
+Namespaces within this subsystem may requests Reclaim Unit Handles::
+
+    -device nvme-ns,drive=nvm-1,fdp.ruhs=RUHLIST
+
+The ``RUHLIST`` is a semicolon separated list (i.e. ``0;1;2;3``) and may
+include ranges (i.e. ``0;8-15``). If no reclaim unit handle list is specified,
+the controller will assign the controller-specified reclaim unit handle to
+placement handle identifier 0.
+
 Metadata
 --------
 
@@ -236,6 +271,94 @@ The virtual namespace device supports DIF- and DIX-based protection information
 
 ``pil=UINT8`` (default: ``0``)
   Controls the location of the protection information within the metadata. Set
-  to ``1`` to transfer protection information as the first eight bytes of
-  metadata. Otherwise, the protection information is transferred as the last
-  eight bytes.
+  to ``1`` to transfer protection information as the first bytes of metadata.
+  Otherwise, the protection information is transferred as the last bytes of
+  metadata.
+
+``pif=UINT8`` (default: ``0``)
+  By default, the namespace device uses 16 bit guard protection information
+  format (``pif=0``). Set to ``2`` to enable 64 bit guard protection
+  information format. This requires at least 16 bytes of metadata. Note that
+  ``pif=1`` (32 bit guards) is currently not supported.
+
+Virtualization Enhancements and SR-IOV (Experimental Support)
+-------------------------------------------------------------
+
+The ``nvme`` device supports Single Root I/O Virtualization and Sharing
+along with Virtualization Enhancements. The controller has to be linked to
+an NVM Subsystem device (``nvme-subsys``) for use with SR-IOV.
+
+A number of parameters are present (**please note, that they may be
+subject to change**):
+
+``sriov_max_vfs`` (default: ``0``)
+  Indicates the maximum number of PCIe virtual functions supported
+  by the controller. Specifying a non-zero value enables reporting of both
+  SR-IOV and ARI (Alternative Routing-ID Interpretation) capabilities
+  by the NVMe device. Virtual function controllers will not report SR-IOV.
+
+``sriov_vq_flexible``
+  Indicates the total number of flexible queue resources assignable to all
+  the secondary controllers. Implicitly sets the number of primary
+  controller's private resources to ``(max_ioqpairs - sriov_vq_flexible)``.
+
+``sriov_vi_flexible``
+  Indicates the total number of flexible interrupt resources assignable to
+  all the secondary controllers. Implicitly sets the number of primary
+  controller's private resources to ``(msix_qsize - sriov_vi_flexible)``.
+
+``sriov_max_vi_per_vf`` (default: ``0``)
+  Indicates the maximum number of virtual interrupt resources assignable
+  to a secondary controller. The default ``0`` resolves to
+  ``(sriov_vi_flexible / sriov_max_vfs)``
+
+``sriov_max_vq_per_vf`` (default: ``0``)
+  Indicates the maximum number of virtual queue resources assignable to
+  a secondary controller. The default ``0`` resolves to
+  ``(sriov_vq_flexible / sriov_max_vfs)``
+
+The simplest possible invocation enables the capability to set up one VF
+controller and assign an admin queue, an IO queue, and a MSI-X interrupt.
+
+.. code-block:: console
+
+   -device nvme-subsys,id=subsys0
+   -device nvme,serial=deadbeef,subsys=subsys0,sriov_max_vfs=1,
+    sriov_vq_flexible=2,sriov_vi_flexible=1
+
+The minimum steps required to configure a functional NVMe secondary
+controller are:
+
+  * unbind flexible resources from the primary controller
+
+.. code-block:: console
+
+   nvme virt-mgmt /dev/nvme0 -c 0 -r 1 -a 1 -n 0
+   nvme virt-mgmt /dev/nvme0 -c 0 -r 0 -a 1 -n 0
+
+  * perform a Function Level Reset on the primary controller to actually
+    release the resources
+
+.. code-block:: console
+
+   echo 1 > /sys/bus/pci/devices/0000:01:00.0/reset
+
+  * enable VF
+
+.. code-block:: console
+
+   echo 1 > /sys/bus/pci/devices/0000:01:00.0/sriov_numvfs
+
+  * assign the flexible resources to the VF and set it ONLINE
+
+.. code-block:: console
+
+   nvme virt-mgmt /dev/nvme0 -c 1 -r 1 -a 8 -n 1
+   nvme virt-mgmt /dev/nvme0 -c 1 -r 0 -a 8 -n 2
+   nvme virt-mgmt /dev/nvme0 -c 1 -r 0 -a 9 -n 0
+
+  * bind the NVMe driver to the VF
+
+.. code-block:: console
+
+   echo 0000:01:00.1 > /sys/bus/pci/drivers/nvme/bind

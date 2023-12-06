@@ -10,7 +10,7 @@
 #define ATI_INT_H
 
 #include "qemu/timer.h"
-#include "hw/pci/pci.h"
+#include "hw/pci/pci_device.h"
 #include "hw/i2c/bitbang_i2c.h"
 #include "vga_int.h"
 #include "qom/object.h"
@@ -89,6 +89,7 @@ struct ATIVGAState {
     char *model;
     uint16_t dev_id;
     uint8_t mode;
+    uint8_t use_pixman;
     bool cursor_guest_mode;
     uint16_t cursor_size;
     uint32_t cursor_offset;

@@ -326,7 +326,7 @@ static int vhdx_write_header(BdrvChild *file, VHDXHeader *hdr,
     buffer = qemu_blockalign(bs_file, VHDX_HEADER_SIZE);
     if (read) {
         /* if true, we can't assume the extra reserved bytes are 0 */
-        ret = bdrv_pread(file, offset, buffer, VHDX_HEADER_SIZE);
+        ret = bdrv_pread(file, offset, VHDX_HEADER_SIZE, buffer, 0);
         if (ret < 0) {
             goto exit;
         }
@@ -340,7 +340,7 @@ static int vhdx_write_header(BdrvChild *file, VHDXHeader *hdr,
     vhdx_header_le_export(hdr, header_le);
     vhdx_update_checksum(buffer, VHDX_HEADER_SIZE,
                          offsetof(VHDXHeader, checksum));
-    ret = bdrv_pwrite_sync(file, offset, header_le, sizeof(VHDXHeader));
+    ret = bdrv_pwrite_sync(file, offset, sizeof(VHDXHeader), header_le, 0);
 
 exit:
     qemu_vfree(buffer);
@@ -440,8 +440,8 @@ static void vhdx_parse_header(BlockDriverState *bs, BDRVVHDXState *s,
     /* We have to read the whole VHDX_HEADER_SIZE instead of
      * sizeof(VHDXHeader), because the checksum is over the whole
      * region */
-    ret = bdrv_pread(bs->file, VHDX_HEADER1_OFFSET, buffer,
-                     VHDX_HEADER_SIZE);
+    ret = bdrv_pread(bs->file, VHDX_HEADER1_OFFSET, VHDX_HEADER_SIZE, buffer,
+                     0);
     if (ret < 0) {
         goto fail;
     }
@@ -457,8 +457,8 @@ static void vhdx_parse_header(BlockDriverState *bs, BDRVVHDXState *s,
         }
     }
 
-    ret = bdrv_pread(bs->file, VHDX_HEADER2_OFFSET, buffer,
-                     VHDX_HEADER_SIZE);
+    ret = bdrv_pread(bs->file, VHDX_HEADER2_OFFSET, VHDX_HEADER_SIZE, buffer,
+                     0);
     if (ret < 0) {
         goto fail;
     }
@@ -531,8 +531,8 @@ static int vhdx_open_region_tables(BlockDriverState *bs, BDRVVHDXState *s)
      * whole block */
     buffer = qemu_blockalign(bs, VHDX_HEADER_BLOCK_SIZE);
 
-    ret = bdrv_pread(bs->file, VHDX_REGION_TABLE_OFFSET, buffer,
-                     VHDX_HEADER_BLOCK_SIZE);
+    ret = bdrv_pread(bs->file, VHDX_REGION_TABLE_OFFSET,
+                     VHDX_HEADER_BLOCK_SIZE, buffer, 0);
     if (ret < 0) {
         goto fail;
     }
@@ -644,8 +644,8 @@ static int vhdx_parse_metadata(BlockDriverState *bs, BDRVVHDXState *s)
 
     buffer = qemu_blockalign(bs, VHDX_METADATA_TABLE_MAX_SIZE);
 
-    ret = bdrv_pread(bs->file, s->metadata_rt.file_offset, buffer,
-                     VHDX_METADATA_TABLE_MAX_SIZE);
+    ret = bdrv_pread(bs->file, s->metadata_rt.file_offset,
+                     VHDX_METADATA_TABLE_MAX_SIZE, buffer, 0);
     if (ret < 0) {
         goto exit;
     }
@@ -750,8 +750,9 @@ static int vhdx_parse_metadata(BlockDriverState *bs, BDRVVHDXState *s)
     ret = bdrv_pread(bs->file,
                      s->metadata_entries.file_parameters_entry.offset
                                          + s->metadata_rt.file_offset,
+                     sizeof(s->params),
                      &s->params,
-                     sizeof(s->params));
+                     0);
 
     if (ret < 0) {
         goto exit;
@@ -785,24 +786,27 @@ static int vhdx_parse_metadata(BlockDriverState *bs, BDRVVHDXState *s)
     ret = bdrv_pread(bs->file,
                      s->metadata_entries.virtual_disk_size_entry.offset
                                            + s->metadata_rt.file_offset,
+                     sizeof(uint64_t),
                      &s->virtual_disk_size,
-                     sizeof(uint64_t));
+                     0);
     if (ret < 0) {
         goto exit;
     }
     ret = bdrv_pread(bs->file,
                      s->metadata_entries.logical_sector_size_entry.offset
                                              + s->metadata_rt.file_offset,
+                     sizeof(uint32_t),
                      &s->logical_sector_size,
-                     sizeof(uint32_t));
+                     0);
     if (ret < 0) {
         goto exit;
     }
     ret = bdrv_pread(bs->file,
                      s->metadata_entries.phys_sector_size_entry.offset
                                           + s->metadata_rt.file_offset,
+                     sizeof(uint32_t),
                      &s->physical_sector_size,
-                     sizeof(uint32_t));
+                     0);
     if (ret < 0) {
         goto exit;
     }
@@ -997,10 +1001,9 @@ static int vhdx_open(BlockDriverState *bs, QDict *options, int flags,
     uint64_t signature;
     Error *local_err = NULL;
 
-    bs->file = bdrv_open_child(NULL, options, "file", bs, &child_of_bds,
-                               BDRV_CHILD_IMAGE, false, errp);
-    if (!bs->file) {
-        return -EINVAL;
+    ret = bdrv_open_file_child(NULL, options, "file", bs, errp);
+    if (ret < 0) {
+        return ret;
     }
 
     s->bat = NULL;
@@ -1010,7 +1013,7 @@ static int vhdx_open(BlockDriverState *bs, QDict *options, int flags,
     QLIST_INIT(&s->regions);
 
     /* validate the file signature */
-    ret = bdrv_pread(bs->file, 0, &signature, sizeof(uint64_t));
+    ret = bdrv_pread(bs->file, 0, sizeof(uint64_t), &signature, 0);
     if (ret < 0) {
         goto fail;
     }
@@ -1069,7 +1072,7 @@ static int vhdx_open(BlockDriverState *bs, QDict *options, int flags,
         goto fail;
     }
 
-    ret = bdrv_pread(bs->file, s->bat_offset, s->bat, s->bat_rt.length);
+    ret = bdrv_pread(bs->file, s->bat_offset, s->bat_rt.length, s->bat, 0);
     if (ret < 0) {
         goto fail;
     }
@@ -1158,7 +1161,8 @@ static void vhdx_block_translate(BDRVVHDXState *s, int64_t sector_num,
 }
 
 
-static int vhdx_get_info(BlockDriverState *bs, BlockDriverInfo *bdi)
+static int coroutine_fn
+vhdx_co_get_info(BlockDriverState *bs, BlockDriverInfo *bdi)
 {
     BDRVVHDXState *s = bs->opaque;
 
@@ -1168,8 +1172,9 @@ static int vhdx_get_info(BlockDriverState *bs, BlockDriverInfo *bdi)
 }
 
 
-static coroutine_fn int vhdx_co_readv(BlockDriverState *bs, int64_t sector_num,
-                                      int nb_sectors, QEMUIOVector *qiov)
+static int coroutine_fn GRAPH_RDLOCK
+vhdx_co_readv(BlockDriverState *bs, int64_t sector_num, int nb_sectors,
+              QEMUIOVector *qiov)
 {
     BDRVVHDXState *s = bs->opaque;
     int ret = 0;
@@ -1245,12 +1250,13 @@ exit:
  *
  * Returns the file offset start of the new payload block
  */
-static int vhdx_allocate_block(BlockDriverState *bs, BDRVVHDXState *s,
-                               uint64_t *new_offset, bool *need_zero)
+static int coroutine_fn GRAPH_RDLOCK
+vhdx_allocate_block(BlockDriverState *bs, BDRVVHDXState *s,
+                    uint64_t *new_offset, bool *need_zero)
 {
     int64_t current_len;
 
-    current_len = bdrv_getlength(bs->file->bs);
+    current_len = bdrv_co_getlength(bs->file->bs);
     if (current_len < 0) {
         return current_len;
     }
@@ -1266,16 +1272,16 @@ static int vhdx_allocate_block(BlockDriverState *bs, BDRVVHDXState *s,
     if (*need_zero) {
         int ret;
 
-        ret = bdrv_truncate(bs->file, *new_offset + s->block_size, false,
-                            PREALLOC_MODE_OFF, BDRV_REQ_ZERO_WRITE, NULL);
+        ret = bdrv_co_truncate(bs->file, *new_offset + s->block_size, false,
+                               PREALLOC_MODE_OFF, BDRV_REQ_ZERO_WRITE, NULL);
         if (ret != -ENOTSUP) {
             *need_zero = false;
             return ret;
         }
     }
 
-    return bdrv_truncate(bs->file, *new_offset + s->block_size, false,
-                         PREALLOC_MODE_OFF, 0, NULL);
+    return bdrv_co_truncate(bs->file, *new_offset + s->block_size, false,
+                            PREALLOC_MODE_OFF, 0, NULL);
 }
 
 /*
@@ -1320,9 +1326,9 @@ int vhdx_user_visible_write(BlockDriverState *bs, BDRVVHDXState *s)
     return ret;
 }
 
-static coroutine_fn int vhdx_co_writev(BlockDriverState *bs, int64_t sector_num,
-                                       int nb_sectors, QEMUIOVector *qiov,
-                                       int flags)
+static int coroutine_fn GRAPH_RDLOCK
+vhdx_co_writev(BlockDriverState *bs, int64_t sector_num, int nb_sectors,
+               QEMUIOVector *qiov, int flags)
 {
     int ret = -ENOTSUP;
     BDRVVHDXState *s = bs->opaque;
@@ -1338,7 +1344,6 @@ static coroutine_fn int vhdx_co_writev(BlockDriverState *bs, int64_t sector_num,
     uint64_t bat_prior_offset = 0;
     bool bat_update = false;
 
-    assert(!flags);
     qemu_iovec_init(&hd_qiov, qiov->niov);
 
     qemu_co_mutex_lock(&s->lock);
@@ -1502,13 +1507,16 @@ exit:
  * There are 2 headers, and the highest sequence number will represent
  * the active header
  */
-static int vhdx_create_new_headers(BlockBackend *blk, uint64_t image_size,
-                                   uint32_t log_size)
+static int coroutine_fn GRAPH_UNLOCKED
+vhdx_create_new_headers(BlockBackend *blk, uint64_t image_size,
+                        uint32_t log_size)
 {
     BlockDriverState *bs = blk_bs(blk);
     BdrvChild *child;
     int ret = 0;
     VHDXHeader *hdr = NULL;
+
+    GRAPH_RDLOCK_GUARD();
 
     hdr = g_new0(VHDXHeader, 1);
 
@@ -1565,12 +1573,10 @@ exit:
  * The first 64KB of the Metadata section is reserved for the metadata
  * header and entries; beyond that, the metadata items themselves reside.
  */
-static int vhdx_create_new_metadata(BlockBackend *blk,
-                                    uint64_t image_size,
-                                    uint32_t block_size,
-                                    uint32_t sector_size,
-                                    uint64_t metadata_offset,
-                                    VHDXImageType type)
+static int coroutine_fn
+vhdx_create_new_metadata(BlockBackend *blk, uint64_t image_size,
+                         uint32_t block_size, uint32_t sector_size,
+                         uint64_t metadata_offset, VHDXImageType type)
 {
     int ret = 0;
     uint32_t offset = 0;
@@ -1661,13 +1667,13 @@ static int vhdx_create_new_metadata(BlockBackend *blk,
                                    VHDX_META_FLAGS_IS_VIRTUAL_DISK;
     vhdx_metadata_entry_le_export(&md_table_entry[4]);
 
-    ret = blk_pwrite(blk, metadata_offset, buffer, VHDX_HEADER_BLOCK_SIZE, 0);
+    ret = blk_co_pwrite(blk, metadata_offset, VHDX_HEADER_BLOCK_SIZE, buffer, 0);
     if (ret < 0) {
         goto exit;
     }
 
-    ret = blk_pwrite(blk, metadata_offset + (64 * KiB), entry_buffer,
-                     VHDX_METADATA_ENTRY_BUFFER_SIZE, 0);
+    ret = blk_co_pwrite(blk, metadata_offset + (64 * KiB),
+                        VHDX_METADATA_ENTRY_BUFFER_SIZE, entry_buffer, 0);
     if (ret < 0) {
         goto exit;
     }
@@ -1687,10 +1693,11 @@ exit:
  *  Fixed images: default state of the BAT is fully populated, with
  *                file offsets and state PAYLOAD_BLOCK_FULLY_PRESENT.
  */
-static int vhdx_create_bat(BlockBackend *blk, BDRVVHDXState *s,
-                           uint64_t image_size, VHDXImageType type,
-                           bool use_zero_blocks, uint64_t file_offset,
-                           uint32_t length, Error **errp)
+static int coroutine_fn
+vhdx_create_bat(BlockBackend *blk, BDRVVHDXState *s,
+                uint64_t image_size, VHDXImageType type,
+                bool use_zero_blocks, uint64_t file_offset,
+                uint32_t length, Error **errp)
 {
     int ret = 0;
     uint64_t data_file_offset;
@@ -1711,14 +1718,14 @@ static int vhdx_create_bat(BlockBackend *blk, BDRVVHDXState *s,
     if (type == VHDX_TYPE_DYNAMIC) {
         /* All zeroes, so we can just extend the file - the end of the BAT
          * is the furthest thing we have written yet */
-        ret = blk_truncate(blk, data_file_offset, false, PREALLOC_MODE_OFF,
-                           0, errp);
+        ret = blk_co_truncate(blk, data_file_offset, false, PREALLOC_MODE_OFF,
+                              0, errp);
         if (ret < 0) {
             goto exit;
         }
     } else if (type == VHDX_TYPE_FIXED) {
-        ret = blk_truncate(blk, data_file_offset + image_size, false,
-                           PREALLOC_MODE_OFF, 0, errp);
+        ret = blk_co_truncate(blk, data_file_offset + image_size, false,
+                              PREALLOC_MODE_OFF, 0, errp);
         if (ret < 0) {
             goto exit;
         }
@@ -1752,7 +1759,7 @@ static int vhdx_create_bat(BlockBackend *blk, BDRVVHDXState *s,
             s->bat[sinfo.bat_idx] = cpu_to_le64(s->bat[sinfo.bat_idx]);
             sector_num += s->sectors_per_block;
         }
-        ret = blk_pwrite(blk, file_offset, s->bat, length, 0);
+        ret = blk_co_pwrite(blk, file_offset, length, s->bat, 0);
         if (ret < 0) {
             error_setg_errno(errp, -ret, "Failed to write the BAT");
             goto exit;
@@ -1773,15 +1780,12 @@ exit:
  * to create the BAT itself, we will also cause the BAT to be
  * created.
  */
-static int vhdx_create_new_region_table(BlockBackend *blk,
-                                        uint64_t image_size,
-                                        uint32_t block_size,
-                                        uint32_t sector_size,
-                                        uint32_t log_size,
-                                        bool use_zero_blocks,
-                                        VHDXImageType type,
-                                        uint64_t *metadata_offset,
-                                        Error **errp)
+static int coroutine_fn
+vhdx_create_new_region_table(BlockBackend *blk, uint64_t image_size,
+                             uint32_t block_size, uint32_t sector_size,
+                             uint32_t log_size, bool use_zero_blocks,
+                             VHDXImageType type, uint64_t *metadata_offset,
+                             Error **errp)
 {
     int ret = 0;
     uint32_t offset = 0;
@@ -1856,15 +1860,15 @@ static int vhdx_create_new_region_table(BlockBackend *blk,
     }
 
     /* Now write out the region headers to disk */
-    ret = blk_pwrite(blk, VHDX_REGION_TABLE_OFFSET, buffer,
-                     VHDX_HEADER_BLOCK_SIZE, 0);
+    ret = blk_co_pwrite(blk, VHDX_REGION_TABLE_OFFSET, VHDX_HEADER_BLOCK_SIZE,
+                        buffer, 0);
     if (ret < 0) {
         error_setg_errno(errp, -ret, "Failed to write first region table");
         goto exit;
     }
 
-    ret = blk_pwrite(blk, VHDX_REGION_TABLE2_OFFSET, buffer,
-                     VHDX_HEADER_BLOCK_SIZE, 0);
+    ret = blk_co_pwrite(blk, VHDX_REGION_TABLE2_OFFSET, VHDX_HEADER_BLOCK_SIZE,
+                        buffer, 0);
     if (ret < 0) {
         error_setg_errno(errp, -ret, "Failed to write second region table");
         goto exit;
@@ -1893,8 +1897,8 @@ exit:
  *    .---- ~ ----------- ~ ------------ ~ ---------------- ~ -----------.
  *   1MB
  */
-static int coroutine_fn vhdx_co_create(BlockdevCreateOptions *opts,
-                                       Error **errp)
+static int coroutine_fn GRAPH_UNLOCKED
+vhdx_co_create(BlockdevCreateOptions *opts, Error **errp)
 {
     BlockdevCreateOptionsVhdx *vhdx_opts;
     BlockBackend *blk = NULL;
@@ -1988,13 +1992,13 @@ static int coroutine_fn vhdx_co_create(BlockdevCreateOptions *opts,
     }
 
     /* Create BlockBackend to write to the image */
-    bs = bdrv_open_blockdev_ref(vhdx_opts->file, errp);
+    bs = bdrv_co_open_blockdev_ref(vhdx_opts->file, errp);
     if (bs == NULL) {
         return -EIO;
     }
 
-    blk = blk_new_with_bs(bs, BLK_PERM_WRITE | BLK_PERM_RESIZE, BLK_PERM_ALL,
-                          errp);
+    blk = blk_co_new_with_bs(bs, BLK_PERM_WRITE | BLK_PERM_RESIZE, BLK_PERM_ALL,
+                             errp);
     if (!blk) {
         ret = -EPERM;
         goto delete_and_exit;
@@ -2008,15 +2012,15 @@ static int coroutine_fn vhdx_co_create(BlockdevCreateOptions *opts,
     creator = g_utf8_to_utf16("QEMU v" QEMU_VERSION, -1, NULL,
                               &creator_items, NULL);
     signature = cpu_to_le64(VHDX_FILE_SIGNATURE);
-    ret = blk_pwrite(blk, VHDX_FILE_ID_OFFSET, &signature, sizeof(signature),
-                     0);
+    ret = blk_co_pwrite(blk, VHDX_FILE_ID_OFFSET, sizeof(signature), &signature,
+                        0);
     if (ret < 0) {
         error_setg_errno(errp, -ret, "Failed to write file signature");
         goto delete_and_exit;
     }
     if (creator) {
-        ret = blk_pwrite(blk, VHDX_FILE_ID_OFFSET + sizeof(signature),
-                         creator, creator_items * sizeof(gunichar2), 0);
+        ret = blk_co_pwrite(blk, VHDX_FILE_ID_OFFSET + sizeof(signature),
+                            creator_items * sizeof(gunichar2), creator, 0);
         if (ret < 0) {
             error_setg_errno(errp, -ret, "Failed to write creator field");
             goto delete_and_exit;
@@ -2049,16 +2053,15 @@ static int coroutine_fn vhdx_co_create(BlockdevCreateOptions *opts,
 
     ret = 0;
 delete_and_exit:
-    blk_unref(blk);
-    bdrv_unref(bs);
+    blk_co_unref(blk);
+    bdrv_co_unref(bs);
     g_free(creator);
     return ret;
 }
 
-static int coroutine_fn vhdx_co_create_opts(BlockDriver *drv,
-                                            const char *filename,
-                                            QemuOpts *opts,
-                                            Error **errp)
+static int coroutine_fn GRAPH_UNLOCKED
+vhdx_co_create_opts(BlockDriver *drv, const char *filename,
+                    QemuOpts *opts, Error **errp)
 {
     BlockdevCreateOptions *create_options = NULL;
     QDict *qdict;
@@ -2082,13 +2085,13 @@ static int coroutine_fn vhdx_co_create_opts(BlockDriver *drv,
     }
 
     /* Create and open the file (protocol layer) */
-    ret = bdrv_create_file(filename, opts, errp);
+    ret = bdrv_co_create_file(filename, opts, errp);
     if (ret < 0) {
         goto fail;
     }
 
-    bs = bdrv_open(filename, NULL, NULL,
-                   BDRV_O_RDWR | BDRV_O_RESIZE | BDRV_O_PROTOCOL, errp);
+    bs = bdrv_co_open(filename, NULL, NULL,
+                      BDRV_O_RDWR | BDRV_O_RESIZE | BDRV_O_PROTOCOL, errp);
     if (bs == NULL) {
         ret = -EIO;
         goto fail;
@@ -2141,7 +2144,7 @@ static int coroutine_fn vhdx_co_create_opts(BlockDriver *drv,
 
 fail:
     qobject_unref(qdict);
-    bdrv_unref(bs);
+    bdrv_co_unref(bs);
     qapi_free_BlockdevCreateOptions(create_options);
     return ret;
 }
@@ -2243,7 +2246,7 @@ static BlockDriver bdrv_vhdx = {
     .bdrv_co_writev         = vhdx_co_writev,
     .bdrv_co_create         = vhdx_co_create,
     .bdrv_co_create_opts    = vhdx_co_create_opts,
-    .bdrv_get_info          = vhdx_get_info,
+    .bdrv_co_get_info       = vhdx_co_get_info,
     .bdrv_co_check          = vhdx_co_check,
     .bdrv_has_zero_init     = vhdx_has_zero_init,
 

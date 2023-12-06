@@ -12,14 +12,8 @@
 #ifndef HW_SOUTHBRIDGE_PIIX_H
 #define HW_SOUTHBRIDGE_PIIX_H
 
-#include "hw/pci/pci.h"
-#include "qom/object.h"
-
-#define TYPE_PIIX4_PM "PIIX4_PM"
-
-I2CBus *piix4_pm_init(PCIBus *bus, int devfn, uint32_t smb_io_base,
-                      qemu_irq sci_irq, qemu_irq smi_irq,
-                      int smm_enabled, DeviceState **piix4_pm);
+#include "hw/pci/pci_device.h"
+#include "hw/rtc/mc146818rtc.h"
 
 /* PIRQRC[A:D]: PIRQx Route Control Registers */
 #define PIIX_PIRQCA 0x60
@@ -58,6 +52,8 @@ struct PIIXState {
     /* This member isn't used. Just for save/load compatibility */
     int32_t pci_irq_levels_vmstate[PIIX_NUM_PIRQS];
 
+    MC146818RtcState rtc;
+
     /* Reset Control Register contents */
     uint8_t rcr;
 
@@ -70,8 +66,7 @@ typedef struct PIIXState PIIX3State;
 DECLARE_INSTANCE_CHECKER(PIIX3State, PIIX3_PCI_DEVICE,
                          TYPE_PIIX3_PCI_DEVICE)
 
-PIIX3State *piix3_create(PCIBus *pci_bus, ISABus **isa_bus);
-
-DeviceState *piix4_create(PCIBus *pci_bus, ISABus **isa_bus, I2CBus **smbus);
+#define TYPE_PIIX3_DEVICE "PIIX3"
+#define TYPE_PIIX4_PCI_DEVICE "piix4-isa"
 
 #endif

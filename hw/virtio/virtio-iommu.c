@@ -20,10 +20,12 @@
 #include "qemu/osdep.h"
 #include "qemu/log.h"
 #include "qemu/iov.h"
+#include "exec/target_page.h"
 #include "hw/qdev-properties.h"
 #include "hw/virtio/virtio.h"
 #include "sysemu/kvm.h"
 #include "sysemu/reset.h"
+#include "sysemu/sysemu.h"
 #include "qapi/error.h"
 #include "qemu/error-report.h"
 #include "trace.h"
@@ -31,7 +33,6 @@
 #include "standard-headers/linux/virtio_ids.h"
 
 #include "hw/virtio/virtio-bus.h"
-#include "hw/virtio/virtio-access.h"
 #include "hw/virtio/virtio-iommu.h"
 #include "hw/pci/pci_bus.h"
 #include "hw/pci/pci.h"
@@ -67,6 +68,77 @@ typedef struct VirtIOIOMMUMapping {
 static inline uint16_t virtio_iommu_get_bdf(IOMMUDevice *dev)
 {
     return PCI_BUILD_BDF(pci_bus_num(dev->bus), dev->devfn);
+}
+
+static bool virtio_iommu_device_bypassed(IOMMUDevice *sdev)
+{
+    uint32_t sid;
+    bool bypassed;
+    VirtIOIOMMU *s = sdev->viommu;
+    VirtIOIOMMUEndpoint *ep;
+
+    sid = virtio_iommu_get_bdf(sdev);
+
+    qemu_rec_mutex_lock(&s->mutex);
+    /* need to check bypass before system reset */
+    if (!s->endpoints) {
+        bypassed = s->config.bypass;
+        goto unlock;
+    }
+
+    ep = g_tree_lookup(s->endpoints, GUINT_TO_POINTER(sid));
+    if (!ep || !ep->domain) {
+        bypassed = s->config.bypass;
+    } else {
+        bypassed = ep->domain->bypass;
+    }
+
+unlock:
+    qemu_rec_mutex_unlock(&s->mutex);
+    return bypassed;
+}
+
+/* Return whether the device is using IOMMU translation. */
+static bool virtio_iommu_switch_address_space(IOMMUDevice *sdev)
+{
+    bool use_remapping;
+
+    assert(sdev);
+
+    use_remapping = !virtio_iommu_device_bypassed(sdev);
+
+    trace_virtio_iommu_switch_address_space(pci_bus_num(sdev->bus),
+                                            PCI_SLOT(sdev->devfn),
+                                            PCI_FUNC(sdev->devfn),
+                                            use_remapping);
+
+    /* Turn off first then on the other */
+    if (use_remapping) {
+        memory_region_set_enabled(&sdev->bypass_mr, false);
+        memory_region_set_enabled(MEMORY_REGION(&sdev->iommu_mr), true);
+    } else {
+        memory_region_set_enabled(MEMORY_REGION(&sdev->iommu_mr), false);
+        memory_region_set_enabled(&sdev->bypass_mr, true);
+    }
+
+    return use_remapping;
+}
+
+static void virtio_iommu_switch_address_space_all(VirtIOIOMMU *s)
+{
+    GHashTableIter iter;
+    IOMMUPciBus *iommu_pci_bus;
+    int i;
+
+    g_hash_table_iter_init(&iter, s->as_by_busptr);
+    while (g_hash_table_iter_next(&iter, NULL, (void **)&iommu_pci_bus)) {
+        for (i = 0; i < PCI_DEVFN_MAX; i++) {
+            if (!iommu_pci_bus->pbdev[i]) {
+                continue;
+            }
+            virtio_iommu_switch_address_space(iommu_pci_bus->pbdev[i]);
+        }
+    }
 }
 
 /**
@@ -126,6 +198,32 @@ static gint interval_cmp(gconstpointer a, gconstpointer b, gpointer user_data)
     }
 }
 
+static void virtio_iommu_notify_map_unmap(IOMMUMemoryRegion *mr,
+                                          IOMMUTLBEvent *event,
+                                          hwaddr virt_start, hwaddr virt_end)
+{
+    uint64_t delta = virt_end - virt_start;
+
+    event->entry.iova = virt_start;
+    event->entry.addr_mask = delta;
+
+    if (delta == UINT64_MAX) {
+        memory_region_notify_iommu(mr, 0, *event);
+    }
+
+    while (virt_start != virt_end + 1) {
+        uint64_t mask = dma_aligned_pow2_mask(virt_start, virt_end, 64);
+
+        event->entry.addr_mask = mask;
+        event->entry.iova = virt_start;
+        memory_region_notify_iommu(mr, 0, *event);
+        virt_start += mask + 1;
+        if (event->entry.perm != IOMMU_NONE) {
+            event->entry.translated_addr += mask + 1;
+        }
+    }
+}
+
 static void virtio_iommu_notify_map(IOMMUMemoryRegion *mr, hwaddr virt_start,
                                     hwaddr virt_end, hwaddr paddr,
                                     uint32_t flags)
@@ -144,19 +242,16 @@ static void virtio_iommu_notify_map(IOMMUMemoryRegion *mr, hwaddr virt_start,
 
     event.type = IOMMU_NOTIFIER_MAP;
     event.entry.target_as = &address_space_memory;
-    event.entry.addr_mask = virt_end - virt_start;
-    event.entry.iova = virt_start;
     event.entry.perm = perm;
     event.entry.translated_addr = paddr;
 
-    memory_region_notify_iommu(mr, 0, event);
+    virtio_iommu_notify_map_unmap(mr, &event, virt_start, virt_end);
 }
 
 static void virtio_iommu_notify_unmap(IOMMUMemoryRegion *mr, hwaddr virt_start,
                                       hwaddr virt_end)
 {
     IOMMUTLBEvent event;
-    uint64_t delta = virt_end - virt_start;
 
     if (!(mr->iommu_notify_flags & IOMMU_NOTIFIER_UNMAP)) {
         return;
@@ -168,22 +263,8 @@ static void virtio_iommu_notify_unmap(IOMMUMemoryRegion *mr, hwaddr virt_start,
     event.entry.target_as = &address_space_memory;
     event.entry.perm = IOMMU_NONE;
     event.entry.translated_addr = 0;
-    event.entry.addr_mask = delta;
-    event.entry.iova = virt_start;
 
-    if (delta == UINT64_MAX) {
-        memory_region_notify_iommu(mr, 0, event);
-    }
-
-
-    while (virt_start != virt_end + 1) {
-        uint64_t mask = dma_aligned_pow2_mask(virt_start, virt_end, 64);
-
-        event.entry.addr_mask = mask;
-        event.entry.iova = virt_start;
-        memory_region_notify_iommu(mr, 0, event);
-        virt_start += mask + 1;
-    }
+    virtio_iommu_notify_map_unmap(mr, &event, virt_start, virt_end);
 }
 
 static gboolean virtio_iommu_notify_unmap_cb(gpointer key, gpointer value,
@@ -213,6 +294,7 @@ static gboolean virtio_iommu_notify_map_cb(gpointer key, gpointer value,
 static void virtio_iommu_detach_endpoint_from_domain(VirtIOIOMMUEndpoint *ep)
 {
     VirtIOIOMMUDomain *domain = ep->domain;
+    IOMMUDevice *sdev = container_of(ep->iommu_mr, IOMMUDevice, iommu_mr);
 
     if (!ep->domain) {
         return;
@@ -221,6 +303,7 @@ static void virtio_iommu_detach_endpoint_from_domain(VirtIOIOMMUEndpoint *ep)
                    ep->iommu_mr);
     QLIST_REMOVE(ep, next);
     ep->domain = NULL;
+    virtio_iommu_switch_address_space(sdev);
 }
 
 static VirtIOIOMMUEndpoint *virtio_iommu_get_endpoint(VirtIOIOMMU *s,
@@ -323,12 +406,39 @@ static AddressSpace *virtio_iommu_find_add_as(PCIBus *bus, void *opaque,
 
         trace_virtio_iommu_init_iommu_mr(name);
 
+        memory_region_init(&sdev->root, OBJECT(s), name, UINT64_MAX);
+        address_space_init(&sdev->as, &sdev->root, TYPE_VIRTIO_IOMMU);
+
+        /*
+         * Build the IOMMU disabled container with aliases to the
+         * shared MRs.  Note that aliasing to a shared memory region
+         * could help the memory API to detect same FlatViews so we
+         * can have devices to share the same FlatView when in bypass
+         * mode. (either by not configuring virtio-iommu driver or with
+         * "iommu=pt").  It will greatly reduce the total number of
+         * FlatViews of the system hence VM runs faster.
+         */
+        memory_region_init_alias(&sdev->bypass_mr, OBJECT(s),
+                                 "system", get_system_memory(), 0,
+                                 memory_region_size(get_system_memory()));
+
         memory_region_init_iommu(&sdev->iommu_mr, sizeof(sdev->iommu_mr),
                                  TYPE_VIRTIO_IOMMU_MEMORY_REGION,
                                  OBJECT(s), name,
                                  UINT64_MAX);
-        address_space_init(&sdev->as,
-                           MEMORY_REGION(&sdev->iommu_mr), TYPE_VIRTIO_IOMMU);
+
+        /*
+         * Hook both the containers under the root container, we
+         * switch between iommu & bypass MRs by enable/disable
+         * corresponding sub-containers
+         */
+        memory_region_add_subregion_overlap(&sdev->root, 0,
+                                            MEMORY_REGION(&sdev->iommu_mr),
+                                            0);
+        memory_region_add_subregion_overlap(&sdev->root, 0,
+                                            &sdev->bypass_mr, 0);
+
+        virtio_iommu_switch_address_space(sdev);
         g_free(name);
     }
     return &sdev->as;
@@ -342,6 +452,7 @@ static int virtio_iommu_attach(VirtIOIOMMU *s,
     uint32_t flags = le32_to_cpu(req->flags);
     VirtIOIOMMUDomain *domain;
     VirtIOIOMMUEndpoint *ep;
+    IOMMUDevice *sdev;
 
     trace_virtio_iommu_attach(domain_id, ep_id);
 
@@ -375,6 +486,8 @@ static int virtio_iommu_attach(VirtIOIOMMU *s,
     QLIST_INSERT_HEAD(&domain->endpoint_list, ep, next);
 
     ep->domain = domain;
+    sdev = container_of(ep->iommu_mr, IOMMUDevice, iommu_mr);
+    virtio_iommu_switch_address_space(sdev);
 
     /* Replay domain mappings on the associated memory region */
     g_tree_foreach(domain->mappings, virtio_iommu_notify_map_cb,
@@ -572,11 +685,10 @@ static int virtio_iommu_probe(VirtIOIOMMU *s,
 
 static int virtio_iommu_iov_to_req(struct iovec *iov,
                                    unsigned int iov_cnt,
-                                   void *req, size_t req_sz)
+                                   void *req, size_t payload_sz)
 {
-    size_t sz, payload_sz = req_sz - sizeof(struct virtio_iommu_req_tail);
+    size_t sz = iov_to_buf(iov, iov_cnt, 0, req, payload_sz);
 
-    sz = iov_to_buf(iov, iov_cnt, 0, req, payload_sz);
     if (unlikely(sz != payload_sz)) {
         return VIRTIO_IOMMU_S_INVAL;
     }
@@ -589,7 +701,8 @@ static int virtio_iommu_handle_ ## __req(VirtIOIOMMU *s,                \
                                          unsigned int iov_cnt)          \
 {                                                                       \
     struct virtio_iommu_req_ ## __req req;                              \
-    int ret = virtio_iommu_iov_to_req(iov, iov_cnt, &req, sizeof(req)); \
+    int ret = virtio_iommu_iov_to_req(iov, iov_cnt, &req,               \
+                    sizeof(req) - sizeof(struct virtio_iommu_req_tail));\
                                                                         \
     return ret ? ret : virtio_iommu_ ## __req(s, &req);                 \
 }
@@ -615,13 +728,15 @@ static void virtio_iommu_handle_command(VirtIODevice *vdev, VirtQueue *vq)
     VirtIOIOMMU *s = VIRTIO_IOMMU(vdev);
     struct virtio_iommu_req_head head;
     struct virtio_iommu_req_tail tail = {};
-    size_t output_size = sizeof(tail), sz;
     VirtQueueElement *elem;
     unsigned int iov_cnt;
     struct iovec *iov;
     void *buf = NULL;
+    size_t sz;
 
     for (;;) {
+        size_t output_size = sizeof(tail);
+
         elem = virtqueue_pop(vq, sizeof(VirtQueueElement));
         if (!elem) {
             return;
@@ -642,7 +757,7 @@ static void virtio_iommu_handle_command(VirtIODevice *vdev, VirtQueue *vq)
             tail.status = VIRTIO_IOMMU_S_DEVERR;
             goto out;
         }
-        qemu_mutex_lock(&s->mutex);
+        qemu_rec_mutex_lock(&s->mutex);
         switch (head.type) {
         case VIRTIO_IOMMU_T_ATTACH:
             tail.status = virtio_iommu_handle_attach(s, iov, iov_cnt);
@@ -663,15 +778,14 @@ static void virtio_iommu_handle_command(VirtIODevice *vdev, VirtQueue *vq)
             output_size = s->config.probe_size + sizeof(tail);
             buf = g_malloc0(output_size);
 
-            ptail = (struct virtio_iommu_req_tail *)
-                        (buf + s->config.probe_size);
+            ptail = buf + s->config.probe_size;
             ptail->status = virtio_iommu_handle_probe(s, iov, iov_cnt, buf);
             break;
         }
         default:
             tail.status = VIRTIO_IOMMU_S_UNSUPP;
         }
-        qemu_mutex_unlock(&s->mutex);
+        qemu_rec_mutex_unlock(&s->mutex);
 
 out:
         sz = iov_from_buf(elem->in_sg, elem->in_num, 0,
@@ -740,17 +854,19 @@ static IOMMUTLBEntry virtio_iommu_translate(IOMMUMemoryRegion *mr, hwaddr addr,
     VirtIOIOMMUEndpoint *ep;
     uint32_t sid, flags;
     bool bypass_allowed;
+    int granule;
     bool found;
     int i;
 
     interval.low = addr;
     interval.high = addr + 1;
+    granule = ctz64(s->config.page_size_mask);
 
     IOMMUTLBEntry entry = {
         .target_as = &address_space_memory,
         .iova = addr,
         .translated_addr = addr,
-        .addr_mask = (1 << ctz32(s->config.page_size_mask)) - 1,
+        .addr_mask = BIT_ULL(granule) - 1,
         .perm = IOMMU_NONE,
     };
 
@@ -759,9 +875,13 @@ static IOMMUTLBEntry virtio_iommu_translate(IOMMUMemoryRegion *mr, hwaddr addr,
     sid = virtio_iommu_get_bdf(sdev);
 
     trace_virtio_iommu_translate(mr->parent_obj.name, sid, addr, flag);
-    qemu_mutex_lock(&s->mutex);
+    qemu_rec_mutex_lock(&s->mutex);
 
     ep = g_tree_lookup(s->endpoints, GUINT_TO_POINTER(sid));
+
+    if (bypass_allowed)
+        assert(ep && ep->domain && !ep->domain->bypass);
+
     if (!ep) {
         if (!bypass_allowed) {
             error_report_once("%s sid=%d is not known!!", __func__, sid);
@@ -843,7 +963,7 @@ static IOMMUTLBEntry virtio_iommu_translate(IOMMUMemoryRegion *mr, hwaddr addr,
     trace_virtio_iommu_translate_out(addr, entry.translated_addr, sid);
 
 unlock:
-    qemu_mutex_unlock(&s->mutex);
+    qemu_rec_mutex_unlock(&s->mutex);
     return entry;
 }
 
@@ -887,6 +1007,7 @@ static void virtio_iommu_set_config(VirtIODevice *vdev,
             return;
         }
         dev_config->bypass = in_config->bypass;
+        virtio_iommu_switch_address_space_all(dev);
     }
 
     trace_virtio_iommu_set_config(in_config->bypass);
@@ -931,7 +1052,7 @@ static void virtio_iommu_replay(IOMMUMemoryRegion *mr, IOMMUNotifier *n)
 
     sid = virtio_iommu_get_bdf(sdev);
 
-    qemu_mutex_lock(&s->mutex);
+    qemu_rec_mutex_lock(&s->mutex);
 
     if (!s->endpoints) {
         goto unlock;
@@ -945,7 +1066,7 @@ static void virtio_iommu_replay(IOMMUMemoryRegion *mr, IOMMUNotifier *n)
     g_tree_foreach(ep->domain->mappings, virtio_iommu_remap, mr);
 
 unlock:
-    qemu_mutex_unlock(&s->mutex);
+    qemu_rec_mutex_unlock(&s->mutex);
 }
 
 static int virtio_iommu_notify_flag_changed(IOMMUMemoryRegion *iommu_mr,
@@ -984,29 +1105,24 @@ static int virtio_iommu_set_page_size_mask(IOMMUMemoryRegion *mr,
                                           new_mask);
 
     if ((cur_mask & new_mask) == 0) {
-        error_setg(errp, "virtio-iommu page mask 0x%"PRIx64
-                   " is incompatible with mask 0x%"PRIx64, cur_mask, new_mask);
+        error_setg(errp, "virtio-iommu %s reports a page size mask 0x%"PRIx64
+                   " incompatible with currently supported mask 0x%"PRIx64,
+                   mr->parent_obj.name, new_mask, cur_mask);
         return -1;
     }
 
     /*
-     * After the machine is finalized, we can't change the mask anymore. If by
+     * Once the granule is frozen we can't change the mask anymore. If by
      * chance the hotplugged device supports the same granule, we can still
-     * accept it. Having a different masks is possible but the guest will use
-     * sub-optimal block sizes, so warn about it.
+     * accept it.
      */
-    if (phase_check(PHASE_MACHINE_READY)) {
-        int new_granule = ctz64(new_mask);
+    if (s->granule_frozen) {
         int cur_granule = ctz64(cur_mask);
 
-        if (new_granule != cur_granule) {
-            error_setg(errp, "virtio-iommu page mask 0x%"PRIx64
-                       " is incompatible with mask 0x%"PRIx64, cur_mask,
-                       new_mask);
+        if (!(BIT_ULL(cur_granule) & new_mask)) {
+            error_setg(errp, "virtio-iommu %s does not support frozen granule 0x%llx",
+                       mr->parent_obj.name, BIT_ULL(cur_granule));
             return -1;
-        } else if (new_mask != cur_mask) {
-            warn_report("virtio-iommu page mask 0x%"PRIx64
-                        " does not match 0x%"PRIx64, cur_mask, new_mask);
         }
         return 0;
     }
@@ -1026,6 +1142,30 @@ static void virtio_iommu_system_reset(void *opaque)
      * system reset
      */
     s->config.bypass = s->boot_bypass;
+    virtio_iommu_switch_address_space_all(s);
+
+}
+
+static void virtio_iommu_freeze_granule(Notifier *notifier, void *data)
+{
+    VirtIOIOMMU *s = container_of(notifier, VirtIOIOMMU, machine_done);
+    int granule;
+
+    if (likely(s->config.bypass)) {
+        /*
+         * Transient IOMMU MR enable to collect page_size_mask requirements
+         * through memory_region_iommu_set_page_size_mask() called by
+         * VFIO region_add() callback
+         */
+         s->config.bypass = false;
+         virtio_iommu_switch_address_space_all(s);
+         /* restore default */
+         s->config.bypass = true;
+         virtio_iommu_switch_address_space_all(s);
+    }
+    s->granule_frozen = true;
+    granule = ctz64(s->config.page_size_mask);
+    trace_virtio_iommu_freeze_granule(BIT_ULL(granule));
 }
 
 static void virtio_iommu_device_realize(DeviceState *dev, Error **errp)
@@ -1041,7 +1181,12 @@ static void virtio_iommu_device_realize(DeviceState *dev, Error **errp)
                              virtio_iommu_handle_command);
     s->event_vq = virtio_add_queue(vdev, VIOMMU_DEFAULT_QUEUE_SIZE, NULL);
 
-    s->config.page_size_mask = TARGET_PAGE_MASK;
+    /*
+     * config.bypass is needed to get initial address space early, such as
+     * in vfio realize
+     */
+    s->config.bypass = s->boot_bypass;
+    s->config.page_size_mask = qemu_target_page_mask();
     s->config.input_range.end = UINT64_MAX;
     s->config.domain_range.end = UINT32_MAX;
     s->config.probe_size = VIOMMU_PROBE_SIZE;
@@ -1056,7 +1201,7 @@ static void virtio_iommu_device_realize(DeviceState *dev, Error **errp)
     virtio_add_feature(&s->features, VIRTIO_IOMMU_F_PROBE);
     virtio_add_feature(&s->features, VIRTIO_IOMMU_F_BYPASS_CONFIG);
 
-    qemu_mutex_init(&s->mutex);
+    qemu_rec_mutex_init(&s->mutex);
 
     s->as_by_busptr = g_hash_table_new_full(NULL, NULL, NULL, g_free);
 
@@ -1065,6 +1210,9 @@ static void virtio_iommu_device_realize(DeviceState *dev, Error **errp)
     } else {
         error_setg(errp, "VIRTIO-IOMMU is not attached to any PCI bus!");
     }
+
+    s->machine_done.notify = virtio_iommu_freeze_granule;
+    qemu_add_machine_init_done_notifier(&s->machine_done);
 
     qemu_register_reset(virtio_iommu_system_reset, s);
 }
@@ -1075,6 +1223,7 @@ static void virtio_iommu_device_unrealize(DeviceState *dev)
     VirtIOIOMMU *s = VIRTIO_IOMMU(dev);
 
     qemu_unregister_reset(virtio_iommu_system_reset, s);
+    qemu_remove_machine_init_done_notifier(&s->machine_done);
 
     g_hash_table_destroy(s->as_by_busptr);
     if (s->domains) {
@@ -1083,6 +1232,8 @@ static void virtio_iommu_device_unrealize(DeviceState *dev)
     if (s->endpoints) {
         g_tree_destroy(s->endpoints);
     }
+
+    qemu_rec_mutex_destroy(&s->mutex);
 
     virtio_delete_queue(s->req_vq);
     virtio_delete_queue(s->event_vq);
@@ -1205,6 +1356,14 @@ static int iommu_post_load(void *opaque, int version_id)
     VirtIOIOMMU *s = opaque;
 
     g_tree_foreach(s->domains, reconstruct_endpoints, s);
+
+    /*
+     * Memory regions are dynamically turned on/off depending on
+     * 'config.bypass' and attached domain type if there is. After
+     * migration, we need to make sure the memory regions are
+     * still correct.
+     */
+    virtio_iommu_switch_address_space_all(s);
     return 0;
 }
 
@@ -1233,7 +1392,8 @@ static const VMStateDescription vmstate_virtio_iommu = {
 };
 
 static Property virtio_iommu_properties[] = {
-    DEFINE_PROP_LINK("primary-bus", VirtIOIOMMU, primary_bus, "PCI", PCIBus *),
+    DEFINE_PROP_LINK("primary-bus", VirtIOIOMMU, primary_bus,
+                     TYPE_PCI_BUS, PCIBus *),
     DEFINE_PROP_BOOL("boot-bypass", VirtIOIOMMU, boot_bypass, true),
     DEFINE_PROP_END_OF_LIST(),
 };

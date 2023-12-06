@@ -20,6 +20,7 @@
 
 #include "qemu/osdep.h"
 #include "qapi/error.h"
+#include "block/block-io.h"
 #include "block/block_int.h"
 #include "qemu/error-report.h"
 #include "qemu/bswap.h"
@@ -84,7 +85,7 @@ static int vhdx_log_peek_hdr(BlockDriverState *bs, VHDXLogEntries *log,
 
     offset = log->offset + read;
 
-    ret = bdrv_pread(bs->file, offset, hdr, sizeof(VHDXLogEntryHeader));
+    ret = bdrv_pread(bs->file, offset, sizeof(VHDXLogEntryHeader), hdr, 0);
     if (ret < 0) {
         goto exit;
     }
@@ -144,7 +145,7 @@ static int vhdx_log_read_sectors(BlockDriverState *bs, VHDXLogEntries *log,
         }
         offset = log->offset + read;
 
-        ret = bdrv_pread(bs->file, offset, buffer, VHDX_LOG_SECTOR_SIZE);
+        ret = bdrv_pread(bs->file, offset, VHDX_LOG_SECTOR_SIZE, buffer, 0);
         if (ret < 0) {
             goto exit;
         }
@@ -168,9 +169,10 @@ exit:
  * It is assumed that 'buffer' is at least 4096*num_sectors large.
  *
  * 0 is returned on success, -errno otherwise */
-static int vhdx_log_write_sectors(BlockDriverState *bs, VHDXLogEntries *log,
-                                  uint32_t *sectors_written, void *buffer,
-                                  uint32_t num_sectors)
+static int coroutine_fn GRAPH_RDLOCK
+vhdx_log_write_sectors(BlockDriverState *bs, VHDXLogEntries *log,
+                       uint32_t *sectors_written, void *buffer,
+                       uint32_t num_sectors)
 {
     int ret = 0;
     uint64_t offset;
@@ -194,8 +196,7 @@ static int vhdx_log_write_sectors(BlockDriverState *bs, VHDXLogEntries *log,
             /* full */
             break;
         }
-        ret = bdrv_pwrite(bs->file, offset, buffer_tmp,
-                          VHDX_LOG_SECTOR_SIZE);
+        ret = bdrv_co_pwrite(bs->file, offset, VHDX_LOG_SECTOR_SIZE, buffer_tmp, 0);
         if (ret < 0) {
             goto exit;
         }
@@ -466,8 +467,8 @@ static int vhdx_log_flush_desc(BlockDriverState *bs, VHDXLogDescriptor *desc,
 
     /* count is only > 1 if we are writing zeroes */
     for (i = 0; i < count; i++) {
-        ret = bdrv_pwrite_sync(bs->file, file_offset, buffer,
-                               VHDX_LOG_SECTOR_SIZE);
+        ret = bdrv_pwrite_sync(bs->file, file_offset, VHDX_LOG_SECTOR_SIZE,
+                               buffer, 0);
         if (ret < 0) {
             goto exit;
         }
@@ -852,8 +853,9 @@ static void vhdx_log_raw_to_le_sector(VHDXLogDescriptor *desc,
 }
 
 
-static int vhdx_log_write(BlockDriverState *bs, BDRVVHDXState *s,
-                          void *data, uint32_t length, uint64_t offset)
+static int coroutine_fn GRAPH_RDLOCK
+vhdx_log_write(BlockDriverState *bs, BDRVVHDXState *s,
+               void *data, uint32_t length, uint64_t offset)
 {
     int ret = 0;
     void *buffer = NULL;
@@ -923,7 +925,7 @@ static int vhdx_log_write(BlockDriverState *bs, BDRVVHDXState *s,
 
     sectors += partial_sectors;
 
-    file_length = bdrv_getlength(bs->file->bs);
+    file_length = bdrv_co_getlength(bs->file->bs);
     if (file_length < 0) {
         ret = file_length;
         goto exit;
@@ -970,8 +972,8 @@ static int vhdx_log_write(BlockDriverState *bs, BDRVVHDXState *s,
 
         if (i == 0 && leading_length) {
             /* partial sector at the front of the buffer */
-            ret = bdrv_pread(bs->file, file_offset, merged_sector,
-                             VHDX_LOG_SECTOR_SIZE);
+            ret = bdrv_co_pread(bs->file, file_offset, VHDX_LOG_SECTOR_SIZE,
+                                merged_sector, 0);
             if (ret < 0) {
                 goto exit;
             }
@@ -980,10 +982,9 @@ static int vhdx_log_write(BlockDriverState *bs, BDRVVHDXState *s,
             sector_write = merged_sector;
         } else if (i == sectors - 1 && trailing_length) {
             /* partial sector at the end of the buffer */
-            ret = bdrv_pread(bs->file,
-                            file_offset,
-                            merged_sector + trailing_length,
-                            VHDX_LOG_SECTOR_SIZE - trailing_length);
+            ret = bdrv_co_pread(bs->file, file_offset + trailing_length,
+                                VHDX_LOG_SECTOR_SIZE - trailing_length,
+                                merged_sector + trailing_length, 0);
             if (ret < 0) {
                 goto exit;
             }
@@ -1036,8 +1037,9 @@ exit:
 }
 
 /* Perform a log write, and then immediately flush the entire log */
-int vhdx_log_write_and_flush(BlockDriverState *bs, BDRVVHDXState *s,
-                             void *data, uint32_t length, uint64_t offset)
+int coroutine_fn
+vhdx_log_write_and_flush(BlockDriverState *bs, BDRVVHDXState *s,
+                         void *data, uint32_t length, uint64_t offset)
 {
     int ret = 0;
     VHDXLogSequence logs = { .valid = true,
@@ -1047,7 +1049,7 @@ int vhdx_log_write_and_flush(BlockDriverState *bs, BDRVVHDXState *s,
 
     /* Make sure data written (new and/or changed blocks) is stable
      * on disk, before creating log entry */
-    ret = bdrv_flush(bs);
+    ret = bdrv_co_flush(bs);
     if (ret < 0) {
         goto exit;
     }
@@ -1059,7 +1061,7 @@ int vhdx_log_write_and_flush(BlockDriverState *bs, BDRVVHDXState *s,
     logs.log = s->log;
 
     /* Make sure log is stable on disk */
-    ret = bdrv_flush(bs);
+    ret = bdrv_co_flush(bs);
     if (ret < 0) {
         goto exit;
     }

@@ -25,7 +25,9 @@
 
 #include "qemu/osdep.h"
 #include "qapi/error.h"
+#include "block/block-io.h"
 #include "block/block_int.h"
+#include "block/dirty-bitmap.h"
 #include "parallels.h"
 #include "crypto/hash.h"
 #include "qemu/uuid.h"
@@ -93,8 +95,8 @@ static int parallels_load_bitmap_data(BlockDriverState *bs,
         if (entry == 1) {
             bdrv_dirty_bitmap_deserialize_ones(bitmap, offset, count, false);
         } else {
-            ret = bdrv_pread(bs->file, entry << BDRV_SECTOR_BITS, buf,
-                             s->cluster_size);
+            ret = bdrv_pread(bs->file, entry << BDRV_SECTOR_BITS,
+                             s->cluster_size, buf, 0);
             if (ret < 0) {
                 error_setg_errno(errp, -ret,
                                  "Failed to read bitmap data cluster");
@@ -128,7 +130,7 @@ static BdrvDirtyBitmap *parallels_load_bitmap(BlockDriverState *bs,
     g_autofree uint64_t *l1_table = NULL;
     BdrvDirtyBitmap *bitmap;
     QemuUUID uuid;
-    char uuidstr[UUID_FMT_LEN + 1];
+    char uuidstr[UUID_STR_LEN];
     int i;
 
     if (data_size < sizeof(bf)) {
@@ -286,7 +288,7 @@ int parallels_read_format_extension(BlockDriverState *bs,
 
     assert(ext_off > 0);
 
-    ret = bdrv_pread(bs->file, ext_off, ext_cluster, s->cluster_size);
+    ret = bdrv_pread(bs->file, ext_off, s->cluster_size, ext_cluster, 0);
     if (ret < 0) {
         error_setg_errno(errp, -ret, "Failed to read Format Extension cluster");
         goto out;

@@ -143,6 +143,18 @@ void helper_store_booke_tsr(CPUPPCState *env, target_ulong val)
 {
     store_booke_tsr(env, val);
 }
+
+#if defined(TARGET_PPC64)
+/* POWER processor Timebase Facility */
+target_ulong helper_load_tfmr(CPUPPCState *env)
+{
+    return env->spr[SPR_TFMR];
+}
+
+void helper_store_tfmr(CPUPPCState *env, target_ulong val)
+{
+    env->spr[SPR_TFMR] = val;
+}
 #endif
 
 /*****************************************************************************/
@@ -169,7 +181,7 @@ target_ulong helper_load_dcr(CPUPPCState *env, target_ulong dcrn)
                           (uint32_t)dcrn, (uint32_t)dcrn);
             raise_exception_err_ra(env, POWERPC_EXCP_PROGRAM,
                                    POWERPC_EXCP_INVAL |
-                                   POWERPC_EXCP_PRIV_REG, GETPC());
+                                   POWERPC_EXCP_INVAL_INVAL, GETPC());
         }
     }
     return val;
@@ -192,7 +204,8 @@ void helper_store_dcr(CPUPPCState *env, target_ulong dcrn, target_ulong val)
                           (uint32_t)dcrn, (uint32_t)dcrn);
             raise_exception_err_ra(env, POWERPC_EXCP_PROGRAM,
                                    POWERPC_EXCP_INVAL |
-                                   POWERPC_EXCP_PRIV_REG, GETPC());
+                                   POWERPC_EXCP_INVAL_INVAL, GETPC());
         }
     }
 }
+#endif

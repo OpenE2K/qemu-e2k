@@ -37,6 +37,8 @@ typedef struct IOMMUDevice {
     int           devfn;
     IOMMUMemoryRegion  iommu_mr;
     AddressSpace  as;
+    MemoryRegion root;          /* The root container of the device */
+    MemoryRegion bypass_mr;     /* The alias of shared memory MR */
 } IOMMUDevice;
 
 typedef struct IOMMUPciBus {
@@ -56,9 +58,11 @@ struct VirtIOIOMMU {
     ReservedRegion *reserved_regions;
     uint32_t nb_reserved_regions;
     GTree *domains;
-    QemuMutex mutex;
+    QemuRecMutex mutex;
     GTree *endpoints;
     bool boot_bypass;
+    Notifier machine_done;
+    bool granule_frozen;
 };
 
 #endif

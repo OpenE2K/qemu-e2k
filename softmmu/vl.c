@@ -53,7 +53,6 @@
 #include "hw/isa/isa.h"
 #include "hw/scsi/scsi.h"
 #include "hw/display/vga.h"
-#include "sysemu/watchdog.h"
 #include "hw/firmware/smbios.h"
 #include "hw/acpi/acpi.h"
 #include "hw/xen/xen.h"
@@ -93,11 +92,13 @@
 #include "qemu/config-file.h"
 #include "qemu/qemu-options.h"
 #include "qemu/main-loop.h"
-#include "hw/cxl/cxl.h"
 #ifdef CONFIG_VIRTFS
 #include "fsdev/qemu-fsdev.h"
 #endif
 #include "sysemu/qtest.h"
+#ifdef CONFIG_TCG
+#include "accel/tcg/perf.h"
+#endif
 
 #include "disas/disas.h"
 
@@ -128,14 +129,11 @@
 #include "qapi/qapi-commands-misc.h"
 #include "qapi/qapi-visit-qom.h"
 #include "qapi/qapi-commands-ui.h"
-#include "qapi/qmp/qdict.h"
 #include "block/qdict.h"
 #include "qapi/qmp/qerror.h"
 #include "sysemu/iothread.h"
 #include "qemu/guest-random.h"
 #include "qemu/keyval.h"
-
-#include "config-host.h"
 
 #define MAX_VIRTIO_CONSOLES 1
 
@@ -146,12 +144,6 @@ typedef struct BlockdevOptionsQueueEntry {
 } BlockdevOptionsQueueEntry;
 
 typedef QSIMPLEQ_HEAD(, BlockdevOptionsQueueEntry) BlockdevOptionsQueue;
-
-typedef struct CXLFMWOptionQueueEntry {
-    CXLFixedMemoryWindowOptions *opts;
-    Location loc;
-    QSIMPLEQ_ENTRY(CXLFMWOptionQueueEntry) entry;
-} CXLFMWOptionQueueEntry;
 
 typedef struct ObjectOption {
     ObjectOptions *opts;
@@ -179,8 +171,6 @@ static int snapshot;
 static bool preconfig_requested;
 static QemuPluginList plugin_list = QTAILQ_HEAD_INITIALIZER(plugin_list);
 static BlockdevOptionsQueue bdo_queue = QSIMPLEQ_HEAD_INITIALIZER(bdo_queue);
-static QSIMPLEQ_HEAD(, CXLFMWOptionQueueEntry) CXLFMW_opts =
-    QSIMPLEQ_HEAD_INITIALIZER(CXLFMW_opts);
 static bool nographic = false;
 static int mem_prealloc; /* force preallocation of physical target memory */
 static const char *vga_model = NULL;
@@ -190,9 +180,9 @@ static Chardev **serial_hds;
 static const char *log_mask;
 static const char *log_file;
 static bool list_data_dirs;
-static const char *watchdog;
 static const char *qtest_chrdev;
 static const char *qtest_log;
+static bool opt_one_insn_per_tb;
 
 static int has_defaults = 1;
 static int default_serial = 1;
@@ -622,7 +612,7 @@ static int parse_add_fd(void *opaque, QemuOpts *opts, Error **errp)
     }
 
     /* add the duplicate fd, and optionally the opaque string, to the fd set */
-    fdinfo = monitor_fdset_add_fd(dupfd, true, fdset_id, !!fd_opaque, fd_opaque,
+    fdinfo = monitor_fdset_add_fd(dupfd, true, fdset_id, fd_opaque,
                                   &error_abort);
     g_free(fdinfo);
 
@@ -894,7 +884,7 @@ static const QEMUOption qemu_options[] = {
 #define ARCHHEADING(text, arch_mask)
 
 #include "qemu-options.def"
-    { NULL },
+    { /* end of list */ }
 };
 
 typedef struct VGAInterfaceInfo {
@@ -967,7 +957,18 @@ static const char *
 get_default_vga_model(const MachineClass *machine_class)
 {
     if (machine_class->default_display) {
-        return machine_class->default_display;
+        for (int t = 0; t < VGA_TYPE_MAX; t++) {
+            const VGAInterfaceInfo *ti = &vga_interfaces[t];
+
+            if (ti->opt_name && vga_interface_available(t) &&
+                g_str_equal(ti->opt_name, machine_class->default_display)) {
+                return machine_class->default_display;
+            }
+        }
+
+        warn_report_once("Default display '%s' is not available in this binary",
+                         machine_class->default_display);
+        return NULL;
     } else if (vga_interface_available(VGA_CIRRUS)) {
         return "cirrus";
     } else if (vga_interface_available(VGA_STD)) {
@@ -990,7 +991,8 @@ static void select_vgahw(const MachineClass *machine_class, const char *p)
 
             if (vga_interface_available(t) && ti->opt_name) {
                 printf("%-20s %s%s\n", ti->opt_name, ti->name ?: "",
-                       g_str_equal(ti->opt_name, def) ? " (default)" : "");
+                        (def && g_str_equal(ti->opt_name, def)) ?
+                        " (default)" : "");
             }
         }
         exit(0);
@@ -1070,24 +1072,6 @@ static void parse_display(const char *p)
     } else {
         parse_display_qapi(p);
     }
-}
-
-static void parse_cxl_fixed_memory_window(const char *optarg)
-{
-    CXLFMWOptionQueueEntry *cfmws_entry;
-    Visitor *v;
-
-    v = qobject_input_visitor_new_str(optarg, "cxl-fixed-memory-window",
-                                      &error_fatal);
-    cfmws_entry = g_new(CXLFMWOptionQueueEntry, 1);
-    visit_type_CXLFixedMemoryWindowOptions(v, NULL, &cfmws_entry->opts,
-                                           &error_fatal);
-    if (!cfmws_entry->opts) {
-        exit(1);
-    }
-    visit_free(v);
-    loc_save(&cfmws_entry->loc);
-    QSIMPLEQ_INSERT_TAIL(&CXLFMW_opts, cfmws_entry, entry);
 }
 
 static inline bool nonempty_str(const char *str)
@@ -1310,6 +1294,13 @@ static void qemu_disable_default_devices(void)
         default_monitor = 0;
         default_net = 0;
         default_vga = 0;
+    } else {
+        if (default_net && machine_class->default_nic &&
+            !module_object_class_by_name(machine_class->default_nic)) {
+            warn_report("Default NIC '%s' is not available in this binary",
+                        machine_class->default_nic);
+            default_net = 0;
+        }
     }
 }
 
@@ -1548,13 +1539,18 @@ machine_parse_property_opt(QemuOptsList *opts_list, const char *propname,
 }
 
 static const char *pid_file;
-static Notifier qemu_unlink_pidfile_notifier;
+struct UnlinkPidfileNotifier {
+    Notifier notifier;
+    char *pid_file_realpath;
+};
+static struct UnlinkPidfileNotifier qemu_unlink_pidfile_notifier;
 
 static void qemu_unlink_pidfile(Notifier *n, void *data)
 {
-    if (pid_file) {
-        unlink(pid_file);
-    }
+    struct UnlinkPidfileNotifier *upn;
+
+    upn = DO_UPCAST(struct UnlinkPidfileNotifier, notifier, n);
+    unlink(upn->pid_file_realpath);
 }
 
 static const QEMUOption *lookup_opt(int argc, char **argv,
@@ -1783,6 +1779,27 @@ static void object_option_parse(const char *optarg)
 }
 
 /*
+ * Very early object creation, before the sandbox options have been activated.
+ */
+static bool object_create_pre_sandbox(const char *type)
+{
+    /*
+     * Objects should in general not get initialized "too early" without
+     * a reason. If you add one, state the reason in a comment!
+     */
+
+    /*
+     * Reason: -sandbox on,resourcecontrol=deny disallows setting CPU
+     * affinity of threads.
+     */
+    if (g_str_equal(type, "thread-context")) {
+        return true;
+    }
+
+    return false;
+}
+
+/*
  * Initial object creation happens before all other
  * QEMU data types are created. The majority of objects
  * can be created at this point. The rng-egd object
@@ -1795,6 +1812,11 @@ static bool object_create_early(const char *type)
      * Objects should not be made "delayed" without a reason.  If you
      * add one, state the reason in a comment!
      */
+
+    /* Reason: already created. */
+    if (object_create_pre_sandbox(type)) {
+        return false;
+    }
 
     /* Reason: property "chardev" */
     if (g_str_equal(type, "rng-egd") ||
@@ -1843,15 +1865,13 @@ static void qemu_apply_machine_options(QDict *qdict)
 {
     object_set_properties_from_keyval(OBJECT(current_machine), qdict, false, &error_fatal);
 
-    if (semihosting_enabled() && !semihosting_get_argc()) {
+    if (semihosting_enabled(false) && !semihosting_get_argc()) {
         /* fall back to the -kernel/-append */
         semihosting_arg_fallback(current_machine->kernel_filename, current_machine->kernel_cmdline);
     }
 
     if (current_machine->smp.cpus > 1) {
-        Error *blocker = NULL;
-        error_setg(&blocker, QERR_REPLAY_NOT_SUPPORTED, "smp");
-        replay_add_blocker(blocker);
+        replay_add_blocker("smp");
     }
 }
 
@@ -1906,7 +1926,9 @@ static void qemu_create_early_backends(void)
      * setting machine properties, so they can be referred to.
      */
     configure_blockdev(&bdo_queue, machine_class, snapshot);
-    audio_init_audiodevs();
+    if (!audio_init_audiodevs()) {
+        exit(1);
+    }
 }
 
 
@@ -1916,7 +1938,7 @@ static void qemu_create_early_backends(void)
  */
 static bool object_create_late(const char *type)
 {
-    return !object_create_early(type);
+    return !object_create_early(type) && !object_create_pre_sandbox(type);
 }
 
 static void qemu_create_late_backends(void)
@@ -1925,7 +1947,7 @@ static void qemu_create_late_backends(void)
         qtest_server_init(qtest_chrdev, qtest_log, &error_fatal);
     }
 
-    net_init_clients(&error_fatal);
+    net_init_clients();
 
     object_option_foreach_add(object_create_late);
 
@@ -1944,22 +1966,7 @@ static void qemu_create_late_backends(void)
         exit(1);
 
     /* now chardevs have been created we may have semihosting to connect */
-    qemu_semihosting_connect_chardevs();
-    qemu_semihosting_console_init();
-}
-
-static void cxl_set_opts(void)
-{
-    while (!QSIMPLEQ_EMPTY(&CXLFMW_opts)) {
-        CXLFMWOptionQueueEntry *cfmws_entry = QSIMPLEQ_FIRST(&CXLFMW_opts);
-
-        loc_restore(&cfmws_entry->loc);
-        QSIMPLEQ_REMOVE_HEAD(&CXLFMW_opts, entry);
-        cxl_fixed_memory_window_config(current_machine, cfmws_entry->opts,
-                                       &error_fatal);
-        qapi_free_CXLFixedMemoryWindowOptions(cfmws_entry->opts);
-        g_free(cfmws_entry);
-    }
+    qemu_semihosting_chardev_init();
 }
 
 static void qemu_resolve_machine_memdev(void)
@@ -1983,27 +1990,21 @@ static void qemu_resolve_machine_memdev(void)
     }
 }
 
-static void parse_memory_options(const char *arg)
+static void parse_memory_options(void)
 {
-    QemuOpts *opts;
+    QemuOpts *opts = qemu_find_opts_singleton("memory");
     QDict *dict, *prop;
     const char *mem_str;
+    Location loc;
 
-    opts = qemu_opts_parse_noisily(qemu_find_opts("memory"), arg, true);
-    if (!opts) {
-        exit(EXIT_FAILURE);
-    }
+    loc_push_none(&loc);
+    qemu_opts_loc_restore(opts);
 
     prop = qdict_new();
 
     if (qemu_opt_get_size(opts, "size", 0) != 0) {
-        mem_str = qemu_opt_get(opts, "size");
-        if (!*mem_str) {
-            error_report("missing 'size' option value");
-            exit(EXIT_FAILURE);
-        }
-
         /* Fix up legacy suffix-less format */
+        mem_str = qemu_opt_get(opts, "size");
         if (g_ascii_isdigit(mem_str[strlen(mem_str) - 1])) {
             g_autofree char *mib_str = g_strdup_printf("%sM", mem_str);
             qdict_put_str(prop, "size", mib_str);
@@ -2023,6 +2024,7 @@ static void parse_memory_options(const char *arg)
     qdict_put(dict, "memory", prop);
     keyval_merge(machine_opts_dict, dict, &error_fatal);
     qobject_unref(dict);
+    loc_pop(&loc);
 }
 
 static void qemu_create_machine(QDict *qdict)
@@ -2089,8 +2091,7 @@ static bool is_qemuopts_group(const char *group)
     if (g_str_equal(group, "object") ||
         g_str_equal(group, "machine") ||
         g_str_equal(group, "smp-opts") ||
-        g_str_equal(group, "boot-opts") ||
-        g_str_equal(group, "memory")) {
+        g_str_equal(group, "boot-opts")) {
         return false;
     }
     return true;
@@ -2114,8 +2115,6 @@ static void qemu_record_config_group(const char *group, QDict *dict,
         machine_merge_property("smp", dict, &error_fatal);
     } else if (g_str_equal(group, "boot-opts")) {
         machine_merge_property("boot", dict, &error_fatal);
-    } else if (g_str_equal(group, "memory")) {
-        machine_merge_property("memory", dict, &error_fatal);
     } else {
         abort();
     }
@@ -2222,31 +2221,50 @@ static int do_configure_accelerator(void *opaque, QemuOpts *opts, Error **errp)
     int ret;
     bool qtest_with_kvm;
 
+    if (!acc) {
+        error_setg(errp, QERR_MISSING_PARAMETER, "accel");
+        goto bad;
+    }
+
     qtest_with_kvm = g_str_equal(acc, "kvm") && qtest_chrdev != NULL;
 
     if (!ac) {
-        *p_init_failed = true;
         if (!qtest_with_kvm) {
             error_report("invalid accelerator %s", acc);
         }
-        return 0;
+        goto bad;
     }
     accel = ACCEL(object_new_with_class(OBJECT_CLASS(ac)));
     object_apply_compat_props(OBJECT(accel));
     qemu_opt_foreach(opts, accelerator_set_property,
                      accel,
                      &error_fatal);
-
+    /*
+     * If legacy -singlestep option is set, honour it for TCG and
+     * silently ignore for any other accelerator (which is how this
+     * option has always behaved).
+     */
+    if (opt_one_insn_per_tb) {
+        /*
+         * This will always succeed for TCG, and we want to ignore
+         * the error from trying to set a nonexistent property
+         * on any other accelerator.
+         */
+        object_property_set_bool(OBJECT(accel), "one-insn-per-tb", true, NULL);
+    }
     ret = accel_init_machine(accel, current_machine);
     if (ret < 0) {
-        *p_init_failed = true;
         if (!qtest_with_kvm || ret != -ENOENT) {
             error_report("failed to initialize %s: %s", acc, strerror(-ret));
         }
-        return 0;
+        goto bad;
     }
 
     return 1;
+
+bad:
+    *p_init_failed = true;
+    return 0;
 }
 
 static void configure_accelerators(const char *progname)
@@ -2312,8 +2330,7 @@ static void configure_accelerators(const char *progname)
     }
 
     if (init_failed && !qtest_chrdev) {
-        AccelClass *ac = ACCEL_GET_CLASS(current_accel());
-        error_report("falling back to %s", ac->name);
+        error_report("falling back to %s", current_accel_name());
     }
 
     if (icount_enabled() && !tcg_enabled()) {
@@ -2372,12 +2389,6 @@ static void qemu_process_sugar_options(void)
         }
         object_register_sugar_prop("memory-backend", "prealloc", "on", false);
     }
-
-    if (watchdog) {
-        int i = select_watchdog(watchdog);
-        if (i > 0)
-            exit (i == 1 ? 1 : 0);
-    }
 }
 
 /* -action processing */
@@ -2402,15 +2413,17 @@ static int process_runstate_actions(void *opaque, QemuOpts *opts, Error **errp)
 
 static void qemu_process_early_options(void)
 {
+    qemu_opts_foreach(qemu_find_opts("name"),
+                      parse_name, NULL, &error_fatal);
+
+    object_option_foreach_add(object_create_pre_sandbox);
+
 #ifdef CONFIG_SECCOMP
     QemuOptsList *olist = qemu_find_opts_err("sandbox", NULL);
     if (olist) {
         qemu_opts_foreach(olist, parse_sandbox, NULL, &error_fatal);
     }
 #endif
-
-    qemu_opts_foreach(qemu_find_opts("name"),
-                      parse_name, NULL, &error_fatal);
 
     if (qemu_opts_foreach(qemu_find_opts("action"),
                           process_runstate_actions, NULL, &error_fatal)) {
@@ -2450,7 +2463,7 @@ static void qemu_process_help_options(void)
      * to say '-cpu help -machine something'.
      */
     if (cpu_option && is_help_option(cpu_option)) {
-        list_cpus(cpu_option);
+        list_cpus();
         exit(0);
     }
 
@@ -2473,13 +2486,31 @@ static void qemu_maybe_daemonize(const char *pid_file)
     os_daemonize();
     rcu_disable_atfork();
 
-    if (pid_file && !qemu_write_pidfile(pid_file, &err)) {
-        error_reportf_err(err, "cannot create PID file: ");
-        exit(1);
-    }
+    if (pid_file) {
+        char *pid_file_realpath = NULL;
 
-    qemu_unlink_pidfile_notifier.notify = qemu_unlink_pidfile;
-    qemu_add_exit_notifier(&qemu_unlink_pidfile_notifier);
+        if (!qemu_write_pidfile(pid_file, &err)) {
+            error_reportf_err(err, "cannot create PID file: ");
+            exit(1);
+        }
+
+        pid_file_realpath = g_malloc0(PATH_MAX);
+        if (!realpath(pid_file, pid_file_realpath)) {
+            if (errno != ENOENT) {
+                warn_report("not removing PID file on exit: cannot resolve PID "
+                            "file path: %s: %s", pid_file, strerror(errno));
+            }
+            return;
+        }
+
+        qemu_unlink_pidfile_notifier = (struct UnlinkPidfileNotifier) {
+            .notifier = {
+                .notify = qemu_unlink_pidfile,
+            },
+            .pid_file_realpath = pid_file_realpath,
+        };
+        qemu_add_exit_notifier(&qemu_unlink_pidfile_notifier.notifier);
+    }
 }
 
 static void qemu_init_displays(void)
@@ -2608,7 +2639,6 @@ void qmp_x_exit_preconfig(Error **errp)
 
     qemu_init_board();
     qemu_create_cli_devices();
-    cxl_fixed_memory_window_link_targets(errp);
     qemu_machine_creation_done();
 
     if (loadvm) {
@@ -2632,7 +2662,7 @@ void qmp_x_exit_preconfig(Error **errp)
     }
 }
 
-void qemu_init(int argc, char **argv, char **envp)
+void qemu_init(int argc, char **argv)
 {
     QemuOpts *opts;
     QemuOpts *icount_opts = NULL, *accel_opts = NULL;
@@ -2774,13 +2804,8 @@ void qemu_init(int argc, char **argv, char **envp)
                 drive_add(IF_PFLASH, -1, optarg, PFLASH_OPTS);
                 break;
             case QEMU_OPTION_snapshot:
-                {
-                    Error *blocker = NULL;
-                    snapshot = 1;
-                    error_setg(&blocker, QERR_REPLAY_NOT_SUPPORTED,
-                               "-snapshot");
-                    replay_add_blocker(blocker);
-                }
+                snapshot = 1;
+                replay_add_blocker("-snapshot");
                 break;
             case QEMU_OPTION_numa:
                 opts = qemu_opts_parse_noisily(qemu_find_opts("numa"),
@@ -2788,9 +2813,6 @@ void qemu_init(int argc, char **argv, char **envp)
                 if (!opts) {
                     exit(1);
                 }
-                break;
-            case QEMU_OPTION_cxl_fixed_memory_window:
-                parse_cxl_fixed_memory_window(optarg);
                 break;
             case QEMU_OPTION_display:
                 parse_display(optarg);
@@ -2839,21 +2861,19 @@ void qemu_init(int argc, char **argv, char **envp)
                 break;
             case QEMU_OPTION_netdev:
                 default_net = 0;
-                if (net_client_parse(qemu_find_opts("netdev"), optarg) == -1) {
-                    exit(1);
+                if (netdev_is_modern(optarg)) {
+                    netdev_parse_modern(optarg);
+                } else {
+                    net_client_parse(qemu_find_opts("netdev"), optarg);
                 }
                 break;
             case QEMU_OPTION_nic:
                 default_net = 0;
-                if (net_client_parse(qemu_find_opts("nic"), optarg) == -1) {
-                    exit(1);
-                }
+                net_client_parse(qemu_find_opts("nic"), optarg);
                 break;
             case QEMU_OPTION_net:
                 default_net = 0;
-                if (net_client_parse(qemu_find_opts("net"), optarg) == -1) {
-                    exit(1);
-                }
+                net_client_parse(qemu_find_opts("net"), optarg);
                 break;
 #ifdef CONFIG_LIBISCSI
             case QEMU_OPTION_iscsi:
@@ -2872,11 +2892,16 @@ void qemu_init(int argc, char **argv, char **envp)
                 audio_parse_option(optarg);
                 break;
             case QEMU_OPTION_audio: {
-                QDict *dict = keyval_parse(optarg, "driver", NULL, &error_fatal);
+                bool help;
                 char *model;
                 Audiodev *dev = NULL;
                 Visitor *v;
-
+                QDict *dict = keyval_parse(optarg, "driver", &help, &error_fatal);
+                if (help || (qdict_haskey(dict, "driver") &&
+                             is_help_option(qdict_get_str(dict, "driver")))) {
+                    audio_help();
+                    exit(EXIT_SUCCESS);
+                }
                 if (!qdict_haskey(dict, "id")) {
                     qdict_put_str(dict, "id", "audiodev0");
                 }
@@ -2906,7 +2931,10 @@ void qemu_init(int argc, char **argv, char **envp)
                 exit(0);
                 break;
             case QEMU_OPTION_m:
-                parse_memory_options(optarg);
+                opts = qemu_opts_parse_noisily(qemu_find_opts("memory"), optarg, true);
+                if (opts == NULL) {
+                    exit(1);
+                }
                 break;
 #ifdef CONFIG_TPM
             case QEMU_OPTION_tpmdev:
@@ -2930,6 +2958,14 @@ void qemu_init(int argc, char **argv, char **envp)
             case QEMU_OPTION_DFILTER:
                 qemu_set_dfilter_ranges(optarg, &error_fatal);
                 break;
+#if defined(CONFIG_TCG) && defined(CONFIG_LINUX)
+            case QEMU_OPTION_perfmap:
+                perf_enable_perfmap();
+                break;
+            case QEMU_OPTION_jitdump:
+                perf_enable_jitdump();
+                break;
+#endif
             case QEMU_OPTION_seed:
                 qemu_guest_random_seed_main(optarg, &error_fatal);
                 break;
@@ -2950,7 +2986,7 @@ void qemu_init(int argc, char **argv, char **envp)
                 qdict_put_str(machine_opts_dict, "firmware", optarg);
                 break;
             case QEMU_OPTION_singlestep:
-                singlestep = 1;
+                opt_one_insn_per_tb = true;
                 break;
             case QEMU_OPTION_S:
                 autostart = 0;
@@ -3129,14 +3165,6 @@ void qemu_init(int argc, char **argv, char **envp)
                     default_monitor = 0;
                 }
                 break;
-            case QEMU_OPTION_watchdog:
-                if (watchdog) {
-                    error_report("only one watchdog option may be given");
-                    exit(1);
-                }
-                warn_report("-watchdog is deprecated; use -device instead.");
-                watchdog = optarg;
-                break;
             case QEMU_OPTION_action:
                 olist = qemu_find_opts("action");
                 if (!qemu_opts_parse_noisily(olist, optarg, false)) {
@@ -3268,9 +3296,11 @@ void qemu_init(int argc, char **argv, char **envp)
                 vnc_parse(optarg);
                 break;
             case QEMU_OPTION_no_acpi:
+                warn_report("-no-acpi is deprecated, use '-machine acpi=off' instead");
                 qdict_put_str(machine_opts_dict, "acpi", "off");
                 break;
             case QEMU_OPTION_no_hpet:
+                warn_report("-no-hpet is deprecated, use '-machine hpet=off' instead");
                 qdict_put_str(machine_opts_dict, "hpet", "off");
                 break;
             case QEMU_OPTION_no_reboot:
@@ -3362,7 +3392,7 @@ void qemu_init(int argc, char **argv, char **envp)
                 has_defaults = 0;
                 break;
             case QEMU_OPTION_xen_domid:
-                if (!(accel_find("xen"))) {
+                if (!(accel_find("xen")) && !(accel_find("kvm"))) {
                     error_report("Option not supported for this target");
                     exit(1);
                 }
@@ -3539,6 +3569,9 @@ void qemu_init(int argc, char **argv, char **envp)
 
     configure_rtc(qemu_find_opts_singleton("rtc"));
 
+    /* Transfer QemuOpts options into machine options */
+    parse_memory_options();
+
     qemu_create_machine(machine_opts_dict);
 
     suspend_mux_open();
@@ -3582,12 +3615,17 @@ void qemu_init(int argc, char **argv, char **envp)
     }
 
     /*
+     * Create backends before creating migration objects, so that it can
+     * check against compatibilities on the backend memories (e.g. postcopy
+     * over memory-backend-file objects).
+     */
+    qemu_create_late_backends();
+
+    /*
      * Note: creates a QOM object, must run only after global and
      * compat properties have been set up.
      */
     migration_object_init();
-
-    qemu_create_late_backends();
 
     /* parse features once if machine provides default cpu_type */
     current_machine->cpu_type = machine_class->default_cpu_type;
@@ -3598,7 +3636,6 @@ void qemu_init(int argc, char **argv, char **envp)
 
     qemu_resolve_machine_memdev();
     parse_numa_opts(current_machine);
-    cxl_set_opts();
 
     if (vmstate_dump_file) {
         /* dump and exit */

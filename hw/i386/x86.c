@@ -27,7 +27,6 @@
 #include "qemu/units.h"
 #include "qemu/datadir.h"
 #include "qapi/error.h"
-#include "qapi/qmp/qerror.h"
 #include "qapi/qapi-visit-common.h"
 #include "qapi/clone-visitor.h"
 #include "qapi/qapi-visit-machine.h"
@@ -59,10 +58,15 @@
 #include CONFIG_DEVICES
 #include "kvm/kvm_i386.h"
 
+#ifdef CONFIG_XEN_EMU
+#include "hw/xen/xen.h"
+#include "hw/i386/kvm/xen_evtchn.h"
+#endif
+
 /* Physical Address of PVH entry point read from kernel ELF NOTE */
 static size_t pvh_start_addr;
 
-inline void init_topo_info(X86CPUTopoInfo *topo_info,
+static void init_topo_info(X86CPUTopoInfo *topo_info,
                            const X86MachineState *x86ms)
 {
     MachineState *ms = MACHINE(x86ms);
@@ -138,23 +142,29 @@ void x86_cpus_init(X86MachineState *x86ms, int default_cpu_version)
         exit(EXIT_FAILURE);
     }
 
+    if (kvm_enabled()) {
+        kvm_set_max_apic_id(x86ms->apic_id_limit);
+    }
+
     possible_cpus = mc->possible_cpu_arch_ids(ms);
     for (i = 0; i < ms->smp.cpus; i++) {
         x86_cpu_new(x86ms, possible_cpus->cpus[i].arch_id, &error_fatal);
     }
 }
 
-void x86_rtc_set_cpus_count(ISADevice *rtc, uint16_t cpus_count)
+void x86_rtc_set_cpus_count(ISADevice *s, uint16_t cpus_count)
 {
+    MC146818RtcState *rtc = MC146818_RTC(s);
+
     if (cpus_count > 0xff) {
         /*
          * If the number of CPUs can't be represented in 8 bits, the
          * BIOS must use "FW_CFG_NB_CPUS". Set RTC field to 0 just
          * to make old BIOSes fail more predictably.
          */
-        rtc_set_memory(rtc, 0x5f, 0);
+        mc146818rtc_set_cmos_data(rtc, 0x5f, 0);
     } else {
-        rtc_set_memory(rtc, 0x5f, cpus_count - 1);
+        mc146818rtc_set_cmos_data(rtc, 0x5f, cpus_count - 1);
     }
 }
 
@@ -602,6 +612,17 @@ void gsi_handler(void *opaque, int n, int level)
         }
         /* fall through */
     case ISA_NUM_IRQS ... IOAPIC_NUM_PINS - 1:
+#ifdef CONFIG_XEN_EMU
+        /*
+         * Xen delivers the GSI to the Legacy PIC (not that Legacy PIC
+         * routing actually works properly under Xen). And then to
+         * *either* the PIRQ handling or the I/OAPIC depending on
+         * whether the former wants it.
+         */
+        if (xen_mode == XEN_EMULATE && xen_evtchn_set_gsi(n, level)) {
+            break;
+        }
+#endif
         qemu_set_irq(s->ioapic_irq[n], level);
         break;
     case IO_APIC_SECONDARY_IRQBASE
@@ -1115,7 +1136,7 @@ void x86_bios_rom_init(MachineState *ms, const char *default_firmware,
     char *filename;
     MemoryRegion *bios, *isa_bios;
     int bios_size, isa_bios_size;
-    int ret;
+    ssize_t ret;
 
     /* BIOS load */
     bios_name = ms->firmware ?: default_firmware;
@@ -1373,6 +1394,7 @@ static void x86_machine_initfn(Object *obj)
     x86ms->oem_id = g_strndup(ACPI_BUILD_APPNAME6, 6);
     x86ms->oem_table_id = g_strndup(ACPI_BUILD_APPNAME8, 8);
     x86ms->bus_lock_ratelimit = 0;
+    x86ms->above_4g_mem_start = 4 * GiB;
 }
 
 static void x86_machine_class_init(ObjectClass *oc, void *data)
