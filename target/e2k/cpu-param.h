@@ -15,6 +15,5 @@
 #define TARGET_PAGE_BITS 12 /* 4k */
 #define TARGET_PHYS_ADDR_SPACE_BITS 40
 #define TARGET_VIRT_ADDR_SPACE_BITS 48
-#define NB_MMU_MODES 4
 
 #endif

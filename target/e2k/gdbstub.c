@@ -23,6 +23,7 @@
 #include "cpu.h"
 #include "helper-tcg.h"
 #include "exec/gdbstub.h"
+#include "gdbstub/helpers.h"
 
 /* TODO: reverse engineer e2k-linux-gdb register ids */
 

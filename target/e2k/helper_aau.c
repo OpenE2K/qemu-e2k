@@ -62,7 +62,7 @@ target_ulong HELPER(mova_ptr)(CPUE2KState *env, int chan, int area, int ind,
         void *ignore;
         int flags;
 
-        flags = probe_access_flags(env, page, MMU_DATA_LOAD, mmu_idx,
+        flags = probe_access_flags(env, page, 0, MMU_DATA_LOAD, mmu_idx,
             true, &ignore, 0);
         as->last_page = page;
         as->last_page_valid = !(flags & TLB_INVALID_MASK);

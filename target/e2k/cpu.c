@@ -147,6 +147,15 @@ static void e2k_cpu_synchronize_from_tb(CPUState *cs, const TranslationBlock *tb
     cpu->env.ip = tb->pc;
 }
 
+static void e2k_restore_state_to_opc(CPUState *cs, const TranslationBlock *tb,
+                                     const uint64_t *data)
+{
+    E2KCPU *cpu = E2K_CPU(cs);
+    CPUE2KState *env = &cpu->env;
+
+    env->ip = data[0];
+}
+
 static bool e2k_cpu_has_work(CPUState *cs)
 {
     // TODO: e2k_cpu_has_work
@@ -223,6 +232,8 @@ static gchar* e2k_cpu_gdb_arch_name(CPUState *cs)
 static struct TCGCPUOps e2k_tcg_ops = {
     .initialize = e2k_tcg_initialize,
     .synchronize_from_tb = e2k_cpu_synchronize_from_tb,
+    .restore_state_to_opc = e2k_restore_state_to_opc,
+
     .do_interrupt = e2k_cpu_do_interrupt,
 #ifdef CONFIG_SOFTMMU
     .cpu_exec_interrupt = e2k_cpu_exec_interrupt,

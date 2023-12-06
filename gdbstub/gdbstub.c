@@ -1516,12 +1516,6 @@ static void handle_query_supported(GArray *params, void *user_ctx)
         gdbserver_state.multiprocess = true;
     }
 
-#ifdef TARGET_E2K
-    // TODO: qXfer:tags:write+
-    // TODO: qXfer:packed_tags:read+
-    g_string_append(gdbserver_state.str_buf, ";qXfer:tags:read+");
-#endif
-
     g_string_append(gdbserver_state.str_buf, ";vContSupported+;multiprocess+");
     gdb_put_strbuf();
 }
@@ -1586,32 +1580,6 @@ static void handle_query_qemu_supported(GArray *params, void *user_ctx)
 #endif
     gdb_put_strbuf();
 }
-
-#ifdef TARGET_E2K
-static void handle_query_e2k_tags_read(GArray *params, void *user_ctx)
-{
-    E2KCPU *cpu = E2K_CPU(gdbserver_state.g_cpu);
-    CPUE2KState *env = &cpu->env;
-    target_ulong addr = get_param(params, 0)->val_ull;
-    unsigned long len = get_param(params, 1)->val_ul;
-    unsigned int i;
-    int tags = 0;
-
-    g_string_assign(gdbserver_state.str_buf, "l");
-    if (env->psp.base <= addr && addr < (env->psp.base + env->psp.size)) {
-        target_ulong offset = addr - env->psp.base;
-        tags = cpu_ldub_data(env, env->psp.base_tag + offset / 8);
-    }
-
-    for (i = 0; i < len; i++) {
-        int tag = (tags >> (i * 2)) & 0x3;
-        g_string_append_c(gdbserver_state.str_buf, tag);
-    }
-
-    put_packet_binary(gdbserver_state.str_buf->str,
-        gdbserver_state.str_buf->len, true);
-}
-#endif
 
 static const GdbCmdParseEntry gdb_gen_query_set_common_table[] = {
     /* Order is important if has same prefix */
@@ -1713,14 +1681,6 @@ static const GdbCmdParseEntry gdb_gen_query_table[] = {
     {
         .handler = gdb_handle_query_qemu_phy_mem_mode,
         .cmd = "qemu.PhyMemMode",
-    },
-#endif
-#ifdef TARGET_E2K
-    {
-        .handler = handle_query_e2k_tags_read,
-        .cmd = "Xfer:tags:read::",
-        .cmd_startswith = 1,
-        .schema = "L,l0",
     },
 #endif
 };

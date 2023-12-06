@@ -925,8 +925,8 @@ struct ArchCPU {
     CPUE2KState env;
 };
 
-static inline void cpu_get_tb_cpu_state(CPUE2KState *env, target_ulong *pc,
-                                        target_ulong *cs_base, uint32_t *pflags)
+static inline void cpu_get_tb_cpu_state(CPUE2KState *env, vaddr *pc,
+                                        uint64_t *cs_base, uint32_t *pflags)
 {
     *pc = env->ip;
     *cs_base = 0;
