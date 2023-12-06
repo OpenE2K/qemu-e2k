@@ -939,6 +939,8 @@ void e2k_cpu_list(void);
 int e2k_cpu_signal_handler(int host_signum, void *pinfo, void *puc);
 int e2k_cpu_gdb_read_register(CPUState *cs, GByteArray *mem_buf, int n);
 int e2k_cpu_gdb_write_register(CPUState *cs, uint8_t *mem_buf, int n);
+void e2k_cpu_gdb_rw_tags(CPUState *cpu, vaddr addr,
+                         uint8_t *buf, int len, bool is_write);
 void e2k_cpu_register_gdb_regs_for_features(CPUState *cs);
 bool e2k_cpu_tlb_fill(CPUState *cpu, vaddr address, int size,
                  MMUAccessType access_type, int mmu_idx,

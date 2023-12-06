@@ -281,6 +281,7 @@ static void e2k_cpu_class_init(ObjectClass *oc, void *data)
     cc->gdb_arch_name      = e2k_cpu_gdb_arch_name;
     cc->gdb_read_register  = e2k_cpu_gdb_read_register;
     cc->gdb_write_register = e2k_cpu_gdb_write_register;
+    cc->gdb_rw_tags        = e2k_cpu_gdb_rw_tags;
     cc->gdb_num_core_regs  = 574;
 
     cc->tcg_ops = &e2k_tcg_ops;

@@ -1681,6 +1681,12 @@ static void handle_query_supported(GArray *params, void *user_ctx)
 #endif
     }
 
+    if (cc->gdb_rw_tags) {
+        g_string_append(gdbserver_state.str_buf, ";qXfer:tags:read+");
+        // TODO: g_string_append(gdbserver_state.str_buf, ";qXfer:tags:write+");
+        // TODO: g_string_append(gdbserver_state.str_buf, ";qXfer:packed_tags:read+");
+    }
+
     g_string_append(gdbserver_state.str_buf, ";vContSupported+;multiprocess+");
     gdb_put_strbuf();
 }
@@ -1743,6 +1749,40 @@ static void handle_query_qemu_supported(GArray *params, void *user_ctx)
     g_string_append(gdbserver_state.str_buf, ";PhyMemMode");
 #endif
     gdb_put_strbuf();
+}
+
+static void handle_query_tags_read(GArray *params, void *user_ctx)
+{
+    CPUClass *cc;
+    unsigned long long addr;
+    unsigned long len;
+    uint8_t buf[256];
+
+    if (params->len < 2) {
+        gdb_put_packet("E22");
+        return;
+    }
+
+    addr = get_param(params, 0)->val_ull;
+    len = get_param(params, 1)->val_ul;
+    cc = CPU_GET_CLASS(gdbserver_state.g_cpu);
+
+    g_string_assign(gdbserver_state.str_buf, "l");
+    while (len) {
+        unsigned long l = MIN(len, sizeof(buf));
+
+        cc->gdb_rw_tags(gdbserver_state.g_cpu, addr, buf, l, false);
+
+        for (int i = 0; i < l; i++) {
+            g_string_append_c(gdbserver_state.str_buf, buf[i]);
+        }
+
+        addr += l;
+        len -= l;
+    }
+
+    gdb_put_packet_binary(gdbserver_state.str_buf->str,
+        gdbserver_state.str_buf->len, true);
 }
 
 static const GdbCmdParseEntry gdb_gen_query_set_common_table[] = {
@@ -1853,6 +1893,12 @@ static const GdbCmdParseEntry gdb_gen_query_table[] = {
         .cmd = "qemu.PhyMemMode",
     },
 #endif
+    {
+        .handler = handle_query_tags_read,
+        .cmd = "Xfer:tags:read::",
+        .cmd_startswith = 1,
+        .schema = "L,l0",
+    },
 };
 
 static const GdbCmdParseEntry gdb_gen_set_table[] = {
