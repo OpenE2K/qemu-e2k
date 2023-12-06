@@ -784,6 +784,12 @@ static int probe_access_internal(CPUArchState *env, vaddr addr,
         acc_flag = PAGE_READ;
         break;
     case MMU_INST_FETCH:
+/* HACK: ugly way to allow access to fake kernel space */
+#ifdef TARGET_E2K
+        if (addr >= E2K_FAKE_KERN_START && addr < E2K_FAKE_KERN_END) {
+            return 0;
+        }
+#endif
         acc_flag = PAGE_EXEC;
         break;
     default:
