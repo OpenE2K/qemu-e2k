@@ -23,6 +23,7 @@
 #include "cpu.h"
 #include "helper-tcg.h"
 #include "exec/gdbstub.h"
+#include "gdbstub/helpers.h"
 
 /* TODO: reverse engineer e2k-linux-gdb register ids */
 
@@ -300,8 +301,10 @@ int e2k_cpu_gdb_write_register(CPUState *cs, uint8_t *mem_buf, int n)
     return 0;
 }
 
-static int gdb_get_v2(CPUE2KState *env, GByteArray *buf, int n)
+static int gdb_get_v2(CPUState *cs, GByteArray *buf, int n)
 {
+    CPUE2KState *env = cpu_env(cs);
+
     if (n == 0) {
         /* idr */
         return gdb_get_reg64(buf, env->idr);
@@ -310,14 +313,16 @@ static int gdb_get_v2(CPUE2KState *env, GByteArray *buf, int n)
     return 0;
 }
 
-static int gdb_set_v2(CPUE2KState *env, uint8_t *mem_buf, int n)
+static int gdb_set_v2(CPUState *cs, uint8_t *mem_buf, int n)
 {
     fprintf(stderr, "%s: unknown register %d\n", __FUNCTION__, n);
     return 0;
 }
 
-static int gdb_get_v3(CPUE2KState *env, GByteArray *buf, int n)
+static int gdb_get_v3(CPUState *cs, GByteArray *buf, int n)
 {
+    CPUE2KState *env = cpu_env(cs);
+
     if (n == 0) {
         /* core_mode */
         return gdb_get_reg64(buf, env->core_mode);
@@ -326,14 +331,16 @@ static int gdb_get_v3(CPUE2KState *env, GByteArray *buf, int n)
     return 0;
 }
 
-static int gdb_set_v3(CPUE2KState *env, uint8_t *mem_buf, int n)
+static int gdb_set_v3(CPUState *cs, uint8_t *mem_buf, int n)
 {
     fprintf(stderr, "%s: unknown register %d\n", __FUNCTION__, n);
     return 0;
 }
 
-static int gdb_get_v5(CPUE2KState *env, GByteArray *buf, int n)
+static int gdb_get_v5(CPUState *cs, GByteArray *buf, int n)
 {
+    CPUE2KState *env = cpu_env(cs);
+
     if (n == 0) {
         /* lsr1 */
         return gdb_get_reg64(buf, env->lsr_lcnt);
@@ -351,7 +358,7 @@ static int gdb_get_v5(CPUE2KState *env, GByteArray *buf, int n)
     return 0;
 }
 
-static int gdb_set_v5(CPUE2KState *env, uint8_t *mem_buf, int n)
+static int gdb_set_v5(CPUState *cs, uint8_t *mem_buf, int n)
 {
     fprintf(stderr, "%s: unknown register %d\n", __FUNCTION__, n);
     return 0;
@@ -364,16 +371,16 @@ void e2k_cpu_register_gdb_regs_for_features(CPUState *cs)
 
     if (env->version >= 2) {
         gdb_register_coprocessor(cs, gdb_get_v2, gdb_set_v2,
-            1, "e2k-v2.xml", 574);
+                                 gdb_find_static_feature("e2k-v2.xml"), 574);
     }
 
     if (env->version >= 3) {
         gdb_register_coprocessor(cs, gdb_get_v3, gdb_set_v3,
-            1, "e2k-v3.xml", 575);
+                                 gdb_find_static_feature("e2k-v3.xml"), 575);
     }
 
     if (env->version >= 5) {
         gdb_register_coprocessor(cs, gdb_get_v5, gdb_set_v5,
-            66, "e2k-v5.xml", 576);
+                                 gdb_find_static_feature("e2k-v5.xml"), 576);
     }
 }

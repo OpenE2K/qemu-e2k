@@ -250,7 +250,7 @@ static void target_setup_frame(int sig, struct target_sigaction *ka,
     env->wd.size = 8;
 
     if (info && (ka->sa_flags & TARGET_SA_SIGINFO)) {
-        tswap_siginfo(&frame->info, info);
+        frame->info = *info;
         env->regs[1].lo = frame_addr + offsetof(struct target_sigframe, info);
         env->tags[1] = E2K_TAG_NUMBER64;
         env->regs[2].lo = frame_addr + offsetof(struct target_sigframe, uc);

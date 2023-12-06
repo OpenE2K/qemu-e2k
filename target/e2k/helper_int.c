@@ -145,11 +145,11 @@ void HELPER(state_reg_set)(CPUE2KState *env, uint64_t value, int index)
     case SR_ILCR1:
         break;
     case SR_CUIR:
-        raise_exception(env, EXCP_ILLEGAL_OPCODE); /* FIXME */
+        raise_exception(env, E2K_EXCP_ILLEGAL_OPCODE); /* FIXME */
         break;
     default:
         if ((env->psr & PSR_PM) == 0) {
-            raise_exception(env, EXCP_PRIV_ACTION);
+            raise_exception(env, E2K_EXCP_PRIV_ACTION);
         }
         break;
     }

@@ -12,13 +12,13 @@ static int e2k_probe_access(CPUE2KState *env, target_ulong addr, int size,
     int flags;
     void *ignore;
 
-    flags = probe_access_flags(env, addr, access_type, mmu_idx,
+    flags = probe_access_flags(env, addr, 0, access_type, mmu_idx,
         true, &ignore, 0);
 
     if (flags & TLB_INVALID_MASK) {
         return 0;
     } else if ((addr & TARGET_PAGE_MASK) != (addr_end & TARGET_PAGE_MASK)) {
-        flags = probe_access_flags(env, addr_end, access_type, mmu_idx, true,
+        flags = probe_access_flags(env, addr_end, 0, access_type, mmu_idx, true,
             &ignore, 0);
         return !(flags & TLB_INVALID_MASK);
     }

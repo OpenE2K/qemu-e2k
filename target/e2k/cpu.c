@@ -81,15 +81,15 @@ static bool e2k_cpu_exec_interrupt(CPUState *cs, int interrupt_request)
     }
     return false;
 }
-#endif
 
 void e2k_cpu_do_interrupt(CPUState *cs)
 {
     qemu_log_mask(LOG_UNIMP, "e2k_cpu_do_interrupt: not implemented\n");
     cs->exception_index = -1;
 }
+#endif
 
-static void cpu_e2k_disas_set_info(CPUState *cs, disassemble_info *info)
+static void e2k_cpu_disas_set_info(CPUState *cs, disassemble_info *info)
 {
     E2KCPU *cpu = E2K_CPU(cs);
     CPUE2KState *env = &cpu->env;
@@ -102,7 +102,7 @@ static void cpu_e2k_disas_set_info(CPUState *cs, disassemble_info *info)
 #define DEFAULT_CPU_MODEL "e8c"
 static const struct e2k_def_t e2k_defs[] = {
     {
-        .name           = "e2c+", /* however it may work better */
+        .name           = "e2cplus", /* however it may work better */
         .canonical_name = "MCST Elbrus 2C+ (Monocube)",
         .gdb_arch       = "elbrus-v2",
         .isa_version    = 2,
@@ -147,11 +147,34 @@ static void e2k_cpu_synchronize_from_tb(CPUState *cs, const TranslationBlock *tb
     cpu->env.ip = tb->pc;
 }
 
+static void e2k_restore_state_to_opc(CPUState *cs, const TranslationBlock *tb,
+                                     const uint64_t *data)
+{
+    E2KCPU *cpu = E2K_CPU(cs);
+    CPUE2KState *env = &cpu->env;
+
+    env->ip = data[0];
+}
+
 static bool e2k_cpu_has_work(CPUState *cs)
 {
     // TODO: e2k_cpu_has_work
     qemu_log_mask(LOG_UNIMP, "e2k_cpu_has_work: not implemented\n");
     return true;
+}
+
+int e2k_env_mmu_index(CPUE2KState *env, bool ifetch)
+{
+#ifdef CONFIG_USER_ONLY
+    return MMU_USER_IDX;
+#else
+# error softmmu is not supported on E2K
+#endif
+}
+
+static inline int e2k_cpu_mmu_index(CPUState *cs, bool ifetch)
+{
+    return e2k_env_mmu_index(cpu_env(cs), ifetch);
 }
 
 static char *e2k_cpu_type_name(const char *cpu_model)
@@ -205,14 +228,12 @@ static void e2k_cpu_initfn(Object* obj)
     E2KCPUClass *ecc = E2K_CPU_GET_CLASS(obj);
     CPUE2KState *env = &cpu->env;
 
-    cpu_set_cpustate_pointers(cpu);
-
     if (ecc->cpu_def) {
         env->def = *ecc->cpu_def;
     }
 }
 
-static gchar* e2k_cpu_gdb_arch_name(CPUState *cs)
+static const gchar* e2k_cpu_gdb_arch_name(CPUState *cs)
 {
     E2KCPU *cpu = E2K_CPU(cs);
     CPUE2KState *env = &cpu->env;
@@ -223,8 +244,10 @@ static gchar* e2k_cpu_gdb_arch_name(CPUState *cs)
 static struct TCGCPUOps e2k_tcg_ops = {
     .initialize = e2k_tcg_initialize,
     .synchronize_from_tb = e2k_cpu_synchronize_from_tb,
-    .do_interrupt = e2k_cpu_do_interrupt,
+    .restore_state_to_opc = e2k_restore_state_to_opc,
+
 #ifdef CONFIG_SOFTMMU
+    .do_interrupt = e2k_cpu_do_interrupt,
     .cpu_exec_interrupt = e2k_cpu_exec_interrupt,
     .tlb_fill = e2k_cpu_tlb_fill,
 #endif
@@ -250,8 +273,9 @@ static void e2k_cpu_class_init(ObjectClass *oc, void *data)
     cc->has_work = e2k_cpu_has_work;
     cc->dump_state = e2k_cpu_dump_state;
     cc->set_pc = e2k_cpu_set_pc;
+    cc->mmu_index = e2k_cpu_mmu_index;
     cc->class_by_name = e2k_cpu_class_by_name;
-    cc->disas_set_info = cpu_e2k_disas_set_info;
+    cc->disas_set_info = e2k_cpu_disas_set_info;
 
     cc->gdb_core_xml_file  = "e2k-v1.xml";
     cc->gdb_arch_name      = e2k_cpu_gdb_arch_name;

@@ -268,56 +268,56 @@ typedef enum {
 #define IDR_WBL_TO_BYTES(wbl) ((wbl) ? (1 << ((wbs) + 4)) : 1)
 
 typedef enum {
-    EXCP_ILLEGAL_OPCODE = 0,
-    EXCP_PRIV_ACTION = 1,
-    EXCP_FP_DISABLED = 2,
-    EXCP_FP_STACK_U = 3,
-    EXCP_D_INTERRUPT = 4,
-    EXCP_DIAG_CT_COND = 5,
-    EXCP_DIAG_INSTR_ADDR = 6,
-    EXCP_ILLEGAL_INSTR_ADDR = 7,
-    EXCP_INSTR_DEBUG = 8,
-    EXCP_WINDOW_BOUNDS = 9,
-    EXCP_USER_STACK_BOUNDS = 10,
-    EXCP_PROC_STACK_BOUNDS = 11,
-    EXCP_CHAIN_STACK_BOUNDS = 12,
-    EXCP_FP_STACK_O = 13,
-    EXCP_DIAG_COND = 14,
-    EXCP_DIAG_OPERAND = 15,
-    EXCP_ILLEGAL_OPERAND = 16,
-    EXCP_ARRAY_BOUNDS = 17,
-    EXCP_ACCESS_RIGHTS = 18,
-    EXCP_ADDR_NOT_ALIGNED = 19,
-    EXCP_INSTR_PAGE_MISS = 20,
-    EXCP_INSTR_PAGE_PROT = 21,
-    EXCP_AINSTR_PAGE_MISS = 22,
-    EXCP_AINSTR_PAGE_PROT = 23,
-    EXCP_LAST_WISH = 24,
-    EXCP_BASE_NOT_ALIGNED = 25,
+    E2K_EXCP_ILLEGAL_OPCODE = 0,
+    E2K_EXCP_PRIV_ACTION = 1,
+    E2K_EXCP_FP_DISABLED = 2,
+    E2K_EXCP_FP_STACK_U = 3,
+    E2K_EXCP_D_INTERRUPT = 4,
+    E2K_EXCP_DIAG_CT_COND = 5,
+    E2K_EXCP_DIAG_INSTR_ADDR = 6,
+    E2K_EXCP_ILLEGAL_INSTR_ADDR = 7,
+    E2K_EXCP_INSTR_DEBUG = 8,
+    E2K_EXCP_WINDOW_BOUNDS = 9,
+    E2K_EXCP_USER_STACK_BOUNDS = 10,
+    E2K_EXCP_PROC_STACK_BOUNDS = 11,
+    E2K_EXCP_CHAIN_STACK_BOUNDS = 12,
+    E2K_EXCP_FP_STACK_O = 13,
+    E2K_EXCP_DIAG_COND = 14,
+    E2K_EXCP_DIAG_OPERAND = 15,
+    E2K_EXCP_ILLEGAL_OPERAND = 16,
+    E2K_EXCP_ARRAY_BOUNDS = 17,
+    E2K_EXCP_ACCESS_RIGHTS = 18,
+    E2K_EXCP_ADDR_NOT_ALIGNED = 19,
+    E2K_EXCP_INSTR_PAGE_MISS = 20,
+    E2K_EXCP_INSTR_PAGE_PROT = 21,
+    E2K_EXCP_AINSTR_PAGE_MISS = 22,
+    E2K_EXCP_AINSTR_PAGE_PROT = 23,
+    E2K_EXCP_LAST_WISH = 24,
+    E2K_EXCP_BASE_NOT_ALIGNED = 25,
 
-    EXCP_DATA_DEBUG = 28,
-    EXCP_DATA_PAGE = 29,
+    E2K_EXCP_DATA_DEBUG = 28,
+    E2K_EXCP_DATA_PAGE = 29,
 
-    EXCP_RECOVERY_POINT = 31,
-    EXCP_INTERRUPT = 32,
-    EXCP_NM_INTERRUPT = 33,
-    EXCP_DIV = 34,
-    EXCP_FP = 35,
-    EXCP_MEM_LOCK = 36,
-    EXCP_MEM_LOCK_AS = 37,
-    EXCP_MEM_ERROR_OUT_CPU = 38,
-    EXCP_MEM_ERROR_MAU = 39,
-    EXCP_MEM_ERROR_L2 = 40,
-    EXCP_MEM_ERROR_L1_35 = 41,
-    EXCP_MEM_ERROR_L1_02 = 42,
-    EXCP_MEM_ERROR_ICACHE = 43,
+    E2K_EXCP_RECOVERY_POINT = 31,
+    E2K_EXCP_INTERRUPT = 32,
+    E2K_EXCP_NM_INTERRUPT = 33,
+    E2K_EXCP_DIV = 34,
+    E2K_EXCP_FP = 35,
+    E2K_EXCP_MEM_LOCK = 36,
+    E2K_EXCP_MEM_LOCK_AS = 37,
+    E2K_EXCP_MEM_ERROR_OUT_CPU = 38,
+    E2K_EXCP_MEM_ERROR_MAU = 39,
+    E2K_EXCP_MEM_ERROR_L2 = 40,
+    E2K_EXCP_MEM_ERROR_L1_35 = 41,
+    E2K_EXCP_MEM_ERROR_L1_02 = 42,
+    E2K_EXCP_MEM_ERROR_ICACHE = 43,
 
-    EXCP_MAX = 43,
+    E2K_EXCP_MAX = 43,
 
 #ifdef CONFIG_USER_ONLY
-    EXCP_SYSCALL = 100,
+    E2K_EXCP_SYSCALL = 100,
 #endif
-} Exception;
+} E2KException;
 
 typedef enum {
     SR_PSR          = 0x00,
@@ -919,27 +919,18 @@ typedef struct CPUArchState {
 struct ArchCPU {
     /*< private >*/
     CPUState parent_obj;
-    /*< public >*/
 
-    CPUNegativeOffsetState neg;
+    /*< public >*/
     CPUE2KState env;
+    CPUNegativeOffsetState neg;
 };
 
-static inline void cpu_get_tb_cpu_state(CPUE2KState *env, target_ulong *pc,
-                                        target_ulong *cs_base, uint32_t *pflags)
+static inline void cpu_get_tb_cpu_state(CPUE2KState *env, vaddr *pc,
+                                        uint64_t *cs_base, uint32_t *pflags)
 {
     *pc = env->ip;
     *cs_base = 0;
     *pflags = MMU_USER_IDX;
-}
-
-static inline int cpu_mmu_index(CPUE2KState *env, bool ifetch)
-{
-#ifdef CONFIG_USER_ONLY
-        return MMU_USER_IDX;
-#else
-#error softmmu is not supported on E2K
-#endif
 }
 
 void e2k_cpu_dump_state(CPUState *cs, FILE *f, int flags);
@@ -952,6 +943,7 @@ void e2k_cpu_register_gdb_regs_for_features(CPUState *cs);
 bool e2k_cpu_tlb_fill(CPUState *cpu, vaddr address, int size,
                  MMUAccessType access_type, int mmu_idx,
                  bool probe, uintptr_t retaddr);
+int e2k_env_mmu_index(CPUE2KState *env, bool ifetch);
 void e2k_update_fp_status(CPUE2KState *env);
 void e2k_update_fx_status(CPUE2KState *env);
 /*

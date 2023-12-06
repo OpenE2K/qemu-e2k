@@ -72,7 +72,7 @@ void cpu_loop(CPUE2KState *env)
         process_queued_cpu_work(cs);
 
         switch (trapnr) {
-        case EXCP_SYSCALL: {
+        case E2K_EXCP_SYSCALL: {
             abi_ullong args[E2K_SYSCALL_MAX_ARGS] = { 0 };
             int i, psize = MIN(E2K_SYSCALL_MAX_ARGS, env->wd.size);
             abi_ulong ret;
@@ -97,25 +97,25 @@ void cpu_loop(CPUE2KState *env)
             }
             break;
         }
-        case EXCP_ILLEGAL_OPCODE:
-        case EXCP_PRIV_ACTION:
+        case E2K_EXCP_ILLEGAL_OPCODE:
+        case E2K_EXCP_PRIV_ACTION:
             gen_signal(env, TARGET_SIGILL, TARGET_ILL_ILLOPC, env->ip);
             break;
-        case EXCP_ILLEGAL_OPERAND:
+        case E2K_EXCP_ILLEGAL_OPERAND:
             gen_signal(env, TARGET_SIGILL, TARGET_ILL_ILLOPN, env->ip);
             break;
-        case EXCP_CHAIN_STACK_BOUNDS:
+        case E2K_EXCP_CHAIN_STACK_BOUNDS:
             stack_expand(env, &env->pcsp);
             break;
-        case EXCP_PROC_STACK_BOUNDS:
+        case E2K_EXCP_PROC_STACK_BOUNDS:
             stack_expand(env, &env->psp);
             break;
-        case EXCP_WINDOW_BOUNDS:
-        case EXCP_ARRAY_BOUNDS:
-        case EXCP_DATA_PAGE:
+        case E2K_EXCP_WINDOW_BOUNDS:
+        case E2K_EXCP_ARRAY_BOUNDS:
+        case E2K_EXCP_DATA_PAGE:
             gen_signal(env, TARGET_SIGSEGV, TARGET_SEGV_MAPERR, env->ip);
             break;
-        case EXCP_DIV:
+        case E2K_EXCP_DIV:
             gen_signal(env, TARGET_SIGFPE, 0, env->ip);
             break;
         /* QEMU common interrupts */

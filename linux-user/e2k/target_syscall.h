@@ -65,14 +65,6 @@ struct target_pt_regs {
     uint16_t gext[32];
 };
 
-// FIXME: Is it right place for these constants?
-#if TARGET_LONG_BITS == 64
-#define TARGET_PAGE_OFFSET 0x0000d00000000000UL
-#define TARGET_TASK_SIZE TARGET_PAGE_OFFSET
-#else
-#define TARGET_TASK_SIZE 0xe0000000UL
-#endif
-
 /* modes for sys_access_hw_stacks */
 enum {
     READ_CHAIN_STACK,

@@ -16,7 +16,7 @@ static inline void ps_push(CPUE2KState *env, uint64_t value, uint8_t tag)
 {
 #ifndef CONFIG_USER_ONLY
     if ((env->psp.index + 8) > env->psp.size) {
-        raise_exception(env, EXCP_PROC_STACK_BOUNDS);
+        raise_exception(env, E2K_EXCP_PROC_STACK_BOUNDS);
     }
 #endif
 
@@ -30,7 +30,7 @@ static inline void ps_push(CPUE2KState *env, uint64_t value, uint8_t tag)
 static inline uint64_t ps_pop(CPUE2KState *env, uint8_t *ret_tag)
 {
     if (env->psp.index < 8) {
-        raise_exception(env, EXCP_PROC_STACK_BOUNDS);
+        raise_exception(env, E2K_EXCP_PROC_STACK_BOUNDS);
     }
     env->psp.index -= 8;
     if (ret_tag != NULL) {
@@ -135,7 +135,7 @@ static void pcs_push(CPUE2KState *env, E2KCrs *crs)
 {
 #ifndef CONFIG_USER_ONLY
     if ((env->pcsp.index + sizeof(E2KCrs) * 2) > env->pcsp.size) {
-        raise_exception(env, EXCP_CHAIN_STACK_BOUNDS);
+        raise_exception(env, E2K_EXCP_CHAIN_STACK_BOUNDS);
     }
 #endif
 
@@ -148,7 +148,7 @@ static void pcs_pop(CPUE2KState *env, E2KCrs *crs)
     crs_read(env, env->pcsp.base + env->pcsp.index, crs);
 
     if (env->pcsp.index < sizeof(E2KCrs)) {
-        raise_exception(env, EXCP_CHAIN_STACK_BOUNDS);
+        raise_exception(env, E2K_EXCP_CHAIN_STACK_BOUNDS);
     } else {
         env->pcsp.index -= sizeof(E2KCrs);
     }
@@ -219,7 +219,7 @@ void HELPER(call)(CPUE2KState *env, uint64_t ctpr_raw, int call_wbs,
         env->ip = ctpr.base;
         break;
     default:
-        raise_exception(env, EXCP_ILLEGAL_OPCODE);
+        raise_exception(env, E2K_EXCP_ILLEGAL_OPCODE);
         break;
     }
 }
@@ -228,11 +228,11 @@ void HELPER(call)(CPUE2KState *env, uint64_t ctpr_raw, int call_wbs,
 void HELPER(expand_stacks)(CPUE2KState *env)
 {
     if ((env->psp.size - env->psp.index) <= (E2K_REG_LEN * E2K_NR_COUNT * 4)) {
-        raise_exception_ra(env, EXCP_PROC_STACK_BOUNDS, GETPC());
+        raise_exception_ra(env, E2K_EXCP_PROC_STACK_BOUNDS, GETPC());
     }
 
     if ((env->pcsp.size - env->pcsp.index) <= (sizeof(E2KCrs) * 2)) {
-        raise_exception_ra(env, EXCP_CHAIN_STACK_BOUNDS, GETPC());
+        raise_exception_ra(env, E2K_EXCP_CHAIN_STACK_BOUNDS, GETPC());
     }
 }
 #endif /* CONFIG_USER_ONLY */
@@ -266,7 +266,7 @@ void HELPER(return)(CPUE2KState *env)
         env->wd.psize = 2;
         env->regs[0].lo = 119; /* TARGET_NR_sigreturn */
         env->tags[0] = E2K_TAG_NUMBER64;
-        cs->exception_index = EXCP_SYSCALL;
+        cs->exception_index = E2K_EXCP_SYSCALL;
         cpu_loop_exit(cs);
     }
 #endif
@@ -290,10 +290,10 @@ void G_NORETURN raise_exception_ra(CPUE2KState *env, int exception_index,
     CPUState *cs = env_cpu(env);
     switch (exception_index) {
 #ifdef CONFIG_USER_ONLY
-    case EXCP_SYSCALL:
+    case E2K_EXCP_SYSCALL:
 #endif
-    case EXCP_PROC_STACK_BOUNDS:
-    case EXCP_CHAIN_STACK_BOUNDS:
+    case E2K_EXCP_PROC_STACK_BOUNDS:
+    case E2K_EXCP_CHAIN_STACK_BOUNDS:
         /* ignore */
         break;
     default:
@@ -317,7 +317,7 @@ void HELPER(setwd)(CPUE2KState *env, int wsz, int nfx, int dbl)
     diff = size - env->wd.size;
 
     if (size < env->wd.psize) {
-        raise_exception(env, EXCP_ILLEGAL_OPCODE);
+        raise_exception(env, E2K_EXCP_ILLEGAL_OPCODE);
     }
 
     if (diff > 0) {
@@ -342,7 +342,7 @@ bool e2k_cpu_tlb_fill(CPUState *cs, vaddr address, int size,
     CPUE2KState *env = &cpu->env;
 
     e2k_proc_call(env, env->wd.size, env->ip, true);
-    cs->exception_index = EXCP_DATA_PAGE;
+    cs->exception_index = E2K_EXCP_DATA_PAGE;
     cpu_loop_exit_restore(cs, retaddr);
 }
 

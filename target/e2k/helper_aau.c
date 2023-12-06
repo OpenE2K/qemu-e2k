@@ -27,7 +27,7 @@ void HELPER(aau_load_program)(CPUE2KState *env)
     E2KCtpr ctpr = env->ctprs[1];
 
     if (ctpr.tag != CTPR_TAG_DISP || ctpr.opc != CTPR_OPC_LDISP) {
-        helper_raise_exception(env, EXCP_ILLEGAL_OPCODE);
+        helper_raise_exception(env, E2K_EXCP_ILLEGAL_OPCODE);
     }
 
     for (i = 0; i < 32; i++) {
@@ -62,7 +62,7 @@ target_ulong HELPER(mova_ptr)(CPUE2KState *env, int chan, int area, int ind,
         void *ignore;
         int flags;
 
-        flags = probe_access_flags(env, page, MMU_DATA_LOAD, mmu_idx,
+        flags = probe_access_flags(env, page, 0, MMU_DATA_LOAD, mmu_idx,
             true, &ignore, 0);
         as->last_page = page;
         as->last_page_valid = !(flags & TLB_INVALID_MASK);
