@@ -7359,6 +7359,9 @@ static abi_long do_e2k_access_hw_stacks(CPUState *cpu, abi_ulong arg2,
         abi_ullong frame, pcs_used_top;
         abi_ulong used_size;
 
+        if (frame_addr & 7) {
+            return -TARGET_EFAULT;
+        }
         ret = get_user(frame, frame_addr, abi_ullong);
         if (ret) {
             return ret;
@@ -7387,6 +7390,9 @@ static abi_long do_e2k_access_hw_stacks(CPUState *cpu, abi_ulong arg2,
         abi_ullong frame;
         abi_ulong dst, src;
 
+        if (frame_addr & 7) {
+            return -TARGET_EFAULT;
+        }
         ret = get_user(frame, frame_addr, abi_ullong);
         if (ret) {
             return ret;
@@ -7410,6 +7416,9 @@ static abi_long do_e2k_access_hw_stacks(CPUState *cpu, abi_ulong arg2,
         abi_ullong offset, ps_used_top;
         abi_ulong used_size, dst, dst_tag, src;
 
+        if (frame_addr & 7) {
+            return -TARGET_EFAULT;
+        }
         ret = get_user(offset, frame_addr, abi_ullong);
         if (ret) {
             return ret;
@@ -7446,6 +7455,9 @@ static abi_long do_e2k_access_hw_stacks(CPUState *cpu, abi_ulong arg2,
         abi_ullong offset;
         abi_ulong dst, dst_tag, src;
 
+        if (frame_addr & 7) {
+            return -TARGET_EFAULT;
+        }
         ret = get_user(offset, frame_addr, abi_ullong);
         if (ret) {
             return ret;
