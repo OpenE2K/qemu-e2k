@@ -7526,6 +7526,12 @@ static void e2k_tr_translate_insn(DisasContextBase *db, CPUState *cs)
     DisasContext *ctx = container_of(db, DisasContext, base);
     target_ulong pc_next;
 
+    if (ctx->base.pc_next & 7) {
+        gen_tr_excp_illopc(ctx);
+        ctx->base.pc_next += 8 - (ctx->base.pc_next & 7);
+        return;
+    }
+
     switch (ctx->base.pc_next) {
 #ifdef CONFIG_USER_ONLY
 # ifdef TARGET_E2K32
