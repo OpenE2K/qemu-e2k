@@ -61,8 +61,10 @@
 #define temp(s) glue(TCGv_, type_name(s))
 #define temp_new(s) glue(tcg_temp_new_, type_name(s))()
 
-#define gen_tagged_src(i, s, instr, ret) \
-    glue4(gen_tagged_src, i, _, s)(instr, ret)
+#define gen_tagged_src1(S, alop) glue(gen_tagged_src1_, S)(alop)
+#define gen_tagged_src2(S, alop) glue(gen_tagged_src2_, S)(alop)
+#define gen_tagged_src3(S, alop) glue(gen_tagged_src3_, S)(alop)
+#define gen_tagged_src4(S, alop) glue(gen_tagged_src4_, S)(alop)
 
 #define gen_tag3q(r, a, b, c) gen_tag3_i128(r.tag, a.tag, b.tag, c.tag)
 #define gen_tag3x(r, a, b, c) gen_tag3_i64(r.tag, a.tag, b.tag, c.tag)
@@ -611,16 +613,7 @@ IMPL_GEN_EXCP(gen_excp_window_bounds, EXCP_WINDOW_BOUNDS)
         r.tag = tcg_temp_new_i32(); \
         r.val = glue(tcg_temp_new_, S)(); \
         return r; \
-    } \
-    \
-    static inline Self glue(e2k_get_tagged_temp_, S)(DisasContext *ctx) \
-    { \
-        Self r; \
-        r.tag = tcg_temp_new_i32(); \
-        r.val = glue(tcg_temp_new_, S)(); \
-        return r; \
     }
-
 
 IMPL_TAGGED_FNS(Tagged_i32, i32)
 IMPL_TAGGED_FNS(Tagged_i64, i64)
@@ -1400,24 +1393,30 @@ static void gen_tagged_const_ptr(Tagged_ptr ret, uint8_t tag, int64_t val)
     tcg_gen_st_i64(hi, ret.val, offsetof(E2KReg, hi));
 }
 
-static void gen_tagged_const_q(Tagged_ptr ret, uint8_t tag, int64_t val, int i)
+static Tagged_ptr gen_tagged_const_q(uint8_t tag, int64_t val, int i)
 {
+    Tagged_ptr ret = tagged_temp_new_ptr();
     gen_tagged_temp_ptr(ret.val, i);
     gen_tagged_const_ptr(ret, tag, val);
+    return ret;
 }
 
 #define gen_tagged_const_x gen_tagged_const_q
 
-static void gen_tagged_const_s(Tagged_i32 ret, uint8_t tag, int64_t val, int i)
+static Tagged_i64 gen_tagged_const_d(uint8_t tag, int64_t val, int i)
 {
-    tcg_gen_movi_i32(ret.tag, tag);
-    tcg_gen_movi_i32(ret.val, val);
+    Tagged_i64 ret;
+    ret.tag = tcg_constant_i32(0);
+    ret.val = tcg_constant_i64(val);
+    return ret;
 }
 
-static void gen_tagged_const_d(Tagged_i64 ret, uint8_t tag, int64_t val, int i)
+static Tagged_i32 gen_tagged_const_s(uint8_t tag, int64_t val, int i)
 {
-    tcg_gen_movi_i32(ret.tag, tag);
-    tcg_gen_movi_i64(ret.val, val);
+    Tagged_i32 ret;
+    ret.tag = tcg_constant_i32(0);
+    ret.val = tcg_constant_i32(val);
+    return ret;
 }
 
 static void gen_tagged_reg_ptr(DisasContext *ctx, Tagged_ptr ret,
@@ -1470,9 +1469,10 @@ static Tagged* get_saved_reg(DisasContext *ctx, uint8_t arg, int chan)
     return NULL;
 }
 
-static void gen_tagged_reg_q(DisasContext *ctx, Tagged_ptr ret, uint8_t arg,
+static Tagged_ptr gen_tagged_reg_q(DisasContext *ctx, uint8_t arg,
     int chan)
 {
+    Tagged_ptr ret = tagged_temp_new_ptr();
     Tagged *r = get_saved_reg(ctx, arg, chan);
 
     if (r) {
@@ -1488,11 +1488,13 @@ static void gen_tagged_reg_q(DisasContext *ctx, Tagged_ptr ret, uint8_t arg,
     } else {
         gen_tagged_reg_ptr(ctx, ret, arg, E2K_TAG_MASK_128);
     }
+    return ret;
 }
 
-static void gen_tagged_reg_x(DisasContext *ctx, Tagged_ptr ret, uint8_t arg,
+static Tagged_ptr gen_tagged_reg_x(DisasContext *ctx, uint8_t arg,
     int chan)
 {
+    Tagged_ptr ret = tagged_temp_new_ptr();
     Tagged *r = get_saved_reg(ctx, arg, chan);
 
     if (r) {
@@ -1512,11 +1514,13 @@ static void gen_tagged_reg_x(DisasContext *ctx, Tagged_ptr ret, uint8_t arg,
     } else {
         gen_tagged_reg_ptr(ctx, ret, arg, E2K_TAG_MASK_80);
     }
+    return ret;
 }
 
-static void gen_tagged_reg_d(DisasContext *ctx, Tagged_i64 ret, uint8_t arg,
+static Tagged_i64 gen_tagged_reg_d(DisasContext *ctx, uint8_t arg,
     int chan)
 {
+    Tagged_i64 ret = tagged_temp_new_i64();
     Tagged *r = get_saved_reg(ctx, arg, chan);
 
     if (r) {
@@ -1541,11 +1545,13 @@ static void gen_tagged_reg_d(DisasContext *ctx, Tagged_i64 ret, uint8_t arg,
         tcg_gen_mov_i32(ret.tag, t0.tag);
         tcg_gen_ld_i64(ret.val, t0.val, offsetof(E2KReg, lo));
     }
+    return ret;
 }
 
-static void gen_tagged_reg_s(DisasContext *ctx, Tagged_i32 ret, uint8_t arg,
+static Tagged_i32 gen_tagged_reg_s(DisasContext *ctx, uint8_t arg,
     int chan)
 {
+    Tagged_i32 ret = tagged_temp_new_i32();
     Tagged *r = get_saved_reg(ctx, arg, chan);
 
     if (r) {
@@ -1574,15 +1580,16 @@ static void gen_tagged_reg_s(DisasContext *ctx, Tagged_i32 ret, uint8_t arg,
         tcg_gen_mov_i32(ret.tag, t0.tag);
         tcg_gen_ld_i32(ret.val, t0.val, offsetof(E2KReg, lo));
     }
+    return ret;
 }
 
 #define IMPL_GEN_TAGGED_SRC1(S, T) \
-    static void glue(gen_tagged_src1_, S)(Alop *alop, T ret) \
+    static T glue(gen_tagged_src1_, S)(Alop *alop) \
     { \
         if (IS_IMM5(alop->als.src1)) { \
-            glue(gen_tagged_const_, S)(ret, 0, GET_IMM5(alop->als.src1), 1); \
+            return glue(gen_tagged_const_, S)(0, GET_IMM5(alop->als.src1), 1); \
         } else { \
-            glue(gen_tagged_reg_, S)(alop->ctx, ret, alop->als.src1, alop->chan); \
+            return glue(gen_tagged_reg_, S)(alop->ctx, alop->als.src1, alop->chan); \
         } \
     }
 
@@ -1592,16 +1599,16 @@ IMPL_GEN_TAGGED_SRC1(d, Tagged_i64)
 IMPL_GEN_TAGGED_SRC1(s, Tagged_i32)
 
 #define IMPL_GEN_TAGGED_SRC2(S, T) \
-    static void glue(gen_tagged_src2_, S)(Alop *alop, T ret) \
+    static T glue(gen_tagged_src2_, S)(Alop *alop) \
     { \
         if (IS_IMM4(alop->als.src2)) { \
-            glue(gen_tagged_const_, S)(ret, 0, GET_IMM4(alop->als.src2), 2); \
+            return glue(gen_tagged_const_, S)(0, GET_IMM4(alop->als.src2), 2); \
         } else if (IS_LIT(alop->als.src2)) { \
             int64_t lit = get_literal(alop->ctx, alop->als.src2); \
             \
-            glue(gen_tagged_const_, S)(ret, 0, lit, 2); \
+            return glue(gen_tagged_const_, S)(0, lit, 2); \
         } else { \
-            glue(gen_tagged_reg_, S)(alop->ctx, ret, alop->als.src2, alop->chan); \
+            return glue(gen_tagged_reg_, S)(alop->ctx, alop->als.src2, alop->chan); \
         } \
     }
 
@@ -1611,9 +1618,9 @@ IMPL_GEN_TAGGED_SRC2(d, Tagged_i64)
 IMPL_GEN_TAGGED_SRC2(s, Tagged_i32)
 
 #define IMPL_GEN_TAGGED_SRC3(S, T) \
-    static void glue(gen_tagged_src3_, S)(Alop *alop, T ret) \
+    static T glue(gen_tagged_src3_, S)(Alop *alop) \
     { \
-        glue(gen_tagged_reg_, S)(alop->ctx, ret, alop->ales.src3, alop->chan); \
+        return glue(gen_tagged_reg_, S)(alop->ctx, alop->ales.src3, alop->chan); \
     }
 
 IMPL_GEN_TAGGED_SRC3(q, Tagged_ptr)
@@ -1621,9 +1628,9 @@ IMPL_GEN_TAGGED_SRC3(d, Tagged_i64)
 IMPL_GEN_TAGGED_SRC3(s, Tagged_i32)
 
 #define IMPL_GEN_TAGGED_SRC4(S, T) \
-    static void glue(gen_tagged_src4_, S)(Alop *alop, T ret) \
+    static T glue(gen_tagged_src4_, S)(Alop *alop) \
     { \
-        glue(gen_tagged_reg_, S)(alop->ctx, ret, alop->als.src4, alop->chan); \
+        return glue(gen_tagged_reg_, S)(alop->ctx, alop->als.src4, alop->chan); \
     }
 
 IMPL_GEN_TAGGED_SRC4(q, Tagged_ptr)
@@ -2106,7 +2113,7 @@ static void gen_save_reg(DisasContext *ctx, int chan, ArgSize size,
     switch (size) {
     case ARG_SIZE_S:
         r->tagged.kind = TAGGED_S;
-        r->tagged.t32 = e2k_get_tagged_temp_i32(ctx);
+        r->tagged.t32 = tagged_temp_new_i32();
         gen_tagged_reg_ptr(ctx, t0, r->dst, E2K_TAG_MASK_32);
         tcg_gen_mov_i32(r->tagged.t32.tag, t0.tag);
         tcg_gen_ld_i32(r->tagged.t32.val, t0.val, offsetof(E2KReg, lo));
@@ -2114,7 +2121,7 @@ static void gen_save_reg(DisasContext *ctx, int chan, ArgSize size,
     case ARG_SIZE_D:
     case ARG_SIZE_Q:
         r->tagged.kind = TAGGED_D;
-        r->tagged.t64 = e2k_get_tagged_temp_i64(ctx);
+        r->tagged.t64 = tagged_temp_new_i64();
         gen_tagged_reg_ptr(ctx, t0, r->dst, E2K_TAG_MASK_64);
         tcg_gen_mov_i32(r->tagged.t64.tag, t0.tag);
         tcg_gen_ld_i64(r->tagged.t64.val, t0.val, offsetof(E2KReg, lo));
@@ -2126,7 +2133,7 @@ static void gen_save_reg(DisasContext *ctx, int chan, ArgSize size,
         TCGv_i32 t2 = tcg_temp_new_i32();
 
         r->tagged.kind = TAGGED_X;
-        *t = e2k_get_tagged_temp_ptr(ctx);
+        *t = tagged_temp_new_ptr();
         tcg_gen_addi_ptr(t->val, cpu_env, offsetof(CPUE2KState, tmp_saved[chan]));
         gen_tagged_reg_ptr(ctx, t0, r->dst, E2K_TAG_MASK_80);
         tcg_gen_mov_i32(t->tag, t0.tag);
@@ -2143,7 +2150,7 @@ static void gen_save_reg(DisasContext *ctx, int chan, ArgSize size,
         TCGv_i64 t2 = tcg_temp_new_i64();
 
         r->tagged.kind = TAGGED_Q;
-        *t = e2k_get_tagged_temp_ptr(ctx);
+        *t = tagged_temp_new_ptr();
         tcg_gen_addi_ptr(t->val, cpu_env, offsetof(CPUE2KState, tmp_saved[chan]));
         gen_tagged_reg_ptr(ctx, t0, r->dst, E2K_TAG_MASK_128);
         tcg_gen_mov_i32(t->tag, t0.tag);
@@ -2984,12 +2991,10 @@ static inline void gen_merge_i64(TCGv_i64 ret, TCGv_i64 src1, TCGv_i64 src2,
     static void name(Alop *alop) \
     { \
         tagged(S) r = tagged_temp_new(S); \
-        tagged(S) a = tagged_temp_new(S); \
-        tagged(S) b = tagged_temp_new(S); \
+        tagged(S) a = gen_tagged_src1(S, alop); \
+        tagged(S) b = gen_tagged_src2(S, alop); \
         TCGv_i32 t0 = tcg_temp_new_i32(); \
         \
-        gen_tagged_src(1, S, alop, a); \
-        gen_tagged_src(2, S, alop, b); \
         gen_result_init(S, alop, r); \
         \
         gen_mrgc_i32(alop->ctx, alop->chan, t0); \
@@ -3083,9 +3088,7 @@ IMPL_GEN_SDIV(gen_sdivs, 32, TCGv_i32, E2K_TAG_NON_NUMBER32)
     static void name(Alop *alop) \
     { \
         tagged(S) r = tagged_temp_new(S); \
-        tagged(S) b = tagged_temp_new(S); \
-        \
-        gen_tagged_src(2, S, alop, b); \
+        tagged(S) b = gen_tagged_src2(S, alop); \
         tcg_gen_movi_i32(r.tag, 0); \
         ext(r.val, b.tag); \
         gen_al_result(S, alop, r); \
@@ -3100,11 +3103,9 @@ IMPL_GEN_GETTAG(gen_gettags, s, tcg_gen_mov_i32)
         TCGLabel *l0 = gen_new_label(); \
         TCGLabel *l1 = gen_new_label(); \
         tagged(R) r = tagged_temp_new(R); \
-        tagged(S1) s1 = tagged_temp_new(S1); \
-        tagged(S2) s2 = tagged_temp_new(S2); \
+        tagged(S1) s1 = gen_tagged_src1(S1, alop); \
+        tagged(S2) s2 = gen_tagged_src2(S2, alop); \
         \
-        gen_tagged_src(1, S1, alop, s1); \
-        gen_tagged_src(2, S2, alop, s2); \
         gen_result_init(R, alop, r); \
         mov(r.val, s1.val); \
         tcg_gen_brcondi_i32(TCG_COND_EQ, s2.val, 0, l0); \
@@ -3149,9 +3150,9 @@ static void gen_insfd_tag(TCGv_i32 ret, TCGv_i64 value,
 static void gen_insfd(Alop *alop)
 {
     Tagged_i64 r = tagged_temp_new_i64();
-    Tagged_i64 a = tagged_temp_new_i64();
-    Tagged_i64 b = tagged_temp_new_i64();
-    Tagged_i64 c = tagged_temp_new_i64();
+    Tagged_i64 a = gen_tagged_src1_d(alop);
+    Tagged_i64 b = gen_tagged_src2_d(alop);
+    Tagged_i64 c = gen_tagged_src3_d(alop);
     TCGv_i64 offset = tcg_temp_new_i64();
     TCGv_i64 len = tcg_temp_new_i64();
     TCGv_i64 t0 = tcg_temp_new_i64();
@@ -3159,9 +3160,6 @@ static void gen_insfd(Alop *alop)
     TCGv_i64 t2 = tcg_temp_new_i64();
     TCGv_i64 t3 = tcg_temp_new_i64();
 
-    gen_tagged_src1_d(alop, a);
-    gen_tagged_src2_d(alop, b);
-    gen_tagged_src3_d(alop, c);
     tcg_gen_extract_i64(offset, b.val, 0, 6);
     tcg_gen_extract_i64(len, b.val, 6, 6);
     gen_mask_i64(t0, len);
@@ -3249,10 +3247,9 @@ static inline void gen_state_reg_write(Alop *alop, TCGv_i64 value)
 
 static void gen_rws(Alop *alop)
 {
-    Tagged_i32 s2 = tagged_temp_new_i32();
+    Tagged_i32 s2 = gen_tagged_src2_s(alop);
     TCGv_i64 t0 = tcg_temp_new_i64();
 
-    gen_tagged_src2_s(alop, s2);
     gen_delayed_alop_tag_check(alop, s2.tag);
     tcg_gen_extu_i32_i64(t0, s2.val);
     gen_state_reg_write(alop, t0);
@@ -3260,9 +3257,7 @@ static void gen_rws(Alop *alop)
 
 static void gen_rwd(Alop *alop)
 {
-    Tagged_i64 s2 = tagged_temp_new_i64();
-
-    gen_tagged_src2_d(alop, s2);
+    Tagged_i64 s2 = gen_tagged_src2_d(alop);
     gen_delayed_alop_tag_check(alop, s2.tag);
     gen_state_reg_write(alop, s2.val);
 }
@@ -3270,9 +3265,7 @@ static void gen_rwd(Alop *alop)
 #define IMPL_GEN_MOV(name, S, code) \
     static void name(Alop *alop) \
     { \
-        tagged(S) b = tagged_temp_new(S); \
-        \
-        gen_tagged_src(2, S, alop, b); \
+        tagged(S) b = gen_tagged_src2(S, alop); \
         { code; } \
         gen_al_result(S, alop, b); \
     }
@@ -3297,10 +3290,9 @@ static void gen_getpl(Alop *alop)
 {
 #ifdef TARGET_E2K32
     Tagged_i64 r = tagged_temp_new_i64();
-    Tagged_i32 b = tagged_temp_new_i32();
+    Tagged_i32 b = gen_tagged_src2_s(alop);
 
     // TODO: CUD
-    gen_tagged_src2_s(alop, b);
     gen_tag1_i64(r.tag, b.tag);
     tcg_gen_extu_i32_i64(r.val, b.val);
     gen_al_result_d(alop, r);
@@ -4152,9 +4144,7 @@ static void gen_atomic_cmpxchg_i32(Alop *alop, TCGv_i32 value, TCGv addr,
         MemOp memop, bool skip, bool check) \
     { \
         TCGLabel *l0 = gen_new_label(); \
-        tagged(S) s4 = tagged_temp_new(S); \
-        \
-        gen_tagged_src(4, S, alop, s4); \
+        tagged(S) s4 = gen_tagged_src4(S, alop); \
         \
         if (!skip) { \
             if (alop->als.sm) { \
@@ -4197,9 +4187,7 @@ static void gen_st_raw_i128(Alop *alop, TCGv addr,
     MemOp memop, bool skip, bool check)
 {
     TCGLabel *l0 = gen_new_label();
-    Tagged_ptr s4 = tagged_temp_new_ptr();
-
-    gen_tagged_src4_q(alop, s4);
+    Tagged_ptr s4 = gen_tagged_src4_q(alop);
 
     if (!skip) {
         TCGv_i64 t0 = tcg_temp_new_i64();
@@ -4255,12 +4243,10 @@ static void gen_stm_raw_i128(Alop *alop, TCGv addr,
     MemOp memop, bool skip, bool check)
 {
     TCGLabel *l0 = gen_new_label();
-    Tagged_i32 s2 = tagged_temp_new_i32();
-    Tagged_ptr s4 = tagged_temp_new_ptr();
+    Tagged_i32 s2 = gen_tagged_src2_s(alop);
+    Tagged_ptr s4 = gen_tagged_src4_q(alop);
     TCGv_i64 mask = tcg_temp_new_i64();
 
-    gen_tagged_src2_s(alop, s2);
-    gen_tagged_src4_q(alop, s4);
     tcg_gen_extu_i32_i64(mask, s2.val);
     tcg_gen_andi_i64(mask, mask, 0xffff);
     tcg_gen_brcondi_i64(TCG_COND_EQ, mask, 0, l0);
@@ -4340,13 +4326,11 @@ static void gen_alopf3_mas(Alop *alop, GenAddrFn addr_fn,
     static void name(Alop *alop, TCGv_i32 tag, TCGv addr, \
         AddrBase base) \
     { \
-        tagged(S) s1 = tagged_temp_new(S); \
-        tagged(S) s2 = tagged_temp_new(S); \
+        tagged(S) s1 = gen_tagged_src1(S, alop); \
+        tagged(S) s2 = gen_tagged_src2(S, alop); \
         temp(S) t0 = temp_new(S); \
         \
         /* TODO: addr base */  \
-        gen_tagged_src(1, S, alop, s1); \
-        gen_tagged_src(2, S, alop, s2); \
         tcg_gen_or_i32(tag, s1.tag, s2.tag); \
         call(S, tcg_gen_add, t0, s1.val, s2.val); \
         cast(addr, t0); \
@@ -4359,10 +4343,9 @@ IMPL_GEN_ADDR(gen_addr_i32, s, tcg_gen_ext_i32_tl)
     static void name(Alop *alop, TCGv_i32 tag, TCGv addr, \
         AddrBase base) \
     { \
-        tagged(S) s1 = tagged_temp_new(S); \
+        tagged(S) s1 = gen_tagged_src1(S, alop); \
         \
         /* TODO: addr base */  \
-        gen_tagged_src(1, S, alop, s1); \
         tcg_gen_mov_i32(tag, s1.tag); \
         cast(addr, s1.val); \
     }
@@ -4554,9 +4537,7 @@ static void gen_staaqp(Alop *alop)
 {
     DisasContext *ctx = alop->ctx;
     uint8_t mas = alop->mas;
-    Tagged_ptr s4 = tagged_temp_new_ptr();
-
-    gen_tagged_src4_q(alop, s4);
+    Tagged_ptr s4 = gen_tagged_src4_q(alop);
 
     if ((mas & 0x7) == 0x7) {
         int opc = mas >> 3;
@@ -4600,9 +4581,7 @@ static void gen_staa_i64(Alop *alop)
 {
     DisasContext *ctx = alop->ctx;
     uint8_t mas = alop->mas;
-    Tagged_i64 s4 = tagged_temp_new_i64();
-
-    gen_tagged_src4_d(alop, s4);
+    Tagged_i64 s4 = gen_tagged_src4_d(alop);
 
     if (mas == 0x3f) {
         /* aaurwd */
@@ -4645,9 +4624,7 @@ static void gen_staa_i32(Alop *alop, MemOp memop)
 {
     DisasContext *ctx = alop->ctx;
     uint8_t mas = alop->mas;
-    Tagged_i32 s4 = tagged_temp_new_i32();
-
-    gen_tagged_src4_s(alop, s4);
+    Tagged_i32 s4 = gen_tagged_src4_s(alop);
 
     if (mas == 0x3f) {
         /* aaurw */
@@ -4695,12 +4672,10 @@ static void gen_staa_i32(Alop *alop, MemOp memop)
 #define IMPL_ALOPF1_BASIC(name, S1, S2, R, T, code) \
     static void name(Alop *alop, T) \
     { \
-        tagged(S1) s1 = tagged_temp_new(S1); \
-        tagged(S2) s2 = tagged_temp_new(S2); \
+        tagged(S1) s1 = gen_tagged_src1(S1, alop); \
+        tagged(S2) s2 = gen_tagged_src2(S2, alop); \
         tagged(R) r = tagged_temp_new(R); \
         \
-        gen_tagged_src(1, S1, alop, s1); \
-        gen_tagged_src(2, S2, alop, s2); \
         gen_result_init(R, alop, r); \
         gen_tag2(R, r, s1, s2); \
         { code; } \
@@ -4710,10 +4685,9 @@ static void gen_staa_i32(Alop *alop, MemOp memop)
 #define IMPL_ALOPF2_BASIC(name, S2, R, T, code) \
     static void name(Alop *alop, T) \
     { \
-        tagged(S2) s2 = tagged_temp_new(S2); \
+        tagged(S2) s2 = gen_tagged_src2(S2, alop); \
         tagged(R) r = tagged_temp_new(R); \
         \
-        gen_tagged_src(2, S2, alop, s2); \
         gen_result_init(R, alop, r); \
         gen_tag1(R, r, s2); \
         { code; } \
@@ -4723,14 +4697,12 @@ static void gen_staa_i32(Alop *alop, MemOp memop)
 #define IMPL_ALOPF7_BASIC(name, S1, S2, R, T, code) \
     static void name(Alop *alop, T) \
     { \
-        tagged(S1) s1 = tagged_temp_new(S1); \
-        tagged(S2) s2 = tagged_temp_new(S2); \
+        tagged(S1) s1 = gen_tagged_src1(S1, alop); \
+        tagged(S2) s2 = gen_tagged_src2(S2, alop); \
         tagged(R) r = tagged_temp_new(R); \
         Tagged_i32 p = tagged_temp_new_i32(); \
         temp(R) t0 = temp_new(R); \
         \
-        gen_tagged_src(1, S1, alop, s1); \
-        gen_tagged_src(2, S2, alop, s2); \
         gen_result_init(R, alop, r); \
         gen_tag2(R, r, s1, s2); \
         { code; } \
@@ -4743,14 +4715,11 @@ static void gen_staa_i32(Alop *alop, MemOp memop)
 #define IMPL_ALOPF21_BASIC(name, S1, S2, S3, R, T, code) \
     static void name(Alop *alop, T) \
     { \
-        tagged(S1) s1 = tagged_temp_new(S1); \
-        tagged(S2) s2 = tagged_temp_new(S2); \
-        tagged(S3) s3 = tagged_temp_new(S3); \
+        tagged(S1) s1 = gen_tagged_src1(S1, alop); \
+        tagged(S2) s2 = gen_tagged_src2(S2, alop); \
+        tagged(S3) s3 = gen_tagged_src3(S3, alop); \
         tagged(R) r = tagged_temp_new(R); \
         \
-        gen_tagged_src(1, S1, alop, s1); \
-        gen_tagged_src(2, S2, alop, s2); \
-        gen_tagged_src(3, S3, alop, s3); \
         gen_result_init(R, alop, r); \
         gen_tag3(R, r, s1, s2, s3); \
         { code; } \
@@ -4895,10 +4864,9 @@ enum {
 
 static void gen_alopf8(Alop *alop, uint32_t mask)
 {
-    Tagged_i32 s2 = tagged_temp_new_i32();
+    Tagged_i32 s2 = gen_tagged_src2_s(alop);
     Tagged_i32 r = tagged_temp_new_i32();
 
-    gen_tagged_src2_s(alop, s2);
     gen_result_init_s(alop, r);
     gen_tag1s(r, s2);
     tcg_gen_andi_i32(r.val, s2.val, mask);
@@ -6119,13 +6087,10 @@ static inline int comb_opc2(Alop *alop, int m1, int m2)
     { \
         tagged(S) r0 = tagged_temp_new(S); \
         tagged(S) r1 = tagged_temp_new(S); \
-        tagged(S) s1 = tagged_temp_new(S); \
-        tagged(S) s2 = tagged_temp_new(S); \
-        tagged(S) s3 = tagged_temp_new(S); \
+        tagged(S) s1 = gen_tagged_src1(S, alop); \
+        tagged(S) s2 = gen_tagged_src2(S, alop); \
+        tagged(S) s3 = gen_tagged_src3(S, alop); \
         \
-        gen_tagged_src(1, S, alop, s1); \
-        gen_tagged_src(2, S, alop, s2); \
-        gen_tagged_src(3, S, alop, s3); \
         gen_tag2(S, r0, s1, s2); \
         gen_tag2(S, r1, s3, r0); \
         gen_result_init2(S, alop, r0); \
