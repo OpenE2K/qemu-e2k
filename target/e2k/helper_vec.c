@@ -93,13 +93,15 @@ typedef union {
     }
 
 #define IMPL_QPACKED_N(name, n, code) \
-    void HELPER(name)(E2KReg *r, E2KReg *s1, E2KReg *s2) \
+    Int128 HELPER(name)(Int128 s1_, Int128 s2_) \
     { \
+        E2KReg dst, s1 = { .qp = s1_ }, s2 = { .qp = s2_ }; \
         int i; \
         \
         for (i = 0; i < n; i++) { \
             code \
         } \
+        return dst.qp; \
     }
 
 #define IMPL_QPACKED(name, type, code) \
@@ -107,7 +109,7 @@ typedef union {
 
 #define IMPL_QPACKED_OP(name, type, op) \
     IMPL_QPACKED_N(name, vec128_len(type), { \
-        r->type[i] = op(s1->type[i], s2->type[i]); \
+        dst.type[i] = op(s1.type[i], s2.type[i]); \
     })
 
 #define GEN_HELPER_PACKED_MINMAX(name, type, op) \
@@ -165,8 +167,8 @@ GEN_HELPER_PACKED_BINOP_MAP(psubush, uh, -, int32_t, satuh)
     }) \
     IMPL_QPACKED_N(glue(q, name), vec128_len(type) / 2, { \
         int j = i * 2; \
-        r->type[i                       ] = map(op(s1->type[j], s1->type[j + 1])); \
-        r->type[i + vec128_len(type) / 2] = map(op(s2->type[j], s2->type[j + 1])); \
+        dst.type[i                       ] = map(op(s1.type[j], s1.type[j + 1])); \
+        dst.type[i + vec128_len(type) / 2] = map(op(s2.type[j], s2.type[j + 1])); \
     })
 
 GEN_HELPER_PACKED_HORIZONTAL_OP(phaddh,  sh, add, ident)
@@ -365,81 +367,95 @@ uint64_t HELPER(phminposuh)(uint64_t src1, uint64_t src2)
     return dst.ud[0];
 }
 
-void HELPER(qpmpsadbh)(E2KReg *r, E2KReg *s1, uint32_t s2)
+Int128 HELPER(qpmpsadbh)(Int128 s1_, uint32_t s2)
 {
-    r->ud[0] = helper_mpsadbh(s1->ud[0], s2);
-    r->ud[1] = helper_mpsadbh(s1->ud[1], s2);
+    E2KReg dst, s1 = { .qp = s1_ };
+    dst.ud[0] = helper_mpsadbh(s1.ud[0], s2);
+    dst.ud[1] = helper_mpsadbh(s1.ud[1], s2);
+    return dst.qp;
 }
 
-void HELPER(qpmulubhh)(E2KReg *r, uint64_t s1, E2KReg *s2)
+Int128 HELPER(qpmulubhh)(uint64_t s1, Int128 s2_)
 {
-    r->ud[0] = helper_pmulubhh(s1      , s2->ud[0]);
-    r->ud[1] = helper_pmulubhh(s1 >> 32, s2->ud[1]);
+    E2KReg dst, s2 = { .qp = s2_ };
+    dst.ud[0] = helper_pmulubhh(s1      , s2.ud[0]);
+    dst.ud[1] = helper_pmulubhh(s1 >> 32, s2.ud[1]);
+    return dst.qp;
 }
 
-uint64_t HELPER(qphminposuh)(E2KReg *s1, E2KReg *s2)
+uint64_t HELPER(qphminposuh)(Int128 s1_, Int128 s2_)
 {
+    E2KReg s1 = { .qp = s1_ }, s2 = { .qp = s2_ };
     int i;
-    uint16_t v = s1->uh[0];
+    uint16_t v = s1.uh[0];
     uint16_t p = 0;
 
     for (i = 0; i < 8; i++) {
-        if (s1->uh[i] < v) {
-            v = s1->uh[i];
+        if (s1.uh[i] < v) {
+            v = s1.uh[i];
             p = i;
         }
     }
     for (i = 0; i < 8; i++) {
-        if (s2->uh[i] < v) {
-            v = s2->uh[i];
+        if (s2.uh[i] < v) {
+            v = s2.uh[i];
             p = 8 + i;
         }
     }
     return ((uint64_t) p << 16) | v;
 }
 
-uint32_t HELPER(qpsgn2mskb)(E2KReg *s2)
+uint32_t HELPER(qpsgn2mskb)(Int128 s2_)
 {
+    E2KReg s2 = { .qp = s2_ };
     uint32_t r = 0;
     int i;
 
     for (i = 0; i < 16; i++) {
-        r |= s2->sb[i] < 0 ? 1 << i : 0;
+        r |= s2.sb[i] < 0 ? 1 << i : 0;
     }
 
     return r;
 }
 
-void HELPER(qpmsk2sgnb)(E2KReg *r, E2KReg *s1, uint32_t s2)
+Int128 HELPER(qpmsk2sgnb)(Int128 s1_, uint32_t s2)
 {
+    E2KReg dst, s1 = { .qp = s1_ };
     int i;
 
     for (i = 0; i < 16; i++) {
-        r->ub[i] = s2 & (1 << i) ? s1->ub[i] | 0x80 : s1->ub[i] & 0x7f;
+        dst.ub[i] = s2 & (1 << i) ? s1.ub[i] | 0x80 : s1.ub[i] & 0x7f;
     }
+
+    return dst.qp;
 }
 
-void HELPER(qppermb)(E2KReg *r, E2KReg *s1, E2KReg *s2, E2KReg *s3)
+Int128 HELPER(qppermb)(Int128 s1_, Int128 s2_, Int128 s3_)
 {
+    E2KReg dst, s1 = { .qp = s1_ }, s2 = { .qp = s2_ }, s3 = { .qp = s3_ };
     int i;
 
     for (i = 0; i < 16; i++) {
-        uint8_t sel = s3->ub[i];
+        uint8_t sel = s3.ub[i];
         int index = sel & 0x0f;
-        uint8_t byte = sel & 0x10 ? s1->ub[index] : s2->ub[index];
+        uint8_t byte = sel & 0x10 ? s1.ub[index] : s2.ub[index];
 
         byte = sel & 0x20 ? ~byte : byte;
         byte = sel & 0x40 ? reverse_bits(byte) : byte;
         byte = sel & 0x80 ? (byte & 0x80 ? 0xff : 0) : byte;
 
-        r->ub[i] = byte;
+        dst.ub[i] = byte;
     }
+
+    return dst.qp;
 }
 
-void HELPER(qpshufb)(E2KReg *r, E2KReg *s1, E2KReg *s2, E2KReg *s3)
+Int128 HELPER(qpshufb)(Int128 s1_, Int128 s2_, Int128 s3_)
 {
-    r->ud[0] = helper_pshufb(s2->ud[1], s2->ud[0], s3->ud[0]);
-    r->ud[1] = helper_pshufb(s1->ud[1], s1->ud[0], s3->ud[1]);
+    E2KReg dst, s1 = { .qp = s1_ }, s2 = { .qp = s2_ }, s3 = { .qp = s3_ };
+    dst.ud[0] = helper_pshufb(s2.ud[1], s2.ud[0], s3.ud[0]);
+    dst.ud[1] = helper_pshufb(s1.ud[1], s1.ud[0], s3.ud[1]);
+    return dst.qp;
 }
 
 static uint64_t get_value_from_truth_table(bool x, bool y, bool z, uint32_t truth_table)
@@ -494,13 +510,15 @@ uint64_t HELPER(plog)(uint32_t opc, uint64_t src1, uint64_t src2, uint64_t src3)
     })
 
 #define IMPL_QPACKED_ENV_N(name, n, code) \
-    void HELPER(name)(E2KReg *r, CPUE2KState *env, E2KReg *s1, E2KReg *s2) \
+    Int128 HELPER(name)(CPUE2KState *env, Int128 s1_, Int128 s2_) \
     { \
+        E2KReg dst, s1 = { .qp = s1_ }, s2 = { .qp = s2_ }; \
         int i; \
         \
         for (i = 0; i < n; i++) { \
             code \
         } \
+        return dst.qp; \
     }
 
 #define IMPL_QPACKED_ENV(name, type, code) \
@@ -508,14 +526,14 @@ uint64_t HELPER(plog)(uint32_t opc, uint64_t src1, uint64_t src2, uint64_t src3)
 
 #define IMPL_QPACKED_ENV_OP(name, type, op) \
     IMPL_QPACKED_ENV_N(name, vec128_len(type), { \
-        r->type[i] = op(env, s1->type[i], s2->type[i]); \
+        dst.type[i] = op(env, s1.type[i], s2.type[i]); \
     })
 
 #define IMPL_QPACKED_ENV_HOP(name, type, op, map) \
     IMPL_QPACKED_ENV_N(name, vec128_len(type) / 2, { \
         int j = i * 2; \
-        r->type[i                       ] = map(op(env, s1->type[j], s1->type[j + 1])); \
-        r->type[i + vec128_len(type) / 2] = map(op(env, s2->type[j], s2->type[j + 1])); \
+        dst.type[i                       ] = map(op(env, s1.type[j], s1.type[j + 1])); \
+        dst.type[i + vec128_len(type) / 2] = map(op(env, s2.type[j], s2.type[j + 1])); \
     })
 
 GEN_ENV_HELPER_PACKED_OP(pfadds, uw, helper_fadds)
@@ -574,12 +592,15 @@ GEN_ENV_HELPER_PACKED_UNARY_OP(pfstois, uw, helper_fstois)
 GEN_ENV_HELPER_PACKED_UNARY_OP(pfstoistr, uw, helper_fstoistr)
 
 #define IMPL_QPACKED_ENV_CVT_EXT(name, op) \
-    void HELPER(name)(E2KReg *r, CPUE2KState *env, uint64_t src2) \
+    Int128 HELPER(name)(CPUE2KState *env, uint64_t src2) \
     { \
+        E2KReg dst; \
         vec64 s2 = { .ud[0] = src2 }; \
         \
-        r->ud[0] = op(env, s2.uw[0]); \
-        r->ud[1] = op(env, s2.uw[1]); \
+        dst.ud[0] = op(env, s2.uw[0]); \
+        dst.ud[1] = op(env, s2.uw[1]); \
+        \
+        return dst.qp; \
     }
 
 IMPL_QPACKED_ENV_CVT_EXT(qpfstoid,   helper_fstoid)
@@ -588,12 +609,13 @@ IMPL_QPACKED_ENV_CVT_EXT(qpistofd,   helper_istofd)
 IMPL_QPACKED_ENV_CVT_EXT(qpfstofd,   helper_fstofd)
 
 #define IMPL_QPACKED_ENV_CVT_TRUNC(name, op) \
-    uint64_t HELPER(name)(CPUE2KState *env, E2KReg *s2) \
+    uint64_t HELPER(name)(CPUE2KState *env, Int128 s2_) \
     { \
+        E2KReg s2 = { .qp = s2_ }; \
         vec64 r; \
         \
-        r.uw[0] = op(env, s2->ud[0]); \
-        r.uw[1] = op(env, s2->ud[1]); \
+        r.uw[0] = op(env, s2.ud[0]); \
+        r.uw[1] = op(env, s2.ud[1]); \
         \
         return r.ud[0]; \
     }

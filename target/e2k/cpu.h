@@ -777,6 +777,8 @@ typedef union {
         uint64_t lo;
         uint64_t hi;
     };
+
+    Int128 qp;
 } E2KReg;
 
 typedef struct CPUArchState {
@@ -883,8 +885,6 @@ typedef struct CPUArchState {
     E2KReg tmp[12];
     /* Temporary storage for pre saved registers */
     E2KReg tmp_saved[6];
-    /* Temporary storage for empty and temporary results of alops */
-    E2KReg al_result[12];
 
     /* breakpoint flag */
     uint32_t is_bp;
