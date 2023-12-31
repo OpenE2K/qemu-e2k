@@ -426,6 +426,7 @@ typedef struct {
         target_ulong target;
         TCGv_i64 ctpr;
     } u;
+    int ctpr_index;
     int wbs;
     uint8_t cond_type;
     uint8_t psrc;
@@ -1063,12 +1064,12 @@ static inline void decode_ct_cond(DisasContext *ctx, const UnpackedBundle *raw)
 {
     ctx->ct.type = CT_NONE;
     ctx->ct.cond_type = 0;
-    int ctpr = extract32(raw->ss, 10, 2);
-    if (ctpr != 0) {
+    ctx->ct.ctpr_index = extract32(raw->ss, 10, 2);
+    if (ctx->ct.ctpr_index != 0) {
         if (ctx->ct.type == CT_NONE) {
             ctx->ct.type = CT_JUMP;
         }
-        ctx->ct.u.ctpr = cpu_ctprs[ctpr - 1];
+        ctx->ct.u.ctpr = cpu_ctprs[ctx->ct.ctpr_index - 1];
     }
     ctx->ct.psrc = extract32(raw->ss, 0, 5);
     ctx->ct.cond_type = extract32(raw->ss, 5, 4);
@@ -7437,18 +7438,20 @@ static void do_branch(DisasContext *ctx, target_ulong pc_next)
         break;
     case CT_JUMP: {
         TCGLabel *l0 = gen_new_label();
-        TCGLabel *l1 = gen_new_label();
         TCGv_i64 t0 = tcg_temp_new_i64();
 
         gen_ctpr_tag(t0, ctx->ct.u.ctpr);
         tcg_gen_brcondi_i64(TCG_COND_EQ, t0, CTPR_TAG_DISP, l0);
-        tcg_gen_brcondi_i64(TCG_COND_EQ, t0, CTPR_TAG_RETURN, l1);
 
-        // TODO: ldisp or sdisp
-        gen_excp_illopc();
-
-        gen_set_label(l1);
-        gen_helper_return(cpu_env);
+        if (ctx->ct.ctpr_index == 3) {
+            TCGLabel *l1 = gen_new_label();
+            tcg_gen_brcondi_i64(TCG_COND_EQ, t0, CTPR_TAG_RETURN, l1);
+            gen_excp_illopc();
+            gen_set_label(l1);
+            gen_helper_return(cpu_env);
+        } else {
+            gen_excp_illopc();
+        }
 
         gen_set_label(l0);
         gen_goto_ctpr_disp(ctx->ct.u.ctpr);
