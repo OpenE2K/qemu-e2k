@@ -102,6 +102,64 @@ uint64 HELPER(fsqrtid)(CPUE2KState *env, uint64_t x)
 }
 #endif
 
+#define type_name_i32 int32
+#define type_name_i64 int64
+#define type_name_f32 float32
+#define type_name_f64 float64
+#define type_name_f80 floatx80
+#define type_name(S) glue(type_name_, S)
+
+#define arg_type_i32 uint32_t
+#define arg_type_i64 uint64_t
+#define arg_type_f32 uint32_t
+#define arg_type_f64 uint64_t
+#define arg_type_f80 Int128
+#define arg_type(S) glue(arg_type_, S)
+
+#define ret_type_i32 uint32_t
+#define ret_type_i64 uint64_t
+#define ret_type_f32 uint32_t
+#define ret_type_f64 uint64_t
+#define ret_type_f80 Int128
+#define ret_type(S) glue(ret_type_, S)
+
+#define make_i32(v) (v)
+#define make_i64(v) (v)
+#define make_f32(v) make_float32(v)
+#define make_f64(v) make_float64(v)
+#define make_f80(v) make_floatx80(((v) >> 64), (v))
+#define make(S, v) glue(make_, S)(v)
+
+#define float_val_f32(v) float32_val(v)
+#define float_val_f64(v) float64_val(v)
+#define float_val_f80(v) (((Int128) (v).high << 64) | (v).low)
+#define float_val(S, v) glue(float_val_, S)(v)
+
+#define type_i32 uint32_t
+#define type_i64 uint64_t
+#define type_f32 float32
+#define type_f64 float64
+#define type_f80 floatx80
+#define type(S) glue(type_, S)
+
+#define int32_to_int32(v, s) (v)
+#define int64_to_int64(v, s) (v)
+#define float32_to_float32(v, s) (v)
+#define float64_to_float64(v, s) (v)
+#define floatx80_to_floatx80(v, s) (v)
+#define convert(F, T, v, s) glue3(type_name(F), _to_, type_name(T))(v, s)
+
+#define ret_i32(v) return (v)
+#define ret_i64(v) return (v)
+#define ret_f32(v) return float32_val(v)
+#define ret_f64(v) return float64_val(v)
+#define ret_f80(v) return float_val_f80(v)
+#define ret(S, v) glue(ret_, S)(v)
+
+#define fpu_mov(x, s) (x)
+#define ident(x) (x)
+#define not(x) (!(x))
+
 #define IMPL_FSCALE(name, ty, exp_len, exp_off, mul, cvt) \
     ty HELPER(name)(CPUE2KState *env, ty src1, uint32_t src2) \
     { \
@@ -130,7 +188,7 @@ uint64 HELPER(fsqrtid)(CPUE2KState *env, uint64_t x)
 IMPL_FSCALE(fscaled, uint64_t, 11, 52, helper_fmuld, uint64_to_float64)
 IMPL_FSCALE(fscales, uint32_t, 8, 23, helper_fmuls, uint32_to_float32)
 
-void HELPER(fxscalesx)(floatx80 *r, CPUE2KState *env, floatx80 *a, uint32_t b)
+Int128 HELPER(fxscalesx)(CPUE2KState *env, Int128 a, uint32_t b)
 {
     floatx80 v;
     int32_t p = (int32_t) b;
@@ -151,75 +209,11 @@ void HELPER(fxscalesx)(floatx80 *r, CPUE2KState *env, floatx80 *a, uint32_t b)
         v.low = 1UL << 63;
         v.high = bias + p;
     }
-    helper_fxmulxx(r, env, a, &v);
+    return helper_fxmulxx(env, a, float_val_f80(v));
 }
 
-#define type_name_i32 int32
-#define type_name_i64 int64
-#define type_name_f32 float32
-#define type_name_f64 float64
-#define type_name_f80 floatx80
-#define type_name(S) glue(type_name_, S)
-
-#define arg_type_i32 uint32_t
-#define arg_type_i64 uint64_t
-#define arg_type_f32 uint32_t
-#define arg_type_f64 uint64_t
-#define arg_type_f80 floatx80 *
-#define arg_type(S) glue(arg_type_, S)
-
-#define ret_arg_i32
-#define ret_arg_i64
-#define ret_arg_f32
-#define ret_arg_f64
-#define ret_arg_f80 floatx80 *ret,
-#define ret_arg(S) glue(ret_arg_, S)
-
-#define ret_type_i32 uint32_t
-#define ret_type_i64 uint64_t
-#define ret_type_f32 uint32_t
-#define ret_type_f64 uint64_t
-#define ret_type_f80 void
-#define ret_type(S) glue(ret_type_, S)
-
-#define make_i32(v) (v)
-#define make_i64(v) (v)
-#define make_f32(v) make_float32(v)
-#define make_f64(v) make_float64(v)
-#define make_f80(v) (*(v))
-#define make(S, v) glue(make_, S)(v)
-
-#define float_val_f32(v) float32_val(v)
-#define float_val_f64(v) float64_val(v)
-#define float_val(S, v) glue(float_val_, S)(v)
-
-#define type_i32 uint32_t
-#define type_i64 uint64_t
-#define type_f32 float32
-#define type_f64 float64
-#define type_f80 floatx80
-#define type(S) glue(type_, S)
-
-#define int32_to_int32(v, s) (v)
-#define int64_to_int64(v, s) (v)
-#define float32_to_float32(v, s) (v)
-#define float64_to_float64(v, s) (v)
-#define floatx80_to_floatx80(v, s) (v)
-#define convert(F, T, v, s) glue3(type_name(F), _to_, type_name(T))(v, s)
-
-#define ret_i32(v) return (v)
-#define ret_i64(v) return (v)
-#define ret_f32(v) return float32_val(v)
-#define ret_f64(v) return float64_val(v)
-#define ret_f80(v) *ret = v
-#define ret(S, v) glue(ret_, S)(v)
-
-#define fpu_mov(x, s) (x)
-#define ident(x) (x)
-#define not(x) (!(x))
-
 #define IMPL_ALOPF2_FPU_BASIC(FPU, name, S2, R, T2, TR, op) \
-    ret_type(R) HELPER(name)(ret_arg(R) CPUE2KState *env, arg_type(S2) s2) \
+    ret_type(R) HELPER(name)(CPUE2KState *env, arg_type(S2) s2) \
     { \
         int old_flags = glue(FPU, _save_exception_flags)(env); \
         float_status *s = &env->glue(FPU, _status); \
@@ -237,7 +231,7 @@ void HELPER(fxscalesx)(floatx80 *r, CPUE2KState *env, floatx80 *a, uint32_t b)
     IMPL_ALOPF2_FPU_BASIC(fp, name, R, S2, R, S2, op)
 
 #define IMPL_ALOPF2_FPU_CVT_OP(FPU, name, S2, R, op) \
-    ret_type(R) HELPER(name)(ret_arg(R) CPUE2KState *env, arg_type(S2) s2) \
+    ret_type(R) HELPER(name)(CPUE2KState *env, arg_type(S2) s2) \
     { \
         int old_flags = glue(FPU, _save_exception_flags)(env); \
         float_status *s = &env->glue(FPU, _status); \
@@ -247,7 +241,7 @@ void HELPER(fxscalesx)(floatx80 *r, CPUE2KState *env, floatx80 *a, uint32_t b)
     }
 
 #define IMPL_ALOPF2_FPU_CVT(FPU, name, S2, R) \
-    ret_type(R) HELPER(name)(ret_arg(R) CPUE2KState *env, arg_type(S2) s2) \
+    ret_type(R) HELPER(name)(CPUE2KState *env, arg_type(S2) s2) \
     { \
         int old_flags = glue(FPU, _save_exception_flags)(env); \
         float_status *s = &env->glue(FPU, _status); \
@@ -257,7 +251,7 @@ void HELPER(fxscalesx)(floatx80 *r, CPUE2KState *env, floatx80 *a, uint32_t b)
     }
 
 #define IMPL_ALOPF1_FPU(FPU, name, S1, S2, R, T1, T2, TR, op) \
-    ret_type(R) HELPER(name)(ret_arg(R) CPUE2KState *env, \
+    ret_type(R) HELPER(name)(CPUE2KState *env, \
         arg_type(S1) s1, arg_type(S2) s2) \
     { \
         int old_flags = glue(FPU, _save_exception_flags)(env); \
@@ -277,7 +271,7 @@ void HELPER(fxscalesx)(floatx80 *r, CPUE2KState *env, floatx80 *a, uint32_t b)
     IMPL_ALOPF1_FPU(fp, name, S1, S2, R, S1, S2, R, op)
 
 #define IMPL_ALOPF1_FPU_CMP_BASIC(FPU, name, S1, S2, R, T1, T2, TR, op1, op2) \
-    ret_type(R) HELPER(name)(ret_arg(R) CPUE2KState *env, \
+    ret_type(R) HELPER(name)(CPUE2KState *env, \
         arg_type(S1) s1, arg_type(S2) s2) \
     { \
         int old_flags = glue(FPU, _save_exception_flags)(env); \
@@ -304,7 +298,7 @@ void HELPER(fxscalesx)(floatx80 *r, CPUE2KState *env, floatx80 *a, uint32_t b)
     }
 
 #define IMPL_ALOPF21_FPU(FPU, name, S1, S2, S3, R, T1, T2, T3, TR, op) \
-    ret_type(R) HELPER(name)(ret_arg(R) CPUE2KState *env, \
+    ret_type(R) HELPER(name)(CPUE2KState *env, \
         arg_type(S1) s1, arg_type(S2) s2, arg_type(S3) s3) \
     { \
         int old_flags = glue(FPU, _save_exception_flags)(env); \
@@ -566,25 +560,28 @@ IMPL_ALOPF21_FP(fnmsd, f64, FNMSD)
 #define qp_len(T) glue(qp_len_, T)
 
 #define IMPL_OP3_QP_ENV(name, T, F, code) \
-    void HELPER(name)(E2KReg *r, CPUE2KState *env, E2KReg *s1, \
-        E2KReg *s2, E2KReg *s3) \
+    Int128 HELPER(name)(CPUE2KState *env, Int128 s1_, \
+        Int128 s2_, Int128 s3_) \
     { \
         int old_flags = fp_save_exception_flags(env); \
         int i; \
+        E2KReg dst, s1 = { .qp = s1_ }, s2 = { .qp = s2_ }, s3 = { .qp = s3_ }; \
         \
         for (i = 0; i < qp_len(T); i++) { \
-            type(F) a = make(F, s1->T[i]); \
-            type(F) b = make(F, s2->T[i]); \
-            type(F) c = make(F, s3->T[i]); \
+            type(F) a = make(F, s1.T[i]); \
+            type(F) b = make(F, s2.T[i]); \
+            type(F) c = make(F, s3.T[i]); \
             { code; } \
         } \
         \
         fp_merge_exception_flags(env, old_flags); \
+        \
+        return dst.qp; \
     }
 
 #define IMPL_OP3_QP_ENV_OP(name, T, F, op) \
     IMPL_OP3_QP_ENV(name, T, F, { \
-        r->T[i] = float_val(F, op(a, b, c, &env->fp_status)); \
+        dst.T[i] = float_val(F, op(a, b, c, &env->fp_status)); \
     })
 
 IMPL_OP3_QP_ENV_OP(qpfmas,  uw, f32, FMAS)
@@ -598,7 +595,7 @@ IMPL_OP3_QP_ENV_OP(qpfnmsd, ud, f64, FNMSD)
 
 #define IMPL_OP3_QP_ENV_OP_ALT(name, T, F, op1, op2) \
     IMPL_OP3_QP_ENV(name, T, F, { \
-        r->T[i] = float_val(F, i & 1 ? op2(a, b, c, &env->fp_status) : \
+        dst.T[i] = float_val(F, i & 1 ? op2(a, b, c, &env->fp_status) : \
             op1(a, b, c, &env->fp_status)); \
     })
 
