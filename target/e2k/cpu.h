@@ -781,6 +781,19 @@ typedef union {
     Int128 qp;
 } E2KReg;
 
+typedef union {
+    uint64_t raw;
+
+    struct {
+        uint64_t wsz : 7;
+        uint64_t rsz : 7;
+        uint64_t rbs : 6;
+        uint64_t psz : 5;
+        uint64_t fx : 1;
+        uint64_t dbl : 1;
+    };
+} E2KWinInfo;
+
 typedef struct CPUArchState {
     /* Registers Tags File */
     uint8_t tags[E2K_REG_COUNT];
@@ -881,11 +894,6 @@ typedef struct CPUArchState {
     /* 80-bit float status */
     float_status fx_status;
 
-    /* Temporary storage for big constant values */
-    E2KReg tmp[12];
-    /* Temporary storage for pre saved registers */
-    E2KReg tmp_saved[6];
-
     /* breakpoint flag */
     uint32_t is_bp;
 
@@ -928,8 +936,17 @@ struct ArchCPU {
 static inline void cpu_get_tb_cpu_state(CPUE2KState *env, vaddr *pc,
                                         uint64_t *cs_base, uint32_t *pflags)
 {
+    E2KWinInfo wi;
+
+    wi.wsz = env->wd.size / 2;
+    wi.rsz = env->bn.size / 2 - 1;
+    wi.rbs = env->bn.base / 2;
+    wi.psz = env->bp.size - 1;
+    wi.fx  = env->wd.fx;
+    wi.dbl = env->wdbl;
+
     *pc = env->ip;
-    *cs_base = 0;
+    *cs_base = wi.raw;
     *pflags = MMU_USER_IDX;
 }
 

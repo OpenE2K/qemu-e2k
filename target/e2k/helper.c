@@ -309,11 +309,10 @@ void HELPER(raise_exception)(CPUE2KState *env, int exception_index)
     raise_exception(env, exception_index);
 }
 
-void HELPER(setwd)(CPUE2KState *env, int wsz, int nfx, int dbl)
+void HELPER(setwd)(CPUE2KState *env, int size, int nfx, int dbl)
 {
-    int size, diff;
+    int diff;
 
-    size = wsz * 2;
     diff = size - env->wd.size;
 
     if (size < env->wd.psize) {

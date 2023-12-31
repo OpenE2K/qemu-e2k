@@ -66,6 +66,11 @@ void cpu_loop(CPUE2KState *env)
     int trapnr;
 
     while (1) {
+        if (env->is_bp) {
+            e2k_proc_return(env, true);
+            env->is_bp = false;
+        }
+
         cpu_exec_start(cs);
         trapnr = cpu_exec(cs);
         cpu_exec_end(cs);
