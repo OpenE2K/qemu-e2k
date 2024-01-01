@@ -6986,46 +6986,14 @@ static void gen_ct_cond(DisasContext *ctx)
     }
 }
 
-static inline TCGCond cond_from_advance(int advance)
+static void gen_dec_wrapi_i32(TCGv_i32 ret, TCGv_i32 cur, int n,
+    int size)
 {
-    switch (advance) {
-    case 0x01: return TCG_COND_EQ;
-    case 0x02: return TCG_COND_NE;
-    case 0x03: return TCG_COND_ALWAYS;
-    default: return TCG_COND_NEVER;
-    }
-}
+    TCGv_i32 s = tcg_constant_i32(size);
 
-static void gen_movcond_flag_i32(TCGv_i32 ret, int flag, TCGv_i32 cond,
-    TCGv_i32 v1, TCGv_i32 v2)
-{
-    TCGv_i32 one = tcg_constant_i32(1);
-    TCGCond c = cond_from_advance(flag);
-
-    tcg_gen_movcond_i32(c, ret, cond, one, v1, v2);
-}
-
-static void gen_dec_wrap(TCGv_i32 ret, TCGv_i32 cur, int n,
-    TCGv_i32 size)
-{
-    TCGv_i32 t0 = tcg_temp_new_i32();
-
-    tcg_gen_addi_i32(t0, size, n);
-    tcg_gen_sub_i32(t0, t0, cur);
-    tcg_gen_remu_i32(t0, t0, size);
-    tcg_gen_sub_i32(ret, size, t0);
-}
-
-static inline void gen_cur_dec(DisasContext *ctx, TCGv_i32 ret, int cond,
-    TCGv_i32 cur, int n, TCGv_i32 size)
-{
-    TCGLabel *l0 = gen_new_label();
-    TCGv_i32 t0 = tcg_temp_new_i32();
-
-    tcg_gen_brcondi_i32(TCG_COND_EQ, size, 0, l0);
-    gen_dec_wrap(t0, cur, n, size);
-    gen_movcond_flag_i32(ret, cond, cpu_ct_cond, t0, cur);
-    gen_set_label(l0);
+    tcg_gen_sub_i32(ret, tcg_constant_i32(n + size), cur);
+    tcg_gen_remu_i32(ret, ret, s);
+    tcg_gen_sub_i32(ret, s, ret);
 }
 
 #define IMPL_GEN_DEC_SAT(name, S) \
@@ -7059,43 +7027,6 @@ static void gen_advance_loop_counters(void)
     gen_dec_sat_i32(t3, cpu_lsr_ecnt);
     tcg_gen_and_i32(t4, t2, cpu_lsr_vlc);
     tcg_gen_movcond_i32(TCG_COND_NE, cpu_lsr_ecnt, t4, z, t3, cpu_lsr_ecnt);
-}
-
-static void gen_stubs(DisasContext *ctx)
-{
-    uint32_t ss = ctx->bundle.ss;
-    int alc = extract32(ss, 16, 2);
-    int abp = extract32(ss, 18, 2);
-    int abn = extract32(ss, 21, 2);
-    int abg = extract32(ss, 23, 2);
-    int vfdi = extract32(ss, 26, 1);
-
-    if (alc) {
-        TCGLabel *l0 = gen_new_label();
-        TCGCond cond = cond_from_advance(alc);
-
-        tcg_gen_brcondi_i32(tcg_invert_cond(cond), cpu_ct_cond, 1, l0);
-        gen_advance_loop_counters();
-        gen_set_label(l0);
-    }
-
-    if (abp) {
-        gen_cur_dec(ctx, cpu_pcur, abp, cpu_pcur, 1, cpu_psize);
-    }
-
-    if (abn) {
-        gen_cur_dec(ctx, cpu_bcur, abn, cpu_bcur, 2, cpu_bsize);
-    }
-
-    if (abg != 0) {
-        // TODO: impl abg
-        e2k_todo_illop(ctx, "abg");
-    }
-
-    if (vfdi != 0) {
-        // TODO: impl vfdi
-        e2k_todo_illop(ctx, "vfdi");
-    }
 }
 
 static target_ulong do_decode(DisasContext *ctx, CPUState *cs)
@@ -7340,8 +7271,28 @@ static void gen_loop_end_init(DisasContext *ctx)
     }
 }
 
+#define ALCT 1
+#define ALCF 2
+#define ABPT 1
+#define ABPF 2
+#define ABNT 1
+#define ABNF 2
+#define ABGD 1
+#define ABGI 2
+
 static void do_branch(DisasContext *ctx, target_ulong pc_next)
 {
+    TCGLabel *branch_taken = NULL;
+    uint32_t ss = ctx->bundle.ss;
+    int alc, abp, abn, abg, vfdi;
+
+    alc = abp = abn = abg = vfdi = 0;
+    abg = extract32(ss, 23, 2);
+    vfdi = extract32(ss, 26, 1);
+
+    // TODO: e2k abg
+    // TODO: e2k vfdi
+
     /* FIXME: save PC only when necessary.  */
     gen_save_pc(ctx->base.pc_next);
 
@@ -7352,18 +7303,49 @@ static void do_branch(DisasContext *ctx, target_ulong pc_next)
         gen_set_label(l0);
     }
 
+    if (ctx->ct.type != CT_NONE && ctx->ct.cond_type > 1) {
+        branch_taken = gen_new_label();
+        tcg_gen_brcondi_i32(TCG_COND_NE, cpu_ct_cond, 0, branch_taken);
+    }
+
+    if (ctx->bundle.ss_present) {
+        alc = extract32(ss, 16, 2);
+        abp = extract32(ss, 18, 2);
+        abn = extract32(ss, 21, 2);
+
+        if (alc & ALCF) {
+            gen_advance_loop_counters();
+        }
+
+        if (abp & ABPF) {
+            gen_dec_wrapi_i32(cpu_pcur, cpu_pcur, 1, ctx->p_size);
+        }
+
+        if (abn & ABNF) {
+            gen_dec_wrapi_i32(cpu_bcur, cpu_bcur, 2, ctx->b_size);
+        }
+    }
+
     if (ctx->ct.type == CT_NONE) {
         return;
+    } else if (ctx->ct.cond_type > 1) {
+        gen_goto_tb(ctx, TB_EXIT_IDX1, pc_next);
+        gen_set_label(branch_taken);
+    }
+
+    if (alc & ALCT) {
+        gen_advance_loop_counters();
+    }
+
+    if (abp & ABPT) {
+        gen_dec_wrapi_i32(cpu_pcur, cpu_pcur, 1, ctx->p_size);
+    }
+
+    if (abn & ABNT) {
+        gen_dec_wrapi_i32(cpu_bcur, cpu_bcur, 2, ctx->b_size);
     }
 
     ctx->base.is_jmp = DISAS_NORETURN;
-
-    if (ctx->ct.cond_type > 1) {
-        TCGLabel *l0 = gen_new_label();
-        tcg_gen_brcondi_i32(TCG_COND_NE, cpu_ct_cond, 0, l0);
-        gen_goto_tb(ctx, TB_EXIT_IDX1, pc_next);
-        gen_set_label(l0);
-    }
 
     switch(ctx->ct.type) {
     case CT_NONE:
@@ -7519,7 +7501,6 @@ static void e2k_tr_translate_insn(DisasContextBase *db, CPUState *cs)
             gen_vfrpsz(ctx);
             gen_setbn(ctx);
             gen_setbp(ctx);
-            gen_stubs(ctx);
             do_branch(ctx, pc_next);
         }
         break;
