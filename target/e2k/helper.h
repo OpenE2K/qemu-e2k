@@ -28,6 +28,8 @@ DEF_HELPER_FLAGS_2(state_reg_get, TCG_CALL_NO_WG_SE, i64, env, int)
 DEF_HELPER_3(state_reg_set, void, env, i64, int)
 
 DEF_HELPER_FLAGS_2(sxt, TCG_CALL_NO_RWG_SE, i64, i32, i32)
+DEF_HELPER_FLAGS_2(getfs, TCG_CALL_NO_RWG_SE, i32, i32, i32)
+DEF_HELPER_FLAGS_2(getfd, TCG_CALL_NO_RWG_SE, i64, i64, i64)
 DEF_HELPER_FLAGS_2(clmull, TCG_CALL_NO_RWG_SE, i64, i64, i64)
 DEF_HELPER_FLAGS_2(clmulh, TCG_CALL_NO_RWG_SE, i64, i64, i64)
 
