@@ -13,6 +13,44 @@ uint64_t HELPER(sxt)(uint32_t s1, uint32_t s2)
     return s1 & 4 ? extract32(s2, 0, size) : sextract64(s2, 0, size);
 }
 
+uint32_t HELPER(getfs)(uint32_t src1, uint32_t src2)
+{
+    int len = extract16(src2, 6, 5);
+    int offset = extract16(src2, 0, 5);
+    int sign = extract16(src2, 12, 1);
+    int byte = extract16(src2, 13, 2);
+    uint32_t ret = 0;
+
+    if (len) {
+        ret = extract32(ror32(src1, offset), 0, len);
+
+        if (sign && extract32(src1, (byte * 8 + ((offset + len - 1) & 7)), 1)) {
+            ret |= -1ULL << len;
+        }
+    }
+
+    return ret;
+}
+
+uint64_t HELPER(getfd)(uint64_t src1, uint64_t src2)
+{
+    int len = extract16(src2, 6, 6);
+    int offset = extract16(src2, 0, 6);
+    int sign = extract16(src2, 12, 1);
+    int byte = extract16(src2, 13, 3);
+    uint64_t ret = 0;
+
+    if (len) {
+        ret = extract64(ror64(src1, offset), 0, len);
+
+        if (sign && extract64(src1, (byte * 8 + ((offset + len - 1) & 7)), 1)) {
+            ret |= -1ULL << len;
+        }
+    }
+
+    return ret;
+}
+
 static uint64_t cr_read(CPUE2KState *env, size_t offset)
 {
     target_ulong addr = env->pcsp.base + env->pcsp.index + offset;

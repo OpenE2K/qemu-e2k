@@ -2541,65 +2541,8 @@ IMPL_GEN_OPN(gen_xorn_i64, d, tcg_gen_xor_i64)
 IMPL_GEN_MASK(i64, TCGv_i64, 64)
 IMPL_GEN_MASK(i32, TCGv_i32, 32)
 
-#define IMPL_GEN_GETF_SIGN(S, T) \
-    static inline void glue(gen_getf_sign_, S)(T ret, T val, T len, \
-        T offset, T byte) \
-    { \
-       T z = glue(tcg_constant_, S)(0); \
-       T ones = glue(tcg_constant_, S)(-1); \
-       T t0 = glue(tcg_temp_new_, S)(); \
-       T t1 = glue(tcg_temp_new_, S)(); \
-       T t2 = glue(tcg_temp_new_, S)(); \
-       T t3 = glue(tcg_temp_new_, S)(); \
-       T t4 = glue(tcg_temp_new_, S)(); \
-       T t5 = glue(tcg_temp_new_, S)(); \
-       T t6 = glue(tcg_temp_new_, S)(); \
-       T t7 = glue(tcg_temp_new_, S)(); \
-       /* sign = (x >> (byte * 8 + ((offset + len - 1) & 7))) & 1 */ \
-       glue(tcg_gen_add_, S)(t0, offset, len); \
-       glue(tcg_gen_subi_, S)(t1, t0, 1); \
-       glue(tcg_gen_andi_, S)(t2, t1, 7); \
-       glue(tcg_gen_muli_, S)(t3, byte, 8); \
-       glue(tcg_gen_add_, S)(t4, t3, t2); \
-       glue(tcg_gen_shr_, S)(t5, val, t4); \
-       glue(tcg_gen_andi_, S)(t6, t5, 1); \
-       glue(tcg_gen_shl_, S)(t7, ones, len); \
-       glue(tcg_gen_movcond_, S)(TCG_COND_NE, ret, t6, z, t7, z); \
-    }
-
-IMPL_GEN_GETF_SIGN(i64, TCGv_i64)
-IMPL_GEN_GETF_SIGN(i32, TCGv_i32)
-
-#define IMPL_GEN_GETF(NAME, S, T, OFFSET, LEN, BYTE, N) \
-    static inline void NAME(T ret, T src1, T src2) \
-    { \
-        T z = glue(tcg_constant_, S)(0); \
-        T offset = glue(tcg_temp_new_, S)(); \
-        T len = glue(tcg_temp_new_, S)(); \
-        T sign = glue(tcg_temp_new_, S)(); \
-        T byte = glue(tcg_temp_new_, S)(); \
-        T t0 = glue(tcg_temp_new_, S)(); \
-        T t1 = glue(tcg_temp_new_, S)(); \
-        T t2 = glue(tcg_temp_new_, S)(); \
-        T t3 = glue(tcg_temp_new_, S)(); \
-        T t4 = glue(tcg_temp_new_, S)(); \
-        glue(tcg_gen_extract_, S)(offset, src2, 0, OFFSET); \
-        glue(tcg_gen_extract_, S)(len, src2, 6, LEN); \
-        glue(tcg_gen_extract_, S)(sign, src2, 12, 1); \
-        glue(tcg_gen_extract_, S)(byte, src2, 13, BYTE); \
-        glue(tcg_gen_rotr_, S)(t0, src1, offset); \
-        glue(gen_mask_, S)(t1, len); \
-        glue(tcg_gen_and_, S)(t2, t0, t1); \
-        glue(gen_getf_sign_, S)(t3, src1, len, offset, byte); \
-        glue(tcg_gen_or_, S)(t4, t3, t2); \
-        glue(tcg_gen_movcond_, S)(TCG_COND_NE, ret, sign, z, t4, t2); \
-    }
-
-IMPL_GEN_GETF(gen_getfd, i64, TCGv_i64, 6, 6, 3, 64)
-IMPL_GEN_GETF(gen_getfs, i32, TCGv_i32, 5, 5, 2, 32)
-
-#define gen_getf_i64 gen_getfd
-#define gen_getf_i32 gen_getfs
+#define gen_getf_i64 gen_helper_getfd
+#define gen_getf_i32 gen_helper_getfs
 
 #define IMPL_GEN_EXTRACT_SIGN(name, S, LEN) \
     static void name(temp(S) ret, temp(S) val, temp(S) len) \
@@ -4889,6 +4832,84 @@ static void gen_sxt(Alop *alop)
     gen_al_result(d, alop, r);
 }
 
+static void gen_getfs(Alop *alop)
+{
+    tagged(s) s1 = gen_tagged_src1(s, alop);
+    tagged(s) s2 = gen_tagged_src2(s, alop);
+    tagged(s) r = tagged_temp_new(s);
+
+    gen_result_init(s, alop, r);
+    gen_tag2(s, r, s1, s2);
+
+    if (IS_LIT(alop->als.src2)) {
+        uint16_t lit = get_literal(alop->ctx, alop->als.src2);
+        int len = extract16(lit, 6, 5);
+        int offset = extract16(lit, 0, 5);
+        int sign = extract16(lit, 12, 1);
+
+        if (len) {
+            if (sign) {
+                int byte = extract16(lit, 13, 2);
+
+                if (byte == ((offset + len - 1) >> 3)) {
+                    tcg_gen_rotri_i32(r.val, s1.val, offset);
+                    tcg_gen_sextract_i32(r.val, r.val, 0, len);
+                } else {
+                    gen_helper_getfs(r.val, s1.val, s2.val);
+                }
+            } else {
+                tcg_gen_rotri_i32(r.val, s1.val, offset);
+                tcg_gen_extract_i32(r.val, r.val, 0, len);
+            }
+        } else {
+            tcg_gen_movi_i32(r.val, 0);
+        }
+    } else {
+        gen_helper_getfs(r.val, s1.val, s2.val);
+    }
+
+    gen_al_result(s, alop, r);
+}
+
+static void gen_getfd(Alop *alop)
+{
+    tagged(d) s1 = gen_tagged_src1(d, alop);
+    tagged(d) s2 = gen_tagged_src2(d, alop);
+    tagged(d) r = tagged_temp_new(d);
+
+    gen_result_init(d, alop, r);
+    gen_tag2(d, r, s1, s2);
+
+    if (IS_LIT(alop->als.src2)) {
+        uint16_t lit = get_literal(alop->ctx, alop->als.src2);
+        int len = extract16(lit, 6, 6);
+        int offset = extract16(lit, 0, 6);
+        int sign = extract16(lit, 12, 1);
+
+        if (len) {
+            if (sign) {
+                int byte = extract16(lit, 13, 3);
+
+                if (byte == ((offset + len - 1) >> 3)) {
+                    tcg_gen_rotri_i64(r.val, s1.val, offset);
+                    tcg_gen_sextract_i64(r.val, r.val, 0, len);
+                } else {
+                    gen_helper_getfd(r.val, s1.val, s2.val);
+                }
+            } else {
+                tcg_gen_rotri_i64(r.val, s1.val, offset);
+                tcg_gen_extract_i64(r.val, r.val, 0, len);
+            }
+        } else {
+            tcg_gen_movi_i64(r.val, 0);
+        }
+    } else {
+        gen_helper_getfd(r.val, s1.val, s2.val);
+    }
+
+    gen_al_result(d, alop, r);
+}
+
 static void alop_table_find(DisasContext *ctx, Alop *alop, AlesFlag ales_present)
 {
     /* ALES2/5 may be allocated but must not be used */
@@ -4987,8 +5008,8 @@ static void gen_alop_simple(Alop *alop)
     case OP_SHRD: gen_alopf1_ddd(alop, tcg_gen_shr_i64); break;
     case OP_SARS: gen_alopf1_sss(alop, tcg_gen_sar_i32); break;
     case OP_SARD: gen_alopf1_ddd(alop, tcg_gen_sar_i64); break;
-    case OP_GETFS: gen_alopf1_sss(alop, gen_getfs); break;
-    case OP_GETFD: gen_alopf1_ddd(alop, gen_getfd); break;
+    case OP_GETFS: gen_getfs(alop); break;
+    case OP_GETFD: gen_getfd(alop); break;
     case OP_MERGES: gen_merges(alop); break;
     case OP_MERGED: gen_merged(alop); break;
     case OP_CMPOSB: gen_alopf7_sss(alop, gen_cmposb); break;
