@@ -17,8 +17,6 @@
 #define glue3(a, b, c) glue(glue(a, b), c)
 #define glue4(a, b, c, d) glue(glue(a, b), glue(c, d))
 
-#define DYNAMIC -1
-
 #define IS_BASED(i) (((i) & 0x80) == 0)
 #define IS_REGULAR(i) (((i) & 0xc0) == 0x80)
 #define IS_IMM5(i) (((i) & 0xe0) == 0xc0)
@@ -1120,50 +1118,39 @@ static void gen_ptr_from_index(TCGv_ptr ret, TCGv_ptr ptr, TCGv_i32 idx,
     tcg_gen_add_ptr(ret, ptr, t1);
 }
 
-static void gen_wrap_i32(TCGv_i32 ret, TCGv_i32 value, TCGv_i32 size)
-{
-    TCGv_i32 t0 = tcg_temp_new_i32();
-
-    tcg_gen_sub_i32(t0, value, size);
-    tcg_gen_movcond_i32(TCG_COND_LEU, ret, size, value, t0, value);
-}
-
-static void gen_preg_index(TCGv_i32 ret, int index)
+static void gen_preg_offset(DisasContext *ctx, TCGv_i64 ret, int preg)
 {
     TCGv_i32 t0 = tcg_temp_new_i32();
     TCGv_i32 t1 = tcg_temp_new_i32();
-    TCGv_i32 t2 = tcg_constant_i32(index);
+    TCGv_i32 p_size = tcg_constant_i32(ctx->p_size);
 
-    tcg_gen_addi_i32(t0, cpu_pcur, index);
-    gen_wrap_i32(t1, t0, cpu_psize);
-    tcg_gen_movcond_i32(TCG_COND_LTU, ret, t2, cpu_psize, t1, t2);
+    tcg_gen_addi_i32(t0, cpu_pcur, preg);
+    tcg_gen_sub_i32(t1, t0, p_size);
+    tcg_gen_movcond_i32(TCG_COND_LEU, t0, p_size, t0, t1, t0);
+    tcg_gen_discard_i32(t1);
+    tcg_gen_shli_i32(t0, t0, 1);
+    tcg_gen_extu_i32_i64(ret, t0);
 }
 
-static void gen_preg_offset(TCGv_i64 ret, int idx)
-{
-    TCGv_i32 t0 = tcg_temp_new_i32();
-    TCGv_i32 t1 = tcg_temp_new_i32();
-
-    gen_preg_index(t0, idx);
-    tcg_gen_shli_i32(t1, t0, 1);
-    tcg_gen_extu_i32_i64(ret, t1);
-}
-
-static void gen_preg_raw_i64(TCGv_i64 ret, int reg)
-{
-    TCGv_i64 t0 = tcg_temp_new_i64();
-    TCGv_i64 t1 = tcg_temp_new_i64();
-
-    gen_preg_offset(t0, reg);
-    tcg_gen_shr_i64(t1, cpu_pregs, t0);
-    tcg_gen_andi_i64(ret, t1, 1);
-}
-
-static void gen_preg_raw_i32(TCGv_i32 ret, int reg)
+static void gen_preg_raw_i64(DisasContext *ctx, TCGv_i64 ret, int preg)
 {
     TCGv_i64 t0 = tcg_temp_new_i64();
 
-    gen_preg_raw_i64(t0, reg);
+    // TODO: read preg tag
+    if (ctx->p_size > 1 && preg < ctx->p_size) {
+        gen_preg_offset(ctx, t0, preg);
+        tcg_gen_shr_i64(t0, cpu_pregs, t0);
+    } else {
+        tcg_gen_shri_i64(t0, cpu_pregs, preg * 2);
+    }
+    tcg_gen_andi_i64(ret, t0, 1);
+}
+
+static void gen_preg_raw_i32(DisasContext *ctx, TCGv_i32 ret, int reg)
+{
+    TCGv_i64 t0 = tcg_temp_new_i64();
+
+    gen_preg_raw_i64(ctx, t0, reg);
     tcg_gen_extrl_i64_i32(ret, t0);
 }
 
@@ -1184,24 +1171,26 @@ static bool gen_saved_preg_i32(DisasContext *ctx, TCGv_i32 ret, int index)
 static void gen_preg_i32(DisasContext *ctx, TCGv_i32 ret, int index)
 {
     if (!gen_saved_preg_i32(ctx, ret, index)) {
-        gen_preg_raw_i32(ret, index);
+        gen_preg_raw_i32(ctx, ret, index);
     }
 }
 
-static void gen_preg_set_i32(int index, TCGv_i32 val)
+static void gen_preg_set_i32(DisasContext *ctx, int preg, TCGv_i32 val)
 {
     TCGv_i64 t0 = tcg_temp_new_i64();
-    TCGv_i64 t1 = tcg_temp_new_i64();
-    TCGv_i64 t2 = tcg_temp_new_i64();
-    TCGv_i64 t3 = tcg_temp_new_i64();
-    TCGv_i64 t4 = tcg_temp_new_i64();
 
-    gen_preg_offset(t0, index);
-    tcg_gen_rotr_i64(t1, cpu_pregs, t0);
-    tcg_gen_andi_i64(t2, t1, ~3);
-    tcg_gen_extu_i32_i64(t3, val);
-    tcg_gen_or_i64(t4, t2, t3);
-    tcg_gen_rotl_i64(cpu_pregs, t4, t0);
+    tcg_gen_extu_i32_i64(t0, val);
+
+    if (ctx->p_size > 1 && preg < ctx->p_size) {
+        TCGv_i64 offset = tcg_temp_new_i64();
+
+        gen_preg_offset(ctx, offset, preg);
+        tcg_gen_rotr_i64(cpu_pregs, cpu_pregs, offset);
+        tcg_gen_deposit_i64(cpu_pregs, cpu_pregs, t0, 0, 2);
+        tcg_gen_rotl_i64(cpu_pregs, cpu_pregs, offset);
+    } else {
+        tcg_gen_deposit_i64(cpu_pregs, cpu_pregs, t0, preg * 2, 2);
+    }
 }
 
 static void gen_reg_ptr(TCGv_ptr ret, TCGv_i32 idx)
@@ -1283,11 +1272,13 @@ static void gen_breg_index(DisasContext *ctx, TCGv_i32 ret, int reg)
 {
     TCGv_i32 t0 = tcg_temp_new_i32();
     TCGv_i32 t1 = tcg_temp_new_i32();
+    TCGv_i32 b_size = tcg_constant_i32(ctx->b_size);
 
     tcg_gen_addi_i32(t0, cpu_bcur, reg);
-    tcg_gen_sub_i32(t1, t0, cpu_bsize);
-    tcg_gen_movcond_i32(TCG_COND_LT, t0, t0, cpu_bsize, t0, t1);
-    tcg_gen_add_i32(ret, t0, cpu_boff);
+    tcg_gen_sub_i32(t1, t0, b_size);
+    tcg_gen_movcond_i32(TCG_COND_LT, t0, t0, b_size, t0, t1);
+    tcg_gen_discard_i32(t1);
+    tcg_gen_addi_i32(ret, t0, ctx->b_base);
 }
 
 static Tagged gen_reg(DisasContext *ctx, TaggedKind kind, uint8_t reg)
@@ -1870,7 +1861,7 @@ static void gen_save_preg(DisasContext *ctx, int index)
 
     r->index = index;
     r->val = tcg_temp_new_i32();
-    gen_preg_raw_i32(r->val, r->index);
+    gen_preg_raw_i32(ctx, r->val, r->index);
 }
 
 static void gen_get_lp(TCGv_i32 ret, uint16_t clp, int offset, TCGv_i32 lp[7])
@@ -2019,7 +2010,7 @@ static void gen_plu(DisasContext *ctx)
             case 1: /* landp */
                 tcg_gen_and_i32(lp[4 + i], p0, p1);
                 if (vdst) {
-                    gen_preg_set_i32(pdst, lp[4 + i]);
+                    gen_preg_set_i32(ctx, pdst, lp[4 + i]);
                 }
                 break;
             case 3: { /* movep */
@@ -2033,7 +2024,7 @@ static void gen_plu(DisasContext *ctx)
 
                     gen_preg_i32(ctx, t1, pdst);
                     tcg_gen_movcond_i32(TCG_COND_NE, t2, p0, t0, p1, t1);
-                    gen_preg_set_i32(pdst, t2);
+                    gen_preg_set_i32(ctx, pdst, t2);
                 }
                 break;
             }
@@ -2409,7 +2400,7 @@ static void gen_al_result_s(Alop *alop, Tagged_i32 arg)
 
 static void gen_al_result_b(Alop *alop, Tagged_i32 arg)
 {
-    gen_preg_set_i32(alop->als.dst_preg, arg.val);
+    gen_preg_set_i32(alop->ctx, alop->als.dst_preg, arg.val);
 }
 
 static inline bool check_qr(uint8_t src, int chan)
