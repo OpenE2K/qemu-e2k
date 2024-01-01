@@ -82,18 +82,6 @@
 #define gen_tag1s(r, a) gen_tag1_i32(r.tag, a.tag)
 #define gen_tag1(s, r, a) glue(gen_tag1, s)(r, a)
 
-#define gen_result_init_s(i, r)
-#define gen_result_init_d(i, r)
-#define gen_result_init_x(i, r)
-#define gen_result_init_q(i, r)
-#define gen_result_init(R, i, r) glue(gen_result_init_, R)(i, r)
-
-#define gen_result_init2_s(i, r)
-#define gen_result_init2_d(i, r)
-#define gen_result_init2_x(i, r)
-#define gen_result_init2_q(i, r)
-#define gen_result_init2(R, i, r) glue(gen_result_init2_, R)(i, r)
-
 #define gen_al_result(R, instr, r) glue(gen_al_result_, R)(instr, r)
 
 #define gen_extrl_i32 tcg_gen_mov_i32
@@ -2887,8 +2875,6 @@ static inline void gen_merge_i64(TCGv_i64 ret, TCGv_i64 src1, TCGv_i64 src2,
         tagged(S) b = gen_tagged_src2(S, alop); \
         TCGv_i32 t0 = tcg_temp_new_i32(); \
         \
-        gen_result_init(S, alop, r); \
-        \
         gen_mrgc_i32(alop->ctx, alop->chan, t0); \
         gen_merge_i32(r.tag, a.tag, b.tag, t0); \
         gen_tag1(S, r, r); \
@@ -2998,7 +2984,6 @@ IMPL_GEN_GETTAG(gen_gettags, s, tcg_gen_mov_i32)
         tagged(S1) s1 = gen_tagged_src1(S1, alop); \
         tagged(S2) s2 = gen_tagged_src2(S2, alop); \
         \
-        gen_result_init(R, alop, r); \
         mov(r.val, s1.val); \
         tcg_gen_brcondi_i32(TCG_COND_EQ, s2.val, 0, l0); \
         gen_tag2(R, r, s1, s2); \
@@ -3948,8 +3933,6 @@ static void gen_ld_raw_i128(Alop *alop, TCGv_i32 tag, TCGv addr,
     TCGv_i64 t0 = tcg_temp_new_i64();
     TCGv_i64 t1 = tcg_temp_new_i64();
 
-    gen_result_init_q(alop, r);
-
     if (alop->als.sm) {
         TCGLabel *l1 = gen_new_label();
         TCGv_i32 t3 = tcg_temp_new_i32();
@@ -4571,7 +4554,6 @@ static void gen_staa_i32(Alop *alop, MemOp memop)
         tagged(S2) s2 = gen_tagged_src2(S2, alop); \
         tagged(R) r = tagged_temp_new(R); \
         \
-        gen_result_init(R, alop, r); \
         gen_tag2(R, r, s1, s2); \
         { code; } \
         gen_al_result(R, alop, r); \
@@ -4583,7 +4565,6 @@ static void gen_staa_i32(Alop *alop, MemOp memop)
         tagged(S2) s2 = gen_tagged_src2(S2, alop); \
         tagged(R) r = tagged_temp_new(R); \
         \
-        gen_result_init(R, alop, r); \
         gen_tag1(R, r, s2); \
         { code; } \
         gen_al_result(R, alop, r); \
@@ -4598,7 +4579,6 @@ static void gen_staa_i32(Alop *alop, MemOp memop)
         Tagged_i32 p = tagged_temp_new_i32(); \
         temp(R) t0 = temp_new(R); \
         \
-        gen_result_init(R, alop, r); \
         gen_tag2(R, r, s1, s2); \
         { code; } \
         tcg_gen_mov_i32(p.tag, r.tag); \
@@ -4615,7 +4595,6 @@ static void gen_staa_i32(Alop *alop, MemOp memop)
         tagged(S3) s3 = gen_tagged_src3(S3, alop); \
         tagged(R) r = tagged_temp_new(R); \
         \
-        gen_result_init(R, alop, r); \
         gen_tag3(R, r, s1, s2, s3); \
         { code; } \
         gen_al_result(R, alop, r); \
@@ -4762,7 +4741,6 @@ static void gen_alopf8(Alop *alop, uint32_t mask)
     Tagged_i32 s2 = gen_tagged_src2_s(alop);
     Tagged_i32 r = tagged_temp_new_i32();
 
-    gen_result_init_s(alop, r);
     gen_tag1s(r, s2);
     tcg_gen_andi_i32(r.val, s2.val, mask);
     tcg_gen_setcondi_i32(TCG_COND_NE, r.val, r.val, 0);
@@ -4838,7 +4816,6 @@ static void gen_getfs(Alop *alop)
     tagged(s) s2 = gen_tagged_src2(s, alop);
     tagged(s) r = tagged_temp_new(s);
 
-    gen_result_init(s, alop, r);
     gen_tag2(s, r, s1, s2);
 
     if (IS_LIT(alop->als.src2)) {
@@ -4877,7 +4854,6 @@ static void gen_getfd(Alop *alop)
     tagged(d) s2 = gen_tagged_src2(d, alop);
     tagged(d) r = tagged_temp_new(d);
 
-    gen_result_init(d, alop, r);
     gen_tag2(d, r, s1, s2);
 
     if (IS_LIT(alop->als.src2)) {
@@ -6111,8 +6087,6 @@ static inline int comb_opc2(Alop *alop, int m1, int m2)
         \
         gen_tag2(S, r0, s1, s2); \
         gen_tag2(S, r1, s3, r0); \
-        gen_result_init2(S, alop, r0); \
-        gen_result_init(S, alop, r1); \
         OP(alop, opc1, r0.val, s1.val, s2.val); \
         OP(alop, opc2, r1.val, s3.val, r0.val); \
         gen_al_result(S, alop, r1); \
