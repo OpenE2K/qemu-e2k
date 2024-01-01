@@ -4844,6 +4844,51 @@ IMPL_ALOPF21_ENV(gen_alopf21_env_qqqq, q, q, q, q)
 IMPL_ALOPF21_LOG(gen_alopf21_log_dddd, d, d, d, d)
 IMPL_ALOPF21_LOG(gen_alopf21_log_qqqq, q, q, q, q)
 
+static void gen_sxt(Alop *alop)
+{
+    tagged(s) s1 = gen_tagged_src1(s, alop);
+    tagged(s) s2 = gen_tagged_src2(s, alop);
+    tagged(d) r = tagged_temp_new(d);
+
+    gen_tag2(d, r, s1, s2);
+
+    if (IS_IMM5(alop->als.src1)) {
+        uint8_t s1 = GET_IMM5(alop->als.src1);
+
+        if (s1 & 4) {
+            tcg_gen_extu_i32_i64(r.val, s2.val);
+
+            switch (s1 & 3) {
+            case 0:
+                tcg_gen_ext8u_i64(r.val, r.val);
+                break;
+            case 1:
+                tcg_gen_ext16u_i64(r.val, r.val);
+                break;
+            default:
+                break;
+            }
+        } else {
+            tcg_gen_ext_i32_i64(r.val, s2.val);
+
+            switch (s1 & 3) {
+            case 0:
+                tcg_gen_ext8s_i64(r.val, r.val);
+                break;
+            case 1:
+                tcg_gen_ext16s_i64(r.val, r.val);
+                break;
+            default:
+                break;
+            }
+        }
+    } else {
+        gen_helper_sxt(r.val, s1.val, s2.val);
+    }
+
+    gen_al_result(d, alop, r);
+}
+
 static void alop_table_find(DisasContext *ctx, Alop *alop, AlesFlag ales_present)
 {
     /* ALES2/5 may be allocated but must not be used */
@@ -4927,7 +4972,7 @@ static void gen_alop_simple(Alop *alop)
     case OP_XORD: gen_alopf1_ddd(alop, tcg_gen_xor_i64); break;
     case OP_XORNS: gen_alopf1_sss(alop, gen_xorn_i32); break;
     case OP_XORND: gen_alopf1_ddd(alop, gen_xorn_i64); break;
-    case OP_SXT: gen_alopf1_ssd(alop, gen_helper_sxt); break;
+    case OP_SXT: gen_sxt(alop); break;
     case OP_ADDS: gen_alopf1_sss(alop, tcg_gen_add_i32); break;
     case OP_ADDD: gen_alopf1_ddd(alop, tcg_gen_add_i64); break;
     case OP_SUBS: gen_alopf1_sss(alop, tcg_gen_sub_i32); break;
