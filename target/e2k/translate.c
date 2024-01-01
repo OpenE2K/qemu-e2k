@@ -97,8 +97,6 @@ static TCGv cpu_pc;
 static TCGv cpu_npc;
 static TCGv_i64 cpu_ctprs[3];
 static TCGv_i32 cpu_ct_cond;
-static TCGv_i32 cpu_wd_base; /* holds wbs * 2 */
-static TCGv_i32 cpu_wd_size; /* holds wsz * 2 */
 static TCGv_i32 cpu_boff; /* holds rbs * 2 */
 static TCGv_i32 cpu_bsize; /* holds rsz * 2 + 2 */
 static TCGv_i32 cpu_bcur; /* holds rcur * 2 */
@@ -505,7 +503,6 @@ typedef struct DisasContext {
     /* optional, can be NULL */
     TCGv_i32 mlock;
     TCGv_i32 loop_end;
-    TCGv_i32 delayed_illop;
 
     int version;
     bool enable_tags;
@@ -2288,19 +2285,13 @@ static void gen_reg_set_s(DisasContext *ctx, bool is_use_dbl,
     }
 }
 
-static void gen_delayed_tag_check(DisasContext *ctx, TCGv_i32 tag)
-{
-    TCGv_i32 t0 = tcg_temp_new_i32();
-
-    assert(ctx->delayed_illop);
-    tcg_gen_setcondi_i32(TCG_COND_NE, t0, tag, 0);
-    tcg_gen_or_i32(ctx->delayed_illop, ctx->delayed_illop, t0);
-}
-
-static inline void gen_delayed_alop_tag_check(Alop *alop, TCGv_i32 tag)
+static inline void gen_alop_tag_check(Alop *alop, TCGv_i32 tag)
 {
     if (alop->ctx->enable_tags && !alop->als.sm && is_alop_check_tag(alop)) {
-        gen_delayed_tag_check(alop->ctx, tag);
+        TCGLabel *tag_ok = gen_new_label();
+        tcg_gen_brcondi_i32(TCG_COND_EQ, tag, 0, tag_ok);
+        gen_excp_illopc();
+        gen_set_label(tag_ok);
     }
 }
 
@@ -2308,7 +2299,7 @@ static void gen_al_result_q(Alop *alop, Tagged_i128 arg)
 {
     uint8_t dst = alop->als.dst;
 
-    gen_delayed_alop_tag_check(alop, arg.tag);
+    gen_alop_tag_check(alop, arg.tag);
 
     if (dst == 0xdf) {
         /* %empty */
@@ -2323,7 +2314,7 @@ static void gen_al_result_x(Alop *alop, Tagged_i128 arg)
 {
     uint8_t dst = alop->als.dst;
 
-    gen_delayed_alop_tag_check(alop, arg.tag);
+    gen_alop_tag_check(alop, arg.tag);
 
     if (dst == 0xdf) {
         /* %empty */
@@ -2338,7 +2329,7 @@ static void gen_al_result_d(Alop *alop, Tagged_i64 arg)
 {
     uint8_t dst = alop->als.dst;
 
-    gen_delayed_alop_tag_check(alop, arg.tag);
+    gen_alop_tag_check(alop, arg.tag);
 
     if (dst == 0xdf) {
         /* %empty */
@@ -2366,7 +2357,7 @@ static void gen_al_result_s(Alop *alop, Tagged_i32 arg)
 {
     uint8_t dst = alop->als.dst;
 
-    gen_delayed_alop_tag_check(alop, arg.tag);
+    gen_alop_tag_check(alop, arg.tag);
 
     if (dst == 0xdf) {
         /* %empty */
@@ -3127,7 +3118,7 @@ static void gen_rws(Alop *alop)
     Tagged_i32 s2 = gen_tagged_src2_s(alop);
     TCGv_i64 t0 = tcg_temp_new_i64();
 
-    gen_delayed_alop_tag_check(alop, s2.tag);
+    gen_alop_tag_check(alop, s2.tag);
     tcg_gen_extu_i32_i64(t0, s2.val);
     gen_state_reg_write(alop, t0);
 }
@@ -3135,7 +3126,7 @@ static void gen_rws(Alop *alop)
 static void gen_rwd(Alop *alop)
 {
     Tagged_i64 s2 = gen_tagged_src2_d(alop);
-    gen_delayed_alop_tag_check(alop, s2.tag);
+    gen_alop_tag_check(alop, s2.tag);
     gen_state_reg_write(alop, s2.val);
 }
 
@@ -6495,18 +6486,6 @@ static void gen_alc(DisasContext *ctx)
 {
     int i;
 
-    if (ctx->enable_tags) {
-        for (i = 0; i < 6; i++) {
-            Alop *alop = &ctx->alops[i];
-
-            if (!alop->als.sm && is_alop_check_tag(alop)) {
-                ctx->delayed_illop = tcg_temp_new_i32();
-                tcg_gen_movi_i32(ctx->delayed_illop, 0);
-                break;
-            }
-        }
-    }
-
     for (i = 0; i < 6; i++) {
         gen_alop(&ctx->alops[i]);
     }
@@ -7293,16 +7272,6 @@ static void do_branch(DisasContext *ctx, target_ulong pc_next)
     // TODO: e2k abg
     // TODO: e2k vfdi
 
-    /* FIXME: save PC only when necessary.  */
-    gen_save_pc(ctx->base.pc_next);
-
-    if (ctx->enable_tags && ctx->delayed_illop) {
-        TCGLabel *l0 = gen_new_label();
-        tcg_gen_brcondi_i32(TCG_COND_EQ, ctx->delayed_illop, 0, l0);
-        gen_excp_illopc();
-        gen_set_label(l0);
-    }
-
     if (ctx->ct.type != CT_NONE && ctx->ct.cond_type > 1) {
         branch_taken = gen_new_label();
         tcg_gen_brcondi_i32(TCG_COND_NE, cpu_ct_cond, 0, branch_taken);
@@ -7430,7 +7399,6 @@ static void e2k_tr_insn_start(DisasContextBase *db, CPUState *cs)
     ctx->cs0.type = CS0_NONE;
     ctx->cs1.type = CS1_NONE;
     ctx->mlock = NULL;
-    ctx->delayed_illop = NULL;
     ctx->saved_reg_len = 0;
     ctx->saved_preg_len = 0;
 }
@@ -7557,8 +7525,6 @@ void e2k_tcg_initialize(void) {
     char buf[16] = { 0 };
 
     static const struct { TCGv_i32 *ptr; int off; const char *name; } r32[] = {
-        { &cpu_wd_base, offsetof(CPUE2KState, wd.base), "woff" },
-        { &cpu_wd_size, offsetof(CPUE2KState, wd.size), "wsize" },
         { &cpu_boff, offsetof(CPUE2KState, bn.base), "boff" },
         { &cpu_bsize, offsetof(CPUE2KState, bn.size), "bsize" },
         { &cpu_bcur, offsetof(CPUE2KState, bn.cur), "bcur" },
