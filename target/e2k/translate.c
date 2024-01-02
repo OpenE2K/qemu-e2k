@@ -94,7 +94,6 @@ typedef enum {
 } AlesFlag;
 
 static TCGv cpu_pc;
-static TCGv cpu_npc;
 static TCGv_i64 cpu_ctprs[3];
 static TCGv_i32 cpu_ct_cond;
 static TCGv_i32 cpu_boff; /* holds rbs * 2 */
@@ -7550,7 +7549,6 @@ void e2k_tcg_initialize(void) {
 
     static const struct { TCGv *ptr; int off; const char *name; } rtl[] = {
         { &cpu_pc, offsetof(CPUE2KState, ip), "pc" },
-        { &cpu_npc, offsetof(CPUE2KState, nip), "npc" },
     };
 
     unsigned int i;
