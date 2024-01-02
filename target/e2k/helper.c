@@ -3,6 +3,8 @@
 #include "qemu/host-utils.h"
 #include "exec/helper-proto.h"
 
+#define FRAME_SIZE(NREGS) ((NREGS) * 16)
+
 static inline void reset_ctprs(CPUE2KState *env)
 {
     unsigned int i;
@@ -12,87 +14,97 @@ static inline void reset_ctprs(CPUE2KState *env)
     }
 }
 
-static inline void ps_push(CPUE2KState *env, uint64_t value, uint8_t tag)
+static inline void ps_write(CPUE2KState *env, uint64_t value, uint8_t tag, int32_t index)
 {
-#ifndef CONFIG_USER_ONLY
-    if ((env->psp.index + 8) > env->psp.size) {
-        raise_exception(env, E2K_EXCP_PROC_STACK_BOUNDS);
-    }
-#endif
+    cpu_stq_le_data(env, env->psp.base + index, value);
 
-    cpu_stq_le_data(env, env->psp.base + env->psp.index, value);
     if (env->enable_tags) {
-        cpu_stb_data(env, env->psp.base_tag + env->psp.index / 8, tag);
+        cpu_stb_data(env, env->psp.base_tag + index / 8, tag);
     }
-    env->psp.index += 8;
 }
 
-static inline uint64_t ps_pop(CPUE2KState *env, uint8_t *ret_tag)
+static inline uint64_t ps_read(CPUE2KState *env, uint8_t *ret_tag, int32_t index)
 {
-    if (env->psp.index < 8) {
-        raise_exception(env, E2K_EXCP_PROC_STACK_BOUNDS);
-    }
-    env->psp.index -= 8;
     if (ret_tag != NULL) {
         if (env->enable_tags) {
-            abi_ptr ptr = env->psp.base_tag + env->psp.index / 8;
-            *ret_tag = cpu_ldub_data(env, ptr);
+            *ret_tag = cpu_ldub_data(env, env->psp.base_tag + index / 8);
         } else {
             *ret_tag = 0;
         }
     }
-    return cpu_ldq_le_data(env, env->psp.base + env->psp.index);
-}
 
+    return cpu_ldq_le_data(env, env->psp.base + index);
+}
 
 static void ps_spill(CPUE2KState *env, int n, bool fx)
 {
-    int i;
+    int32_t index = env->psp.index;
+
+    // XXX: psp.size is set to some random value and does not show real stack size
+#ifndef CONFIG_USER_ONLY
+    if (env->psp.index + FRAME_SIZE(n) > env->psp.size) {
+        raise_exception(env, E2K_EXCP_PROC_STACK_BOUNDS);
+    }
+#endif
 
     if (env->version >= 5) {
-        for (i = 0; i < n; i++) {
-            ps_push(env, env->regs[i].lo, env->tags[i]);
-            if (fx || E2K_FORCE_FX) {
-                ps_push(env, env->regs[i].hi, 0);
+        for (int i = 0; i < n; i++, index += 16) {
+            ps_write(env, env->regs[i].lo, env->tags[i], index);
+
+            if (fx) {
+                ps_write(env, env->regs[i].hi, 0, index + 8);
             }
         }
     } else{
-        for (i = 0; i < n; i += 2) {
+        for (int i = 0; i < n; i += 2, index += 32) {
             E2KReg r0 = env->regs[i + 0];
             E2KReg r1 = env->regs[i + 1];
-            ps_push(env, r0.lo, env->tags[i]);
-            ps_push(env, r1.lo, env->tags[i + 1]);
-            if (fx || E2K_FORCE_FX) {
-                ps_push(env, r0.hi, 0);
-                ps_push(env, r1.hi, 0);
+
+            ps_write(env, r0.lo, env->tags[i], index);
+            ps_write(env, r1.lo, env->tags[i + 1], index + 8);
+
+            if (fx) {
+                ps_write(env, r0.hi, 0, index + 16);
+                ps_write(env, r1.hi, 0, index + 24);
             }
         }
     }
+
+    env->psp.index = index;
 }
 
 static void ps_fill(CPUE2KState *env, int n, bool fx)
 {
-    int i;
+    int32_t index = env->psp.index, frame_size = FRAME_SIZE(n);
+
+    if (index < frame_size) {
+        raise_exception(env, E2K_EXCP_PROC_STACK_BOUNDS);
+    }
 
     if (env->version >= 5) {
-        for (i = n; i-- > 0;) {
-            if (fx || E2K_FORCE_FX) {
-                env->regs[i].hi = ps_pop(env, NULL);
+        for (int i = n; i-- > 0; index -= 16) {
+            if (fx) {
+                env->regs[i].hi = ps_read(env, NULL, index - 8);
             }
-            env->regs[i].lo = ps_pop(env, &env->tags[i]);
+
+            env->regs[i].lo = ps_read(env, &env->tags[i], index - 16);
         }
     } else {
-        for (i = n; i > 0; i -= 2) {
+        for (int i = n; i > 0; i -= 2, index -= 32) {
             E2KReg *r0 = &env->regs[i - 1];
             E2KReg *r1 = &env->regs[i - 2];
-            if (fx || E2K_FORCE_FX) {
-                r0->hi = ps_pop(env, NULL);
-                r1->hi = ps_pop(env, NULL);
+
+            if (fx) {
+                r0->hi = ps_read(env, NULL, index - 8);
+                r1->hi = ps_read(env, NULL, index - 16);
             }
-            r0->lo = ps_pop(env, &env->tags[i - 1]);
-            r1->lo = ps_pop(env, &env->tags[i - 2]);
+
+            r0->lo = ps_read(env, &env->tags[i - 1], index - 24);
+            r1->lo = ps_read(env, &env->tags[i - 2], index - 32);
         }
     }
+
+    env->psp.index = index;
 }
 
 static void move_regs(CPUE2KState *env, int dst, int src, int n)
