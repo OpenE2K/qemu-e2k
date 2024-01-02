@@ -6777,6 +6777,10 @@ static inline void gen_cs1(DisasContext *ctx)
     case CS1_SETR:
         break;
     case CS1_CALL:
+        if (ctx->w_size < cs1->call_wbs * 2) {
+            gen_tr_excp_window_bounds(ctx);
+        }
+
         ctx->ct.type = CT_CALL;
         ctx->ct.wbs = cs1->call_wbs;
         break;
