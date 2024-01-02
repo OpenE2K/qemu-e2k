@@ -88,18 +88,23 @@ void cpu_loop(CPUE2KState *env)
                     args[i] = env->regs[i].lo;
                 }
 
-                ret = do_syscall(env, args[0], args[1], args[2], args[3],
-                    args[4], args[5], args[6], args[7], args[8]);
+                if ((env->tags[0] & E2K_TAG_MASK_32) == E2K_TAG_NUMBER32) {
+                    ret = do_syscall(env, (uint32_t) args[0], args[1], args[2], args[3],
+                        args[4], args[5], args[6], args[7], args[8]);
+                } else {
+                    ret = TARGET_ENOSYS;
+                }
 
                 if (ret == -QEMU_ERESTARTSYS) {
                     /* do not set sysret address and syscall will be restarted */
                 } else if (ret != -QEMU_ESIGRETURN && env->wd.psize > 0) {
-                    memset(env->tags, E2K_TAG_NON_NUMBER64,
-                        psize * sizeof(env->tags[0]));
-
+                    env->ip = E2K_SYSRET_ADDR;
                     env->regs[0].lo = ret;
                     env->tags[0] = E2K_TAG_NUMBER64;
-                    env->ip = E2K_SYSRET_ADDR;
+
+                    for (i = 1; i < E2K_SYSCALL_MAX_ARGS; i++) {
+                        env->tags[i] = E2K_TAG_NON_NUMBER64;
+                    }
                 }
             } else {
                 env->ip = E2K_SYSRET_ADDR;
