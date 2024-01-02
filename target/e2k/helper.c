@@ -323,22 +323,8 @@ void HELPER(raise_exception)(CPUE2KState *env, int exception_index)
 
 void HELPER(setwd)(CPUE2KState *env, int size, int nfx, int dbl)
 {
-    int diff;
-
-    diff = size - env->wd.size;
-
     if (size < env->wd.psize) {
         raise_exception(env, E2K_EXCP_ILLEGAL_OPCODE);
-    }
-
-    if (diff > 0) {
-// FIXME: zeroing registers is not needed, but useful for debugging
-#if 0
-        memset(&env->regs[env->wd.size], 0, diff * sizeof(env->regs[0]));
-#endif
-        if (env->enable_tags) {
-            memset(&env->tags[env->wd.size], E2K_TAG_NON_NUMBER128, diff);
-        }
     }
 
     env->wd.size = size;
