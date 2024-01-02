@@ -2333,14 +2333,7 @@ static void gen_al_result_d(Alop *alop, Tagged_i64 arg)
     if (dst == 0xdf) {
         /* %empty */
     } else if (IS_REG(dst)) {
-        if (alop->format == ALOPF16 && alop->op == OP_RRS) {
-            TCGv_i32 t0 = tcg_temp_new_i32();
-
-            tcg_gen_extrl_i64_i32(t0, arg.val);
-            gen_reg_set_s(alop->ctx, true, dst, arg.tag, t0);
-        } else {
-            gen_reg_set_d(alop->ctx, dst, arg.tag, arg.val);
-        }
+        gen_reg_set_d(alop->ctx, dst, arg.tag, arg.val);
     } else if (IS_CTPR(dst)) {
         TCGv_i64 ctpr = cpu_ctprs[GET_CTPR(dst) - 1];
         TCGv_i64 t0 = tcg_constant_i64(CTPR_TAG_DISP);
@@ -3103,6 +3096,19 @@ static void gen_rrd(Alop *alop)
     gen_helper_state_reg_get(r.val, cpu_env, t0);
     tcg_gen_movi_i32(r.tag, 0);
     gen_al_result_d(alop, r);
+}
+
+static void gen_rrs(Alop *alop)
+{
+    Tagged_i32 r = tagged_temp_new_i32();
+    TCGv_i32 t0 = tcg_constant_i32(alop->als.src1);
+    TCGv_i64 t1 = tcg_temp_new_i64();
+
+    gen_save_cpu_state(alop->ctx);
+    gen_helper_state_reg_get(t1, cpu_env, t0);
+    tcg_gen_movi_i32(r.tag, 0);
+    tcg_gen_extrl_i64_i32(r.val, t1);
+    gen_al_result_s(alop, r);
 }
 
 static inline void gen_state_reg_write(Alop *alop, TCGv_i64 value)
@@ -5393,7 +5399,7 @@ static void gen_alop_simple(Alop *alop)
     case OP_SMULX: gen_alopf1_ssd(alop, gen_smulx); break;
     case OP_RWS: gen_rws(alop); break;
     case OP_RWD: gen_rwd(alop); break;
-    case OP_RRS: gen_rrd(alop); break;
+    case OP_RRS: gen_rrs(alop); break;
     case OP_RRD: gen_rrd(alop); break;
     case OP_FDIVS: gen_alopf1_env_sss(alop, gen_helper_fdivs); break;
     case OP_FDIVD: gen_alopf1_env_ddd(alop, gen_helper_fdivd); break;

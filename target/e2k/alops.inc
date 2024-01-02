@@ -1475,7 +1475,7 @@ static AlopDesc alops[] = {
     { X(OP_STODWW),       ALOPF13,           ARGS_QSS,  ALOP_EXT,   0x32, 1,  1, CHAN_25, { -1 }, 0xc0 },
     { X(OP_RWS),          ALOPF15,           ARGS_SR,   ALOP_EXT,   0x3c, 1, -1, CHAN_0, { -1 }, 0xc0 },
     { X(OP_RWD),          ALOPF15,           ARGS_DR,   ALOP_EXT,   0x3d, 1, -1, CHAN_0, { -1 }, 0xc0 },
-    { X(OP_RRS),          ALOPF16,           ARGS_D,    ALOP_EXT,   0x3e, 1, -1, CHAN_0, { -1 }, 0xc0 },
+    { X(OP_RRS),          ALOPF16,           ARGS_S,    ALOP_EXT,   0x3e, 1, -1, CHAN_0, { -1 }, 0xc0 },
     { X(OP_RRD),          ALOPF16,           ARGS_D,    ALOP_EXT,   0x3f, 1, -1, CHAN_0, { -1 }, 0xc0 },
     { X(OP_MOVTQ),        ALOPF22,           ARGS_QQ,   ALOP_EXT,   0x57, 1, -1, CHAN_0134, { -1 }, 0xc0, 0xc0 },
     { X(OP_MOVTCQ),       ALOPF22,           ARGS_QQ,   ALOP_EXT,   0x57, 1, -1, CHAN_0134, { -1 }, 0xc1, 0xc0 },
