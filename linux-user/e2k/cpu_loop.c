@@ -125,6 +125,8 @@ void cpu_loop(CPUE2KState *env)
             stack_expand(env, &env->psp);
             break;
         case EXCP_WINDOW_BOUNDS:
+            gen_signal(env, TARGET_SIGSEGV, TARGET_SEGV_BNDERR, env->ip);
+            break;
         case EXCP_ARRAY_BOUNDS:
         case EXCP_DATA_PAGE:
             gen_signal(env, TARGET_SIGSEGV, TARGET_SEGV_MAPERR, env->ip);
