@@ -2486,20 +2486,21 @@ static inline void gen_am_cond_i32(DisasContext *ctx, TCGv_i32 ret, int chan,
     tcg_gen_xori_i32(ret, t0, GET_BIT(rlp, 7 + chan % 3));
 }
 
-static inline void gen_mrgc_i32(DisasContext *ctx, int chan, TCGv_i32 ret)
+static inline void gen_mrgc_i32(Alop *alop, TCGv_i32 ret)
 {
-    uint16_t rlp = find_mrgc(ctx, chan);
+    uint16_t rlp = find_mrgc(alop->ctx, alop->chan);
 
     if (rlp) {
         int psrc = extract16(rlp, 0, 7);
 
-        if (GET_BIT(rlp, 7 + chan % 3)) {
-            TCGv_i32 t0 = tcg_temp_new_i32();
+        gen_cond_i32(alop->ctx, ret, psrc);
 
-            gen_cond_i32(ctx, t0, psrc);
-            tcg_gen_setcondi_i32(TCG_COND_EQ, ret, t0, 0);
-        } else {
-            gen_cond_i32(ctx, ret, psrc);
+        if (alop->ctx->enable_tags && !alop->als.sm) {
+            gen_preg_check_tag(alop->ctx, ret);
+        }
+
+        if (GET_BIT(rlp, 7 + alop->chan % 3)) {
+            tcg_gen_xori_i32(ret, ret, 1);
         }
     } else {
         /* Undefined behavior if MRGC is not provided but CPU returns src2. */
@@ -2870,10 +2871,24 @@ IMPL_GEN_CMPAND(gen_cmpandledb, d, TCG_COND_LE)
 
 #define glue4(a, b, c, d) glue(glue(a, b), glue(c, d))
 
-static inline void gen_merge_i32(TCGv_i32 ret, TCGv_i32 src1, TCGv_i32 src2,
-    TCGv_i32 cond)
+static inline void gen_merge_tag_i32(DisasContext *ctx, TCGv_i32 ret,
+        TCGv_i32 src1, TCGv_i32 src2, TCGv_i32 cond)
 {
     TCGv_i32 zero = tcg_constant_i32(0);
+
+    tcg_gen_movcond_i32(TCG_COND_EQ, ret, cond, zero, src1, src2);
+
+    if (ctx->enable_tags) {
+        tcg_gen_movcond_i32(TCG_COND_LT, ret, cond, tcg_constant_i32(2),
+                ret, tcg_constant_i32(E2K_TAG_NON_NUMBER128));
+    }
+}
+
+static inline void gen_merge_i32(TCGv_i32 ret, TCGv_i32 src1, TCGv_i32 src2,
+        TCGv_i32 cond)
+{
+    TCGv_i32 zero = tcg_constant_i32(0);
+
     tcg_gen_movcond_i32(TCG_COND_EQ, ret, cond, zero, src1, src2);
 }
 
@@ -2895,8 +2910,8 @@ static inline void gen_merge_i64(TCGv_i64 ret, TCGv_i64 src1, TCGv_i64 src2,
         tagged(S) b = gen_tagged_src2(S, alop); \
         TCGv_i32 t0 = tcg_temp_new_i32(); \
         \
-        gen_mrgc_i32(alop->ctx, alop->chan, t0); \
-        gen_merge_i32(r.tag, a.tag, b.tag, t0); \
+        gen_mrgc_i32(alop, t0); \
+        gen_merge_tag_i32(alop->ctx, r.tag, a.tag, b.tag, t0); \
         gen_tag1(S, r, r); \
         call(S, gen_merge, r.val, a.val, b.val, t0); \
         gen_al_result(S, alop, r); \
@@ -5885,7 +5900,7 @@ typedef enum {
         case ICOMB_RSUB: glue(tcg_gen_sub_, S)(ret, arg2, arg1); break; \
         case ICOMB_MERGE: { \
             TCGv_i32 t0 = tcg_temp_new_i32(); \
-            gen_mrgc_i32(alop->ctx, alop->chan, t0); \
+            gen_mrgc_i32(alop, t0); \
             glue(gen_merge_, S)(ret, arg1, arg2, t0); \
             break; \
         } \
