@@ -101,7 +101,7 @@ static TCGv_i32 cpu_bsize; /* holds rsz * 2 + 2 */
 static TCGv_i32 cpu_bcur; /* holds rcur * 2 */
 static TCGv_i64 cpu_pregs;
 static TCGv_i32 cpu_psize; /* holds psz */
-static TCGv_i32 cpu_pcur; /* holds pcur */
+static TCGv_i32 cpu_pcur; /* holds pcur * 2 */
 static TCGv_i64 cpu_last_val0;
 static TCGv_i64 cpu_last_val1;
 /* lsr */
@@ -1108,36 +1108,27 @@ static void gen_preg_offset(DisasContext *ctx, TCGv_i64 ret, int preg)
 {
     TCGv_i32 t0 = tcg_temp_new_i32();
     TCGv_i32 t1 = tcg_temp_new_i32();
-    TCGv_i32 p_size = tcg_constant_i32(ctx->p_size);
+    TCGv_i32 p_size = tcg_constant_i32(ctx->p_size * 2);
 
-    tcg_gen_addi_i32(t0, cpu_pcur, preg);
+    tcg_gen_addi_i32(t0, cpu_pcur, preg * 2);
     tcg_gen_sub_i32(t1, t0, p_size);
     tcg_gen_movcond_i32(TCG_COND_LEU, t0, p_size, t0, t1, t0);
     tcg_gen_discard_i32(t1);
-    tcg_gen_shli_i32(t0, t0, 1);
     tcg_gen_extu_i32_i64(ret, t0);
 }
 
-static void gen_preg_raw_i64(DisasContext *ctx, TCGv_i64 ret, int preg)
+static void gen_preg_raw_i32(DisasContext *ctx, TCGv_i32 ret, int preg)
 {
     TCGv_i64 t0 = tcg_temp_new_i64();
 
-    // TODO: read preg tag
     if (ctx->p_size > 1 && preg < ctx->p_size) {
         gen_preg_offset(ctx, t0, preg);
         tcg_gen_shr_i64(t0, cpu_pregs, t0);
     } else {
         tcg_gen_shri_i64(t0, cpu_pregs, preg * 2);
     }
-    tcg_gen_andi_i64(ret, t0, 1);
-}
-
-static void gen_preg_raw_i32(DisasContext *ctx, TCGv_i32 ret, int reg)
-{
-    TCGv_i64 t0 = tcg_temp_new_i64();
-
-    gen_preg_raw_i64(ctx, t0, reg);
     tcg_gen_extrl_i64_i32(ret, t0);
+    tcg_gen_andi_i32(ret, ret, ctx->enable_tags ? 3 : 1);
 }
 
 static bool gen_saved_preg_i32(DisasContext *ctx, TCGv_i32 ret, int index)
@@ -1176,6 +1167,18 @@ static void gen_preg_set_i32(DisasContext *ctx, int preg, TCGv_i32 val)
         tcg_gen_rotl_i64(cpu_pregs, cpu_pregs, offset);
     } else {
         tcg_gen_deposit_i64(cpu_pregs, cpu_pregs, t0, preg * 2, 2);
+    }
+}
+
+static void gen_preg_check_tag(DisasContext *ctx, TCGv_i32 val) {
+    if (ctx->enable_tags) {
+        TCGv_i32 t0 = tcg_temp_new_i32();
+        TCGLabel *l0 = gen_new_label();
+
+        tcg_gen_andi_i32(t0, val, 2);
+        tcg_gen_brcondi_i32(TCG_COND_EQ, t0, 0, l0);
+        gen_excp_illopc();
+        gen_set_label(l0);
     }
 }
 
@@ -1992,9 +1995,28 @@ static void gen_plu(DisasContext *ctx)
 
             switch (opc) {
             case 0: /* andp */
-                // FIXME: what is the difference between `andp` and `landp`?
             case 1: /* landp */
-                tcg_gen_and_i32(lp[4 + i], p0, p1);
+                if (ctx->enable_tags) {
+                    TCGv_i32 t0 = tcg_temp_new_i32();
+                    uint32_t tbl;
+
+                    tcg_gen_shli_i32(t0, p0, 2);
+                    tcg_gen_or_i32(t0, t0, p1);
+                    tcg_gen_shli_i32(t0, t0, 1);
+                    //              a=11     a=10     a=01     a=00
+                    //  andp: 0b10101010_10101010_10100100_10100000
+                    // landp: 0b10101010_10101010_10100100_00000000
+                    if (opc == 0) {
+                        tbl = 0xaaaaa4a0;
+                    } else {
+                        tbl = 0xaaaaa400;
+                    }
+                    tcg_gen_shr_i32(t0, tcg_constant_i32(tbl), t0);
+                    tcg_gen_andi_i32(lp[4 + i], t0, 3);
+                } else {
+                    tcg_gen_and_i32(lp[4 + i], p0, p1);
+                }
+
                 if (vdst) {
                     gen_preg_set_i32(ctx, pdst, lp[4 + i]);
                 }
@@ -2371,9 +2393,13 @@ static void gen_al_result_s(Alop *alop, Tagged_i32 arg)
     }
 }
 
-static void gen_al_result_b(Alop *alop, Tagged_i32 arg)
+static void gen_al_result_b(Alop *alop, Tagged_i32 v)
 {
-    gen_preg_set_i32(alop->ctx, alop->als.dst_preg, arg.val);
+    if (alop->ctx->enable_tags) {
+        tcg_gen_movcond_i32(TCG_COND_EQ, v.val, v.tag, tcg_constant_i32(0),
+                v.val, tcg_constant_i32(2));
+    }
+    gen_preg_set_i32(alop->ctx, alop->als.dst_preg, v.val);
 }
 
 static inline bool check_qr(uint8_t src, int chan)
@@ -6128,18 +6154,13 @@ static inline bool rlp_is_chan_pred(uint16_t rlp, int chan)
     return !extract16(rlp, 15, 1) && rlp_check_chan(rlp, chan);
 }
 
-static void gen_alop_pred(Alop *alop, TCGLabel *l)
+static TCGLabel *gen_alop_pred(Alop *alop)
 {
     DisasContext *ctx = alop->ctx;
-    bool has_pcnt = false;
-    bool has_preg = false;
-    TCGv_i32 t0 = tcg_temp_new_i32();
-    TCGv_i32 t1 = tcg_temp_new_i32();
-    TCGv_i32 t2 = tcg_temp_new_i32();
+    TCGv_i32 pcnt = NULL, preg = NULL, t2 = NULL;
+    TCGLabel *l0 = NULL;
+    bool has_pcnt = false, has_preg = false;
     int i, j, chan = alop->chan;
-
-    tcg_gen_movi_i32(t0, 0);
-    tcg_gen_movi_i32(t1, 0);
 
     for (i = 0; i < 3; i++) {
         uint16_t *cds = (uint16_t *) &ctx->bundle.cds[i];
@@ -6158,6 +6179,10 @@ static void gen_alop_pred(Alop *alop, TCGLabel *l)
                 continue;
             }
 
+            if (!t2) {
+                t2 = tcg_temp_new_i32();
+            }
+
             switch(kind) {
             case 0x2: /* %pcntN */
                 has_pcnt = true;
@@ -6165,7 +6190,11 @@ static void gen_alop_pred(Alop *alop, TCGLabel *l)
                 if (invert) {
                     tcg_gen_xori_i32(t2, t2, 1);
                 }
-                tcg_gen_or_i32(t0, t0, t2);
+                if (!pcnt) {
+                    pcnt = tcg_temp_new_i32();
+                    tcg_gen_movi_i32(pcnt, 0);
+                }
+                tcg_gen_or_i32(pcnt, pcnt, t2);
                 break;
             case 0x3: /* %predN */
                 has_preg = true;
@@ -6173,7 +6202,11 @@ static void gen_alop_pred(Alop *alop, TCGLabel *l)
                 if (invert) {
                     tcg_gen_xori_i32(t2, t2, 1);
                 }
-                tcg_gen_or_i32(t1, t1, t2);
+                if (!preg) {
+                    preg = tcg_temp_new_i32();
+                    tcg_gen_movi_i32(preg, 0);
+                }
+                tcg_gen_or_i32(preg, preg, t2);
                 break;
             default:
                 if (ctx->strict) {
@@ -6185,18 +6218,32 @@ static void gen_alop_pred(Alop *alop, TCGLabel *l)
     }
 
     if (has_preg || has_pcnt) {
-        TCGv_i32 cond = tcg_temp_new_i32();
+        TCGv_i32 cond = has_pcnt ? pcnt : preg;
+
+        l0 = gen_new_label();
 
         if (has_preg && has_pcnt) {
-            tcg_gen_and_i32(cond, t0, t1);
-        } else if (has_preg) {
-            tcg_gen_mov_i32(cond, t1);
-        } else {
-            tcg_gen_mov_i32(cond, t0);
+            if (ctx->enable_tags) {
+                TCGv_i32 t0 = tcg_temp_new_i32();
+                TCGv_i32 t1 = tcg_temp_new_i32();
+
+                // invalid preg must be ignored in prologue
+                tcg_gen_shri_i32(t0, preg, 1);
+                tcg_gen_xori_i32(t1, pcnt, 1);
+                tcg_gen_and_i32(t0, t0, t1);
+                tcg_gen_brcondi_i32(TCG_COND_NE, t0, 0, l0);
+            }
+            tcg_gen_and_i32(cond, pcnt, preg);
         }
 
-        tcg_gen_brcondi_i32(TCG_COND_EQ, cond, 0, l);
+        if (has_preg && !alop->als.sm) {
+            gen_preg_check_tag(ctx, preg);
+        }
+
+        tcg_gen_brcondi_i32(TCG_COND_EQ, cond, 0, l0);
     }
+
+    return l0;
 }
 
 static void decode_alop(Alop *alop, AlesFlag ales_present)
@@ -6447,7 +6494,6 @@ static void gen_alop(Alop *alop)
     }
 
     gen_alop_save_dst(alop);
-    l0 = gen_new_label();
     l1 = gen_new_label();
 
     if (ctx->loop_mode && is_alop_store(alop)) {
@@ -6458,7 +6504,7 @@ static void gen_alop(Alop *alop)
         gen_dec_lsr_strmd(ctx->loop_end);
     }
 
-    gen_alop_pred(alop, l0);
+    l0 = gen_alop_pred(alop);
 
     switch (alop->format) {
     case ALOPF21_ICOMB:
@@ -6478,7 +6524,9 @@ static void gen_alop(Alop *alop)
         break;
     }
 
-    gen_set_label(l0);
+    if (l0) {
+        gen_set_label(l0);
+    }
 
     if (alop->format == ALOPF10 && (alop->als.aaopc & 1)
         && (alop->mas & 0x7) != 0x7)
@@ -7299,7 +7347,7 @@ static void do_branch(DisasContext *ctx, target_ulong pc_next)
         }
 
         if (abp & ABPF) {
-            gen_dec_wrapi_i32(cpu_pcur, cpu_pcur, 1, ctx->p_size);
+            gen_dec_wrapi_i32(cpu_pcur, cpu_pcur, 2, ctx->p_size * 2);
         }
 
         if (abn & ABNF) {
@@ -7319,7 +7367,7 @@ static void do_branch(DisasContext *ctx, target_ulong pc_next)
     }
 
     if (abp & ABPT) {
-        gen_dec_wrapi_i32(cpu_pcur, cpu_pcur, 1, ctx->p_size);
+        gen_dec_wrapi_i32(cpu_pcur, cpu_pcur, 2, ctx->p_size * 2);
     }
 
     if (abn & ABNT) {
