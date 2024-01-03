@@ -517,6 +517,8 @@ typedef struct DisasContext {
     bool w_fx;
     bool w_dbl;
 
+    uint64_t ctpr[4];
+
     SavedReg saved_reg[6];
     SavedPreg saved_preg[8];
     int saved_reg_len;
@@ -6693,9 +6695,10 @@ static void gen_aau(DisasContext *ctx)
     }
 }
 
-static inline void gen_set_ctpr(int index, uint64_t ctpr)
+static inline void gen_set_ctpr(DisasContext *ctx, int index, uint64_t ctpr)
 {
     assert(0 < index && index < 4);
+    ctx->ctpr[index] = ctpr;
     tcg_gen_movi_i64(cpu_ctprs[index - 1], ctpr);
 }
 
@@ -6812,7 +6815,7 @@ static inline void gen_cs0(DisasContext *ctx)
         break;
     case CS0_DISP: {
         uint64_t ctpr = ctpr_new_disp(ctx, &cs0->disp);
-        gen_set_ctpr(cs0->disp.ctpr, ctpr);
+        gen_set_ctpr(ctx, cs0->disp.ctpr, ctpr);
         break;
     }
     case CS0_SDISP: {
@@ -6821,7 +6824,7 @@ static inline void gen_cs0(DisasContext *ctx)
         target_ulong target = E2K_FAKE_KERN_START;
         target = deposit64(target, 11, 17, cs0->sdisp.disp);
         uint64_t ctpr = ctpr_new(CTPR_TAG_SDISP, 0, cs0->sdisp.ipd, target);
-        gen_set_ctpr(cs0->sdisp.ctpr, ctpr);
+        gen_set_ctpr(ctx, cs0->sdisp.ctpr, ctpr);
 #else
         e2k_todo(ctx, "sdisp");
 #endif
@@ -7331,33 +7334,65 @@ static void do_branch(DisasContext *ctx, target_ulong pc_next)
     case CT_IBRANCH:
         gen_goto_tb(ctx, TB_EXIT_IDX0, ctx->ct.u.target);
         break;
-    case CT_JUMP: {
-        TCGLabel *l0 = gen_new_label();
-        TCGv_i64 t0 = tcg_temp_new_i64();
+    case CT_JUMP:
+        if (ctx->ctpr[ctx->ct.ctpr_index]) {
+            uint64_t ctpr = ctx->ctpr[ctx->ct.ctpr_index];
+            CtprTag tag = extract64(ctpr, CTPR_TAG_OFF, CTPR_TAG_LEN);
 
-        gen_ctpr_tag(t0, ctx->ct.u.ctpr);
-        tcg_gen_brcondi_i64(TCG_COND_EQ, t0, CTPR_TAG_DISP, l0);
-
-        if (ctx->ct.ctpr_index == 3) {
-            TCGLabel *l1 = gen_new_label();
-            tcg_gen_brcondi_i64(TCG_COND_EQ, t0, CTPR_TAG_RETURN, l1);
-            gen_excp_illopc();
-            gen_set_label(l1);
-            gen_helper_return(cpu_env);
+            switch (tag) {
+            case CTPR_TAG_DISP:
+                gen_goto_tb(ctx, TB_EXIT_IDX0, extract64(ctpr, CTPR_BASE_OFF, CTPR_BASE_LEN));
+                break;
+            case CTPR_TAG_RETURN:
+                gen_helper_return(cpu_env);
+                break;
+            default:
+                gen_excp_illopc();
+                break;
+            }
         } else {
-            gen_excp_illopc();
-        }
+            TCGLabel *l0 = gen_new_label();
+            TCGv_i64 t0 = tcg_temp_new_i64();
 
-        gen_set_label(l0);
-        gen_goto_ctpr_disp(ctx->ct.u.ctpr);
+            gen_ctpr_tag(t0, ctx->ct.u.ctpr);
+            tcg_gen_brcondi_i64(TCG_COND_EQ, t0, CTPR_TAG_DISP, l0);
+
+            if (ctx->ct.ctpr_index == 3) {
+                TCGLabel *l1 = gen_new_label();
+                tcg_gen_brcondi_i64(TCG_COND_EQ, t0, CTPR_TAG_RETURN, l1);
+                gen_excp_illopc();
+                gen_set_label(l1);
+                gen_helper_return(cpu_env);
+            } else {
+                gen_excp_illopc();
+            }
+
+            gen_set_label(l0);
+            gen_goto_ctpr_disp(ctx->ct.u.ctpr);
+        }
         break;
-    }
     case CT_CALL: {
         TCGv_i32 wbs = tcg_constant_i32(ctx->ct.wbs);
         TCGv npc = tcg_constant_tl(pc_next);
 
         gen_helper_call(cpu_env, ctx->ct.u.ctpr, wbs, npc);
-        tcg_gen_lookup_and_goto_ptr();
+
+        if (ctx->ctpr[ctx->ct.ctpr_index]) {
+            uint64_t ctpr = ctx->ctpr[ctx->ct.ctpr_index];
+            CtprTag tag = extract64(ctpr, CTPR_TAG_OFF, CTPR_TAG_LEN);
+
+            switch (tag) {
+            case CTPR_TAG_DISP:
+            case CTPR_TAG_SDISP:
+                gen_goto_tb(ctx, TB_EXIT_IDX0, extract64(ctpr, CTPR_BASE_OFF, CTPR_BASE_LEN));
+                break;
+            default:
+                gen_excp_illopc();
+                break;
+            }
+        } else {
+            tcg_gen_lookup_and_goto_ptr();
+        }
         break;
     }
     }
@@ -7395,6 +7430,8 @@ static void e2k_tr_tb_start(DisasContextBase *db, CPUState *cs)
     ctx->p_size = wi.psz + 1;
     ctx->w_fx   = wi.fx;
     ctx->w_dbl  = wi.dbl;
+
+    memset(ctx->ctpr, 0, sizeof(ctx->ctpr));
 
     tcg_gen_movi_i32(cpu_ct_cond, 0);
 }
