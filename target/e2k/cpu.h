@@ -832,8 +832,6 @@ typedef struct CPUArchState {
 
     /* Control Transfer Preparation Register (CTPR) */
     E2KCtpr ctprs[3];
-    /* Control Transfer Condition */
-    target_ulong ct_cond;
     
     uint32_t psr;
     uint32_t upsr;

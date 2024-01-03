@@ -95,7 +95,6 @@ typedef enum {
 
 static TCGv cpu_pc;
 static TCGv_i64 cpu_ctprs[3];
-static TCGv_i32 cpu_ct_cond;
 static TCGv_i32 cpu_boff; /* holds rbs * 2 */
 static TCGv_i32 cpu_bsize; /* holds rsz * 2 + 2 */
 static TCGv_i32 cpu_bcur; /* holds rcur * 2 */
@@ -426,6 +425,7 @@ typedef struct {
     int wbs;
     uint8_t cond_type;
     uint8_t psrc;
+    TCGv_i32 cond;
 } ControlTransfer;
 
 typedef enum {
@@ -1172,11 +1172,19 @@ static void gen_preg_set_i32(DisasContext *ctx, int preg, TCGv_i32 val)
 
 static void gen_preg_check_tag(DisasContext *ctx, TCGv_i32 val) {
     if (ctx->enable_tags) {
-        TCGv_i32 t0 = tcg_temp_new_i32();
         TCGLabel *l0 = gen_new_label();
 
-        tcg_gen_andi_i32(t0, val, 2);
-        tcg_gen_brcondi_i32(TCG_COND_EQ, t0, 0, l0);
+        tcg_gen_brcondi_i32(TCG_COND_LT, val, 2, l0);
+        gen_excp_illopc();
+        gen_set_label(l0);
+    }
+}
+
+static void gen_preg_check_tag_ct(DisasContext *ctx, TCGv_i32 val) {
+    if (ctx->enable_tags) {
+        TCGLabel *l0 = gen_new_label();
+        tcg_gen_brcondi_i32(TCG_COND_NE, cpu_lsr_pcnt, 0, l0);
+        tcg_gen_brcondi_i32(TCG_COND_LT, val, 2, l0);
         gen_excp_illopc();
         gen_set_label(l0);
     }
@@ -2395,6 +2403,7 @@ static void gen_al_result_s(Alop *alop, Tagged_i32 arg)
 
 static void gen_al_result_b(Alop *alop, Tagged_i32 v)
 {
+    gen_alop_tag_check(alop, v.tag);
     if (alop->ctx->enable_tags) {
         tcg_gen_movcond_i32(TCG_COND_EQ, v.val, v.tag, tcg_constant_i32(0),
                 v.val, tcg_constant_i32(2));
@@ -6892,35 +6901,30 @@ static inline void gen_cs0(DisasContext *ctx)
 static void gen_ct_cond(DisasContext *ctx)
 {
     ControlTransfer *ct = &ctx->ct;
-    TCGv_i32 pcond, lcond;
+    TCGv_i32 pcond = NULL, lcond = NULL;
 
-    if (ct->type == CT_NONE) {
+    if (ct->type == CT_NONE || ct->cond_type == 1) {
         return;
     }
 
-    if (ct->cond_type == 1) {
-        tcg_gen_movi_i32(cpu_ct_cond, 1);
-        return;
-    }
-
-    pcond = tcg_temp_new_i32();
-    lcond = tcg_temp_new_i32();
+    ctx->ct.cond = tcg_temp_new_i32();
 
     switch (ct->cond_type) {
     case 0x2:
     case 0x6:
     case 0xf:
-        /* %predN */
+        pcond = tcg_temp_new_i32();
         gen_preg_i32(ctx, pcond, ct->psrc);
+        gen_preg_check_tag_ct(ctx, pcond);
         break;
     case 0x3:
     case 0x7:
-    case 0xe: {
-        TCGv_i32 t0 = tcg_temp_new_i32();
-        gen_preg_i32(ctx, t0, ct->psrc);
-        tcg_gen_setcondi_i32(TCG_COND_EQ, pcond, t0, 0);
+    case 0xe:
+        pcond = tcg_temp_new_i32();
+        gen_preg_i32(ctx, pcond, ct->psrc);
+        gen_preg_check_tag_ct(ctx, pcond);
+        tcg_gen_xori_i32(pcond, pcond, 1);
         break;
-    }
     default:
         break;
     }
@@ -6930,11 +6934,13 @@ static void gen_ct_cond(DisasContext *ctx)
     case 0x6:
     case 0xe:
         /* #LOOP_END */
+        lcond = tcg_temp_new_i32();
         tcg_gen_mov_i32(lcond, ctx->loop_end);
         break;
     case 0x5:
     case 0x7:
     case 0xf: /* #NOT_LOOP_END */
+        lcond = tcg_temp_new_i32();
         tcg_gen_setcondi_i32(TCG_COND_EQ, lcond, ctx->loop_end, 0);
         break;
     default:
@@ -6945,12 +6951,12 @@ static void gen_ct_cond(DisasContext *ctx)
     case 0x2:
     case 0x3:
         /* {,~}%predN */
-        tcg_gen_mov_i32(cpu_ct_cond, pcond);
+        tcg_gen_mov_i32(ctx->ct.cond, pcond);
         break;
     case 0x4:
     case 0x5:
         /* #{,NOT_}LOOP_END */
-        tcg_gen_mov_i32(cpu_ct_cond, lcond);
+        tcg_gen_mov_i32(ctx->ct.cond, lcond);
         break;
     case 0x6:
     case 0xe: {
@@ -6959,7 +6965,7 @@ static void gen_ct_cond(DisasContext *ctx)
         TCGv_i32 t0 = tcg_temp_new_i32();
 
         tcg_gen_or_i32(t0, pcond, lcond);
-        tcg_gen_movcond_i32(TCG_COND_EQ, cpu_ct_cond, cpu_lsr_pcnt, z, t0, lcond);
+        tcg_gen_movcond_i32(TCG_COND_EQ, ctx->ct.cond, cpu_lsr_pcnt, z, t0, lcond);
         break;
     }
     case 0x7:
@@ -6969,7 +6975,7 @@ static void gen_ct_cond(DisasContext *ctx)
         TCGv_i32 t0 = tcg_temp_new_i32();
 
         tcg_gen_and_i32(t0, pcond, lcond);
-        tcg_gen_movcond_i32(TCG_COND_EQ, cpu_ct_cond, cpu_lsr_pcnt, z, t0, lcond);
+        tcg_gen_movcond_i32(TCG_COND_EQ, ctx->ct.cond, cpu_lsr_pcnt, z, t0, lcond);
         break;
     }
     case 0x8:
@@ -6987,7 +6993,7 @@ static void gen_ct_cond(DisasContext *ctx)
             }
         } else {
             /* %MLOCK */
-            tcg_gen_mov_i32(cpu_ct_cond, ctx->mlock);
+            tcg_gen_mov_i32(ctx->ct.cond, ctx->mlock);
         }
         break;
     case 0x9: {
@@ -7334,7 +7340,7 @@ static void do_branch(DisasContext *ctx, target_ulong pc_next)
 
     if (ctx->ct.type != CT_NONE && ctx->ct.cond_type > 1) {
         branch_taken = gen_new_label();
-        tcg_gen_brcondi_i32(TCG_COND_NE, cpu_ct_cond, 0, branch_taken);
+        tcg_gen_brcondi_i32(TCG_COND_NE, ctx->ct.cond, 0, branch_taken);
     }
 
     if (ctx->bundle.ss_present) {
@@ -7481,7 +7487,6 @@ static void e2k_tr_tb_start(DisasContextBase *db, CPUState *cs)
 
     memset(ctx->ctpr, 0, sizeof(ctx->ctpr));
 
-    tcg_gen_movi_i32(cpu_ct_cond, 0);
 }
 
 static void e2k_tr_insn_start(DisasContextBase *db, CPUState *cs)
@@ -7632,7 +7637,6 @@ void e2k_tcg_initialize(void) {
         { &cpu_aasti_tags, offsetof(CPUE2KState, aau.sti_tags), "aasti_tags" },
         { &cpu_aaind_tags, offsetof(CPUE2KState, aau.ind_tags), "aaind_tags" },
         { &cpu_aaincr_tags, offsetof(CPUE2KState, aau.incr_tags), "aaincr_tags" },
-        { &cpu_ct_cond, offsetof(CPUE2KState, ct_cond), "cond" },
     };
 
     static const struct { TCGv_i64 *ptr; int off; const char *name; } r64[] = {
