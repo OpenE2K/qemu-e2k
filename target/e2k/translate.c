@@ -2997,18 +2997,18 @@ static inline void gen_udivs(TCGv_i32 ret, TCGv_i32 ret_tag, TCGv_i32 tag,
 IMPL_GEN_SDIV(gen_sdivd, 64, TCGv_i64, E2K_TAG_NON_NUMBER64)
 IMPL_GEN_SDIV(gen_sdivs, 32, TCGv_i32, E2K_TAG_NON_NUMBER32)
 
-#define IMPL_GEN_GETTAG(name, S, ext) \
+#define IMPL_GEN_GETTAG(name, S) \
     static void name(Alop *alop) \
     { \
-        tagged(S) r = tagged_temp_new(S); \
+        tagged(s) r = tagged_temp_new(s); \
         tagged(S) b = gen_tagged_src2(S, alop); \
         tcg_gen_movi_i32(r.tag, 0); \
-        ext(r.val, b.tag); \
-        gen_al_result(S, alop, r); \
+        tcg_gen_mov_i32(r.val, b.tag); \
+        gen_al_result(s, alop, r); \
     }
 
-IMPL_GEN_GETTAG(gen_gettagd, d, tcg_gen_extu_i32_i64)
-IMPL_GEN_GETTAG(gen_gettags, s, tcg_gen_mov_i32)
+IMPL_GEN_GETTAG(gen_gettagd, d)
+IMPL_GEN_GETTAG(gen_gettags, s)
 
 #define IMPL_GEN_PUTTAG(name, S1, S2, R, mov) \
     static void name(Alop *alop) \
