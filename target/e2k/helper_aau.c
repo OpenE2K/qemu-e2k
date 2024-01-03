@@ -56,6 +56,10 @@ target_ulong HELPER(mova_ptr)(CPUE2KState *env, int chan, int area, int ind,
     target_ulong addr = aad.base + as->cdi + instr.disp + ind;
     target_ulong page = addr & TARGET_PAGE_MASK;
 
+    if ((1 << instr.fmt) <= size) {
+        helper_raise_exception(env, E2K_EXCP_ILLEGAL_OPCODE);
+    }
+
     if (addr & (size - 1)) {
         return 0;
     } else if (page != as->last_page) {
