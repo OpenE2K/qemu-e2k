@@ -7057,13 +7057,13 @@ static void gen_dec_wrapi_i32(TCGv_i32 ret, TCGv_i32 cur, int n,
 }
 
 #define IMPL_GEN_DEC_SAT(name, S) \
-    static void name(temp(S) ret, temp(S) arg0) \
+    static void name(temp(S) ret, temp(S) v) \
     { \
-        temp(S) t0 = call(S, tcg_constant, 0); \
-        temp(S) t1 = temp_new(S); \
+        TCGLabel *l0 = gen_new_label(); \
         \
-        call(S, tcg_gen_subi, t1, arg0, 1); \
-        call(S, tcg_gen_movcond, TCG_COND_EQ, ret, arg0, t0, arg0, t1); \
+        call(S, tcg_gen_brcondi, TCG_COND_EQ, v, 0, l0); \
+        call(S, tcg_gen_subi, ret, v, 1); \
+        gen_set_label(l0); \
     }
 
 IMPL_GEN_DEC_SAT(gen_dec_sat_i32, s)
@@ -7071,22 +7071,19 @@ IMPL_GEN_DEC_SAT(gen_dec_sat_i64, d)
 
 static void gen_advance_loop_counters(void)
 {
-    TCGv_i32 z = tcg_constant_i32(0);
-    TCGv_i32 t0 = tcg_temp_new_i32();
-    TCGv_i64 t1 = tcg_temp_new_i64();
-    TCGv_i32 t2 = tcg_temp_new_i32();
-    TCGv_i32 t3 = tcg_temp_new_i32();
-    TCGv_i32 t4 = tcg_temp_new_i32();
+    TCGv_i64 t0 = tcg_temp_new_i64();
+    TCGLabel *l0 = gen_new_label();
+
+    tcg_gen_setcondi_i64(TCG_COND_LTU, t0, cpu_lsr_lcnt, 2);
+    tcg_gen_extrl_i64_i32(cpu_lsr_over, t0);
 
     gen_dec_sat_i32(cpu_lsr_pcnt, cpu_lsr_pcnt);
     gen_dec_sat_i64(cpu_lsr_lcnt, cpu_lsr_lcnt);
-    tcg_gen_setcondi_i32(TCG_COND_EQ, t0, cpu_lsr_pcnt, 0);
-    tcg_gen_setcondi_i64(TCG_COND_EQ, t1, cpu_lsr_lcnt, 0);
-    tcg_gen_extrl_i64_i32(t2, t1);
-    tcg_gen_mov_i32(cpu_lsr_over, t2);
-    gen_dec_sat_i32(t3, cpu_lsr_ecnt);
-    tcg_gen_and_i32(t4, t2, cpu_lsr_vlc);
-    tcg_gen_movcond_i32(TCG_COND_NE, cpu_lsr_ecnt, t4, z, t3, cpu_lsr_ecnt);
+
+    tcg_gen_brcondi_i32(TCG_COND_EQ, cpu_lsr_over, 0, l0);
+    tcg_gen_brcondi_i32(TCG_COND_EQ, cpu_lsr_vlc, 0, l0);
+    gen_dec_sat_i32(cpu_lsr_ecnt, cpu_lsr_ecnt);
+    gen_set_label(l0);
 }
 
 static target_ulong do_decode(DisasContext *ctx, CPUState *cs)
