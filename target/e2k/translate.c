@@ -374,6 +374,7 @@ typedef struct {
     const char *name;
     int chan;
     uint8_t mas;
+    TCGv_i32 preg;
     union {
         struct {
             uint32_t src4: 8;
@@ -1107,6 +1108,55 @@ static inline bool is_chan_25(int c)
 static inline bool is_chan_0134(int c)
 {
     return is_chan_03(c) || is_chan_14(c);
+}
+
+static void gen_poison_i128_raw(Tagged_i128 ret, Tagged_i128 v, uint8_t tag)
+{
+    TCGv_i64 lo = tcg_temp_new_i64();
+    TCGv_i64 hi = tcg_temp_new_i64();
+    TCGv_i64 c = tcg_constant_i64(0x4000000040000000);
+
+    tcg_gen_movi_i32(ret.tag, tag);
+    tcg_gen_extr_i128_i64(lo, hi, v.val);
+    tcg_gen_or_i64(lo, lo, c);
+    tcg_gen_or_i64(hi, hi, c);
+    tcg_gen_concat_i64_i128(ret.val, lo, hi);
+}
+
+static void gen_poison_i128(Tagged_i128 ret, Tagged_i128 v)
+{
+    gen_poison_i128_raw(ret, v, E2K_TAG_NON_NUMBER128);
+}
+
+static void gen_poison_i80(Tagged_i128 ret, Tagged_i128 v)
+{
+    gen_poison_i128_raw(ret, v, E2K_TAG_NON_NUMBER80);
+}
+
+static void gen_poison_i64(Tagged_i64 ret, Tagged_i64 v)
+{
+    tcg_gen_movi_i32(ret.tag, E2K_TAG_NON_NUMBER64);
+    tcg_gen_ori_i64(ret.val, v.val, 0x4000000040000000);
+}
+
+static void gen_poison_i32(Tagged_i32 ret, Tagged_i32 v)
+{
+    tcg_gen_movi_i32(ret.tag, E2K_TAG_NON_NUMBER32);
+    tcg_gen_ori_i32(ret.val, v.val, 0x40000000);
+}
+
+static void gen_is_poisoned_tag_or_preg(TCGv_i32 ret, TCGv_i32 tag, TCGv_i32 preg)
+{
+    if (preg) {
+        TCGv_i32 t0 = tcg_temp_new_i32();
+        TCGv_i32 t1 = tcg_temp_new_i32();
+
+        tcg_gen_setcondi_i32(TCG_COND_GEU, t0, preg, 2);
+        tcg_gen_setcondi_i32(TCG_COND_NE, t1, tag, 0);
+        tcg_gen_or_i32(ret, t0, t1);
+    } else {
+        tcg_gen_setcondi_i32(TCG_COND_NE, ret, tag, 0);
+    }
 }
 
 static void gen_ptr_from_index(TCGv_ptr ret, TCGv_ptr ptr, TCGv_i32 idx,
@@ -4075,10 +4125,16 @@ static void gen_atomic_cmpxchg_i32(Alop *alop, TCGv_i32 value, TCGv addr,
         if (!skip) { \
             if (alop->als.sm) { \
                 TCGv_i32 t0 = tcg_temp_new_i32(); \
+                TCGLabel *l1 = gen_new_label(); \
                 \
                 gen_probe_write_access(t0, addr, memop_size(memop), \
                     alop->ctx->mmuidx); \
                 tcg_gen_brcondi_i32(TCG_COND_EQ, t0, 0, l0); \
+                \
+                gen_is_poisoned_tag_or_preg(t0, s4.tag, alop->preg); \
+                tcg_gen_brcondi_i32(TCG_COND_EQ, t0, 0, l1); \
+                call(S, gen_poison, s4, s4); \
+                gen_set_label(l1); \
             } \
             \
             if (check && alop->ctx->mlock) { \
@@ -6415,6 +6471,7 @@ static void decode_alops(DisasContext *ctx)
         alop->ctx = ctx;
         alop->name = "none";
         alop->chan = i;
+        alop->preg = NULL;
 
         if (ctx->bundle.als_present[i]) {
             alop->mas = ctx->cs1.type == CS1_MAS ? ctx->cs1.mas[i] : 0;
@@ -6483,7 +6540,7 @@ static void gen_alop(Alop *alop)
                 break;
             case 0x3: /* %predN */
                 if (!preg) {
-                    preg = tcg_temp_new_i32();
+                    alop->preg = preg = tcg_temp_new_i32();
                 }
                 gen_preg_i32(ctx, preg, idx);
                 if (invert) {
@@ -6574,40 +6631,29 @@ static void gen_alop(Alop *alop)
             }
         }
 
-        if (ctx->enable_tags && alop->als.sm && preg) {
+        if (ctx->enable_tags && alop->als.sm) {
             TCGLabel *l0 = gen_new_label();
-            TCGLabel *l1 = gen_new_label();
+            TCGv_i32 t0 = tcg_temp_new_i32();
 
-            tcg_gen_brcondi_i32(TCG_COND_GEU, preg, 2, l0);
-            gen_alop_tag_check(alop, result.t.tag);
-            tcg_gen_br(l1);
-
-            /* poison result */
-            gen_set_label(l0);
-            tcg_gen_movi_i32(result.t.tag, E2K_TAG_NON_NUMBER128);
+            gen_is_poisoned_tag_or_preg(t0, result.t.tag, alop->preg);
+            tcg_gen_brcondi_i32(TCG_COND_EQ, t0, 0, l0);
 
             switch (result.t.kind) {
             case TAGGED_Q:
+                gen_poison_i128(result.t.t128, result.t.t128);
+                break;
             case TAGGED_X:
-                {
-                    TCGv_i64 lo = tcg_temp_new_i64();
-                    TCGv_i64 hi = tcg_temp_new_i64();
-                    TCGv_i64 c = tcg_constant_i64(0x4000000040000000);
-                    tcg_gen_extr_i128_i64(lo, hi, result.t.i128);
-                    tcg_gen_or_i64(lo, lo, c);
-                    tcg_gen_or_i64(hi, hi, c);
-                    tcg_gen_concat_i64_i128(result.t.i128, lo, hi);
-                }
+                gen_poison_i80(result.t.t128, result.t.t128);
                 break;
             case TAGGED_D:
-                tcg_gen_ori_i64(result.t.i64, result.t.i64, 0x4000000040000000);
+                gen_poison_i64(result.t.t64, result.t.t64);
                 break;
             case TAGGED_S:
-                tcg_gen_ori_i32(result.t.i32, result.t.i32, 0x40000000);
+                gen_poison_i32(result.t.t32, result.t.t32);
                 break;
             }
 
-            gen_set_label(l1);
+            gen_set_label(l0);
         } else {
             gen_alop_tag_check(alop, result.t.tag);
         }
