@@ -2020,6 +2020,8 @@ static void gen_plu(DisasContext *ctx)
             switch (opc) {
             case 0: /* andp */
             case 1: /* landp */
+                // TODO: gen excp if clp tries to read result from mlp
+
                 if (ctx->enable_tags) {
                     TCGv_i32 t0 = tcg_temp_new_i32();
                     uint32_t tbl;
@@ -2027,9 +2029,10 @@ static void gen_plu(DisasContext *ctx)
                     tcg_gen_shli_i32(t0, p0, 2);
                     tcg_gen_or_i32(t0, t0, p1);
                     tcg_gen_shli_i32(t0, t0, 1);
-                    //              a=11     a=10     a=01     a=00
-                    //  andp: 0b10101010_10101010_10100100_10100000
-                    // landp: 0b10101010_10101010_10100100_00000000
+                    //     a: 11111111 10101010 01010101 00000000
+                    //     b: 11100100 11100100 11100100 11100100
+                    //  andp: 10101010 10101010 10100100 10100000
+                    // landp: 10101010 10101010 10100100 00000000
                     if (opc == 0) {
                         tbl = 0xaaaaa4a0;
                     } else {
@@ -2046,17 +2049,21 @@ static void gen_plu(DisasContext *ctx)
                 }
                 break;
             case 3: { /* movep */
-                // FIXME: clp cannot read result of movep???
-                tcg_gen_and_i32(lp[4 + i], p0, p1);
-
+                //     a: 11111111 10101010 01010101 00000000
+                //     b: 11100100 11100100 11100100 xxxxxxxx
+                //   dst: 11100100 11100100 xxxxxxxx 11100100
+                // movep: 10101010 10101010 10100100 10100100
                 if (vdst) {
-                    TCGv_i32 t0 = tcg_constant_i32(0);
-                    TCGv_i32 t1 = tcg_temp_new_i32();
-                    TCGv_i32 t2 = tcg_temp_new_i32();
+                    TCGv_i32 z = tcg_constant_i32(0);
+                    TCGv_i32 t0 = tcg_temp_new_i32();
 
-                    gen_preg_i32(ctx, t1, pdst);
-                    tcg_gen_movcond_i32(TCG_COND_NE, t2, p0, t0, p1, t1);
-                    gen_preg_set_i32(ctx, pdst, t2);
+                    gen_preg_i32(ctx, t0, pdst);
+                    tcg_gen_movcond_i32(TCG_COND_EQ, t0, p0, z, t0, p1);
+                    if (ctx->enable_tags) {
+                        TCGv_i32 inv = tcg_constant_i32(2);
+                        tcg_gen_movcond_i32(TCG_COND_LTU, t0, p0, inv, t0, inv);
+                    }
+                    gen_preg_set_i32(ctx, pdst, t0);
                 }
                 break;
             }
