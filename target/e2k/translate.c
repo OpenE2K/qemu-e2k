@@ -2401,6 +2401,7 @@ static AlopResult gen_al_result_d(Alop *alop, Tagged_i64 arg)
         case OP_MOVTCD:
         case OP_MOVTRD:
         case OP_MOVTRCD:
+        case OP_GETPL:
             result.kind = ALOP_RESULT_CTPR;
             break;
         default:
