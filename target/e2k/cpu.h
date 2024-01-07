@@ -40,10 +40,7 @@ void e2k_tcg_initialize(void);
 #define E2K_WR_COUNT 64     /* %rN      [0, 64) */
 #define E2K_BR_COUNT 128    /* %b[N]    [0, 128) */
 #define E2K_NR_COUNT 224
-#define E2K_GR_COUNT 32     /* %gN      [0, 32) */
-#define E2K_BGR_COUNT 8     /* %gN      [24, 32) */
-#define E2K_REG_COUNT (E2K_NR_COUNT + E2K_GR_COUNT)
-#define E2K_TLS_REG (E2K_NR_COUNT + 13)
+#define E2K_TLS_REG     13
 
 #define E2K_PR_COUNT 32     /* %predN   [0, 32) */
 
@@ -787,10 +784,12 @@ typedef union {
 } E2KWinInfo;
 
 typedef struct CPUArchState {
-    /* Registers Tags File */
-    uint8_t tags[E2K_REG_COUNT];
-    /* Registers File */
-    E2KReg regs[E2K_REG_COUNT];
+    /* Window registers */
+    E2KReg regs[E2K_NR_COUNT];
+    uint8_t tags[E2K_NR_COUNT];
+    /* Global registers */
+    uint8_t gtag[32];
+    E2KReg greg[32];
     /* Predicate Registers File */
     uint64_t pregs;
     /* Instruction Address */
