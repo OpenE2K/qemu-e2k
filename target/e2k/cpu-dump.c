@@ -116,7 +116,7 @@ static inline void dump_reg(CPUE2KState *env, FILE *f, char mnemonic, int index,
 
 static void dump_regs(CPUE2KState *env, FILE *f, int flags)
 {
-    int i;
+    int i, base, cur;
 
     for (i = 0; i < env->wd.size; i++) {
         int tags = env->enable_tags ? env->tags[i] : 0;
@@ -126,9 +126,11 @@ static void dump_regs(CPUE2KState *env, FILE *f, int flags)
         qemu_fprintf(f, "\n");
     }
 
-    if ((env->wd.size - env->bn.base) >= env->bn.size) {
+    base = e2k_get_rbs(env) * 2;
+    cur = e2k_get_rcur(env) * 2;
+    if ((env->wd.size - base) >= env->bn.size) {
         for (i = 0; i < env->bn.size; i++) {
-            int index = env->bn.base + (i + env->bn.cur) % env->bn.size;
+            int index = base + (i + cur) % env->bn.size;
             int tags = env->enable_tags ? env->tags[index] : 0;
             dump_reg(env, f, 'b', i, tags, env->regs[index]);
         }
@@ -172,9 +174,9 @@ void e2k_cpu_dump_state(CPUState *cs, FILE *f, int flags)
     qemu_fprintf(f, " wsz=%d wbdl=%d rbs=%d rsz=%d rcur=%d psz=%d pcur=%d\n",
         (int) env->wd.size,
         (int) env->wdbl,
-        (int) env->bn.base,
+        (int) e2k_get_rbs(env),
         (int) env->bn.size,
-        (int) env->bn.cur,
+        (int) e2k_get_rcur(env),
         (int) env->bp.size,
         (int) env->bp.cur
     );

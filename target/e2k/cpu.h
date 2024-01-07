@@ -404,9 +404,7 @@ struct e2k_def_t {
 };
 
 typedef struct {
-    uint32_t base;
     uint32_t size;
-    uint32_t cur;
 } E2KBnState;
 
 typedef struct {
@@ -791,6 +789,11 @@ typedef struct CPUArchState {
     /* Global registers */
     uint8_t gtag[32];
     E2KReg greg[32];
+    /* Pointer to the first based register */
+    E2KReg *breg;
+    uint8_t *btag;
+    /* Scaled current index for based registers */
+    int32_t bcur;
     /* Predicate Registers File */
     uint64_t pregs;
     /* Instruction Address */
@@ -923,6 +926,28 @@ struct ArchCPU {
     CPUE2KState env;
 };
 
+static inline int e2k_get_rbs(CPUE2KState *env)
+{
+    return ((uintptr_t) env->breg - (uintptr_t) env->regs) / sizeof(env->breg[0]) / 2;
+}
+
+static inline void e2k_set_rbs(CPUE2KState *env, int rbs)
+{
+    int n = rbs * 2;
+    env->breg = &env->regs[n];
+    env->btag = &env->tags[n];
+}
+
+static inline int e2k_get_rcur(CPUE2KState *env)
+{
+    return env->bcur / 2 / sizeof(E2KReg);
+}
+
+static inline void e2k_set_rcur(CPUE2KState *env, int rcur)
+{
+    env->bcur = rcur * 2 * sizeof(E2KReg);
+}
+
 static inline void cpu_get_tb_cpu_state(CPUE2KState *env, vaddr *pc,
                                         uint64_t *cs_base, uint32_t *pflags)
 {
@@ -930,7 +955,7 @@ static inline void cpu_get_tb_cpu_state(CPUE2KState *env, vaddr *pc,
 
     wi.wsz = env->wd.size / 2;
     wi.rsz = env->bn.size / 2 - 1;
-    wi.rbs = env->bn.base / 2;
+    wi.rbs = e2k_get_rbs(env);
     wi.psz = env->bp.size - 1;
     wi.fx  = env->wd.fx;
     wi.dbl = env->wdbl;
