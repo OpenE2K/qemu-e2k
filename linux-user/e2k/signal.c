@@ -226,9 +226,9 @@ static void target_setup_frame(int sig, struct target_sigaction *ka,
     __put_user(env->ilcr, &frame->ilcr);
     __put_user(env->ilcr_lcnt, &frame->ilcr_lcnt);
     copy_to_user(frame_addr + offsetof(struct target_sigframe, gregs),
-        &env->regs[E2K_NR_COUNT + 16], 16 * sizeof(E2KReg));
+        &env->greg[16], 16 * sizeof(E2KReg));
     copy_to_user(frame_addr + offsetof(struct target_sigframe, gtags),
-        &env->tags[E2K_NR_COUNT + 16], 16);
+        &env->gtag[16], 16);
 
     if (ka->sa_flags & TARGET_SA_RESTORER) {
         // TODO: sa_restorer?
@@ -329,9 +329,9 @@ long do_rt_sigreturn(CPUE2KState *env)
     __get_user(env->lsr_lcnt, &frame->lsr_lcnt);
     __get_user(env->ilcr, &frame->ilcr);
     __get_user(env->ilcr_lcnt, &frame->ilcr_lcnt);
-    copy_from_user(&env->regs[E2K_NR_COUNT + 16], frame_addr
+    copy_from_user(&env->greg[16], frame_addr
         + offsetof(struct target_sigframe, gregs), 16 * sizeof(E2KReg));
-    copy_from_user(&env->tags[E2K_NR_COUNT + 16], frame_addr
+    copy_from_user(&env->gtag[16], frame_addr
         + offsetof(struct target_sigframe, gtags), 16);
 
     if (do_sigaltstack(frame_addr +

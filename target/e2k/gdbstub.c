@@ -49,7 +49,7 @@ int e2k_cpu_gdb_read_register(CPUState *cs, GByteArray *mem_buf, int n)
     }
 
     if (3 <= n && n < 35) {
-        return gdb_get_reg64(mem_buf, env->regs[E2K_NR_COUNT + n - 3].lo);
+        return gdb_get_reg64(mem_buf, env->greg[n - 3].lo);
     }
     
     switch (n) {
@@ -202,20 +202,20 @@ int e2k_cpu_gdb_read_register(CPUState *cs, GByteArray *mem_buf, int n)
 
     if (356 <= n && n < 360) {
         uint64_t tags = 0;
-        int i, offset = E2K_NR_COUNT + (n - 356) * 8;
+        int i, offset = (n - 356) * 8;
 
         for (i = 0; i < 8; i++) {
-            tags |= (uint64_t) env->tags[offset + i] << (i * 8);
+            tags |= (uint64_t) env->gtag[offset + i] << (i * 8);
         }
         return gdb_get_reg64(mem_buf, tags); // gN tags (tag len is 1 byte)
     }
 
     if (360 <= n && n < 368) {
         uint64_t ext = 0;
-        int i, offset = E2K_NR_COUNT + (n - 360) * 4;
+        int i, offset = (n - 360) * 4;
 
         for (i = 0; i < 4; i++) {
-            ext |= ((uint64_t) env->regs[offset + i].hi & 0xffff) << (i * 16);
+            ext |= ((uint64_t) env->greg[offset + i].hi & 0xffff) << (i * 16);
         }
         return gdb_get_reg64(mem_buf, ext); // xgN
     }
@@ -343,10 +343,10 @@ static int gdb_get_v5(CPUE2KState *env, GByteArray *buf, int n)
         return gdb_get_reg64(buf, env->ilcr_lcnt);
     } else if (n >= 2 && n < 34) {
         /* xgN (upper 64-bit) */
-        return gdb_get_reg64(buf, env->regs[E2K_NR_COUNT + n - 2].hi);
+        return gdb_get_reg64(buf, env->greg[n - 2].hi);
     } else if (n >= 34 && n < 66) {
         /* qpgN tags */
-        return gdb_get_reg8(buf, env->tags[E2K_NR_COUNT + n - 34]);
+        return gdb_get_reg8(buf, env->gtag[n - 34]);
     }
 
     return 0;

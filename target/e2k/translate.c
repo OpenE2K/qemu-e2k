@@ -1372,12 +1372,12 @@ static Tagged gen_reg(DisasContext *ctx, TaggedKind kind, uint8_t reg)
         tag_ptr = cpu_env;
         tag_offset = offsetof(CPUE2KState, tags[index]);
     } else if (IS_GLOBAL(reg)) {
-        index = GET_GLOBAL(reg) + E2K_NR_COUNT;
+        index = GET_GLOBAL(reg);
         reg_ptr = cpu_env;
-        offset_lo = offsetof(CPUE2KState, regs[index].lo);
-        offset_hi = offsetof(CPUE2KState, regs[index].hi);
+        offset_lo = offsetof(CPUE2KState, greg[index].lo);
+        offset_hi = offsetof(CPUE2KState, greg[index].hi);
         tag_ptr = cpu_env;
-        tag_offset = offsetof(CPUE2KState, tags[index]);
+        tag_offset = offsetof(CPUE2KState, gtag[index]);
     } else {
         g_assert_not_reached();
     }
@@ -1460,12 +1460,12 @@ static void gen_set_reg(DisasContext *ctx, Tagged *value, uint8_t reg)
         tag_ptr = cpu_env;
         tag_offset = offsetof(CPUE2KState, tags[index]);
     } else if (IS_GLOBAL(reg)) {
-        index = GET_GLOBAL(reg) + E2K_NR_COUNT;
+        index = GET_GLOBAL(reg);
         reg_ptr = cpu_env;
-        offset_lo = offsetof(CPUE2KState, regs[index].lo);
-        offset_hi = offsetof(CPUE2KState, regs[index].hi);
+        offset_lo = offsetof(CPUE2KState, greg[index].lo);
+        offset_hi = offsetof(CPUE2KState, greg[index].hi);
         tag_ptr = cpu_env;
-        tag_offset = offsetof(CPUE2KState, tags[index]);
+        tag_offset = offsetof(CPUE2KState, gtag[index]);
     } else {
         g_assert_not_reached();
     }

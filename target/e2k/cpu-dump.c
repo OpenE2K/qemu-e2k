@@ -136,8 +136,7 @@ static void dump_regs(CPUE2KState *env, FILE *f, int flags)
     }
 
     for (i = 0; i < 32; i++) {
-        int index = E2K_NR_COUNT + i;
-        dump_reg(f, 'g', i, env->tags[index], env->regs[index]);
+        dump_reg(f, 'g', i, env->gtag[i], env->greg[i]);
     }
 }
 
