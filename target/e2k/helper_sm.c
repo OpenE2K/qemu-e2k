@@ -5,35 +5,24 @@
 #include "qemu/host-utils.h"
 #include "exec/helper-proto.h"
 
-static int e2k_probe_access(CPUE2KState *env, target_ulong addr, int size,
-    MMUAccessType access_type, int mmu_idx)
+static bool e2k_probe_access(target_ulong addr, int size, int flag)
 {
-    target_ulong addr_end = addr + size - 1;
-    int flags;
-    void *ignore;
+    target_ulong start = addr & TARGET_PAGE_MASK;
+    target_ulong last = (addr + size - 1) & TARGET_PAGE_MASK;
 
-    flags = probe_access_flags(env, addr, 0, access_type, mmu_idx,
-        true, &ignore, 0);
-
-    if (flags & TLB_INVALID_MASK) {
-        return 0;
-    } else if ((addr & TARGET_PAGE_MASK) != (addr_end & TARGET_PAGE_MASK)) {
-        flags = probe_access_flags(env, addr_end, 0, access_type, mmu_idx, true,
-            &ignore, 0);
-        return !(flags & TLB_INVALID_MASK);
+    if (start == last) {
+        return page_get_flags(start) & flag;
+    } else {
+        return page_check_range(addr, size, flag);
     }
-
-    return 1;
 }
 
-int HELPER(probe_read_access)(CPUE2KState *env, target_ulong addr,
-    int size, int mmu_idx)
+int HELPER(probe_read_access)(target_ulong addr, int size)
 {
-    return e2k_probe_access(env, addr, size, MMU_DATA_LOAD, mmu_idx);
+    return e2k_probe_access(addr, size, PAGE_READ);
 }
 
-int HELPER(probe_write_access)(CPUE2KState *env, target_ulong addr,
-    int size, int mmu_idx)
+int HELPER(probe_write_access)(target_ulong addr, int size)
 {
-    return e2k_probe_access(env, addr, size, MMU_DATA_STORE, mmu_idx);
+    return e2k_probe_access(addr, size, PAGE_WRITE);
 }
