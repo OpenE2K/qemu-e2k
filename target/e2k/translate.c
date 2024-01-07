@@ -111,15 +111,6 @@ static TCGv_i32 cpu_lsr_vlc;
 static TCGv_i32 cpu_lsr_over;
 static TCGv_i32 cpu_lsr_pcnt;
 static TCGv_i32 cpu_lsr_strmd;
-/* AAU */
-static TCGv_i32 cpu_aasti[16];
-static TCGv_i32 cpu_aasti_tags;
-static TCGv_i32 cpu_aaind[16];
-static TCGv_i32 cpu_aaind_tags;
-static TCGv_i32 cpu_aaincr[8];
-static TCGv_i32 cpu_aaincr_tags;
-static TCGv_i64 cpu_aad_lo[32];
-static TCGv_i64 cpu_aad_hi[32];
 
 typedef struct {
   uint32_t hs;
@@ -4345,77 +4336,51 @@ IMPL_GEN_ADDR_SRC1(gen_addr_src1_i32, s, tcg_gen_ext_i32_tl)
 #define gen_stqp(i, a, b)  gen_alopf3_mas(i, a, gen_st_raw_i128,  MO_UQ, b)
 #define gen_stmqp(i, a, b) gen_alopf3_mas(i, a, gen_stm_raw_i128, MO_UQ, b)
 
-static void gen_aad_tag(TCGv_i64 ret, TCGv_i32 tag)
+static void gen_aaurwd_aad_lo(Alop *alop, TCGv_i64 arg1, TCGv_i32 tag)
 {
-    TCGv_i32 t0 = tcg_temp_new_i32();
-    TCGv_i64 t1 = tcg_temp_new_i64();
-
-    tcg_gen_setcondi_i32(TCG_COND_NE, t0, tag, 0);
-    tcg_gen_extu_i32_i64(t1, t0);
-    tcg_gen_shli_i64(ret, t1, 54);
+    gen_helper_aaurwd_aad_lo(tcg_env, tcg_constant_i32(alop->als.aad), arg1, tag);
 }
 
-static void gen_aaurw_aad_lo_i64(Alop *alop, TCGv_i64 arg1, TCGv_i32 tag)
+static void gen_aaurwd_aad_hi(Alop *alop, TCGv_i64 arg1, TCGv_i32 tag)
 {
-    TCGv_i64 lo = cpu_aad_lo[alop->als.aad];
-    TCGv_i64 t0 = tcg_temp_new_i64();
-    TCGv_i64 t1 = tcg_temp_new_i64();
-
-    tcg_gen_andi_i64(t0, arg1, 3UL << 57);
-    tcg_gen_andi_i64(lo, lo, ~(0x1fUL << 54));
-    tcg_gen_or_i64(lo, lo, t0);
-    tcg_gen_deposit_i64(lo, lo, arg1, 0, 48);
-    tcg_gen_ori_i64(lo, lo, 3UL << 59);
-    gen_aad_tag(t1, tag);
-    tcg_gen_or_i64(lo, lo, t1);
+    gen_helper_aaurwd_aad_hi(tcg_env, tcg_constant_i32(alop->als.aad), arg1, tag);
 }
 
-static void gen_aaurw_aad_hi_i64(Alop *alop, TCGv_i64 arg1, TCGv_i32 tag)
+static void gen_aaurwd_aasti(Alop *alop, TCGv_i32 val, TCGv_i32 tag)
 {
-    tcg_gen_andi_i64(cpu_aad_hi[alop->als.aad], arg1, 0xffffffff00000000);
+    TCGv_i32 aasti = tcg_constant_i32(alop->als.aaind);
+    gen_helper_aaurwd_aasti(tcg_env, aasti, val, tag);
 }
 
-static void gen_aaurw_aad_i32(Alop *alop, TCGv_i32 arg1, TCGv_i32 tag)
+static void gen_aaurwd_aaind(Alop *alop, TCGv_i32 val, TCGv_i32 tag)
 {
-    TCGv_i64 lo = cpu_aad_lo[alop->als.aad];
-    TCGv_i64 t0 = tcg_temp_new_i64();
-    TCGv_i64 t1 = tcg_temp_new_i64();
+    int index = alop->als.aaind;
+    if (index) {
+        TCGv_i32 aaind = tcg_constant_i32(alop->als.aaind);
+        gen_helper_aaurwd_aaind(tcg_env, aaind, val, tag);
+    }
+}
 
-    tcg_gen_extu_i32_i64(t0, arg1);
-    tcg_gen_deposit_i64(lo, lo, t0, 0, 48);
-    tcg_gen_ori_i64(lo, lo, 3UL << 59);
-    tcg_gen_andi_i64(lo, lo, ~(0x7UL << 54));
-    gen_aad_tag(t1, tag);
-    tcg_gen_or_i64(lo, lo, t1);
+static void gen_aaurwd_aaincr(Alop *alop, TCGv_i32 val, TCGv_i32 tag)
+{
+    int index = alop->als.aaind & 7;
+    if (index) {
+        TCGv_i32 aaincr = tcg_constant_i32(index);
+        gen_helper_aaurwd_aaincr(tcg_env, aaincr, val, tag);
+    }
 }
 
 static void gen_aaurw_rest_i32(Alop *alop, TCGv_i32 arg1, TCGv_i32 tag)
 {
-    int idx = alop->als.aaind;
-    TCGv_i32 t0 = tcg_temp_new_i32();
-    tcg_gen_setcondi_i32(TCG_COND_NE, t0, tag, 0);
     switch(alop->als.aaopc) {
     case 1: /* aaurwd src4, aasti */
-        tcg_gen_mov_i32(cpu_aasti[idx], arg1);
-        tcg_gen_deposit_i32(cpu_aasti_tags, cpu_aasti_tags, t0, idx, 1);
+        gen_aaurwd_aasti(alop, arg1, tag);
         break;
-    case 2: { /* aaurwd src4, aaind */
-        if (idx == 0) {
-            tcg_gen_movi_i32(cpu_aaind[idx], 0);
-        } else {
-            tcg_gen_mov_i32(cpu_aaind[idx], arg1);
-            tcg_gen_deposit_i32(cpu_aaind_tags, cpu_aaind_tags, t0,
-                idx, 1);
-        }
+    case 2: /* aaurwd src4, aaind */
+        gen_aaurwd_aaind(alop, arg1, tag);
         break;
-    }
     case 3: /* aaurwd src4, aaincr */
-        idx &= 7;
-        if (idx > 0) {
-            tcg_gen_mov_i32(cpu_aaincr[idx], arg1);
-            tcg_gen_deposit_i32(cpu_aaincr_tags, cpu_aaincr_tags, t0,
-                idx, 1);
-        }
+        gen_aaurwd_aaincr(alop, arg1, tag);
         break;
     default:
         g_assert_not_reached();
@@ -4449,8 +4414,6 @@ static void gen_aasti_incr(Alop *alop)
 {
     DisasContext *ctx = alop->ctx;
     uint16_t rlp = find_am_cond(ctx, alop->chan);
-    TCGv_i32 t0 = tcg_temp_new_i32();
-    TCGv_i32 t1 = tcg_temp_new_i32();
     int len;
 
     switch (alop->op) {
@@ -4465,20 +4428,21 @@ static void gen_aasti_incr(Alop *alop)
         break;
     }
 
-    tcg_gen_shli_i32(t0, cpu_aaincr[alop->als.aaincr], len);
-    tcg_gen_add_i32(t1, cpu_aasti[alop->als.aaind], t0);
+    TCGv_i32 aaind = tcg_constant_i32(alop->als.aaind);
+    TCGv_i32 aaincr = tcg_constant_i32(alop->als.aaincr);
+    TCGv_i32 l = tcg_constant_i32(len);
 
     if (rlp != 0) {
-        // FIXME: need to test AM RLP
-        TCGv_i32 t2 = tcg_temp_new_i32();
-        TCGv_i32 t3 = tcg_constant_i32(0);
+        TCGv_i32 t0 = tcg_temp_new_i32();
+        TCGLabel *l0 = gen_new_label();
 
-        e2k_todo(ctx, "AM RLP found");
-        gen_am_cond_i32(ctx, t2, alop->chan, rlp);
-        tcg_gen_movcond_i32(TCG_COND_NE, cpu_aasti[alop->als.aaind], t2, t3,
-            cpu_aasti[alop->als.aaind], t1);
+        // FIXME: need to test AM RLP
+        gen_am_cond_i32(ctx, t0, alop->chan, rlp);
+        tcg_gen_brcondi_i32(TCG_COND_EQ, t0, 0, l0);
+        gen_helper_aasti_incr(tcg_env, aaind, aaincr, l);
+        gen_set_label(l0);
     } else {
-        tcg_gen_mov_i32(cpu_aasti[alop->als.aaind], t1);
+        gen_helper_aasti_incr(tcg_env, aaind, aaincr, l);
     }
 }
 
@@ -4486,8 +4450,6 @@ static void gen_aad_ptr(DisasContext *ctx, TCGv ret, Alop *alop)
 {
     uint32_t lit = 0;
     TCGv_i64 t0 = tcg_temp_new_i64();
-    TCGv t1 = tcg_temp_new();
-    TCGv t2 = tcg_temp_new();
 
     if (alop->als.aalit) {
         int lts = alop->als.aalit - 1;
@@ -4499,17 +4461,10 @@ static void gen_aad_ptr(DisasContext *ctx, TCGv ret, Alop *alop)
         }
     }
 
-    tcg_gen_extract_i64(t0, cpu_aad_lo[alop->als.aad], 0, 48);
-    tcg_gen_trunc_i64_tl(t1, t0);
-    tcg_gen_extu_i32_tl(t2, cpu_aasti[alop->als.aaind]);
-
-    if (lit != 0) {
-        TCGv t3 = tcg_temp_new();
-        tcg_gen_add_tl(t3, t1, t2);
-        tcg_gen_addi_tl(ret, t3, lit);
-    } else {
-        tcg_gen_add_tl(ret, t1, t2);
-    }
+    gen_helper_aad_ptr(t0, tcg_env, tcg_constant_i32(alop->als.aad),
+            tcg_constant_i32(alop->als.aaind));
+    tcg_gen_addi_i64(t0, t0, lit);
+    tcg_gen_trunc_i64_tl(ret, t0);
 }
 
 static void gen_staaqp(Alop *alop)
@@ -4533,7 +4488,7 @@ static void gen_staaqp(Alop *alop)
         /* staaqp */
         int mod = mas & 0x7;
         MemOp memop = memop_from_mas(MO_UQ, mas);
-        TCGLabel *l0 = gen_new_label();
+        TCGLabel *l0 = NULL;
         TCGv t0 = tcg_temp_new();
         TCGv_i64 t1 = tcg_temp_new_i64();
         TCGv_i64 t2 = tcg_temp_new_i64();
@@ -4546,13 +4501,17 @@ static void gen_staaqp(Alop *alop)
 
         if (alop->als.sm) {
             TCGv_i32 t3 = tcg_temp_new_i32();
+            l0 = gen_new_label();
             gen_probe_write_access(t3, t0, 16, alop->ctx->mmuidx);
             tcg_gen_brcondi_i32(TCG_COND_EQ, t3, 0, l0);
         }
 
         gen_qpunpackdl(t2, t1, s4.val);
         gen_qemu_st_i128(t2, t1, t0, alop->ctx->mmuidx, memop);
-        gen_set_label(l0);
+
+        if (l0) {
+            gen_set_label(l0);
+        }
     }
 }
 
@@ -4566,9 +4525,9 @@ static void gen_staa_i64(Alop *alop)
         /* aaurwd */
         if (alop->als.aaopc == 0) {
             if (alop->chan == 5 && alop->als.opc1 == 0x3f) {
-                gen_aaurw_aad_hi_i64(alop, s4.val, s4.tag);
+                gen_aaurwd_aad_hi(alop, s4.val, s4.tag);
             } else {
-                gen_aaurw_aad_lo_i64(alop, s4.val, s4.tag);
+                gen_aaurwd_aad_lo(alop, s4.val, s4.tag);
             }
         } else {
             TCGv_i32 t0 = tcg_temp_new_i32();
@@ -4579,7 +4538,7 @@ static void gen_staa_i64(Alop *alop)
         /* staad */
         int mod = mas & 0x7;
         MemOp memop = memop_from_mas(MO_UQ, mas);
-        TCGLabel *l0 = gen_new_label();
+        TCGLabel *l0 = NULL;
         TCGv t0 = tcg_temp_new();
 
         if (mod != 0) {
@@ -4590,12 +4549,17 @@ static void gen_staa_i64(Alop *alop)
 
         if (alop->als.sm) {
             TCGv_i32 t1 = tcg_temp_new_i32();
+
+            l0 = gen_new_label();
             gen_probe_write_access(t1, t0, memop_size(memop), alop->ctx->mmuidx);
             tcg_gen_brcondi_i32(TCG_COND_EQ, t1, 0, l0);
         }
 
         tcg_gen_qemu_st_i64(s4.val, t0, ctx->mmuidx, memop);
-        gen_set_label(l0);
+
+        if (l0) {
+            gen_set_label(l0);
+        }
     }
 }
 
@@ -4610,7 +4574,10 @@ static void gen_staa_i32(Alop *alop, MemOp memop)
         /* CPU do nothing if size less than 32 bits */
         if ((memop & MO_SIZE) == MO_32) {
             if (alop->als.aaopc == 0) {
-                gen_aaurw_aad_i32(alop, s4.val, s4.tag);
+                TCGv_i64 t0 = tcg_temp_new_i64();
+
+                tcg_gen_extu_i32_i64(t0, s4.val);
+                gen_aaurwd_aad_lo(alop, t0, s4.tag);
             } else {
                 gen_aaurw_rest_i32(alop, s4.val, s4.tag);
             }
@@ -6782,7 +6749,7 @@ static void alc_init(DisasContext *ctx)
 
 static void gen_load_prefetch_program(DisasContext *ctx)
 {
-    gen_helper_aau_load_program(tcg_env);
+    gen_helper_aau_load_program(tcg_env, cpu_ctprs[1]);
 }
 
 static void gen_aau_result_d(DisasContext *ctx, Mova *instr,
@@ -7841,9 +7808,6 @@ void e2k_tcg_initialize(void) {
         { &cpu_lsr_over, offsetof(CPUE2KState, lsr_over), "lsr_over" },
         { &cpu_lsr_pcnt, offsetof(CPUE2KState, lsr_pcnt), "lsr_pcnt" },
         { &cpu_lsr_strmd, offsetof(CPUE2KState, lsr_strmd), "lsr_strmd" },
-        { &cpu_aasti_tags, offsetof(CPUE2KState, aau.sti_tags), "aasti_tags" },
-        { &cpu_aaind_tags, offsetof(CPUE2KState, aau.ind_tags), "aaind_tags" },
-        { &cpu_aaincr_tags, offsetof(CPUE2KState, aau.incr_tags), "aaincr_tags" },
     };
 
     static const struct { TCGv_i64 *ptr; int off; const char *name; } r64[] = {
@@ -7875,32 +7839,5 @@ void e2k_tcg_initialize(void) {
         snprintf(buf, ARRAY_SIZE(buf), "%%ctpr%d", i + 1);
         cpu_ctprs[i] = tcg_global_mem_new_i64(tcg_env,
             offsetof(CPUE2KState, ctprs[i].raw), buf);
-    }
-
-    for (i = 0; i < 16; i++) {
-        snprintf(buf, ARRAY_SIZE(buf), "%%aasti%d", i);
-        cpu_aasti[i] = tcg_global_mem_new_i32(tcg_env,
-            offsetof(CPUE2KState, aau.stis[i]), buf);
-    }
-
-    for (i = 0; i < 16; i++) {
-        snprintf(buf, ARRAY_SIZE(buf), "%%aaind%d", i);
-        cpu_aaind[i] = tcg_global_mem_new_i32(tcg_env,
-            offsetof(CPUE2KState, aau.inds[i]), buf);
-    }
-
-    for (i = 0; i < 7; i++) {
-        snprintf(buf, ARRAY_SIZE(buf), "%%aaincr%d", i);
-        cpu_aaincr[i] = tcg_global_mem_new_i32(tcg_env,
-            offsetof(CPUE2KState, aau.incrs[i]), buf);
-    }
-
-    for (i = 0; i < 32; i++) {
-        snprintf(buf, ARRAY_SIZE(buf), "%%aad%d_lo", i);
-        cpu_aad_lo[i] = tcg_global_mem_new_i64(tcg_env,
-            offsetof(CPUE2KState, aau.ds[i].lo), buf);
-        snprintf(buf, ARRAY_SIZE(buf), "%%aad%d_hi", i);
-        cpu_aad_hi[i] = tcg_global_mem_new_i64(tcg_env,
-            offsetof(CPUE2KState, aau.ds[i].hi), buf);
     }
 }

@@ -21,10 +21,10 @@ static inline void init_prefetch_area(E2KAauAreaState *s, E2KAauPrefInstr pi,
     }
 }
 
-void HELPER(aau_load_program)(CPUE2KState *env)
+void HELPER(aau_load_program)(CPUE2KState *env, uint64_t ctpr2)
 {
     unsigned int i;
-    E2KCtpr ctpr = env->ctprs[1];
+    E2KCtpr ctpr = { .raw = ctpr2 };
 
     if (ctpr.tag != CTPR_TAG_DISP || ctpr.opc != CTPR_OPC_LDISP) {
         helper_raise_exception(env, E2K_EXCP_ILLEGAL_OPCODE);
@@ -89,4 +89,58 @@ void HELPER(aau_am)(CPUE2KState *env, int chan, int area)
 
     size = 1 << (instr.fmt - 1);
     as->cdi += size * incr;
+}
+
+void HELPER(aaurwd_aad_lo)(CPUE2KState *env, uint32_t aad, uint64_t val, uint32_t tag)
+{
+    env->aau.ds[aad].base = val;
+    if (env->enable_tags) {
+        // TODO: aad.tag
+        env->aau.ds[aad].tag = 0;
+    }
+    env->aau.ds[aad].mb = 1;
+    env->aau.ds[aad].ed = 1;
+    env->aau.ds[aad].rw = 3;
+}
+
+void HELPER(aaurwd_aad_hi)(CPUE2KState *env, uint32_t aad, uint64_t val, uint32_t tag)
+{
+    env->aau.ds[aad].hi = val & 0xffffffff00000000;
+}
+
+void HELPER(aaurwd_aaind)(CPUE2KState *env, uint32_t index, uint32_t val, uint32_t tag)
+{
+    env->aau.inds[index] = val;
+
+    if (env->enable_tags) {
+        env->aau.ind_tags = deposit64(env->aau.ind_tags, index, 1, tag != 0);
+    }
+}
+
+void HELPER(aaurwd_aasti)(CPUE2KState *env, uint32_t index, uint32_t val, uint32_t tag)
+{
+    env->aau.stis[index] = val;
+
+    if (env->enable_tags) {
+        env->aau.sti_tags = deposit64(env->aau.sti_tags, index, 1, tag != 0);
+    }
+}
+
+void HELPER(aaurwd_aaincr)(CPUE2KState *env, uint32_t index, uint32_t val, uint32_t tag)
+{
+    env->aau.incrs[index] = val;
+
+    if (env->enable_tags) {
+        env->aau.incr_tags = deposit64(env->aau.incr_tags, index, 1, tag != 0);
+    }
+}
+
+uint64_t HELPER(aad_ptr)(CPUE2KState *env, uint32_t aad, uint32_t aasti)
+{
+    return extract64(env->aau.ds[aad].lo, 0, 48) + env->aau.stis[aasti];
+}
+
+void HELPER(aasti_incr)(CPUE2KState *env, uint32_t aasti, uint32_t aaincr, uint32_t len)
+{
+    env->aau.stis[aasti] += env->aau.incrs[aaincr] << len;
 }
