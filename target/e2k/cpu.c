@@ -47,9 +47,9 @@ static void e2k_cpu_reset(DeviceState *dev)
     env->wd.base = 0;
     env->wd.size = 16;
     env->wd.psize = 8;
-    env->bn.base = 8;
+    e2k_set_rbs(env, 8);
     env->bn.size = 8;
-    env->bn.cur = 0;
+    e2k_set_rcur(env, 0);
     /* Based predicate window must not be zero. */
     env->bp.size = 1;
     env->aau.incrs[0] = 1; /* always one */

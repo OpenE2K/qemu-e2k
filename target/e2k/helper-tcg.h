@@ -64,9 +64,9 @@ static inline uint32_t env_br_get(CPUE2KState *env)
     E2KBpState *bp = &env->bp;
     uint32_t ret = 0;
 
-    ret = deposit32(ret, BR_RBS_OFF, BR_RBS_LEN, bn->base / 2);
+    ret = deposit32(ret, BR_RBS_OFF, BR_RBS_LEN, e2k_get_rbs(env));
     ret = deposit32(ret, BR_RSZ_OFF, BR_RSZ_LEN, bn->size / 2 - 1);
-    ret = deposit32(ret, BR_RCUR_OFF, BR_RCUR_LEN, bn->cur / 2);
+    ret = deposit32(ret, BR_RCUR_OFF, BR_RCUR_LEN, e2k_get_rcur(env));
 
     ret = deposit32(ret, BR_PSZ_OFF, BR_PSZ_LEN, bp->size - 1);
     ret = deposit32(ret, BR_PCUR_OFF, BR_PCUR_LEN, bp->cur);
@@ -79,9 +79,9 @@ static inline void env_br_set(CPUE2KState *env, uint32_t br)
     E2KBnState *bn = &env->bn;
     E2KBpState *bp = &env->bp;
 
-    bn->base = extract32(br, BR_RBS_OFF, BR_RBS_LEN) * 2;
+    e2k_set_rbs(env, extract32(br, BR_RBS_OFF, BR_RBS_LEN));
     bn->size = extract32(br, BR_RSZ_OFF, BR_RSZ_LEN) * 2 + 2;
-    bn->cur = extract32(br, BR_RCUR_OFF, BR_RCUR_LEN) * 2;
+    e2k_set_rcur(env, extract32(br, BR_RCUR_OFF, BR_RCUR_LEN));
 
     bp->size = extract32(br, BR_PSZ_OFF, BR_PSZ_LEN) + 1;
     bp->cur = extract32(br, BR_PCUR_OFF, BR_PCUR_LEN);
