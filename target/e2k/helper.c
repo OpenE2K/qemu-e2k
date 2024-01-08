@@ -277,7 +277,9 @@ void HELPER(return)(CPUE2KState *env)
         CPUState *cs = env_cpu(env);
         env->wd.psize = 2;
         env->regs[0].lo = 119; /* TARGET_NR_sigreturn */
-        env->tags[0] = E2K_TAG_NUMBER64;
+        if (env->enable_tags) {
+            env->tags[0] = E2K_TAG_NUMBER64;
+        }
         cs->exception_index = E2K_EXCP_SYSCALL;
         cpu_loop_exit(cs);
     }

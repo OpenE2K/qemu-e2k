@@ -227,8 +227,10 @@ static void target_setup_frame(int sig, struct target_sigaction *ka,
     __put_user(env->ilcr_lcnt, &frame->ilcr_lcnt);
     copy_to_user(frame_addr + offsetof(struct target_sigframe, gregs),
         &env->greg[16], 16 * sizeof(E2KReg));
-    copy_to_user(frame_addr + offsetof(struct target_sigframe, gtags),
-        &env->gtag[16], 16);
+    if (env->enable_tags) {
+		copy_to_user(frame_addr + offsetof(struct target_sigframe, gtags),
+			&env->gtag[16], 16);
+	}
 
     if (ka->sa_flags & TARGET_SA_RESTORER) {
         // TODO: sa_restorer?
@@ -246,15 +248,19 @@ static void target_setup_frame(int sig, struct target_sigaction *ka,
 
     env->ip = ka->_sa_handler;
     env->regs[0].lo = sig;
-    env->tags[0] = E2K_TAG_NUMBER64;
+    if (env->enable_tags) {
+        env->tags[0] = E2K_TAG_NUMBER64;
+    }
     env->wd.size = 8;
 
     if (info && (ka->sa_flags & TARGET_SA_SIGINFO)) {
         frame->info = *info;
         env->regs[1].lo = frame_addr + offsetof(struct target_sigframe, info);
-        env->tags[1] = E2K_TAG_NUMBER64;
         env->regs[2].lo = frame_addr + offsetof(struct target_sigframe, uc);
-        env->tags[2] = E2K_TAG_NUMBER64;
+        if (env->enable_tags) {
+            env->tags[1] = E2K_TAG_NUMBER64;
+            env->tags[2] = E2K_TAG_NUMBER64;
+        }
     }
 
     unlock_user_struct(frame, frame_addr, 1);
@@ -331,8 +337,10 @@ long do_rt_sigreturn(CPUE2KState *env)
     __get_user(env->ilcr_lcnt, &frame->ilcr_lcnt);
     copy_from_user(&env->greg[16], frame_addr
         + offsetof(struct target_sigframe, gregs), 16 * sizeof(E2KReg));
-    copy_from_user(&env->gtag[16], frame_addr
-        + offsetof(struct target_sigframe, gtags), 16);
+    if (env->enable_tags) {
+		copy_from_user(&env->gtag[16], frame_addr
+			+ offsetof(struct target_sigframe, gtags), 16);
+	}
 
     if (do_sigaltstack(frame_addr +
             offsetof(struct target_sigframe, uc.uc_stack),

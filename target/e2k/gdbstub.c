@@ -397,7 +397,7 @@ void e2k_cpu_gdb_rw_tags(CPUState *cs, vaddr addr,
     }
 
 #ifdef CONFIG_USER_ONLY
-    if (env->psp.base <= addr && addr < (env->psp.base + env->psp.size)) {
+    if (env->enable_tags && env->psp.base <= addr && addr < (env->psp.base + env->psp.size)) {
         target_ulong offset = addr - env->psp.base;
         target_ulong ptr = env->psp.base_tag + offset / 8;
 
