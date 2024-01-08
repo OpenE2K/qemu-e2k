@@ -61,9 +61,9 @@ static inline void cpu_clone_regs_child(CPUE2KState *env, target_ulong newsp,
         env->ip = E2K_SYSRET_ADDR;
         env->pcsp = pcs;
         env->psp = ps;
-        env->regs[0].lo = 0;
+        env->wreg[0].lo = 0;
         if (env->enable_tags) {
-            env->tags[0] = 0;
+            env->wtag[0] = 0;
         }
     }
 }

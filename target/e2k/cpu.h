@@ -787,8 +787,11 @@ typedef struct CPUArchState {
     E2KReg regs[E2K_NR_COUNT];
     uint8_t tags[E2K_NR_COUNT];
     /* Global registers */
-    uint8_t gtag[32];
     E2KReg greg[32];
+    uint8_t gtag[32];
+    /* Pointer to the first register in a procedure window */
+    E2KReg *wreg;
+    uint8_t *wtag;
     /* Pointer to the first based register */
     E2KReg *breg;
     uint8_t *btag;
@@ -928,14 +931,14 @@ struct ArchCPU {
 
 static inline int e2k_get_rbs(CPUE2KState *env)
 {
-    return ((uintptr_t) env->breg - (uintptr_t) env->regs) / sizeof(env->breg[0]) / 2;
+    return ((uintptr_t) env->breg - (uintptr_t) env->wreg) / sizeof(env->breg[0]) / 2;
 }
 
 static inline void e2k_set_rbs(CPUE2KState *env, int rbs)
 {
     int n = rbs * 2;
-    env->breg = &env->regs[n];
-    env->btag = &env->tags[n];
+    env->breg = &env->wreg[n];
+    env->btag = &env->wtag[n];
 }
 
 static inline int e2k_get_rcur(CPUE2KState *env)
