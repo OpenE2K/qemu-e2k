@@ -85,10 +85,10 @@ void cpu_loop(CPUE2KState *env)
                 int i;
 
                 for (i = 0; i < psize; i++) {
-                    args[i] = env->regs[i].lo;
+                    args[i] = env->wreg[i].lo;
                 }
 
-                if (!env->enable_tags || (env->tags[0] & E2K_TAG_MASK_32) == E2K_TAG_NUMBER32) {
+                if (!env->enable_tags || (env->wtag[0] & E2K_TAG_MASK_32) == E2K_TAG_NUMBER32) {
                     ret = do_syscall(env, (uint32_t) args[0], args[1], args[2], args[3],
                         args[4], args[5], args[6], args[7], args[8]);
                 } else {
@@ -99,13 +99,13 @@ void cpu_loop(CPUE2KState *env)
                     /* do not set sysret address and syscall will be restarted */
                 } else if (ret != -QEMU_ESIGRETURN && env->wd.psize > 0) {
                     env->ip = E2K_SYSRET_ADDR;
-                    env->regs[0].lo = ret;
+                    env->wreg[0].lo = ret;
 
                     if (env->enable_tags) {
-                        env->tags[0] = E2K_TAG_NUMBER64;
+						env->wtag[0] = E2K_TAG_NUMBER64;
 
                         for (i = 1; i < E2K_SYSCALL_MAX_ARGS; i++) {
-                            env->tags[i] = E2K_TAG_NON_NUMBER64;
+                            env->wtag[i] = E2K_TAG_NON_NUMBER64;
                         }
                     }
                 }
@@ -179,6 +179,15 @@ void target_cpu_copy_regs(CPUE2KState *env, struct target_pt_regs *regs)
     env->usd.hi = regs->usd_hi;
     env->sbr = regs->sbr;
     env->elf_flags = info->elf_flags;
+
+    env->wreg = env->regs;
+    env->wtag = env->tags;
+    env->wd.base = 0;
+    env->wd.size = 16;
+    env->wd.psize = 8;
+    e2k_set_rbs(env, 8);
+    env->bn.size = 8;
+    e2k_set_rcur(env, 0);
 
     // Save initial frame for gdb.
     env->is_bp = true;

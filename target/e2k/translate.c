@@ -97,6 +97,8 @@ typedef enum {
 static TCGv cpu_pc;
 static TCGv_i64 cpu_ctprs[3];
 static TCGv_i32 cpu_bsize; /* holds rsz * 2 + 2 */
+static TCGv_ptr cpu_wreg; /* pointer to the first register in a procedure window */
+static TCGv_ptr cpu_wtag;
 static TCGv_ptr cpu_breg; /* pointer to the first based register */
 static TCGv_ptr cpu_btag;
 static TCGv_i32 cpu_bcur; /* rcur * 2 * sizeof(E2KReg) */
@@ -1362,11 +1364,11 @@ static Tagged gen_reg(DisasContext *ctx, TaggedKind kind, uint8_t reg)
         }
     } else if (IS_REGULAR(reg)) {
         index = GET_REGULAR(reg);
-        reg_ptr = tcg_env;
-        offset_lo = offsetof(CPUE2KState, regs[index].lo);
-        offset_hi = offsetof(CPUE2KState, regs[index].hi);
-        tag_ptr = tcg_env;
-        tag_offset = offsetof(CPUE2KState, tags[index]);
+        reg_ptr = cpu_wreg;
+        offset_lo = index * sizeof(E2KReg) + offsetof(E2KReg, lo);
+        offset_hi = index * sizeof(E2KReg) + offsetof(E2KReg, hi);
+        tag_ptr = cpu_wtag;
+        tag_offset = index;
     } else if (IS_GLOBAL(reg)) {
         index = GET_GLOBAL(reg);
         reg_ptr = tcg_env;
@@ -1452,11 +1454,11 @@ static void gen_set_reg(DisasContext *ctx, Tagged *value, uint8_t reg)
         }
     } else if (IS_REGULAR(reg)) {
         index = GET_REGULAR(reg);
-        reg_ptr = tcg_env;
-        offset_lo = offsetof(CPUE2KState, regs[index].lo);
-        offset_hi = offsetof(CPUE2KState, regs[index].hi);
-        tag_ptr = tcg_env;
-        tag_offset = offsetof(CPUE2KState, tags[index]);
+        reg_ptr = cpu_wreg;
+        offset_lo = index * sizeof(E2KReg) + offsetof(E2KReg, lo);
+        offset_hi = index * sizeof(E2KReg) + offsetof(E2KReg, hi);
+        tag_ptr = cpu_wtag;
+        tag_offset = index;
     } else if (IS_GLOBAL(reg)) {
         index = GET_GLOBAL(reg);
         reg_ptr = tcg_env;
@@ -7076,8 +7078,8 @@ static inline void gen_setbn(DisasContext *ctx)
         ctx->b_size = setr->rsz * 2 + 2;
         ctx->b_base = setr->rbs * 2;
         tcg_gen_movi_i32(cpu_bsize, ctx->b_size);
-        tcg_gen_addi_ptr(cpu_breg, tcg_env, offsetof(CPUE2KState, regs[ctx->b_base]));
-        tcg_gen_addi_ptr(cpu_btag, tcg_env, offsetof(CPUE2KState, tags[ctx->b_base]));
+        tcg_gen_addi_ptr(cpu_breg, cpu_wreg, ctx->b_base * sizeof(E2KReg));
+        tcg_gen_addi_ptr(cpu_btag, cpu_wtag, ctx->b_base);
         tcg_gen_movi_i32(cpu_bcur, setr->rcur * 2 * sizeof(E2KReg));
     }
 }
@@ -7919,6 +7921,8 @@ void e2k_tcg_initialize(void) {
             offsetof(CPUE2KState, ctprs[i].raw), buf);
     }
 
+    cpu_wreg = tcg_global_mem_new_ptr(tcg_env, offsetof(CPUE2KState, wreg), "wreg");
+    cpu_wtag = tcg_global_mem_new_ptr(tcg_env, offsetof(CPUE2KState, wtag), "wtag");
     cpu_breg = tcg_global_mem_new_ptr(tcg_env, offsetof(CPUE2KState, breg), "breg");
     cpu_btag = tcg_global_mem_new_ptr(tcg_env, offsetof(CPUE2KState, btag), "btag");
     cpu_bcur = tcg_global_mem_new_i32(tcg_env, offsetof(CPUE2KState, bcur), "bcur");

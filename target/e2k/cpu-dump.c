@@ -119,7 +119,7 @@ static void dump_regs(CPUE2KState *env, FILE *f, int flags)
     int i, base, cur;
 
     for (i = 0; i < env->wd.size; i++) {
-        int tags = env->enable_tags ? env->tags[i] : 0;
+        int tags = env->enable_tags ? env->wtag[i] : 0;
         dump_reg(env, f, 'r', i, tags, env->regs[i]);
     }
     if (env->wd.size & 3) {
@@ -130,9 +130,9 @@ static void dump_regs(CPUE2KState *env, FILE *f, int flags)
     cur = e2k_get_rcur(env) * 2;
     if ((env->wd.size - base) >= env->bn.size) {
         for (i = 0; i < env->bn.size; i++) {
-            int index = base + (i + cur) % env->bn.size;
-            int tags = env->enable_tags ? env->tags[index] : 0;
-            dump_reg(env, f, 'b', i, tags, env->regs[index]);
+            int index = (i + cur) % env->bn.size;
+            int tags = env->enable_tags ? env->btag[index] : 0;
+            dump_reg(env, f, 'b', i, tags, env->breg[index]);
         }
         if (env->bn.size & 3) {
             qemu_fprintf(f, "\n");

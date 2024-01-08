@@ -44,12 +44,16 @@ static void e2k_cpu_reset(DeviceState *dev)
 
     env->psr = PSR_PM;
     env->upsr = UPSR_NMIE | UPSR_FE;
+#if !defined(CONFIG_USER_ONLY)
+    env->wreg = env->regs;
+    env->wtag = env->tags;
     env->wd.base = 0;
     env->wd.size = 16;
     env->wd.psize = 8;
     e2k_set_rbs(env, 8);
     env->bn.size = 8;
     e2k_set_rcur(env, 0);
+#endif
     /* Based predicate window must not be zero. */
     env->bp.size = 1;
     env->aau.incrs[0] = 1; /* always one */

@@ -247,19 +247,19 @@ static void target_setup_frame(int sig, struct target_sigaction *ka,
     e2k_proc_call(env, 0, E2K_SIGRET_ADDR, false);
 
     env->ip = ka->_sa_handler;
-    env->regs[0].lo = sig;
+    env->wreg[0].lo = sig;
     if (env->enable_tags) {
-        env->tags[0] = E2K_TAG_NUMBER64;
+        env->wtag[0] = E2K_TAG_NUMBER64;
     }
     env->wd.size = 8;
 
     if (info && (ka->sa_flags & TARGET_SA_SIGINFO)) {
         frame->info = *info;
-        env->regs[1].lo = frame_addr + offsetof(struct target_sigframe, info);
-        env->regs[2].lo = frame_addr + offsetof(struct target_sigframe, uc);
+        env->wreg[1].lo = frame_addr + offsetof(struct target_sigframe, info);
+        env->wreg[2].lo = frame_addr + offsetof(struct target_sigframe, uc);
         if (env->enable_tags) {
-            env->tags[1] = E2K_TAG_NUMBER64;
-            env->tags[2] = E2K_TAG_NUMBER64;
+            env->wtag[1] = E2K_TAG_NUMBER64;
+            env->wtag[2] = E2K_TAG_NUMBER64;
         }
     }
 
