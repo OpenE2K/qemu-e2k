@@ -88,7 +88,7 @@ void cpu_loop(CPUE2KState *env)
                     args[i] = env->regs[i].lo;
                 }
 
-                if ((env->tags[0] & E2K_TAG_MASK_32) == E2K_TAG_NUMBER32) {
+                if (!env->enable_tags || (env->tags[0] & E2K_TAG_MASK_32) == E2K_TAG_NUMBER32) {
                     ret = do_syscall(env, (uint32_t) args[0], args[1], args[2], args[3],
                         args[4], args[5], args[6], args[7], args[8]);
                 } else {
@@ -100,10 +100,13 @@ void cpu_loop(CPUE2KState *env)
                 } else if (ret != -QEMU_ESIGRETURN && env->wd.psize > 0) {
                     env->ip = E2K_SYSRET_ADDR;
                     env->regs[0].lo = ret;
-                    env->tags[0] = E2K_TAG_NUMBER64;
 
-                    for (i = 1; i < E2K_SYSCALL_MAX_ARGS; i++) {
-                        env->tags[i] = E2K_TAG_NON_NUMBER64;
+                    if (env->enable_tags) {
+                        env->tags[0] = E2K_TAG_NUMBER64;
+
+                        for (i = 1; i < E2K_SYSCALL_MAX_ARGS; i++) {
+                            env->tags[i] = E2K_TAG_NON_NUMBER64;
+                        }
                     }
                 }
             } else {

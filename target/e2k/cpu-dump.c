@@ -99,7 +99,7 @@ static void dump_predicate_regs(CPUE2KState *env, FILE *f, int flags)
     qemu_fprintf(f, "\n");
 }
 
-static inline void dump_reg(FILE *f, char mnemonic, int index,
+static inline void dump_reg(CPUE2KState *env, FILE *f, char mnemonic, int index,
     uint8_t tag, E2KReg reg)
 {
     int width = (index > 9) + (index > 99);
@@ -119,7 +119,8 @@ static void dump_regs(CPUE2KState *env, FILE *f, int flags)
     int i;
 
     for (i = 0; i < env->wd.size; i++) {
-        dump_reg(f, 'r', i, env->tags[i], env->regs[i]);
+        int tags = env->enable_tags ? env->tags[i] : 0;
+        dump_reg(env, f, 'r', i, tags, env->regs[i]);
     }
     if (env->wd.size & 3) {
         qemu_fprintf(f, "\n");
@@ -128,7 +129,8 @@ static void dump_regs(CPUE2KState *env, FILE *f, int flags)
     if ((env->wd.size - env->bn.base) >= env->bn.size) {
         for (i = 0; i < env->bn.size; i++) {
             int index = env->bn.base + (i + env->bn.cur) % env->bn.size;
-            dump_reg(f, 'b', i, env->tags[index], env->regs[index]);
+            int tags = env->enable_tags ? env->tags[index] : 0;
+            dump_reg(env, f, 'b', i, tags, env->regs[index]);
         }
         if (env->bn.size & 3) {
             qemu_fprintf(f, "\n");
@@ -136,7 +138,8 @@ static void dump_regs(CPUE2KState *env, FILE *f, int flags)
     }
 
     for (i = 0; i < 32; i++) {
-        dump_reg(f, 'g', i, env->gtag[i], env->greg[i]);
+        int tags = env->enable_tags ? env->gtag[i] : 0;
+        dump_reg(env, f, 'g', i, tags, env->greg[i]);
     }
 }
 

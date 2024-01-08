@@ -62,7 +62,9 @@ static inline void cpu_clone_regs_child(CPUE2KState *env, target_ulong newsp,
         env->pcsp = pcs;
         env->psp = ps;
         env->regs[0].lo = 0;
-        env->tags[0] = 0;
+        if (env->enable_tags) {
+            env->tags[0] = 0;
+        }
     }
 }
 
