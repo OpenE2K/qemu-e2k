@@ -30,7 +30,7 @@ DEF_HELPER_FLAGS_4(aasti_incr,          TCG_CALL_NO_RWG, void, env, i32, i32, i3
 DEF_HELPER_4(dam_lock_addr, void, env, i64, int, int)
 DEF_HELPER_4(dam_unlock_addr, int, env, i64, int, int)
 
-DEF_HELPER_2(getsp, i64, env, i32)
+DEF_HELPER_FLAGS_2(getsp, TCG_CALL_NO_RWG, i64, env, i32)
 
 DEF_HELPER_FLAGS_2(state_reg_get, TCG_CALL_NO_WG_SE, i64, env, int)
 DEF_HELPER_3(state_reg_set, void, env, i64, int)
