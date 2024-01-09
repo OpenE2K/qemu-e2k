@@ -17,10 +17,20 @@
 #define E2K_MACH_EV4  4
 #define E2K_MACH_EV5  5
 #define E2K_MACH_EV6  6
+#define E2K_MACH_EV7  7
 
 /* elbrus-v4 based processors */
 #define E2K_MACH_8C     19
 #define E2K_MACH_1CPLUS 20
+
+/* elbrus-v6 based processors */
+#define E2K_MACH_12C    21
+#define E2K_MACH_16C    22
+#define E2K_MACH_2C3    23
+
+/* elbrus-v7 based processors */
+#define E2K_MACH_48C    24
+#define E2K_MACH_8V7    25
 
 const char *cpu_get_model(uint32_t eflags);
 

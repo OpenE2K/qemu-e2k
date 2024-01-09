@@ -400,6 +400,7 @@ struct e2k_def_t {
     const char *canonical_name;
     const char *gdb_arch;
     uint32_t isa_version;
+    uint64_t idr;
 };
 
 typedef struct {
@@ -837,7 +838,6 @@ typedef struct CPUArchState {
     uint32_t cuir;
     /* System Register */
     uint64_t osr0;
-    uint64_t idr;
     uint64_t core_mode;
 
     /* Packed Floating Point Flag Register (PFPFR) */
@@ -893,6 +893,7 @@ typedef struct CPUArchState {
     /* Fields up to this point are cleared by a CPU reset */
     struct {} end_reset_fields;
 
+    uint64_t idr;
     /* ISA version */
     uint32_t version;
     /* Force alop to preserve the destination register before writing to it.

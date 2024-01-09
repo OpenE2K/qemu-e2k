@@ -61,9 +61,6 @@ static void e2k_cpu_reset(DeviceState *dev)
     e2k_update_fp_status(env);
     e2k_update_fx_status(env);
 
-    // FIXME: testing
-    env->idr = 0x3a207; /* mimic 8c */
-
     // FIXME: correct values
     env->psp.base = 0x810000;
     env->psp.size = 0x100000;
@@ -100,37 +97,58 @@ static void e2k_cpu_disas_set_info(CPUState *cs, disassemble_info *info)
 
 /* https://www.altlinux.org/Модели_процессоров_Эльбрус */
 #define DEFAULT_CPU_MODEL "e8c"
+
+#define MDL_E3M              0    /* Elbrus */
+#define MDL_ES               1    /* Elbrus-S */
+#define MDL_E3S              2    /* Elbrus-3S */
+#define MDL_E2S              3    /* Elbrus-4C */
+#define MDL_ES2              4    /* Elbrus-2C+ */
+#define MDL_RESERVED         5    /* unknown "reserved" processor */
+#define MDL_ES2_NO_DSP       6    /* Elbrus-2CM */
+#define MDL_E8C              7    /* Elbrus-8C  */
+#define MDL_E1CP             8    /* Elbrus-1C+ */
+#define MDL_E8C2             9    /* Elbrus-8C2 */
+#define MDL_E12C            10    /* Elbrus-12C */
+#define MDL_E16C            11    /* Elbrus-16C */
+#define MDL_E2C3            12    /* Elbrus-2C3 */
+#define MDL_E48C            13    /* Elbrus-48C FIXME: assumption */
+#define MDL_E8V7            14    /* Elbrus-8v7 FIXME: assumption */
+
+#define CPU_MODEL(ISET, NAME, GDB_ARCH, IDR, CANON) \
+    { \
+        .name           = NAME,     \
+        .canonical_name = CANON,    \
+        .gdb_arch       = GDB_ARCH, \
+        .isa_version    = ISET,     \
+        .idr            = IDR,      \
+    }
+
 static const struct e2k_def_t e2k_defs[] = {
-    {
-        .name           = "e2cplus", /* however it may work better */
-        .canonical_name = "MCST Elbrus 2C+ (Monocube)",
-        .gdb_arch       = "elbrus-v2",
-        .isa_version    = 2,
-    },
-    {
-        .name           = "e2s",
-        .canonical_name = "MCST Elbrus 4C",
-        .gdb_arch       = "elbrus-v3",
-        .isa_version    = 3,
-    },
-    {
-        .name           = "e8c", /* default choice for system */
-        .canonical_name = "MCST Elbrus 8C",
-        .gdb_arch       = "elbrus-8c",
-        .isa_version    = 4,
-    },
-    {
-        .name           = "e8c2",
-        .canonical_name = "MCST Elbrus 8CB",
-        .gdb_arch       = "elbrus-v5",
-        .isa_version    = 5,
-    },
-    {
-        .name           = "e16c",
-        .canonical_name = "MCST Elbrus 16C",
-        .gdb_arch       = "elbrus-v6",
-        .isa_version    = 6,
-    },
+    CPU_MODEL(1, "elbrus-v1",   "elbrus-v1",    MDL_E3M,        "MCST Elbrus"),
+    CPU_MODEL(2, "elbrus-v2",   "elbrus-v2",    MDL_ES,         "MCST Elbrus-S"),
+    CPU_MODEL(3, "elbrus-v3",   "elbrus-v3",    MDL_E2S,        "MCST Elbrus-4C"),
+    CPU_MODEL(4, "elbrus-v4",   "elbrus-v4",    MDL_E8C,        "MCST Elbrus-8C"),
+    CPU_MODEL(5, "elbrus-v5",   "elbrus-v5",    MDL_E8C2,       "MCST Elbrus-8C2"),
+    CPU_MODEL(6, "elbrus-v6",   "elbrus-v6",    MDL_E16C,       "MCST Elbrus-16C"),
+    CPU_MODEL(7, "elbrus-v7",   "elbrus-v7",    MDL_E48C,       "MCST Elbrus-48C"),
+    CPU_MODEL(1, "generic",     "elbrus-v1",    MDL_E3M,        "MCST Elbrus"),
+    CPU_MODEL(1, "elbrus",      "elbrus-v1",    MDL_E3M,        "MCST Elbrus"),
+    CPU_MODEL(1, "e3m",         "elbrus-v1",    MDL_E3M,        "MCST Elbrus-3M1"),
+    CPU_MODEL(2, "elbrus-s",    "elbrus-v2",    MDL_ES,         "MCST Elbrus-S"),
+    CPU_MODEL(2, "e3s",         "elbrus-v2",    MDL_E3S,        "MCST Elbrus-3S"),
+    CPU_MODEL(2, "es2",         "elbrus-v2",    MDL_ES2,        "MCST Elbrus-2C+ (Monocube)"),
+    CPU_MODEL(2, "e2cplus",     "elbrus-v2",    MDL_ES2,        "MCST Elbrus-2C+ (Monocube)"),
+    CPU_MODEL(2, "e2cm",        "elbrus-v2",    MDL_ES2_NO_DSP, "MCST Elbrus-2CM"),
+    CPU_MODEL(3, "e2s",         "elbrus-v3",    MDL_E2S,        "MCST Elbrus-4C"),
+    CPU_MODEL(3, "e4c",         "elbrus-v3",    MDL_E2S,        "MCST Elbrus-4C"),
+    CPU_MODEL(4, "e8c",         "elbrus-8c",    MDL_E8C,        "MCST Elbrus-8C"),
+    CPU_MODEL(4, "e1cplus",     "elbrus-1c+",   MDL_E1CP,       "MCST Elbrus-1C+"),
+    CPU_MODEL(5, "e8c2",        "elbrus-v5",    MDL_E8C2,       "MCST Elbrus-8C2"),
+    CPU_MODEL(6, "e16c",        "elbrus-16c",   MDL_E16C,       "MCST Elbrus-16C"),
+    CPU_MODEL(6, "e12c",        "elbrus-12c",   MDL_E12C,       "MCST Elbrus-12C"),
+    CPU_MODEL(6, "e2c3",        "elbrus-2c3",   MDL_E2C3,       "MCST Elbrus-2C3"),
+    CPU_MODEL(7, "e48c",        "elbrus-v7",    MDL_E48C,       "MCST Elbrus-48C"),
+    CPU_MODEL(7, "e8v7",        "elbrus-v7",    MDL_E8V7,       "MCST Elbrus-8v7"),
 };
 
 static void e2k_cpu_set_pc(CPUState *cs, vaddr value)
@@ -207,6 +225,7 @@ static void e2k_cpu_realizefn(DeviceState *dev, Error **errp)
     E2KCPU *cpu = E2K_CPU(dev);
     CPUE2KState *env = &cpu->env;
 
+    env->idr = env->def.idr;
     env->version = env->def.isa_version;
 
     cpu_exec_realizefn(cs, &local_err);
@@ -336,7 +355,7 @@ void e2k_cpu_list(void)
     size_t len = 0;
     
     for (i = 0; i < ARRAY_SIZE(e2k_defs); i++) {
-        qemu_printf("%6s (%-30s) ISA version: v%d\n",
+        qemu_printf("%12s (%-30s) ISA version: v%d\n",
             e2k_defs[i].name,
             e2k_defs[i].canonical_name,
             e2k_defs[i].isa_version
