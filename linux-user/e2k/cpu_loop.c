@@ -204,13 +204,20 @@ const char *cpu_get_model(uint32_t eflags)
 
     /* TODO: can't check for EM_E2K_OLD flags because e_machine isn't saved anywhere... */
     switch(machine) {
-    case E2K_MACH_EV2: name = "e2c+"; break;
-    case E2K_MACH_EV3: name = "e2s"; break;
+    case E2K_MACH_EV1: name = "elbrus-v1"; break;
+    case E2K_MACH_EV2: name = "elbrus-v2"; break;
+    case E2K_MACH_EV3: name = "elbrus-v3"; break;
     case E2K_MACH_1CPLUS:
     case E2K_MACH_8C:
-    case E2K_MACH_EV4: name = "e8c"; break;
-    case E2K_MACH_EV5: name = "e8c2"; break;
-    case E2K_MACH_EV6: name = "e16c"; break;
+    case E2K_MACH_EV4: name = "elbrus-v4"; break;
+    case E2K_MACH_EV5: name = "elbrus-v5"; break;
+    case E2K_MACH_12C:
+    case E2K_MACH_16C:
+    case E2K_MACH_2C3:
+    case E2K_MACH_EV6: name = "elbrus-v6"; break;
+    case E2K_MACH_48C:
+    case E2K_MACH_8V7:
+    case E2K_MACH_EV7: name = "elbrus-v7"; break;
     }
 
     return name;
