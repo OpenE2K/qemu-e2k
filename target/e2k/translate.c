@@ -4878,19 +4878,32 @@ static AlopResult gen_sxt(Alop *alop)
     return gen_al_result(d, alop, r);
 }
 
+#define IMPL_GEN_HELPER_GETF(S) \
+    static void glue(gen_helper_getf, S)(DisasContext *ctx, \
+            temp(S) ret, temp(S) src1, temp(S) src2) \
+    { \
+        if (ctx->version >= 5) { \
+            glue3(gen_helper_getf, S, _v5)(ret, src1, src2); \
+        } else { \
+            glue3(gen_helper_getf, S, _v1)(ret, src1, src2); \
+        } \
+    }
+
+IMPL_GEN_HELPER_GETF(s)
+IMPL_GEN_HELPER_GETF(d)
+
 static AlopResult gen_getfs(Alop *alop)
 {
     tagged(s) s1 = gen_tagged_src1(s, alop);
-    tagged(s) s2 = gen_tagged_src2(s, alop);
     tagged(s) r = tagged_temp_new(s);
-
-    gen_tag2(s, r, s1, s2);
 
     if (IS_LIT(alop->als.src2)) {
         uint16_t lit = get_literal(alop->ctx, alop->als.src2);
         int len = extract16(lit, 6, 5);
         int offset = extract16(lit, 0, 5);
         int sign = extract16(lit, 12, 1);
+
+        gen_tag1(s, r, s1);
 
         if (len) {
             if (sign) {
@@ -4900,7 +4913,7 @@ static AlopResult gen_getfs(Alop *alop)
                     tcg_gen_rotri_i32(r.val, s1.val, offset);
                     tcg_gen_sextract_i32(r.val, r.val, 0, len);
                 } else {
-                    gen_helper_getfs(r.val, s1.val, s2.val);
+                    gen_helper_getfs(alop->ctx, r.val, s1.val, tcg_constant_i32(lit));
                 }
             } else {
                 tcg_gen_rotri_i32(r.val, s1.val, offset);
@@ -4910,7 +4923,10 @@ static AlopResult gen_getfs(Alop *alop)
             tcg_gen_movi_i32(r.val, 0);
         }
     } else {
-        gen_helper_getfs(r.val, s1.val, s2.val);
+        tagged(s) s2 = gen_tagged_src2(s, alop);
+
+        gen_tag2(s, r, s1, s2);
+        gen_helper_getfs(alop->ctx, r.val, s1.val, s2.val);
     }
 
     return gen_al_result(s, alop, r);
@@ -4919,16 +4935,15 @@ static AlopResult gen_getfs(Alop *alop)
 static AlopResult gen_getfd(Alop *alop)
 {
     tagged(d) s1 = gen_tagged_src1(d, alop);
-    tagged(d) s2 = gen_tagged_src2(d, alop);
     tagged(d) r = tagged_temp_new(d);
-
-    gen_tag2(d, r, s1, s2);
 
     if (IS_LIT(alop->als.src2)) {
         uint16_t lit = get_literal(alop->ctx, alop->als.src2);
         int len = extract16(lit, 6, 6);
         int offset = extract16(lit, 0, 6);
         int sign = extract16(lit, 12, 1);
+
+        gen_tag1(d, r, s1);
 
         if (len) {
             if (sign) {
@@ -4938,7 +4953,7 @@ static AlopResult gen_getfd(Alop *alop)
                     tcg_gen_rotri_i64(r.val, s1.val, offset);
                     tcg_gen_sextract_i64(r.val, r.val, 0, len);
                 } else {
-                    gen_helper_getfd(r.val, s1.val, s2.val);
+                    gen_helper_getfd(alop->ctx, r.val, s1.val, tcg_constant_i64(lit));
                 }
             } else {
                 tcg_gen_rotri_i64(r.val, s1.val, offset);
@@ -4948,7 +4963,10 @@ static AlopResult gen_getfd(Alop *alop)
             tcg_gen_movi_i64(r.val, 0);
         }
     } else {
-        gen_helper_getfd(r.val, s1.val, s2.val);
+        tagged(d) s2 = gen_tagged_src2(d, alop);
+
+        gen_tag2(d, r, s1, s2);
+        gen_helper_getfd(alop->ctx, r.val, s1.val, s2.val);
     }
 
     return gen_al_result(d, alop, r);
@@ -5939,7 +5957,7 @@ typedef enum {
         case ICOMB_SHL: glue(tcg_gen_shl_, S)(ret, arg1, arg2); break; \
         case ICOMB_SHR: glue(tcg_gen_shr_, S)(ret, arg1, arg2); break; \
         case ICOMB_SAR: glue(tcg_gen_sar_, S)(ret, arg1, arg2); break; \
-        case ICOMB_GETF: glue(gen_getf_, S)(ret, arg1, arg2); break; \
+        case ICOMB_GETF: glue(gen_getf_, S)(alop->ctx, ret, arg1, arg2); break; \
         default: g_assert_not_reached(); break; \
         } \
     }
