@@ -13,7 +13,7 @@ uint64_t HELPER(sxt)(uint32_t s1, uint32_t s2)
     return s1 & 4 ? extract32(s2, 0, size) : sextract64(s2, 0, size);
 }
 
-uint32_t HELPER(getfs)(uint32_t src1, uint32_t src2)
+uint32_t HELPER(getfs_v1)(uint32_t src1, uint32_t src2)
 {
     int len = extract16(src2, 6, 5);
     int offset = extract16(src2, 0, 5);
@@ -32,7 +32,7 @@ uint32_t HELPER(getfs)(uint32_t src1, uint32_t src2)
     return ret;
 }
 
-uint64_t HELPER(getfd)(uint64_t src1, uint64_t src2)
+uint64_t HELPER(getfd_v1)(uint64_t src1, uint64_t src2)
 {
     int len = extract16(src2, 6, 6);
     int offset = extract16(src2, 0, 6);
@@ -45,6 +45,46 @@ uint64_t HELPER(getfd)(uint64_t src1, uint64_t src2)
 
         if (sign && extract64(src1, (byte * 8 + ((offset + len - 1) & 7)), 1)) {
             ret |= -1ULL << len;
+        }
+    }
+
+    return ret;
+}
+
+uint32_t HELPER(getfs_v5)(uint32_t src1, uint32_t src2)
+{
+    int len = extract16(src2, 6, 5);
+    uint64_t ret = 0;
+
+    if (len) {
+        int offset = extract16(src2, 0, 5);
+
+        ret = ror32(src1, offset);
+
+        if (extract16(src2, 12, 1)) {
+            ret = sextract32(ret, 0, len);
+        } else {
+            ret = extract32(ret, 0, len);
+        }
+    }
+
+    return ret;
+}
+
+uint64_t HELPER(getfd_v5)(uint64_t src1, uint64_t src2)
+{
+    int len = extract16(src2, 6, 6);
+    uint64_t ret = 0;
+
+    if (len) {
+        int offset = extract16(src2, 0, 6);
+
+        ret = ror64(src1, offset);
+
+        if (extract16(src2, 12, 1)) {
+            ret = sextract64(ret, 0, len);
+        } else {
+            ret = extract64(ret, 0, len);
         }
     }
 
