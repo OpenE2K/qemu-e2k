@@ -177,6 +177,7 @@ typedef enum {
     CS0_SDISP,
     CS0_GETTSD,
     CS0_RETURN,
+    CS0_IRET,
 } Cs0Type;
 
 typedef struct {
@@ -247,6 +248,7 @@ typedef enum {
     CS1_SETSFT,
     CS1_WAIT,
     CS1_CALL,
+    CS1_ICALL,
     CS1_HCALL,
     CS1_MAS,
     CS1_FLUSH,
@@ -369,6 +371,7 @@ typedef struct {
     int chan;
     uint8_t mas;
     TCGv_i32 preg;
+    AlopResult result;
     union {
         struct {
             uint32_t src4: 8;
@@ -424,6 +427,10 @@ typedef enum {
     CT_IBRANCH,
     CT_JUMP,
     CT_CALL,
+    CT_ICALLD_LITERAL,
+    CT_ICALLD_REG,
+    CT_IBRANCHD_REG,
+    CT_IRET,
 } ControlTransferType;
 
 typedef struct {
@@ -431,6 +438,7 @@ typedef struct {
     union {
         target_ulong target;
         TCGv_i64 ctpr;
+        TCGv_i64 reg;
     } u;
     int ctpr_index;
     int wbs;
@@ -509,6 +517,8 @@ typedef struct DisasContext {
     target_ulong pc;
     int mmuidx;
     bool loop_mode;
+
+    TCGv_i32 lp[7];
 
     /* optional, can be NULL */
     TCGv_i32 mlock;
@@ -945,22 +955,24 @@ static inline void decode_cs1(DisasContext *ctx, const UnpackedBundle *raw)
             }
         }
     } else if (opc == CALL) {
-        int ctop = extract32(raw->ss, 10, 2);
         int wbs = extract32(cs1, 0, 7);
-        if (ctop) {
+        if (ctx->ct.ctpr_index) {
             ret->type = CS1_CALL;
             ret->call_wbs = wbs;
         } else {
             int cs1_ctopc = extract32(cs1, 7, 3);
             int cs0_opc = extract32(raw->cs0, 28, 4);
-            int disp = extract32(raw->cs0, 1, 5);
-            if (cs1_ctopc != 2 || cs0_opc != 0 || !raw->cs0_present) {
+            int32_t disp = extract32(raw->cs0, 1, 5);
+            if (ctx->version >= 7 && ctx->ct.cond_type) {
+                ret->type = CS1_ICALL;
+                ret->call_wbs = wbs;
+            } else if (cs1_ctopc != 2 || cs0_opc != 0 || !raw->cs0_present) {
                 gen_tr_excp_illopc(ctx);
-                return;
+            } else {
+                ret->type = CS1_HCALL;
+                ret->hcall.disp = disp;
+                ret->hcall.wbs = wbs;
             }
-            ret->type = CS1_HCALL;
-            ret->hcall.disp = disp;
-            ret->hcall.wbs = wbs;
         }
     } else if (opc == MAS_OPC) {
         ret->type = CS1_MAS;
@@ -1039,6 +1051,8 @@ static inline void decode_cs0(DisasContext *ctx, const UnpackedBundle *raw)
         case 3:
             if (param_type == 0) {
                 ret->type = CS0_DONE;
+            } else if (param_type == 2) {
+                ret->type = CS0_IRET;
             } else if (param_type == 3) {
                 ret->type = CS0_HRET;
             } else if (param_type == 4) {
@@ -1053,6 +1067,10 @@ static inline void decode_cs0(DisasContext *ctx, const UnpackedBundle *raw)
         gen_tr_excp_illopc(ctx);
         break;
     case CS0_IBRANCH:
+        if (ctx->cs1.type == CS1_ICALL) {
+            break;
+        }
+        /* fallthrough */
     case CS0_DONE:
     case CS0_HRET:
     case CS0_GLAUNCH:
@@ -1077,9 +1095,7 @@ static inline void decode_ct_cond(DisasContext *ctx, const UnpackedBundle *raw)
     ctx->ct.cond_type = 0;
     ctx->ct.ctpr_index = extract32(raw->ss, 10, 2);
     if (ctx->ct.ctpr_index != 0) {
-        if (ctx->ct.type == CT_NONE) {
-            ctx->ct.type = CT_JUMP;
-        }
+        ctx->ct.type = CT_JUMP;
         ctx->ct.u.ctpr = cpu_ctprs[ctx->ct.ctpr_index - 1];
     }
     ctx->ct.psrc = extract32(raw->ss, 0, 5);
@@ -1965,13 +1981,27 @@ static void gen_cond_i32(DisasContext *ctx, TCGv_i32 ret, uint8_t psrc)
     }
 }
 
-static inline void scan_needed(const UnpackedBundle *bundle, int need[7])
+static inline void scan_needed(DisasContext *ctx, int need[7])
 {
+    const UnpackedBundle *bundle = &ctx->bundle;
     bool once_more = true;
     unsigned int i;
 
     for (i = 0; i < 3; i++) {
         if (bundle->pls_present[i] && GET_BIT(bundle->pls[i], 5)) {
+            need[4 + i] = 1;
+        }
+    }
+
+    if (ctx->version >= 7 && ctx->ct.cond_type == 0xb && ctx->ct.psrc & 0x10) {
+        // ct ? %clp
+        int clp = extract32(ctx->ct.psrc, 1, 3);
+
+        if (clp > 2) {
+            g_assert(0 && "implement me");
+        }
+
+        for (i = 0; i < 3; i++) {
             need[4 + i] = 1;
         }
     }
@@ -2014,13 +2044,15 @@ static void gen_plu(DisasContext *ctx)
 {
     const UnpackedBundle *bundle = &ctx->bundle;
     int i, need[7] = { 0 };
-    TCGv_i32 lp[7];
+    TCGv_i32 *lp = ctx->lp;
 
-    scan_needed(bundle, need);
+    scan_needed(ctx, need);
 
     for (i = 0; i < 7; i++) {
         if (need[i]) {
             lp[i] = tcg_temp_new_i32();
+        } else {
+            lp[i] = NULL;
         }
     }
 
@@ -2158,6 +2190,8 @@ static ArgSize alop_opn_max_size(Alop *alop, uint8_t src)
     case ALOPF8:
     case ALOPF12:
     case ALOPF12_PSHUFH:
+    case ALOPF12_IBRANCHD:
+    case ALOPF12_ICALLD:
     case ALOPF15:
     case ALOPF22:
         r = alop_reg_max_size(src, r, alop->als.src2, args_src2(alop->args));
@@ -2259,6 +2293,8 @@ static void gen_alop_save_dst(Alop *alop)
     case ALOPF11_LIT8:
     case ALOPF12:
     case ALOPF12_PSHUFH:
+    case ALOPF12_IBRANCHD:
+    case ALOPF12_ICALLD:
     case ALOPF16:
     case ALOPF21:
     case ALOPF21_ICOMB:
@@ -2440,14 +2476,11 @@ static AlopResult gen_al_result_s(Alop *alop, Tagged_i32 arg)
 
 static AlopResult gen_al_result_b(Alop *alop, Tagged_i32 v)
 {
-    AlopResult result;
-
-    result.kind = ALOP_RESULT_PRED_REG;
-    result.t.kind = TAGGED_S;
-    result.t.t32 = v;
-    result.dst = alop->als.dst_preg;
-
-    return result;
+    alop->result.kind = ALOP_RESULT_PRED_REG;
+    alop->result.t.kind = TAGGED_S;
+    alop->result.t.t32 = v;
+    alop->result.dst = alop->als.dst_preg;
+    return alop->result;
 }
 
 static inline bool check_qr(uint8_t src, int chan)
@@ -4937,6 +4970,76 @@ static AlopResult gen_getfd(Alop *alop)
     return gen_al_result(d, alop, r);
 }
 
+static AlopResult gen_ibranchd(Alop *alop)
+{
+    DisasContext *ctx = alop->ctx;
+    AlopResult result = { 0 };
+
+    if (!IS_EMPTY(alop->als.dst)) {
+        g_assert(0 && "implement me");
+    }
+
+    if (alop->als.sm) {
+        g_assert(0 && "implement me");
+    }
+
+    if (IS_LIT(alop->als.src2)) {
+        ctx->ct.type = CT_IBRANCH;
+        ctx->ct.u.target = get_literal(ctx, alop->als.src2);
+    } else if (IS_IMM4(alop->als.src2)) {
+        ctx->ct.type = CT_IBRANCH;
+        ctx->ct.u.target = GET_IMM4(alop->als.src2);
+    } else if (IS_REG(alop->als.src2)) {
+        tagged(d) src2 = gen_tagged_src2(d, alop);
+
+        // TODO: handle tags for ibranchd
+
+        ctx->ct.type = CT_IBRANCHD_REG;
+        ctx->ct.u.reg = tcg_temp_new_i64();
+        tcg_gen_mov_i64(ctx->ct.u.reg, src2.val);
+    } else {
+        g_assert(0 && "implement me");
+    }
+
+    return result;
+}
+
+static AlopResult gen_icalld(Alop *alop)
+{
+    DisasContext *ctx = alop->ctx;
+    AlopResult result = { 0 };
+
+    if (!IS_EMPTY(alop->als.dst)) {
+        g_assert(0 && "implement me");
+    }
+
+    if (alop->als.sm) {
+        g_assert(0 && "implement me");
+    }
+
+    ctx->ct.wbs = alop->als.src1;
+
+    if (IS_LIT(alop->als.src2)) {
+        ctx->ct.type = CT_ICALLD_LITERAL;
+        ctx->ct.u.target = get_literal(ctx, alop->als.src2);
+    } else if (IS_IMM4(alop->als.src2)) {
+        ctx->ct.type = CT_ICALLD_LITERAL;
+        ctx->ct.u.target = GET_IMM4(alop->als.src2);
+    } else if (IS_REG(alop->als.src2)) {
+        tagged(d) src2 = gen_tagged_src2(d, alop);
+
+        // TODO: handle tags for icalld
+
+        ctx->ct.type = CT_ICALLD_REG;
+        ctx->ct.u.reg = tcg_temp_new_i64();
+        tcg_gen_mov_i64(ctx->ct.u.reg, src2.val);
+    } else {
+        g_assert(0 && "implement me");
+    }
+
+    return result;
+}
+
 static void alop_table_find(DisasContext *ctx, Alop *alop, AlesFlag ales_present)
 {
     /* ALES2/5 may be allocated but must not be used */
@@ -4970,13 +5073,13 @@ static void alop_table_find(DisasContext *ctx, Alop *alop, AlesFlag ales_present
         case ALOPF11:
         case ALOPF11_MAS:
         case ALOPF11_MERGE:
+        case ALOPF12_ICALLD:
         case ALOPF13:
         case ALOPF17:
             is_match = desc->extra1 == alop->ales.opce3;
             break;
         case ALOPF12:
         case ALOPF12_IBRANCHD:
-        case ALOPF12_ICALLD:
         case ALOPF22:
             is_match = desc->extra1 == alop->als.opce1
                 && desc->extra2 == alop->ales.opce3;
@@ -5755,6 +5858,8 @@ static AlopResult gen_alop_simple(Alop *alop)
     case OP_CCTOPP:         return gen_alopf8(alop, X86_PF);
     case OP_CCTOPL:         return gen_alopf8(alop, X86_SF | X86_OF);
     case OP_CCTOPLE:        return gen_alopf8(alop, X86_ZF | X86_SF | X86_OF);
+    case OP_ICALLD:         return gen_icalld(alop);
+    case OP_IBRANCHD:       return gen_ibranchd(alop);
     case OP_VFSI:
     case OP_MOVTRS:
     case OP_MOVTRCS:
@@ -5858,8 +5963,6 @@ static AlopResult gen_alop_simple(Alop *alop)
     case OP_VFBGV:
     case OP_MKFSW:
     case OP_MODBGV:
-    case OP_IBRANCHD:
-    case OP_ICALLD:
         e2k_todo_illop(ctx, "unimplemented %d (%s)", alop->op, alop->name);
         break;
     }
@@ -6356,6 +6459,8 @@ static void alop_find_max_reg_indices(Alop *alop, int *max_r_src,
     case ALOPF2:
     case ALOPF12:
     case ALOPF12_PSHUFH:
+    case ALOPF12_IBRANCHD:
+    case ALOPF12_ICALLD:
     case ALOPF22:
         check_reg_src(max_r_src, max_b, alop->als.src2);
         check_reg_dst(max_r_dst, max_b, alop->als.dst);
@@ -6409,6 +6514,7 @@ static void decode_alops(DisasContext *ctx)
         alop->name = "none";
         alop->chan = i;
         alop->preg = NULL;
+        alop->result.kind = ALOP_RESULT_NONE;
 
         if (ctx->bundle.als_present[i]) {
             alop->mas = ctx->cs1.type == CS1_MAS ? ctx->cs1.mas[i] : 0;
@@ -6967,11 +7073,13 @@ static inline void gen_cs1(DisasContext *ctx)
     case CS1_SETR:
         break;
     case CS1_CALL:
+        ctx->ct.type = CT_CALL;
+        /* fallthrough */
+    case CS1_ICALL:
         if (ctx->w_size < cs1->call_wbs * 2) {
             gen_tr_excp_window_bounds(ctx);
         }
 
-        ctx->ct.type = CT_CALL;
         ctx->ct.wbs = cs1->call_wbs;
         break;
     case CS1_WAIT:
@@ -6994,7 +7102,11 @@ static inline void gen_cs0(DisasContext *ctx)
     case CS0_NONE:
         break;
     case CS0_IBRANCH:
-        ctx->ct.type = CT_IBRANCH;
+        if (ctx->cs1.type == CS1_ICALL) {
+            ctx->ct.type = CT_ICALLD_LITERAL;
+        } else {
+            ctx->ct.type = CT_IBRANCH;
+        }
         ctx->ct.u.target = ctx->pc + cs0->ibranch.sdisp;
         break;
     case CS0_PREF:
@@ -7022,6 +7134,9 @@ static inline void gen_cs0(DisasContext *ctx)
         gen_helper_prep_return(cpu_ctprs[2], cpu_env, t0);
         break;
     }
+    case CS0_IRET:
+        ctx->ct.type = CT_IRET;
+        break;
     default:
         e2k_todo_illop(ctx, "unimplemented %d", cs0->type);
         break;
@@ -7155,8 +7270,50 @@ static void gen_ct_cond(DisasContext *ctx)
         }
         break;
     }
+    case 0xb: // {~}%cmpN, {~}%clpN
+        if (ctx->ct.psrc & 0x10){
+            // {~}%clpN
+            bool inv = ctx->ct.psrc & 1;
+            int clp = extract32(ctx->ct.psrc, 1, 3);
+
+            if (clp > 2) {
+                g_assert(0 && "implement me");
+            }
+
+            clp += 4;
+            if (ctx->lp[clp] == NULL) {
+                g_assert(0 && "implement me");
+            }
+
+            if (inv) {
+                tcg_gen_xori_i32(ctx->ct.cond, ctx->lp[clp], 1);
+            } else {
+                tcg_gen_mov_i32(ctx->ct.cond, ctx->lp[clp]);
+            }
+        } else {
+            // {~}%cmpN
+            bool inv = ctx->ct.psrc & 1;
+            int psrc = extract32(ctx->ct.psrc, 1, 3);
+            int chan, chan_map[4] = { 0, 1, 3, 4 };
+
+            if (psrc > 3) {
+                g_assert(0 && "implement me");
+            }
+
+            chan = chan_map[psrc];
+            if (ctx->alops[chan].result.kind == ALOP_RESULT_PRED_REG) {
+                if (inv) {
+                    tcg_gen_xori_i32(ctx->ct.cond, ctx->alops[chan].result.t.i32, 1);
+                } else {
+                    tcg_gen_mov_i32(ctx->ct.cond, ctx->alops[chan].result.t.i32);
+                }
+            } else {
+                g_assert(0 && "implement non-preg result");
+            }
+        }
+        break;
     default:
-        e2k_todo_illop(ctx, "undefined control transfer type %#x", ct->cond_type);
+        gen_tr_excp_illopc(ctx);
         break;
     }
 }
@@ -7205,9 +7362,9 @@ static target_ulong do_decode(DisasContext *ctx, CPUState *cs)
         return ctx->pc + 8;
     }
 
+    decode_ct_cond(ctx, &ctx->bundle);
     decode_cs1(ctx, &ctx->bundle);
     decode_cs0(ctx, &ctx->bundle);
-    decode_ct_cond(ctx, &ctx->bundle);
     decode_alops(ctx);
 
     return ctx->pc + len;
@@ -7501,7 +7658,7 @@ static void do_branch(DisasContext *ctx, target_ulong pc_next)
 
     switch(ctx->ct.type) {
     case CT_NONE:
-        break;
+        g_assert_not_reached();
     case CT_IBRANCH:
         gen_goto_tb(ctx, TB_EXIT_IDX0, ctx->ct.u.target);
         break;
@@ -7566,6 +7723,32 @@ static void do_branch(DisasContext *ctx, target_ulong pc_next)
         }
         break;
     }
+    case CT_ICALLD_LITERAL:
+    case CT_ICALLD_REG:
+        {
+            TCGv_i32 wbs = tcg_constant_i32(ctx->ct.wbs);
+            TCGv npc = tcg_constant_tl(pc_next);
+
+            if (ctx->ct.type == CT_ICALLD_LITERAL) {
+                gen_helper_icalld(cpu_env, tcg_constant_tl(ctx->ct.u.target), wbs, npc);
+                gen_goto_tb(ctx, TB_EXIT_IDX0, ctx->ct.u.target);
+            } else {
+                TCGv target = tcg_temp_new();
+
+                tcg_gen_trunc_i64_tl(target, ctx->ct.u.reg);
+                gen_helper_icalld(cpu_env, target, wbs, npc);
+                tcg_gen_lookup_and_goto_ptr();
+            }
+        }
+        break;
+    case CT_IBRANCHD_REG:
+        tcg_gen_trunc_i64_tl(cpu_pc, ctx->ct.u.reg);
+        tcg_gen_lookup_and_goto_ptr();
+        break;
+    case CT_IRET:
+        gen_helper_iret(cpu_env);
+        tcg_gen_lookup_and_goto_ptr();
+        break;
     }
 }
 
