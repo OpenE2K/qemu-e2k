@@ -230,6 +230,19 @@ void HELPER(call)(CPUE2KState *env, uint64_t ctpr_raw, int call_wbs,
     }
 }
 
+void HELPER(icalld)(CPUE2KState *env, target_ulong target, int call_wbs,
+        target_ulong pc_next)
+{
+    do_call(env, call_wbs, pc_next);
+    env->ip = target;
+}
+
+void HELPER(iret)(CPUE2KState *env)
+{
+    e2k_proc_return(env, false);
+    reset_ctprs(env);
+}
+
 uint64_t HELPER(prep_return)(CPUE2KState *env, int ipd)
 {
     E2KCtpr ret = { 0 };

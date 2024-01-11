@@ -4,6 +4,8 @@
 DEF_HELPER_2(raise_exception, noreturn, env, int)
 
 DEF_HELPER_4(call, void, env, i64, int, tl)
+DEF_HELPER_4(icalld, void, env, tl, int, tl)
+DEF_HELPER_1(iret, void, env)
 DEF_HELPER_2(prep_return, i64, env, int)
 DEF_HELPER_1(return, void, env)
 
