@@ -624,3 +624,41 @@ IMPL_QPACKED_ENV_CVT_TRUNC(qpfdtois,   helper_fdtois)
 IMPL_QPACKED_ENV_CVT_TRUNC(qpfdtoistr, helper_fdtoistr)
 IMPL_QPACKED_ENV_CVT_TRUNC(qpidtofs,   helper_idtofs)
 IMPL_QPACKED_ENV_CVT_TRUNC(qpfdtofs,   helper_fdtofs)
+
+static uint32_t mask4(uint8_t bitmask)
+{
+    static uint32_t map[16] = {
+        0x00000000,
+        0x000000ff,
+        0x0000ff00,
+        0x0000ffff,
+        0x00ff0000,
+        0x00ff00ff,
+        0x00ffff00,
+        0x00ffffff,
+        0xff000000,
+        0xff0000ff,
+        0xff00ff00,
+        0xff00ffff,
+        0xffff0000,
+        0xffff00ff,
+        0xffffff00,
+        0xffffffff
+    };
+    return map[bitmask & 15];
+}
+
+static inline uint64_t mask8(uint8_t bitmask)
+{
+    return deposit64(mask4(bitmask), 32, 32, mask4(bitmask >> 4));
+}
+
+static inline Int128 mask16(uint16_t bitmask)
+{
+    return int128_make128(mask8(bitmask), mask8(bitmask >> 8));
+}
+
+Int128 HELPER(stmqp_mask)(uint32_t bitmask)
+{
+    return mask16(bitmask);
+}
