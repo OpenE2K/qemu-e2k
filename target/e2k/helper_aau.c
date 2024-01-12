@@ -91,7 +91,7 @@ void HELPER(aau_am)(CPUE2KState *env, int chan, int area)
     as->cdi += size * incr;
 }
 
-void HELPER(aaurwd_aad_lo)(CPUE2KState *env, uint32_t aad, uint64_t val, uint32_t tag)
+void HELPER(aaurwd_aad)(CPUE2KState *env, uint32_t aad, uint64_t val, uint32_t tag)
 {
     env->aau.ds[aad].base = val;
     if (env->enable_tags) {
@@ -103,9 +103,10 @@ void HELPER(aaurwd_aad_lo)(CPUE2KState *env, uint32_t aad, uint64_t val, uint32_
     env->aau.ds[aad].rw = 3;
 }
 
-void HELPER(aaurwd_aad_hi)(CPUE2KState *env, uint32_t aad, uint64_t val, uint32_t tag)
+void HELPER(aaurwq_aad)(CPUE2KState *env, uint32_t aad, Int128 val, uint32_t tag)
 {
-    env->aau.ds[aad].hi = val & 0xffffffff00000000;
+    helper_aaurwd_aad(env, aad, int128_getlo(val), tag);
+    env->aau.ds[aad].hi = int128_gethi(val) & 0xffffffff00000000;
 }
 
 void HELPER(aaurwd_aaind)(CPUE2KState *env, uint32_t index, uint32_t val, uint32_t tag)
