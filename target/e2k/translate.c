@@ -4336,14 +4336,14 @@ IMPL_GEN_ADDR_SRC1(gen_addr_src1_i32, s, tcg_gen_ext_i32_tl)
 #define gen_stqp(i, a, b)  gen_alopf3_mas(i, a, gen_st_raw_i128,  MO_UQ, b)
 #define gen_stmqp(i, a, b) gen_alopf3_mas(i, a, gen_stm_raw_i128, MO_UQ, b)
 
-static void gen_aaurwd_aad_lo(Alop *alop, TCGv_i64 arg1, TCGv_i32 tag)
+static void gen_aaurwd_aad(Alop *alop, TCGv_i64 arg1, TCGv_i32 tag)
 {
-    gen_helper_aaurwd_aad_lo(cpu_env, tcg_constant_i32(alop->als.aad), arg1, tag);
+    gen_helper_aaurwd_aad(cpu_env, tcg_constant_i32(alop->als.aad), arg1, tag);
 }
 
-static void gen_aaurwd_aad_hi(Alop *alop, TCGv_i64 arg1, TCGv_i32 tag)
+static void gen_aaurwq_aad(Alop *alop, TCGv_i128 arg1, TCGv_i32 tag)
 {
-    gen_helper_aaurwd_aad_hi(cpu_env, tcg_constant_i32(alop->als.aad), arg1, tag);
+    gen_helper_aaurwq_aad(cpu_env, tcg_constant_i32(alop->als.aad), arg1, tag);
 }
 
 static void gen_aaurwd_aasti(Alop *alop, TCGv_i32 val, TCGv_i32 tag)
@@ -4515,7 +4515,85 @@ static void gen_staaqp(Alop *alop)
     }
 }
 
-static void gen_staa_i64(Alop *alop)
+static bool check_staaq_pair(DisasContext *ctx, int chan)
+{
+    Alop *alop = &ctx->alops[chan == 2 ? 5 : 2];
+
+    if (ctx->version >= 7) {
+        // optional staaq,[25] or empty ALC[25]
+        if (alop->format != ALOPF_NONE && !(alop->format == ALOPF10 && alop->op == OP_STAAQ)) {
+            return false;
+        }
+    } else {
+        // staaq,[25] is required
+        if (alop->format != ALOPF10 || alop->op != OP_STAAQ) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+static void gen_staaq(Alop *alop)
+{
+    DisasContext *ctx = alop->ctx;
+    uint8_t mas = alop->mas;
+    Tagged_i64 lo, hi;
+    Tagged_i128 s4;
+
+    if (!check_staaq_pair(ctx, alop->chan) || (alop->chan == 5) != (alop->als.dst & 1)) {
+        gen_tr_excp_illopc(ctx);
+        return;
+    }
+
+    if (alop->chan == 5) {
+        // handle in alop2
+        return;
+    }
+
+    lo = gen_tagged_reg_d(ctx, alop->als.dst, 2);
+    hi = gen_tagged_reg_d(ctx, alop->als.dst + 1, 2);
+    s4 = tagged_temp_new_i128();
+    gen_tag2(q, s4, lo, hi);
+    tcg_gen_concat_i64_i128(s4.val, lo.val, hi.val);
+
+    if (mas == 0x3f) {
+        if (alop->als.aaopc == 0) {
+            gen_aaurwq_aad(alop, s4.val, s4.tag);
+        } else {
+            TCGv_i32 t0 = tcg_temp_new_i32();
+            tcg_gen_extrl_i64_i32(t0, lo.val);
+            gen_aaurw_rest_i32(alop, t0, s4.tag);
+        }
+    } else {
+        int mod = mas & 0x7;
+        MemOp memop = memop_from_mas(MO_UQ, mas);
+        TCGLabel *l0 = NULL;
+        TCGv t0 = tcg_temp_new();
+
+        if (mod != 0) {
+            e2k_todo(ctx, "staaq mod=%#x is not implemented", mod);
+        }
+
+        gen_aad_ptr(ctx, t0, alop);
+
+        if (alop->als.sm) {
+            TCGv_i32 t1 = tcg_temp_new_i32();
+
+            l0 = gen_new_label();
+            gen_probe_write_access(t1, t0, memop_size(memop), alop->ctx->mmuidx);
+            tcg_gen_brcondi_i32(TCG_COND_EQ, t1, 0, l0);
+        }
+
+        tcg_gen_qemu_st_i128(s4.val, t0, ctx->mmuidx, memop);
+
+        if (l0) {
+            gen_set_label(l0);
+        }
+    }
+}
+
+static void gen_staad(Alop *alop)
 {
     DisasContext *ctx = alop->ctx;
     uint8_t mas = alop->mas;
@@ -4524,11 +4602,7 @@ static void gen_staa_i64(Alop *alop)
     if (mas == 0x3f) {
         /* aaurwd */
         if (alop->als.aaopc == 0) {
-            if (alop->chan == 5 && alop->als.opc1 == 0x3f) {
-                gen_aaurwd_aad_hi(alop, s4.val, s4.tag);
-            } else {
-                gen_aaurwd_aad_lo(alop, s4.val, s4.tag);
-            }
+            gen_aaurwd_aad(alop, s4.val, s4.tag);
         } else {
             TCGv_i32 t0 = tcg_temp_new_i32();
             tcg_gen_extrl_i64_i32(t0, s4.val);
@@ -4563,7 +4637,7 @@ static void gen_staa_i64(Alop *alop)
     }
 }
 
-static void gen_staa_i32(Alop *alop, MemOp memop)
+static void gen_staaw(Alop *alop, MemOp memop)
 {
     DisasContext *ctx = alop->ctx;
     uint8_t mas = alop->mas;
@@ -4577,7 +4651,7 @@ static void gen_staa_i32(Alop *alop, MemOp memop)
                 TCGv_i64 t0 = tcg_temp_new_i64();
 
                 tcg_gen_extu_i32_i64(t0, s4.val);
-                gen_aaurwd_aad_lo(alop, t0, s4.tag);
+                gen_aaurwd_aad(alop, t0, s4.tag);
             } else {
                 gen_aaurw_rest_i32(alop, s4.val, s4.tag);
             }
@@ -5471,22 +5545,11 @@ static AlopResult gen_alop_simple(Alop *alop)
     case OP_PUTTAGS:        return gen_puttags(alop);
     case OP_PUTTAGD:        return gen_puttagd(alop);
     case OP_PUTTAGQP:       return gen_puttagqp(alop);
-    case OP_STAAB:          gen_staa_i32(alop, MO_8); break;
-    case OP_STAAH:          gen_staa_i32(alop, MO_16); break;
-    case OP_STAAW:          gen_staa_i32(alop, MO_32); break;
-    case OP_STAAD:          gen_staa_i64(alop); break;
-    case OP_STAAQ: {
-        int pair_chan = alop->chan == 2 ? 5 : 2;
-        if (!ctx->bundle.als_present[pair_chan] ||
-            extract32(ctx->bundle.als[pair_chan], 24, 7) != 0x3f ||
-            (alop->als.dst & 1) != (alop->chan == 2 ? 0 : 1))
-        {
-            gen_tr_excp_illopc(ctx);
-        } else {
-            gen_staa_i64(alop);
-        }
-        break;
-    }
+    case OP_STAAB:          gen_staaw(alop, MO_8); break;
+    case OP_STAAH:          gen_staaw(alop, MO_16); break;
+    case OP_STAAW:          gen_staaw(alop, MO_32); break;
+    case OP_STAAD:          gen_staad(alop); break;
+    case OP_STAAQ:          gen_staaq(alop); break;
     case OP_STAAQP:         gen_staaqp(alop); break;
     case OP_MULS:           return gen_alopf1_sss(alop, tcg_gen_mul_i32);
     case OP_MULD:           return gen_alopf1_ddd(alop, tcg_gen_mul_i64);
