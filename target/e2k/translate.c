@@ -6382,7 +6382,8 @@ static void decode_alop(Alop *alop, AlesFlag ales_present)
         break;
     case ALOP_LCMBQ0:
     case ALOP_LCMBQ1:
-        if (is_chan_0134(alop->chan) && ctx->version >= 5) {
+        if ((is_chan_0134(alop->chan) && ctx->version >= 5) ||
+                (is_chan_25(alop->chan) && ctx->version >= 7)) {
             alop->format = ALOPF21;
             alop->op = alop->ales.opc2 == ALOP_LCMBQ0 ? OP_QPLOG_0x00 : OP_QPLOG_0x80;
             alop->args = ARGS_PPPP;
