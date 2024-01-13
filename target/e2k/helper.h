@@ -13,8 +13,9 @@ DEF_HELPER_1(return, void, env)
 
 DEF_HELPER_4(setwd, void, env, int, int, int)
 
-DEF_HELPER_FLAGS_2(probe_read_access,  TCG_CALL_NO_RWG_SE, int, tl, int)
-DEF_HELPER_FLAGS_2(probe_write_access, TCG_CALL_NO_RWG_SE, int, tl, int)
+DEF_HELPER_FLAGS_2(probe_read_access,   TCG_CALL_NO_RWG_SE, int, tl, int)
+DEF_HELPER_FLAGS_2(probe_write_access,  TCG_CALL_NO_RWG_SE, int, tl, int)
+DEF_HELPER_FLAGS_2(probe_rw_access,     TCG_CALL_NO_RWG_SE, int, tl, int)
 
 DEF_HELPER_FLAGS_2(aau_load_program,    TCG_CALL_NO_RWG, void, env, i64)
 DEF_HELPER_FLAGS_6(mova_ptr,            TCG_CALL_NO_RWG, tl, env, int, int, int, int, int)
