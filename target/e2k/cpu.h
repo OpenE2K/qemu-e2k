@@ -44,6 +44,8 @@ void e2k_tcg_initialize(void);
 
 #define E2K_PR_COUNT 32     /* %predN   [0, 32) */
 
+#define TARGET_PROBE_CACHE_SIZE 64
+
 typedef enum {
     E2K_TAG_NUMBER32 = 0,
     E2K_TAG_NUMBER64 = 0,
@@ -803,6 +805,11 @@ typedef struct CPUArchState {
     target_ulong ip;
     /* Next Instruction Address */
     target_ulong nip;
+
+#if defined(CONFIG_USER_ONLY)
+    target_ulong probe_cache_page[TARGET_PROBE_CACHE_SIZE];
+    uint8_t probe_cache_flags[TARGET_PROBE_CACHE_SIZE];
+#endif
 
     /* Procedure Chain Stack Pointer (control registers) */
     E2KPsp pcsp;

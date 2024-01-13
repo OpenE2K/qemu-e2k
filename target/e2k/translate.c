@@ -3960,21 +3960,21 @@ static void gen_probe_read_access(TCGv_i32 ret, TCGv addr, int size,
     int mmu_idx)
 {
     TCGv_i32 t0 = tcg_constant_i32(size);
-    gen_helper_probe_read_access(ret, addr, t0);
+    gen_helper_probe_read_access(ret, tcg_env, addr, t0);
 }
 
 static void gen_probe_write_access(TCGv_i32 ret, TCGv addr, int size,
     int mmu_idx)
 {
     TCGv_i32 t0 = tcg_constant_i32(size);
-    gen_helper_probe_write_access(ret, addr, t0);
+    gen_helper_probe_write_access(ret, tcg_env, addr, t0);
 }
 
 static void gen_probe_rw_access(TCGv_i32 ret, TCGv addr, int size,
     int mmu_idx)
 {
     TCGv_i32 t0 = tcg_constant_i32(size);
-    gen_helper_probe_rw_access(ret, addr, t0);
+    gen_helper_probe_rw_access(ret, tcg_env, addr, t0);
 }
 
 static AlopResult gen_ld_raw_i64(Alop *alop, TCGv_i32 tag, TCGv addr,
