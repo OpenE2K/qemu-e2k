@@ -10,6 +10,10 @@ static bool e2k_probe_access(target_ulong addr, int size, int flag)
     target_ulong start = addr & TARGET_PAGE_MASK;
     target_ulong last = (addr + size - 1) & TARGET_PAGE_MASK;
 
+    if (!guest_addr_valid_untagged(addr)) {
+        return false;
+    }
+
     if (start == last) {
         return page_get_flags(start) & flag;
     } else {
@@ -24,5 +28,5 @@ int HELPER(probe_read_access)(target_ulong addr, int size)
 
 int HELPER(probe_write_access)(target_ulong addr, int size)
 {
-    return e2k_probe_access(addr, size, PAGE_WRITE);
+    return e2k_probe_access(addr, size, PAGE_WRITE_ORG);
 }
