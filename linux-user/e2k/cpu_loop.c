@@ -89,7 +89,24 @@ void cpu_loop(CPUE2KState *env)
                 }
 
                 if (!env->enable_tags || (env->wtag[0] & E2K_TAG_MASK_32) == E2K_TAG_NUMBER32) {
-                    ret = do_syscall(env, (uint32_t) args[0], args[1], args[2], args[3],
+                    args[0] = (uint32_t) args[0];
+
+                    if (args[0] == TARGET_NR_brk || args[0] == TARGET_NR_mmap ||
+                            args[0] == TARGET_NR_munmap) {
+                        CPUState *other_cpu;
+
+                        start_exclusive();
+                        CPU_FOREACH(other_cpu) {
+                            E2KCPU *cpu = E2K_CPU(other_cpu);
+                            CPUE2KState *env = &cpu->env;
+
+                            memset(env->probe_cache_page, 0, sizeof(env->probe_cache_page));
+                            memset(env->probe_cache_flags, 0, sizeof(env->probe_cache_flags));
+                        }
+                        end_exclusive();
+                    }
+
+                    ret = do_syscall(env, args[0], args[1], args[2], args[3],
                         args[4], args[5], args[6], args[7], args[8]);
                 } else {
                     ret = TARGET_ENOSYS;
