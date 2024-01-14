@@ -89,12 +89,21 @@ void cpu_loop(CPUE2KState *env)
                 }
 
                 if (!env->enable_tags || (env->wtag[0] & E2K_TAG_MASK_32) == E2K_TAG_NUMBER32) {
+                    CPUState *other_cpu;
+
                     args[0] = (uint32_t) args[0];
 
-                    if (args[0] == TARGET_NR_brk || args[0] == TARGET_NR_mmap ||
-                            args[0] == TARGET_NR_munmap) {
-                        CPUState *other_cpu;
-
+                    switch (args[0]) {
+                    case TARGET_NR_execve:
+                    case TARGET_NR_brk:
+                    case TARGET_NR_mmap:
+                    case TARGET_NR_munmap:
+                    case TARGET_NR_clone:
+                    case TARGET_NR_mmap2:
+                    case TARGET_NR_mremap:
+                    case TARGET_NR_remap_file_pages:
+                    case TARGET_NR_move_pages:
+                    case TARGET_NR_migrate_pages:
                         start_exclusive();
                         CPU_FOREACH(other_cpu) {
                             E2KCPU *cpu = E2K_CPU(other_cpu);
@@ -104,6 +113,7 @@ void cpu_loop(CPUE2KState *env)
                             memset(env->probe_cache_flags, 0, sizeof(env->probe_cache_flags));
                         }
                         end_exclusive();
+                        break;
                     }
 
                     ret = do_syscall(env, args[0], args[1], args[2], args[3],
