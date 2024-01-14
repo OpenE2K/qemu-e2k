@@ -60,19 +60,32 @@ static void stack_expand(CPUE2KState *env, E2KPsp *s)
     s->size = new_size;
 }
 
-static void e2k_clear_probe_page_cache(void)
+static void e2k_clear_probe_page_cache(uint32_t syscall)
 {
     CPUState *other_cpu;
 
-    start_exclusive();
-    CPU_FOREACH(other_cpu) {
-        E2KCPU *cpu = E2K_CPU(other_cpu);
-        CPUE2KState *env = &cpu->env;
+	switch (syscall) {
+	case TARGET_NR_execve:
+	case TARGET_NR_brk:
+	case TARGET_NR_mmap:
+	case TARGET_NR_munmap:
+	case TARGET_NR_clone:
+	case TARGET_NR_mmap2:
+	case TARGET_NR_mremap:
+	case TARGET_NR_remap_file_pages:
+	case TARGET_NR_move_pages:
+	case TARGET_NR_migrate_pages:
+		start_exclusive();
+		CPU_FOREACH(other_cpu) {
+			E2KCPU *cpu = E2K_CPU(other_cpu);
+			CPUE2KState *env = &cpu->env;
 
-        memset(env->probe_cache_page, 0, sizeof(env->probe_cache_page));
-        memset(env->probe_cache_flags, 0, sizeof(env->probe_cache_flags));
-    }
-    end_exclusive();
+			memset(env->probe_cache_page, 0, sizeof(env->probe_cache_page));
+			memset(env->probe_cache_flags, 0, sizeof(env->probe_cache_flags));
+		}
+		end_exclusive();
+		break;
+	}
 }
 
 void cpu_loop(CPUE2KState *env)
@@ -105,14 +118,9 @@ void cpu_loop(CPUE2KState *env)
 
                 if (!env->enable_tags || (env->wtag[0] & E2K_TAG_MASK_32) == E2K_TAG_NUMBER32) {
                     args[0] = (uint32_t) args[0];
-
-                    if (args[0] == TARGET_NR_brk || args[0] == TARGET_NR_mmap ||
-                            args[0] == TARGET_NR_munmap) {
-                        e2k_clear_probe_page_cache();
-                    }
-
+					e2k_clear_probe_page_cache(args[0]);
                     ret = do_syscall(env, args[0], args[1], args[2], args[3],
-                        args[4], args[5], args[6], args[7], args[8]);
+                                     args[4], args[5], args[6], args[7], args[8]);
                 } else {
                     ret = TARGET_ENOSYS;
                 }
