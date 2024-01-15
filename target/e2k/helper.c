@@ -143,18 +143,6 @@ static void crs_read(CPUE2KState *env, target_ulong addr, E2KCrs *crs)
     crs->cr1.hi = cpu_ldq_le_data(env, addr + offsetof(E2KCrs, cr1.hi));
 }
 
-static void pcs_push(CPUE2KState *env, E2KCrs *crs)
-{
-#ifndef CONFIG_USER_ONLY
-    if ((env->pcsp.index + sizeof(E2KCrs) * 2) > env->pcsp.size) {
-        raise_exception(env, EXCP_CHAIN_STACK_BOUNDS);
-    }
-#endif
-
-    env->pcsp.index += sizeof(E2KCrs);
-    crs_write(env, env->pcsp.base + env->pcsp.index, crs);
-}
-
 static void pcs_pop(CPUE2KState *env, E2KCrs *crs)
 {
     crs_read(env, env->pcsp.base + env->pcsp.index, crs);
@@ -171,6 +159,10 @@ void e2k_proc_call(CPUE2KState *env, int base, target_ulong ret_ip,
 {
     E2KCrs crs;
 
+    if ((env->pcsp.size - env->pcsp.index) <= (sizeof(E2KCrs) * 2)) {
+        raise_exception_ra(env, EXCP_CHAIN_STACK_BOUNDS, GETPC());
+    }
+
     crs.cr0_lo = env->pregs;
     crs.cr0_hi = ret_ip & ~7;
     crs.cr1.wbs = base / 2;
@@ -182,7 +174,9 @@ void e2k_proc_call(CPUE2KState *env, int base, target_ulong ret_ip,
     crs.cr1.br = env_br_get(env);
     crs.cr1.ussz = env->usd.size >> 4;
 
-    pcs_push(env, &crs);
+    env->pcsp.index += sizeof(E2KCrs);
+    crs_write(env, env->pcsp.base + env->pcsp.index, &crs);
+
     callee_window(env, base, env->wd.size, env->wd.fx || force_fx);
 
     env->wd.fx = true;
@@ -235,19 +229,6 @@ void HELPER(call)(CPUE2KState *env, uint64_t ctpr_raw, int call_wbs,
         break;
     }
 }
-
-#ifdef CONFIG_USER_ONLY
-void HELPER(expand_stacks)(CPUE2KState *env)
-{
-    if ((env->psp.size - env->psp.index) <= (E2K_REG_LEN * E2K_NR_COUNT * 4)) {
-        raise_exception_ra(env, EXCP_PROC_STACK_BOUNDS, GETPC());
-    }
-
-    if ((env->pcsp.size - env->pcsp.index) <= (sizeof(E2KCrs) * 2)) {
-        raise_exception_ra(env, EXCP_CHAIN_STACK_BOUNDS, GETPC());
-    }
-}
-#endif /* CONFIG_USER_ONLY */
 
 uint64_t HELPER(prep_return)(CPUE2KState *env, int ipd)
 {
@@ -327,6 +308,10 @@ void HELPER(setwd)(CPUE2KState *env, int size, int nfx, int dbl)
 {
     if (size < env->wd.psize) {
         raise_exception(env, EXCP_ILLEGAL_OPCODE);
+    }
+
+    if ((env->psp.size - env->psp.index) <= (E2K_REG_LEN * E2K_NR_COUNT * 4)) {
+        raise_exception_ra(env, EXCP_PROC_STACK_BOUNDS, GETPC());
     }
 
     env->wd.size = size;

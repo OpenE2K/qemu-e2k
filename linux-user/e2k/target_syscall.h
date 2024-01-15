@@ -18,7 +18,7 @@
 						/* double-NRs */
 
 #define E2K_DEFAULT_PCS_SIZE (TARGET_PAGE_SIZE)
-#define E2K_DEFAULT_PS_SIZE (TARGET_PAGE_SIZE * 4)
+#define E2K_DEFAULT_PS_SIZE (TARGET_PAGE_SIZE)
 
 typedef uint64_t e2k_greg_t; // double word
 
