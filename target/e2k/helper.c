@@ -344,9 +344,3 @@ bool e2k_cpu_tlb_fill(CPUState *cs, vaddr address, int size,
     cs->exception_index = E2K_EXCP_DATA_PAGE;
     cpu_loop_exit_restore(cs, retaddr);
 }
-
-void HELPER(break_restore_state)(CPUE2KState *env)
-{
-    e2k_proc_return(env, true);
-    env->is_bp = false;
-}
