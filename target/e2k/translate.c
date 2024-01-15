@@ -6972,7 +6972,9 @@ static inline void gen_setbn(DisasContext *ctx)
         ctx->b_base = setr->rbs * 2;
         tcg_gen_movi_i32(cpu_bsize, ctx->b_size);
         tcg_gen_addi_ptr(cpu_breg, cpu_wreg, ctx->b_base * sizeof(E2KReg));
-        tcg_gen_addi_ptr(cpu_btag, cpu_wtag, ctx->b_base);
+        if (ctx->enable_tags) {
+            tcg_gen_addi_ptr(cpu_btag, cpu_wtag, ctx->b_base);
+        }
         tcg_gen_movi_i32(cpu_bcur, setr->rcur * 2 * sizeof(E2KReg));
     }
 }
