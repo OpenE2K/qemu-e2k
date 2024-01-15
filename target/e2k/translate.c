@@ -7698,13 +7698,6 @@ static void e2k_tr_translate_insn(DisasContextBase *db, CPUState *cs)
     default:
     {
         pc_next = do_decode(ctx, cs);
-#ifdef CONFIG_USER_ONLY
-        if (ctx->cs1.type == CS1_CALL) {
-            gen_save_cpu_state(ctx);
-            gen_helper_expand_stacks(tcg_env);
-        }
-#endif /* CONFIG_USER_ONLY */
-
         ctx->loop_mode = (ctx->bundle.hs & (1 << 10)) != 0;
         if (validate_bundle(ctx)) {
             gen_setwd(ctx);
