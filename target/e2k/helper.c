@@ -49,19 +49,19 @@ static void ps_spill(CPUE2KState *env, int n, bool fx)
 
     if (env->version >= 5) {
         for (int i = 0; i < n; i++, index += 16) {
-            ps_write(env, env->wreg[i].lo, env->wtag[i], index);
+            ps_write(env, env->regs[i].lo, env->tags[i], index);
 
             if (fx) {
-                ps_write(env, env->wreg[i].hi, 0, index + 8);
+                ps_write(env, env->regs[i].hi, 0, index + 8);
             }
         }
     } else{
         for (int i = 0; i < n; i += 2, index += 32) {
-            E2KReg r0 = env->wreg[i + 0];
-            E2KReg r1 = env->wreg[i + 1];
+            E2KReg r0 = env->regs[i + 0];
+            E2KReg r1 = env->regs[i + 1];
 
-            ps_write(env, r0.lo, env->wtag[i], index);
-            ps_write(env, r1.lo, env->wtag[i + 1], index + 8);
+            ps_write(env, r0.lo, env->tags[i], index);
+            ps_write(env, r1.lo, env->tags[i + 1], index + 8);
 
             if (fx) {
                 ps_write(env, r0.hi, 0, index + 16);
@@ -84,23 +84,23 @@ static void ps_fill(CPUE2KState *env, int n, bool fx)
     if (env->version >= 5) {
         for (int i = n; i-- > 0; index -= 16) {
             if (fx) {
-                env->wreg[i].hi = ps_read(env, NULL, index - 8);
+                env->regs[i].hi = ps_read(env, NULL, index - 8);
             }
 
-            env->wreg[i].lo = ps_read(env, &env->wtag[i], index - 16);
+            env->regs[i].lo = ps_read(env, &env->tags[i], index - 16);
         }
     } else {
         for (int i = n; i > 0; i -= 2, index -= 32) {
-            E2KReg *r0 = &env->wreg[i - 1];
-            E2KReg *r1 = &env->wreg[i - 2];
+            E2KReg *r0 = &env->regs[i - 1];
+            E2KReg *r1 = &env->regs[i - 2];
 
             if (fx) {
                 r0->hi = ps_read(env, NULL, index - 8);
                 r1->hi = ps_read(env, NULL, index - 16);
             }
 
-            r0->lo = ps_read(env, &env->wtag[i - 1], index - 24);
-            r1->lo = ps_read(env, &env->wtag[i - 2], index - 32);
+            r0->lo = ps_read(env, &env->tags[i - 1], index - 24);
+            r1->lo = ps_read(env, &env->tags[i - 2], index - 32);
         }
     }
 
@@ -109,9 +109,9 @@ static void ps_fill(CPUE2KState *env, int n, bool fx)
 
 static void move_regs(CPUE2KState *env, int dst, int src, int n)
 {
-    memmove(&env->wreg[dst], &env->wreg[src], n * sizeof(env->wreg[0]));
+    memmove(&env->regs[dst], &env->regs[src], n * sizeof(env->regs[0]));
     if (env->enable_tags) {
-        memmove(&env->wtag[dst], &env->wtag[src], n * sizeof(env->wtag[0]));
+        memmove(&env->tags[dst], &env->tags[src], n * sizeof(env->tags[0]));
     }
 }
 
