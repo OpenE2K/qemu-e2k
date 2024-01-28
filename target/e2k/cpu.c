@@ -96,7 +96,6 @@ static void cpu_e2k_disas_set_info(CPUState *cs, disassemble_info *info)
     CPUE2KState *env = &cpu->env;
 
     info->mach = env->version * 3;
-    info->print_insn = print_insn_e2k;
 }
 
 /* https://www.altlinux.org/Модели_процессоров_Эльбрус */
