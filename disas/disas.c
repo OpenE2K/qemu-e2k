@@ -196,8 +196,6 @@ static void initialize_debug_host(CPUDebug *s)
     s->info.print_insn = print_insn_hppa;
 #elif defined(__loongarch__)
     s->info.print_insn = print_insn_loongarch;
-#elif defined(__e2k__)
-    s->info.print_insn = print_insn_e2k;
 #endif
 }
 
