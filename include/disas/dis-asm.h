@@ -237,23 +237,14 @@ enum bfd_architecture
 #define bfd_mach_cris_v32      32
 #define bfd_mach_cris_v10_v32  1032
   bfd_arch_microblaze, /* Xilinx MicroBlaze.  */
-  bfd_arch_e2k,       /* MCST E2K. */
-/* It's crucial that the underlying `bfd_mach_e2k*' have the same values as */
-/* the corresponding `E_E2K_MACH_*'s!!! */
-#define bfd_mach_e2k_generic    0
-#define bfd_mach_e2k_ev1        1
-/* This is interpreted as the common subset of all Elbrus V2 iterations.
-   Currently it is the same as the common subset of all elbrus-2c+.  */
-#define bfd_mach_e2k_ev2        2
-#define bfd_mach_e2k_ev3        3
-#define bfd_mach_e2k_ev4        4
-#define bfd_mach_e2k_ev5        5
-#define bfd_mach_e2k_ev6        6
-/* Values 16, 17 and 18 used to be reserved for the first three iterations
-   of `elbrus-v2'. See `include/elf/e2k.h' for why they can't be reused right
-   now. */
-#define bfd_mach_e2k_8c        19
-#define bfd_mach_e2k_1cplus    20
+  bfd_arch_e2k,        /* MCST E2K. */
+#define bfd_mach_e2k_v1        1
+#define bfd_mach_e2k_v2        2
+#define bfd_mach_e2k_v3        3
+#define bfd_mach_e2k_v4        4
+#define bfd_mach_e2k_v5        5
+#define bfd_mach_e2k_v6        6
+#define bfd_mach_e2k_v7        7
   bfd_arch_moxie,      /* The Moxie core.  */
   bfd_arch_ia64,      /* HP/Intel ia64 */
 #define bfd_mach_ia64_elf64    64
