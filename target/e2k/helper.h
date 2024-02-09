@@ -11,7 +11,6 @@ DEF_HELPER_4(setwd, void, env, int, int, int)
 
 DEF_HELPER_FLAGS_3(probe_read_access,   TCG_CALL_NO_RWG_SE, int, env, tl, int)
 DEF_HELPER_FLAGS_3(probe_write_access,  TCG_CALL_NO_RWG_SE, int, env, tl, int)
-DEF_HELPER_FLAGS_3(probe_rw_access,     TCG_CALL_NO_RWG_SE, int, env, tl, int)
 
 DEF_HELPER_FLAGS_2(aau_load_program,    TCG_CALL_NO_RWG, void, env, i64)
 DEF_HELPER_FLAGS_6(mova_ptr,            TCG_CALL_NO_RWG, tl, env, int, int, int, int, int)
@@ -346,7 +345,9 @@ DEF_HELPER_FLAGS_2(fxtoidtr, TCG_CALL_NO_RWG, i64, env, f80)
 DEF_HELPER_FLAGS_3(fstoifs,  TCG_CALL_NO_RWG, i32, env, i32, i32)
 DEF_HELPER_FLAGS_3(fdtoifd,  TCG_CALL_NO_RWG, i64, env, i64, i64)
 
-DEF_HELPER_FLAGS_1(stmqp_mask, TCG_CALL_NO_RWG_SE, vec, i32)
+DEF_HELPER_FLAGS_5(stmqp5,      TCG_CALL_NO_RWG, void, env, tl, vec, i32, i32)
+DEF_HELPER_FLAGS_5(stmqp6,      TCG_CALL_NO_RWG, void, env, tl, vec, i32, i32)
+DEF_HELPER_FLAGS_6(stmqp_mlock, TCG_CALL_NO_RWG, i32, env, tl, vec, i32, i32, vec)
 
 #undef f80
 #undef vec

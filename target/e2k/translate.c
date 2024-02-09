@@ -3970,13 +3970,6 @@ static void gen_probe_write_access(TCGv_i32 ret, TCGv addr, int size,
     gen_helper_probe_write_access(ret, tcg_env, addr, t0);
 }
 
-static void gen_probe_rw_access(TCGv_i32 ret, TCGv addr, int size,
-    int mmu_idx)
-{
-    TCGv_i32 t0 = tcg_constant_i32(size);
-    gen_helper_probe_rw_access(ret, tcg_env, addr, t0);
-}
-
 static AlopResult gen_ld_raw_i64(Alop *alop, TCGv_i32 tag, TCGv addr,
     MemOp memop, bool skip, bool save)
 {
@@ -4129,52 +4122,25 @@ IMPL_GEN_ST(gen_st_raw_i32,  s, gen_atomic_cmpxchg_mlock_i32,  tcg_gen_qemu_st_i
 IMPL_GEN_ST(gen_st_raw_i64,  d, gen_atomic_cmpxchg_mlock_i64,  tcg_gen_qemu_st_i64)
 IMPL_GEN_ST(gen_st_raw_i128, q, gen_atomic_cmpxchg_mlock_i128, tcg_gen_qemu_st_i128)
 
-static void gen_stmqp_merge_i128(TCGv_i128 ret, TCGv_i128 a, TCGv_i128 b, TCGv_i32 mask)
-{
-    TCGv_i128 m = tcg_temp_new_i128();
-    TCGv_i128 t0 = tcg_temp_new_i128();
-    TCGv_i128 t1 = tcg_temp_new_i128();
-
-    gen_helper_stmqp_mask(m, mask);
-    gen_qpand(t0, a, m);
-    gen_qpandn(t1, b, m);
-    gen_qpor(ret, t0, t1);
-}
-
 static void gen_stm_raw_i128(Alop *alop, TCGv addr,
     MemOp memop, bool check)
 {
-    TCGLabel *l0 = gen_new_label();
     Tagged_i32 s2 = gen_tagged_src2_s(alop);
     Tagged_i128 s4 = gen_tagged_src4_q(alop);
-    TCGv_i32 mask = tcg_temp_new_i32();
-    TCGv_i128 t0 = tcg_temp_new_i128();
-
-    // force alignment for v5 only
-    if (alop->ctx->version == 5) {
-        memop |= MO_ALIGN_16;
-    }
-
-    tcg_gen_andi_i32(mask, s2.val, 0xffff);
-    tcg_gen_brcondi_i32(TCG_COND_EQ, mask, 0, l0);
-
-    if (alop->als.sm) {
-        TCGv_i32 t5 = tcg_temp_new_i32();
-
-        gen_probe_rw_access(t5, addr, 16, alop->ctx->mmuidx);
-        tcg_gen_brcondi_i32(TCG_COND_EQ, t5, 0, l0);
-    }
-
-    tcg_gen_qemu_ld_i128(t0, addr, alop->ctx->mmuidx, memop);
-    gen_stmqp_merge_i128(t0, s4.val, t0, s2.val);
+    TCGv_i32 sm = tcg_constant_i32(alop->als.sm);
 
     if (check && alop->ctx->mlock) {
-        gen_atomic_cmpxchg_mlock_i128(alop, t0, addr, memop);
-    } else {
-        tcg_gen_qemu_st_i128(t0, addr, alop->ctx->mmuidx, memop);
-    }
+        TCGv_i128 t0 = tcg_temp_new_i128();
 
-    gen_set_label(l0);
+        tcg_gen_concat_i64_i128(t0, cpu_last_val0, cpu_last_val1);
+        gen_helper_stmqp_mlock(alop->ctx->mlock, tcg_env, addr, s4.val, s2.val, sm, t0);
+    } else {
+        if (alop->ctx->version <= 5) {
+            gen_helper_stmqp5(tcg_env, addr, s4.val, s2.val, sm);
+        } else {
+            gen_helper_stmqp6(tcg_env, addr, s4.val, s2.val, sm);
+        }
+    }
 }
 
 typedef enum {

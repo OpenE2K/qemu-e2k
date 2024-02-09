@@ -658,7 +658,69 @@ static inline Int128 mask16(uint16_t bitmask)
     return int128_make128(mask8(bitmask), mask8(bitmask >> 8));
 }
 
-Int128 HELPER(stmqp_mask)(uint32_t bitmask)
+static Int128 qmerge(Int128 a, Int128 b, uint32_t mask)
 {
-    return mask16(bitmask);
+    Int128 m;
+
+    m = mask16(mask);
+    a = int128_and(a, m);
+    b = int128_and(b, int128_not(m));
+    return int128_or(a,b );
+}
+
+static void stmqp(CPUE2KState *env, target_ulong addr, Int128 value,
+    uint32_t mask, MemOp memop, bool sm)
+{
+    Int128 t;
+    MemOpIdx oi = make_memop_idx(memop | MO_LE | MO_UO, e2k_env_mmu_index(env, false));
+
+    if (mask & 0xffff && (!sm || e2k_probe_rw_access(env, addr, 16))) {
+        t = cpu_ld16_mmu(env, addr, oi, GETPC());
+        t = qmerge(value, t, mask);
+        cpu_st16_mmu(env, addr, t, oi, GETPC());
+    }
+}
+
+void HELPER(stmqp5)(CPUE2KState *env, target_ulong addr, Int128 value,
+    uint32_t mask, uint32_t sm)
+{
+    stmqp(env, addr, value, mask, MO_ALIGN, sm);
+}
+
+void HELPER(stmqp6)(CPUE2KState *env, target_ulong addr, Int128 value,
+    uint32_t mask, uint32_t sm)
+{
+    target_ulong start, last;
+
+    start = addr & TARGET_PAGE_MASK;
+    last = (addr + 15) & TARGET_PAGE_MASK;
+
+    if (start != last) {
+        int align = addr & 15;
+
+        stmqp(env, addr - align, int128_lshift(value, align * 8), mask << align, MO_UNALN, sm);
+
+        align = 16 - align;
+        value = int128_rshift(value, align * 8);
+        addr += align;
+        mask = (mask & 0xffff) >> align;
+    }
+
+    stmqp(env, addr, value, mask, MO_UNALN, sm);
+}
+
+uint32_t HELPER(stmqp_mlock)(CPUE2KState *env, target_ulong addr, Int128 value,
+    uint32_t mask, uint32_t sm, Int128 last_val)
+{
+    Int128 t;
+    MemOpIdx oi = make_memop_idx(MO_ALIGN | MO_LE | MO_UO, e2k_env_mmu_index(env, false));
+
+    if (mask & 0xffff && (!sm || e2k_probe_rw_access(env, addr, 16))) {
+        t = cpu_ld16_mmu(env, addr, oi, GETPC());
+        t = qmerge(value, t, mask);
+        t = cpu_atomic_cmpxchgo_le_mmu(env, addr, last_val, t, oi, GETPC());
+        return int128_ne(t, last_val);
+    } else {
+        return 0;
+    }
 }

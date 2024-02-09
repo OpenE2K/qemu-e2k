@@ -1,6 +1,7 @@
 #include "qemu/osdep.h"
 #include "qemu/log.h"
 #include "cpu.h"
+#include "helper-tcg.h"
 #include "exec/exec-all.h"
 #include "qemu/host-utils.h"
 #include "exec/helper-proto.h"
@@ -39,6 +40,11 @@ static bool e2k_probe_access(CPUE2KState *env, target_ulong addr, int size, int 
     }
 }
 
+bool e2k_probe_rw_access(CPUE2KState *env, target_ulong addr, int size)
+{
+    return e2k_probe_access(env, addr, size, PAGE_READ | PAGE_WRITE_ORG);
+}
+
 int HELPER(probe_read_access)(CPUE2KState *env, target_ulong addr, int size)
 {
     return e2k_probe_access(env, addr, size, PAGE_READ);
@@ -47,10 +53,5 @@ int HELPER(probe_read_access)(CPUE2KState *env, target_ulong addr, int size)
 int HELPER(probe_write_access)(CPUE2KState *env, target_ulong addr, int size)
 {
     return e2k_probe_access(env, addr, size, PAGE_WRITE_ORG);
-}
-
-int HELPER(probe_rw_access)(CPUE2KState *env, target_ulong addr, int size)
-{
-    return e2k_probe_access(env, addr, size, PAGE_READ | PAGE_WRITE_ORG);
 }
 #endif /* CONFIG_USER_ONLY */
