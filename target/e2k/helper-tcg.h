@@ -39,6 +39,9 @@ void G_NORETURN raise_exception(CPUE2KState *desc, int exception_index);
 void G_NORETURN raise_exception_ra(CPUE2KState *desc, int exception_index,
     uintptr_t retaddr);
 
+/* helper_sm.c */
+bool e2k_probe_rw_access(CPUE2KState *env, target_ulong addr, int size);
+
 static inline uint64_t env_wd_get(CPUE2KState *env)
 {
     E2KWdState *wd = &env->wd;

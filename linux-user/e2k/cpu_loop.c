@@ -161,6 +161,9 @@ void cpu_loop(CPUE2KState *env)
         case EXCP_DATA_PAGE:
             gen_signal(env, TARGET_SIGSEGV, TARGET_SEGV_MAPERR, env->ip);
             break;
+        case EXCP_ADDR_NOT_ALIGNED:
+            gen_signal(env, TARGET_SIGBUS, TARGET_BUS_ADRALN, env->ip);
+            break;
         case EXCP_DIV:
             gen_signal(env, TARGET_SIGFPE, 0, env->ip);
             break;
