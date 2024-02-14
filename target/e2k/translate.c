@@ -3602,6 +3602,11 @@ IMPL_GEN_ALOPF1_ALT_QQQ(gen_qpacksswh, gen_helper_packsswh)
 IMPL_GEN_ALOPF1_ALT_QQQ(gen_qpackushb, gen_helper_packushb)
 IMPL_GEN_ALOPF1_ALT_QQQ(gen_qpackuswh, gen_helper_packuswh)
 
+IMPL_GEN_ALOPF1_ALT_QQQ(gen_qpackhbss, gen_helper_packsshb)
+IMPL_GEN_ALOPF1_ALT_QQQ(gen_qpackwhss, gen_helper_packsswh)
+IMPL_GEN_ALOPF1_ALT_QQQ(gen_qpackhbus, gen_helper_packushb)
+IMPL_GEN_ALOPF1_ALT_QQQ(gen_qpackwhus, gen_helper_packuswh)
+
 #define IMPL_GEN_ALOPF1_QDQ(name, op) \
     static void name(TCGv_i128 ret, TCGv_i128 s1, TCGv_i64 s2) \
     { \
@@ -5860,6 +5865,10 @@ static AlopResult gen_alop_simple(Alop *alop)
     case OP_CCTOPLE:        return gen_alopf8(alop, X86_ZF | X86_SF | X86_OF);
     case OP_ICALLD:         return gen_icalld(alop);
     case OP_IBRANCHD:       return gen_ibranchd(alop);
+    case OP_QPACKHBSS:      return gen_alopf1_qqq(alop, gen_qpackhbss);
+    case OP_QPACKHBUS:      return gen_alopf1_qqq(alop, gen_qpackhbus);
+    case OP_QPACKWHSS:      return gen_alopf1_qqq(alop, gen_qpackwhss);
+    case OP_QPACKWHUS:      return gen_alopf1_qqq(alop, gen_qpackwhus);
     case OP_VFSI:
     case OP_MOVTRS:
     case OP_MOVTRCS:
