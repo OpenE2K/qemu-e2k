@@ -4215,7 +4215,7 @@ typedef void (*GenLoadFn)(Alop *alop, TCGv_i32 tag, TCGv addr,
 typedef void (*GenStoreFn)(Alop *alop, TCGv addr,
     MemOp memop, bool check);
 
-static void gen_alopf1_mas(Alop *alop, GenAddrFn addr_fn,
+static void gen_alf1_mas(Alop *alop, GenAddrFn addr_fn,
     GenLoadFn ld_fn, MemOp memop, AddrBase base)
 {
     bool skip = false, save = false;
@@ -4227,7 +4227,7 @@ static void gen_alopf1_mas(Alop *alop, GenAddrFn addr_fn,
     (*ld_fn)(alop, tag, addr, memop, skip, save);
 }
 
-static void gen_alopf3_mas(Alop *alop, GenAddrFn addr_fn,
+static void gen_alf3_mas(Alop *alop, GenAddrFn addr_fn,
     GenStoreFn st_fn, MemOp memop, AddrBase base)
 {
     bool skip = false, check = false;
@@ -4272,18 +4272,18 @@ IMPL_GEN_ADDR(gen_addr_i32, s, tcg_gen_ext_i32_tl)
 IMPL_GEN_ADDR_SRC1(gen_addr_src1_i64, d, tcg_gen_trunc_i64_tl)
 IMPL_GEN_ADDR_SRC1(gen_addr_src1_i32, s, tcg_gen_ext_i32_tl)
 
-#define gen_ldb(i, a, b)    gen_alopf1_mas(i, a, gen_ld_raw_i64,    MO_UB, b)
-#define gen_ldh(i, a, b)    gen_alopf1_mas(i, a, gen_ld_raw_i64,    MO_UW, b)
-#define gen_ldw(i, a, b)    gen_alopf1_mas(i, a, gen_ld_raw_i64,    MO_UL, b)
-#define gen_ldd(i, a, b)    gen_alopf1_mas(i, a, gen_ld_raw_i64,    MO_UQ, b)
-#define gen_ldqp(i, a, b)   gen_alopf1_mas(i, a, gen_ld_raw_i128,   MO_UO, b)
+#define gen_ldb(i, a, b)    gen_alf1_mas(i, a, gen_ld_raw_i64,    MO_UB, b)
+#define gen_ldh(i, a, b)    gen_alf1_mas(i, a, gen_ld_raw_i64,    MO_UW, b)
+#define gen_ldw(i, a, b)    gen_alf1_mas(i, a, gen_ld_raw_i64,    MO_UL, b)
+#define gen_ldd(i, a, b)    gen_alf1_mas(i, a, gen_ld_raw_i64,    MO_UQ, b)
+#define gen_ldqp(i, a, b)   gen_alf1_mas(i, a, gen_ld_raw_i128,   MO_UO, b)
 
-#define gen_stb(i, a, b)    gen_alopf3_mas(i, a, gen_st_raw_i32,    MO_UB, b)
-#define gen_sth(i, a, b)    gen_alopf3_mas(i, a, gen_st_raw_i32,    MO_UW, b)
-#define gen_stw(i, a, b)    gen_alopf3_mas(i, a, gen_st_raw_i32,    MO_UL, b)
-#define gen_std(i, a, b)    gen_alopf3_mas(i, a, gen_st_raw_i64,    MO_UQ, b)
-#define gen_stqp(i, a, b)   gen_alopf3_mas(i, a, gen_st_raw_i128,   MO_UO, b)
-#define gen_stmqp(i, a, b)  gen_alopf3_mas(i, a, gen_stm_raw_i128,  MO_UO, b)
+#define gen_stb(i, a, b)    gen_alf3_mas(i, a, gen_st_raw_i32,    MO_UB, b)
+#define gen_sth(i, a, b)    gen_alf3_mas(i, a, gen_st_raw_i32,    MO_UW, b)
+#define gen_stw(i, a, b)    gen_alf3_mas(i, a, gen_st_raw_i32,    MO_UL, b)
+#define gen_std(i, a, b)    gen_alf3_mas(i, a, gen_st_raw_i64,    MO_UQ, b)
+#define gen_stqp(i, a, b)   gen_alf3_mas(i, a, gen_st_raw_i128,   MO_UO, b)
+#define gen_stmqp(i, a, b)  gen_alf3_mas(i, a, gen_stm_raw_i128,  MO_UO, b)
 
 static void gen_aaurwd_aad(Alop *alop, TCGv_i64 arg1, TCGv_i32 tag)
 {
