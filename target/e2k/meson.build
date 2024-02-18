@@ -1,4 +1,9 @@
+gen = [
+  decodetree.process('alop.decode', extra_args: ['--static-decode=decode_alop', '--insnwidth=64']),
+]
+
 e2k_ss = ss.source_set()
+e2k_ss.add(gen)
 e2k_ss.add(files(
   'cpu.c',
   'cpu-dump.c',

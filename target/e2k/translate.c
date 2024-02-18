@@ -513,10 +513,12 @@ typedef struct DisasContext {
     UnpackedBundle bundle;
     Cs0 cs0;
     Cs1 cs1;
+    int cur_alop;
     Alop alops[6];
     target_ulong pc;
     int mmuidx;
     bool loop_mode;
+    bool only_check;
 
     TCGv_i32 lp[7];
 
@@ -3760,38 +3762,30 @@ IMPL_GEN_ALOPF2_ENV_QQ(gen_qpfdtoid,   gen_helper_fdtoid)
 IMPL_GEN_ALOPF2_ENV_QQ(gen_qpfdtoidtr, gen_helper_fdtoidtr)
 IMPL_GEN_ALOPF2_ENV_QQ(gen_qpidtofd,   gen_helper_idtofd)
 
-#define IMPL_GEN_PLOG(name, base) \
-    static void name(TCGv_i64 ret, uint32_t table, TCGv_i64 s1, \
-        TCGv_i64 s2, TCGv_i64 s3) \
-    { \
-        TCGv_i32 t0 = tcg_constant_i32(base + table); \
-        gen_helper_plog(ret, t0, s1, s2, s3); \
-    }
+static void gen_plog(TCGv_i64 ret, uint32_t table, TCGv_i64 s1,
+    TCGv_i64 s2, TCGv_i64 s3)
+{
+    TCGv_i32 t0 = tcg_constant_i32(table);
+    gen_helper_plog(ret, t0, s1, s2, s3);
+}
 
-IMPL_GEN_PLOG(gen_plog_0x00, 0x00)
-IMPL_GEN_PLOG(gen_plog_0x80, 0x80)
+static void gen_qplog(TCGv_i128 ret, uint32_t opc, TCGv_i128 s1,
+    TCGv_i128 s2, TCGv_i128 s3)
+{
+    TCGv_i64 t0 = tcg_temp_new_i64();
+    TCGv_i64 t1 = tcg_temp_new_i64();
+    TCGv_i64 t2 = tcg_temp_new_i64();
+    TCGv_i64 t3 = tcg_temp_new_i64();
+    TCGv_i64 t4 = tcg_temp_new_i64();
+    TCGv_i64 t5 = tcg_temp_new_i64();
 
-#define IMPL_GEN_ALOPF21_LOG_QQQQ(name, op) \
-    static void name(TCGv_i128 ret, uint32_t opc, TCGv_i128 s1, \
-        TCGv_i128 s2, TCGv_i128 s3) \
-    { \
-        TCGv_i64 t0 = tcg_temp_new_i64(); \
-        TCGv_i64 t1 = tcg_temp_new_i64(); \
-        TCGv_i64 t2 = tcg_temp_new_i64(); \
-        TCGv_i64 t3 = tcg_temp_new_i64(); \
-        TCGv_i64 t4 = tcg_temp_new_i64(); \
-        TCGv_i64 t5 = tcg_temp_new_i64(); \
-        \
-        gen_qpunpackdl(t0, t1, s1); \
-        gen_qpunpackdl(t2, t3, s2); \
-        gen_qpunpackdl(t4, t5, s3); \
-        op(t0, opc, t0, t2, t4); \
-        op(t1, opc, t1, t3, t5); \
-        gen_qppackdl(ret, t0, t1); \
-    }
-
-IMPL_GEN_ALOPF21_LOG_QQQQ(gen_qplog_0x00, gen_plog_0x00)
-IMPL_GEN_ALOPF21_LOG_QQQQ(gen_qplog_0x80, gen_plog_0x80)
+    gen_qpunpackdl(t0, t1, s1);
+    gen_qpunpackdl(t2, t3, s2);
+    gen_qpunpackdl(t4, t5, s3);
+    gen_plog(t0, opc, t0, t2, t4);
+    gen_plog(t1, opc, t1, t3, t5);
+    gen_qppackdl(ret, t0, t1);
+}
 
 #define IMPL_GEN_ALOPF7_QQB(name, op1, op2) \
     static void name(TCGv_i64 ret, TCGv_i128 s1, TCGv_i128 s2) \
@@ -4583,7 +4577,7 @@ static void gen_staad(Alop *alop)
     }
 }
 
-static void gen_staaw(Alop *alop, MemOp memop)
+static void gen_staaw_(Alop *alop, MemOp memop)
 {
     DisasContext *ctx = alop->ctx;
     uint8_t mas = alop->mas;
@@ -4633,6 +4627,21 @@ static void gen_staaw(Alop *alop, MemOp memop)
         tcg_gen_qemu_st_i32(s4.val, t0, ctx->mmuidx, memop);
         gen_set_label(l0);
     }
+}
+
+static void gen_staab(Alop *alop)
+{
+    gen_staaw_(alop, MO_8);
+}
+
+static void gen_staah(Alop *alop)
+{
+    gen_staaw_(alop, MO_16);
+}
+
+static void gen_staaw(Alop *alop)
+{
+    gen_staaw_(alop, MO_32);
 }
 
 #define IMPL_ALOPF1_BASIC(name, R, S1, S2, T, code) \
@@ -4750,7 +4759,7 @@ static void gen_staaw(Alop *alop, MemOp memop)
 #define IMPL_ALOPF21_LOG(name, R, S1, S2, S3) \
     IMPL_ALOPF21_BASIC(name, R, S1, S2, S3, \
         void (*op)(temp(R), uint32_t, temp(S1), temp(S2), temp(S3)), \
-        { (*op)(r.val, alop->als.opc1, s1.val, s2.val, s3.val); })
+        { (*op)(r.val, ((alop->ales.opc2 & 1) << 7) | alop->als.opc1, s1.val, s2.val, s3.val); })
 
 IMPL_ALOPF1(gen_alf1, s, s, s)
 IMPL_ALOPF1(gen_alf1, d, s, s)
@@ -4792,6 +4801,7 @@ IMPL_ALOPF1_ENV(gen_alf1_env, q, q, q)
 IMPL_ALOPF1_LIT8(gen_alf1_lit8, d, d, d)
 
 IMPL_ALOPF2(gen_alf2, s, s)
+IMPL_ALOPF2(gen_alf2, d, s)
 IMPL_ALOPF2(gen_alf2, d, d)
 IMPL_ALOPF2(gen_alf2, s, x)
 IMPL_ALOPF2(gen_alf2, x, x)
@@ -5594,9 +5604,9 @@ static void gen_alop_simple(Alop *alop)
     case OP_PUTTAGS:        gen_puttags(alop); break;
     case OP_PUTTAGD:        gen_puttagd(alop); break;
     case OP_PUTTAGQP:       gen_puttagqp(alop); break;
-    case OP_STAAB:          gen_staaw(alop, MO_8); break;
-    case OP_STAAH:          gen_staaw(alop, MO_16); break;
-    case OP_STAAW:          gen_staaw(alop, MO_32); break;
+    case OP_STAAB:          gen_staab(alop); break;
+    case OP_STAAH:          gen_staah(alop); break;
+    case OP_STAAW:          gen_staaw(alop); break;
     case OP_STAAD:          gen_staad(alop); break;
     case OP_STAAQ:          gen_staaq(alop); break;
     case OP_STAAQP:         gen_staaqp(alop); break;
@@ -5835,10 +5845,10 @@ static void gen_alop_simple(Alop *alop)
     case OP_QPMERGE:        gen_alf21_qqqq(alop, gen_qpmerge); break;
     case OP_QPSHUFB:        gen_alf21_qqqq(alop, gen_helper_qpshufb); break;
     case OP_QPPERMB:        gen_alf21_qqqq(alop, gen_helper_qppermb); break;
-    case OP_PLOG_0x00:      gen_alf21_log_dddd(alop, gen_plog_0x00); break;
-    case OP_PLOG_0x80:      gen_alf21_log_dddd(alop, gen_plog_0x80); break;
-    case OP_QPLOG_0x00:     gen_alf21_log_qqqq(alop, gen_qplog_0x00); break;
-    case OP_QPLOG_0x80:     gen_alf21_log_qqqq(alop, gen_qplog_0x80); break;
+    case OP_PLOG_0x00:
+    case OP_PLOG_0x80:      gen_alf21_log_dddd(alop, gen_plog); break;
+    case OP_QPLOG_0x00:
+    case OP_QPLOG_0x80:     gen_alf21_log_qqqq(alop, gen_qplog); break;
     case OP_FMAS:           gen_alf21_env_ssss(alop, gen_helper_fmas); break;
     case OP_FMSS:           gen_alf21_env_ssss(alop, gen_helper_fmss); break;
     case OP_FNMAS:          gen_alf21_env_ssss(alop, gen_helper_fnmas); break;
@@ -6333,7 +6343,18 @@ static inline bool rlp_is_chan_pred(uint16_t rlp, int chan)
     return !extract16(rlp, 15, 1) && rlp_check_chan(rlp, chan);
 }
 
-static void decode_alop(Alop *alop, AlesFlag ales_present)
+/* Include the auto-generated decoder for alops */
+#include "decode-alop.c.inc"
+
+#include "trans/alop-v1.c.inc"
+#include "trans/alop-v2.c.inc"
+#include "trans/alop-v3.c.inc"
+#include "trans/alop-v4.c.inc"
+#include "trans/alop-v5.c.inc"
+#include "trans/alop-v6.c.inc"
+#include "trans/alop-v7.c.inc"
+
+static void decode_alop_old(Alop *alop, AlesFlag ales_present)
 {
     DisasContext *ctx = alop->ctx;
 
@@ -6552,6 +6573,23 @@ static void alop_find_max_reg_indices(Alop *alop, int *max_r_src,
     }
 }
 
+static uint64_t alop_insn(Alop *alop)
+{
+    uint64_t insn = 0;
+
+    /* ALES2/5 may be allocated but must not be used */
+    bool ales_present = (alop->ctx->bundle.ales_present[alop->chan] & ALES_PRESENT) != 0;
+    uint16_t ales = ales_present ? alop->ales.raw : 0;
+
+    insn = deposit64(insn,  0, 32, alop->als.raw);
+    insn = deposit64(insn, 32, 16, ales);
+    insn = deposit64(insn, 48,  3, alop->chan + (alop->chan >= 3));
+    alop->mas = alop->ctx->cs1.type == CS1_MAS ? alop->ctx->cs1.mas[alop->chan] : 0;
+    insn = deposit64(insn, 51,  7, alop->mas);
+    insn = deposit64(insn, 63,  1, ales_present);
+    return insn;
+}
+
 static void decode_alops(DisasContext *ctx)
 {
     int i;
@@ -6568,11 +6606,16 @@ static void decode_alops(DisasContext *ctx)
         alop->result.kind = ALOP_RESULT_NONE;
 
         if (ctx->bundle.als_present[i]) {
+            ctx->cur_alop = i;
+
             alop->mas = ctx->cs1.type == CS1_MAS ? ctx->cs1.mas[i] : 0;
             alop->als.raw = ctx->bundle.als[i];
             alop->ales.raw = ctx->bundle.ales[i];
 
-            decode_alop(alop, ctx->bundle.ales_present[i]);
+            if (!decode_alop(ctx, alop_insn(alop))) {
+                // fallback
+                decode_alop_old(alop, ctx->bundle.ales_present[i]);
+            }
         }
     }
 }
@@ -6677,22 +6720,31 @@ static void gen_alop(Alop *alop)
         tcg_gen_brcondi_i32(TCG_COND_EQ, cond, 0, skip_op);
     }
 
-    switch (alop->format) {
-    case ALOPF21_ICOMB:
-        gen_icomb(alop);
-        break;
-    case ALOPF21_FCOMB:
-        gen_fcomb(alop);
-        break;
-    case ALOPF21_PFCOMB:
-        gen_pfcomb(alop);
-        break;
-    case ALOPF21_QPFCOMB:
-        gen_qpfcomb(alop);
-        break;
-    default:
-        gen_alop_simple(alop);
-        break;
+    ctx->cur_alop = alop->chan;
+    if (!decode_alop(ctx, alop_insn(alop))) {
+        // fallback
+        switch (alop->format) {
+        case ALOPF21_ICOMB:
+            e2k_todo(ctx, "fallback icomb");
+            gen_icomb(alop);
+            break;
+        case ALOPF21_FCOMB:
+            e2k_todo(ctx, "fallback fcomb");
+            gen_fcomb(alop);
+            break;
+        case ALOPF21_PFCOMB:
+            e2k_todo(ctx, "fallback pfcomb");
+            gen_pfcomb(alop);
+            break;
+        case ALOPF21_QPFCOMB:
+            e2k_todo(ctx, "fallback qpfcomb");
+            gen_qpfcomb(alop);
+            break;
+        default:
+            e2k_todo(ctx, "fallback simple %s.%d", alop->name, alop->chan);
+            gen_alop_simple(alop);
+            break;
+        }
     }
 
     switch (alop->result.kind) {
@@ -7412,10 +7464,12 @@ static target_ulong do_decode(DisasContext *ctx, CPUState *cs)
         return ctx->pc + 8;
     }
 
+    ctx->only_check = true;
     decode_ct_cond(ctx, &ctx->bundle);
     decode_cs1(ctx, &ctx->bundle);
     decode_cs0(ctx, &ctx->bundle);
     decode_alops(ctx);
+    ctx->only_check = false;
 
     return ctx->pc + len;
 }

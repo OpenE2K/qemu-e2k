@@ -938,6 +938,9 @@ typedef enum {
     ARGS_DDSD = alopf21_args(ARG_SIZE_D, ARG_SIZE_D, ARG_SIZE_S, ARG_SIZE_D),
     ARGS_DDDD = alopf21_args(ARG_SIZE_D, ARG_SIZE_D, ARG_SIZE_D, ARG_SIZE_D),
     ARGS_PPPP = alopf21_args(ARG_SIZE_P, ARG_SIZE_P, ARG_SIZE_P, ARG_SIZE_P),
+
+    // compat
+    ARGS_XSD = alopf7_args(ARG_SIZE_X, ARG_SIZE_S, ARG_SIZE_D),
 } AlopArgs;
 
 typedef enum {
@@ -1239,14 +1242,14 @@ static AlopDesc alops[] = {
     { X(OP_FXCMPNLTXB),   ALOPF7,            ARGS_XXB,  ALOP_SHORT, 0x2b, 1, -1, CHAN_0134, { -1 }, 5, 4 },
     { X(OP_FXCMPNLEXB),   ALOPF7,            ARGS_XXB,  ALOP_SHORT, 0x2b, 1, -1, CHAN_0134, { -1 }, 6, 4 },
     { X(OP_FXCMPODXB),    ALOPF7,            ARGS_XXB,  ALOP_SHORT, 0x2b, 1, -1, CHAN_0134, { -1 }, 7, 4 },
-    { X(OP_CCTOPO),       ALOPF8,            ARGS_S,    ALOP_SHORT, 0x24, 1, -1, CHAN_03, { -1 }, 0 },
-    { X(OP_CCTOPB),       ALOPF8,            ARGS_S,    ALOP_SHORT, 0x24, 1, -1, CHAN_03, { -1 }, 1 },
-    { X(OP_CCTOPE),       ALOPF8,            ARGS_S,    ALOP_SHORT, 0x24, 1, -1, CHAN_03, { -1 }, 2 },
-    { X(OP_CCTOPBE),      ALOPF8,            ARGS_S,    ALOP_SHORT, 0x24, 1, -1, CHAN_03, { -1 }, 3 },
-    { X(OP_CCTOPS),       ALOPF8,            ARGS_S,    ALOP_SHORT, 0x24, 1, -1, CHAN_03, { -1 }, 4 },
-    { X(OP_CCTOPP),       ALOPF8,            ARGS_S,    ALOP_SHORT, 0x24, 1, -1, CHAN_03, { -1 }, 5 },
-    { X(OP_CCTOPL),       ALOPF8,            ARGS_S,    ALOP_SHORT, 0x24, 1, -1, CHAN_03, { -1 }, 6 },
-    { X(OP_CCTOPLE),      ALOPF8,            ARGS_S,    ALOP_SHORT, 0x24, 1, -1, CHAN_03, { -1 }, 7 },
+    { X(OP_CCTOPO),       ALOPF8,            ARGS_SB,   ALOP_SHORT, 0x24, 1, -1, CHAN_03, { -1 }, 0 },
+    { X(OP_CCTOPB),       ALOPF8,            ARGS_SB,   ALOP_SHORT, 0x24, 1, -1, CHAN_03, { -1 }, 1 },
+    { X(OP_CCTOPE),       ALOPF8,            ARGS_SB,   ALOP_SHORT, 0x24, 1, -1, CHAN_03, { -1 }, 2 },
+    { X(OP_CCTOPBE),      ALOPF8,            ARGS_SB,   ALOP_SHORT, 0x24, 1, -1, CHAN_03, { -1 }, 3 },
+    { X(OP_CCTOPS),       ALOPF8,            ARGS_SB,   ALOP_SHORT, 0x24, 1, -1, CHAN_03, { -1 }, 4 },
+    { X(OP_CCTOPP),       ALOPF8,            ARGS_SB,   ALOP_SHORT, 0x24, 1, -1, CHAN_03, { -1 }, 5 },
+    { X(OP_CCTOPL),       ALOPF8,            ARGS_SB,   ALOP_SHORT, 0x24, 1, -1, CHAN_03, { -1 }, 6 },
+    { X(OP_CCTOPLE),      ALOPF8,            ARGS_SB,   ALOP_SHORT, 0x24, 1, -1, CHAN_03, { -1 }, 7 },
     { X(OP_STAAB),        ALOPF10,           ARGS_S,    ALOP_EXT,   0x1c, 1, -1, CHAN_25, { -1 } },
     { X(OP_STAAH),        ALOPF10,           ARGS_S,    ALOP_EXT,   0x1d, 1, -1, CHAN_25, { -1 } },
     { X(OP_STAAW),        ALOPF10,           ARGS_S,    ALOP_EXT,   0x1e, 1, -1, CHAN_25, { -1 } },
