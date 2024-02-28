@@ -91,22 +91,36 @@ typedef enum {
 
 #ifdef CONFIG_USER_ONLY
 # define E2K_SYSCALL_MAX_ARGS 10
-/* fake kernel addresses */
-# if TARGET_LONG_BITS == 64
-#  define E2K_FAKE_KERN_START 0xe20000000000
-#  define E2K_FAKE_KERN_END 0xe30000000000
-# else /* TARGET_LONG_BITS == 32 */
-#  define E2K_FAKE_KERN_START 0xe0000000
-#  define E2K_FAKE_KERN_END 0xe3000000
+/*
+ * E2K syscall cannot be restarted because it can be bundled with other
+ * operations. To work around the issue we have fake syscall entry
+ * addresses. Each syscall jumps to a fake syscall entry address and
+ * can be restarted without issues.
+ */
+# ifdef TARGET_E2K32
+#  define E2K_FAKE_KERN_START   0xe0000000
+#  define E2K_FAKE_KERN_END     0xe3000000
+# else
+#  define E2K_FAKE_KERN_START   0xe20000000000
+#  define E2K_FAKE_KERN_END     0xe30000000000
 # endif
-# define E2K_SYSCALL_ADDR1 (E2K_FAKE_KERN_START + 0x800 * 1)
-# define E2K_SYSCALL_ADDR3 (E2K_FAKE_KERN_START + 0x800 * 3)
-# define E2K_SYSCALL_ADDR4 (E2K_FAKE_KERN_START + 0x800 * 4)
-# define E2K_SYSCALL_ADDR6 (E2K_FAKE_KERN_START + 0x800 * 6)
+
+# define E2K_SYSCALL_ADDR(TRAPNUM)  (E2K_FAKE_KERN_START + 0x800 * (TRAPNUM))
+# define E2K_SYSCALL_ENTRY_OLD      E2K_SYSCALL_ADDR(4)     /* Deprecated */
+# if defined(TARGET_E2K128)
+#  define E2K_SYSCALL_ENTRY         E2K_SYSCALL_ADDR(7)
+# elif defined(TARGET_E2K32)
+#  define E2K_SYSCALL_ENTRY         E2K_SYSCALL_ADDR(1)
+#  define E2K_SYSCALL_FAST_ENTRY    E2K_SYSCALL_ADDR(5)
+# else
+#  define E2K_SYSCALL_ENTRY         E2K_SYSCALL_ADDR(3)
+#  define E2K_SYSCALL_FAST_ENTRY    E2K_SYSCALL_ADDR(6)
+# endif
+
 # define E2K_SYSRET_ADDR (E2K_FAKE_KERN_START + 0x15700)
 # define E2K_SIGRET_ADDR (E2K_FAKE_KERN_START + 0x15800)
 # define E2K_SYSRET_BACKTRACE_ADDR (E2K_FAKE_KERN_START + 0x15900)
-#endif
+#endif /* CONFIG_USER_ONLY */
 
 #define WD_BASE_OFF 0
 #define WD_BASE_END 10
@@ -306,7 +320,9 @@ typedef enum {
     EXCP_MAX = 43,
 
 #ifdef CONFIG_USER_ONLY
+    /* keep in sync with helper.c:raise_exception_ra */
     EXCP_SYSCALL = 100,
+    EXCP_SYSCALL_FAST = 101,
 #endif
 } Exception;
 

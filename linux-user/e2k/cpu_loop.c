@@ -60,10 +60,55 @@ static void stack_expand(CPUE2KState *env, E2KPsp *s)
     s->size = new_size;
 }
 
+static void clear_probe_cache(int num)
+{
+    CPUState *other_cpu;
+
+    switch (num) {
+    case TARGET_NR_execve:
+    case TARGET_NR_brk:
+    case TARGET_NR_mmap:
+    case TARGET_NR_munmap:
+    case TARGET_NR_clone:
+    case TARGET_NR_mmap2:
+    case TARGET_NR_mremap:
+    case TARGET_NR_remap_file_pages:
+    case TARGET_NR_move_pages:
+    case TARGET_NR_migrate_pages:
+        start_exclusive();
+        CPU_FOREACH(other_cpu) {
+            E2KCPU *cpu = E2K_CPU(other_cpu);
+            CPUE2KState *env = &cpu->env;
+
+            memset(env->probe_cache_page, 0, sizeof(env->probe_cache_page));
+            memset(env->probe_cache_flags, 0, sizeof(env->probe_cache_flags));
+        }
+        end_exclusive();
+        break;
+    }
+}
+
+static int map_fast_syscall(int num)
+{
+    switch (num) {
+    case TARGET_NR_fast_sys_gettimeofday:
+        return TARGET_NR_gettimeofday;
+    case TARGET_NR_fast_sys_clock_gettime:
+        return TARGET_NR_clock_gettime;
+    case TARGET_NR_fast_sys_getcpu:
+        return TARGET_NR_getcpu;
+    case TARGET_NR_fast_sys_siggetmask:
+    case TARGET_NR_fast_sys_getcontext:
+    case TARGET_NR_fast_sys_set_return:
+    default:
+        return -TARGET_ENOSYS;
+    }
+}
+
 void cpu_loop(CPUE2KState *env)
 {
     CPUState *cs = env_cpu(env);
-    int trapnr;
+    int trapnr, psize;
 
     while (1) {
         if (env->is_bp) {
@@ -77,54 +122,38 @@ void cpu_loop(CPUE2KState *env)
         process_queued_cpu_work(cs);
 
         switch (trapnr) {
-        case EXCP_SYSCALL: {
-            int psize = MIN(E2K_SYSCALL_MAX_ARGS, env->wd.size);
-
-            if (psize) {
-                abi_ullong ret, args[E2K_SYSCALL_MAX_ARGS] = { 0 };
-                int i;
+        case EXCP_SYSCALL:
+        case EXCP_SYSCALL_FAST:
+            if ((psize = MIN(E2K_SYSCALL_MAX_ARGS, env->wd.size))) {
+                abi_ullong ret = 0, args[E2K_SYSCALL_MAX_ARGS] = { 0 };
+                int i, num;
 
                 for (i = 0; i < psize; i++) {
                     args[i] = env->wreg[i].lo;
                 }
 
                 if (!env->enable_tags || (env->wtag[0] & E2K_TAG_MASK_32) == E2K_TAG_NUMBER32) {
-                    CPUState *other_cpu;
+                    num = args[0];
 
-                    args[0] = (uint32_t) args[0];
-
-                    switch (args[0]) {
-                    case TARGET_NR_execve:
-                    case TARGET_NR_brk:
-                    case TARGET_NR_mmap:
-                    case TARGET_NR_munmap:
-                    case TARGET_NR_clone:
-                    case TARGET_NR_mmap2:
-                    case TARGET_NR_mremap:
-                    case TARGET_NR_remap_file_pages:
-                    case TARGET_NR_move_pages:
-                    case TARGET_NR_migrate_pages:
-                        start_exclusive();
-                        CPU_FOREACH(other_cpu) {
-                            E2KCPU *cpu = E2K_CPU(other_cpu);
-                            CPUE2KState *env = &cpu->env;
-
-                            memset(env->probe_cache_page, 0, sizeof(env->probe_cache_page));
-                            memset(env->probe_cache_flags, 0, sizeof(env->probe_cache_flags));
+                    if (trapnr == EXCP_SYSCALL_FAST) {
+                        num = map_fast_syscall(num);
+                        if (num < 0) {
+                            ret = -num;
                         }
-                        end_exclusive();
-                        break;
                     }
 
-                    ret = do_syscall(env, args[0], args[1], args[2], args[3],
-                        args[4], args[5], args[6], args[7], args[8]);
+                    if (ret == 0) {
+                        clear_probe_cache(num);
+                        ret = do_syscall(env, num, args[1], args[2], args[3],
+                            args[4], args[5], args[6], args[7], args[8]);
+                    }
                 } else {
                     ret = TARGET_ENOSYS;
                 }
 
                 if (ret == -QEMU_ERESTARTSYS) {
                     /* do not set sysret address and syscall will be restarted */
-                } else if (ret != -QEMU_ESIGRETURN && env->wd.psize > 0) {
+                } else if (ret != -QEMU_ESIGRETURN) {
                     env->ip = E2K_SYSRET_ADDR;
                     env->wreg[0].lo = ret;
 
@@ -140,7 +169,6 @@ void cpu_loop(CPUE2KState *env)
                 env->ip = E2K_SYSRET_ADDR;
             }
             break;
-        }
         case EXCP_ILLEGAL_OPCODE:
         case EXCP_PRIV_ACTION:
             gen_signal(env, TARGET_SIGILL, TARGET_ILL_ILLOPC, env->ip);

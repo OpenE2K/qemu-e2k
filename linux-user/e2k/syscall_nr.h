@@ -454,4 +454,12 @@
 
 #define TARGET_syscalls     431
 
+/* Fast system calls */
+#define TARGET_NR_fast_sys_gettimeofday      0
+#define TARGET_NR_fast_sys_clock_gettime     1
+#define TARGET_NR_fast_sys_getcpu            2
+#define TARGET_NR_fast_sys_siggetmask        3
+#define TARGET_NR_fast_sys_getcontext        4
+#define TARGET_NR_fast_sys_set_return        5
+
 #endif /* E2K_SYSCALL_NR_H */
