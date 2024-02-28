@@ -7919,18 +7919,20 @@ static void e2k_tr_translate_insn(DisasContextBase *db, CPUState *cs)
 
     switch (ctx->base.pc_next) {
 #ifdef CONFIG_USER_ONLY
-# ifdef TARGET_E2K32
-    case E2K_SYSCALL_ADDR1:
-    case E2K_SYSCALL_ADDR4:
-# else /* !TARGET_E2K32 */
-    case E2K_SYSCALL_ADDR3:
-    case E2K_SYSCALL_ADDR6:
+    case E2K_SYSCALL_ENTRY_OLD:
+    case E2K_SYSCALL_ENTRY:
+# if defined(E2K_SYSCALL_FAST_ENTRY)
+    case E2K_SYSCALL_FAST_ENTRY:
 # endif
         /* fake enter into syscall handler */
         ctx->base.is_jmp = DISAS_NORETURN;
         /* force non-zero tb size */
         pc_next = ctx->base.pc_next + 8;
-        gen_tr_exception(ctx, E2K_EXCP_SYSCALL);
+        gen_tr_exception(ctx,
+# if defined(E2K_SYSCALL_FAST_ENTRY)
+                ctx->base.pc_next == E2K_SYSCALL_FAST_ENTRY ? E2K_EXCP_SYSCALL_FAST :
+# endif
+                E2K_EXCP_SYSCALL);
         tcg_gen_exit_tb(NULL, TB_EXIT_IDX0);
         break;
     case E2K_SYSRET_BACKTRACE_ADDR:

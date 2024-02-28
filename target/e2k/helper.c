@@ -299,6 +299,7 @@ void G_NORETURN raise_exception_ra(CPUE2KState *env, int exception_index,
     switch (exception_index) {
 #ifdef CONFIG_USER_ONLY
     case E2K_EXCP_SYSCALL:
+    case E2K_EXCP_SYSCALL_FAST:
 #endif
     case E2K_EXCP_PROC_STACK_BOUNDS:
     case E2K_EXCP_CHAIN_STACK_BOUNDS:
