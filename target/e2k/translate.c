@@ -299,7 +299,154 @@ typedef enum {
     ALOPF22,
 } Alopf;
 
-#include "alops.inc"
+/* alops with special handling */
+enum {
+    OP_NONE,
+    OP_STAAB,
+    OP_STAAH,
+    OP_STAAW,
+    OP_STAAD,
+    OP_STAAQ,
+    OP_STAAQP,
+    OP_MOVTS,
+    OP_MOVTCS,
+    OP_MOVTRS,
+    OP_MOVTRCS,
+    OP_MOVTD,
+    OP_MOVTCD,
+    OP_MOVTRD,
+    OP_MOVTRCD,
+    OP_MOVTQ,
+    OP_MOVTCQ,
+    OP_MOVTRQ,
+    OP_MOVTRCQ,
+    OP_GETTAGS,
+    OP_GETTAGD,
+    OP_PUTTAGS,
+    OP_PUTTAGD,
+    OP_PUTTAGQP,
+    OP_GETPL,
+};
+
+#define ARG_SRC1_OFFSET 0
+#define ARG_SRC2_OFFSET 8
+#define ARG_SRC3_OFFSET 16
+#define ARG_SRC4_OFFSET 24
+#define ARG_DST_OFFSET ARG_SRC4_OFFSET
+
+#define alopf1_args(src1, src2, dst) \
+    (src1 << ARG_SRC1_OFFSET) | \
+    (src2 << ARG_SRC2_OFFSET) | \
+    (dst  << ARG_DST_OFFSET)
+
+#define alopf7_args alopf1_args
+
+#define alopf2_args(src2, dst) \
+    (src2 << ARG_SRC2_OFFSET) | \
+    (dst  << ARG_DST_OFFSET)
+
+#define alopf8_args alopf2_args
+#define alopf15_args alopf2_args
+
+#define alopf3_args(src4) \
+    (src4 << ARG_SRC4_OFFSET)
+
+#define alopf21_args(src1, src2, src3, dst) \
+    (src1 << ARG_SRC1_OFFSET) | \
+    (src2 << ARG_SRC2_OFFSET) | \
+    (src3 << ARG_SRC3_OFFSET) | \
+    (dst  << ARG_DST_OFFSET)
+
+#define args_src1(args) (((args) >> ARG_SRC1_OFFSET) & 0xff)
+#define args_src2(args) (((args) >> ARG_SRC2_OFFSET) & 0xff)
+#define args_src3(args) (((args) >> ARG_SRC3_OFFSET) & 0xff)
+#define args_src4(args) (((args) >> ARG_SRC4_OFFSET) & 0xff)
+#define args_dst(args)  (((args) >> ARG_DST_OFFSET)  & 0xff)
+
+typedef enum {
+    ARG_SIZE_NONE,
+    ARG_SIZE_B, /* 1 pred */
+    ARG_SIZE_R, /* 32/64 state reg */
+    ARG_SIZE_S, /* 32 */
+    ARG_SIZE_D, /* 64 */
+    ARG_SIZE_Q, /* 64+64 pair */
+    ARG_SIZE_X, /* 80 */
+    ARG_SIZE_P, /* 128 */
+} ArgSize;
+
+typedef enum {
+    ARGS_S = alopf3_args(ARG_SIZE_S),
+    ARGS_D = alopf3_args(ARG_SIZE_D),
+    ARGS_Q = alopf3_args(ARG_SIZE_Q),
+    ARGS_P = alopf3_args(ARG_SIZE_P),
+    ARGS_SB = alopf8_args(ARG_SIZE_S, ARG_SIZE_B),
+    ARGS_SR = alopf15_args(ARG_SIZE_S, ARG_SIZE_R),
+    ARGS_DR = alopf15_args(ARG_SIZE_D, ARG_SIZE_R),
+    ARGS_SS = alopf2_args(ARG_SIZE_S, ARG_SIZE_S),
+    ARGS_SD = alopf2_args(ARG_SIZE_S, ARG_SIZE_D),
+    ARGS_SX = alopf2_args(ARG_SIZE_S, ARG_SIZE_X),
+    ARGS_SQ = alopf2_args(ARG_SIZE_S, ARG_SIZE_Q),
+    ARGS_DS = alopf2_args(ARG_SIZE_D, ARG_SIZE_S),
+    ARGS_DD = alopf2_args(ARG_SIZE_D, ARG_SIZE_D),
+    ARGS_DX = alopf2_args(ARG_SIZE_D, ARG_SIZE_X),
+    ARGS_DP = alopf2_args(ARG_SIZE_D, ARG_SIZE_P),
+    ARGS_XS = alopf2_args(ARG_SIZE_X, ARG_SIZE_S),
+    ARGS_XD = alopf2_args(ARG_SIZE_X, ARG_SIZE_D),
+    ARGS_XX = alopf2_args(ARG_SIZE_X, ARG_SIZE_X),
+    ARGS_QQ = alopf2_args(ARG_SIZE_Q, ARG_SIZE_Q),
+    ARGS_PS = alopf2_args(ARG_SIZE_P, ARG_SIZE_S),
+    ARGS_PD = alopf2_args(ARG_SIZE_P, ARG_SIZE_D),
+    ARGS_PP = alopf2_args(ARG_SIZE_P, ARG_SIZE_P),
+    ARGS_SSB = alopf7_args(ARG_SIZE_S, ARG_SIZE_S, ARG_SIZE_B),
+    ARGS_DDB = alopf7_args(ARG_SIZE_D, ARG_SIZE_D, ARG_SIZE_B),
+    ARGS_XSB = alopf7_args(ARG_SIZE_X, ARG_SIZE_S, ARG_SIZE_B),
+    ARGS_XDB = alopf7_args(ARG_SIZE_X, ARG_SIZE_D, ARG_SIZE_B),
+    ARGS_XXB = alopf7_args(ARG_SIZE_X, ARG_SIZE_X, ARG_SIZE_B),
+    ARGS_PPB = alopf7_args(ARG_SIZE_P, ARG_SIZE_P, ARG_SIZE_B),
+    ARGS_SSS = alopf1_args(ARG_SIZE_S, ARG_SIZE_S, ARG_SIZE_S),
+    ARGS_SSD = alopf1_args(ARG_SIZE_S, ARG_SIZE_S, ARG_SIZE_D),
+    ARGS_SSQ = alopf1_args(ARG_SIZE_S, ARG_SIZE_S, ARG_SIZE_Q),
+    ARGS_SSP = alopf1_args(ARG_SIZE_S, ARG_SIZE_S, ARG_SIZE_P),
+    ARGS_SDD = alopf1_args(ARG_SIZE_S, ARG_SIZE_D, ARG_SIZE_D),
+    ARGS_DSS = alopf1_args(ARG_SIZE_D, ARG_SIZE_S, ARG_SIZE_S),
+    ARGS_DSD = alopf1_args(ARG_SIZE_D, ARG_SIZE_S, ARG_SIZE_D),
+    ARGS_DSX = alopf1_args(ARG_SIZE_D, ARG_SIZE_S, ARG_SIZE_X),
+    ARGS_DDS = alopf1_args(ARG_SIZE_D, ARG_SIZE_D, ARG_SIZE_S),
+    ARGS_DDD = alopf1_args(ARG_SIZE_D, ARG_SIZE_D, ARG_SIZE_D),
+    ARGS_DDQ = alopf1_args(ARG_SIZE_D, ARG_SIZE_D, ARG_SIZE_Q),
+    ARGS_DSP = alopf1_args(ARG_SIZE_D, ARG_SIZE_S, ARG_SIZE_P),
+    ARGS_DDP = alopf1_args(ARG_SIZE_D, ARG_SIZE_D, ARG_SIZE_P),
+    ARGS_DPP = alopf1_args(ARG_SIZE_D, ARG_SIZE_P, ARG_SIZE_P),
+    ARGS_XSS = alopf1_args(ARG_SIZE_X, ARG_SIZE_S, ARG_SIZE_S),
+    ARGS_XSX = alopf1_args(ARG_SIZE_X, ARG_SIZE_S, ARG_SIZE_X),
+    ARGS_XDS = alopf1_args(ARG_SIZE_X, ARG_SIZE_D, ARG_SIZE_S),
+    ARGS_XDD = alopf1_args(ARG_SIZE_X, ARG_SIZE_D, ARG_SIZE_D),
+    ARGS_XDX = alopf1_args(ARG_SIZE_X, ARG_SIZE_D, ARG_SIZE_X),
+    ARGS_XXS = alopf1_args(ARG_SIZE_X, ARG_SIZE_X, ARG_SIZE_S),
+    ARGS_XXD = alopf1_args(ARG_SIZE_X, ARG_SIZE_X, ARG_SIZE_D),
+    ARGS_SXS = alopf1_args(ARG_SIZE_S, ARG_SIZE_X, ARG_SIZE_S),
+    ARGS_DXD = alopf1_args(ARG_SIZE_D, ARG_SIZE_X, ARG_SIZE_D),
+    ARGS_SXX = alopf1_args(ARG_SIZE_S, ARG_SIZE_X, ARG_SIZE_X),
+    ARGS_DXX = alopf1_args(ARG_SIZE_D, ARG_SIZE_X, ARG_SIZE_X),
+    ARGS_XXX = alopf1_args(ARG_SIZE_X, ARG_SIZE_X, ARG_SIZE_X),
+    ARGS_QSS = alopf1_args(ARG_SIZE_Q, ARG_SIZE_S, ARG_SIZE_S),
+    ARGS_QSD = alopf1_args(ARG_SIZE_Q, ARG_SIZE_S, ARG_SIZE_D),
+    ARGS_QSQ = alopf1_args(ARG_SIZE_Q, ARG_SIZE_S, ARG_SIZE_Q),
+    ARGS_QSP = alopf1_args(ARG_SIZE_Q, ARG_SIZE_S, ARG_SIZE_P),
+    ARGS_QDQ = alopf1_args(ARG_SIZE_Q, ARG_SIZE_D, ARG_SIZE_Q),
+    ARGS_QQQ = alopf1_args(ARG_SIZE_Q, ARG_SIZE_Q, ARG_SIZE_Q),
+    ARGS_PSP = alopf1_args(ARG_SIZE_P, ARG_SIZE_S, ARG_SIZE_P),
+    ARGS_PDP = alopf1_args(ARG_SIZE_P, ARG_SIZE_D, ARG_SIZE_P),
+    ARGS_PPD = alopf1_args(ARG_SIZE_P, ARG_SIZE_P, ARG_SIZE_D),
+    ARGS_PPP = alopf1_args(ARG_SIZE_P, ARG_SIZE_P, ARG_SIZE_P),
+    ARGS_SSSS = alopf21_args(ARG_SIZE_S, ARG_SIZE_S, ARG_SIZE_S, ARG_SIZE_S),
+    ARGS_DDSD = alopf21_args(ARG_SIZE_D, ARG_SIZE_D, ARG_SIZE_S, ARG_SIZE_D),
+    ARGS_DDDD = alopf21_args(ARG_SIZE_D, ARG_SIZE_D, ARG_SIZE_D, ARG_SIZE_D),
+    ARGS_PPPP = alopf21_args(ARG_SIZE_P, ARG_SIZE_P, ARG_SIZE_P, ARG_SIZE_P),
+
+    // compat
+    ARGS_XSD = alopf7_args(ARG_SIZE_X, ARG_SIZE_S, ARG_SIZE_D),
+} AlopArgs;
 
 typedef struct {
     TCGv_i32 tag;
@@ -565,8 +712,6 @@ typedef struct {
     uint8_t dst;
 } Mova;
 
-static int16_t alops_map[4][128][6];
-
 static inline void gen_save_pc(target_ulong pc)
 {
     tcg_gen_movi_tl(cpu_pc, pc);
@@ -595,9 +740,6 @@ static inline void gen_tr_exception(DisasContext *ctx, int exception_index)
 IMPL_GEN_TR_EXCP(gen_tr_excp_illopc, EXCP_ILLEGAL_OPCODE)
 IMPL_GEN_TR_EXCP(gen_tr_excp_illopn, EXCP_ILLEGAL_OPERAND)
 IMPL_GEN_TR_EXCP(gen_tr_excp_window_bounds, EXCP_WINDOW_BOUNDS)
-#ifndef TARGET_E2K32
-IMPL_GEN_TR_EXCP(gen_tr_excp_array_bounds, EXCP_ARRAY_BOUNDS)
-#endif
 
 static inline void gen_exception(int excp)
 {
@@ -614,7 +756,6 @@ static inline void gen_exception(int excp)
     }
 
 IMPL_GEN_EXCP(gen_excp_illopc, EXCP_ILLEGAL_OPCODE)
-IMPL_GEN_EXCP(gen_excp_window_bounds, EXCP_WINDOW_BOUNDS)
 
 #define e2k_todo(ctx, fmt, ...) \
     qemu_log(TARGET_FMT_lx ": " fmt " (%s:%d)\n", ctx->base.pc_next, \
@@ -1123,11 +1264,6 @@ static inline bool is_chan_14(int c)
 static inline bool is_chan_25(int c)
 {
     return c == 2 || c == 5;
-}
-
-static inline bool is_chan_0134(int c)
-{
-    return is_chan_03(c) || is_chan_14(c);
 }
 
 static void gen_poison_i128_raw(Tagged_i128 ret, Tagged_i128 v, uint8_t tag)
@@ -5106,930 +5242,6 @@ static void gen_icalld(Alop *alop)
     }
 }
 
-static void alop_table_find(DisasContext *ctx, Alop *alop, AlesFlag ales_present)
-{
-    /* ALES2/5 may be allocated but must not be used */
-    int opc2 = ales_present & ALES_PRESENT ? alop->ales.opc2 : 0;
-    int16_t index = alops_map[opc2][alop->als.opc1][alop->chan];
-    while (index != -1) {
-        bool is_match = false;
-        AlopDesc *desc = &alops[index];
-        switch(desc->alopf) {
-        case ALOPF1:
-        case ALOPF1_MAS:
-        case ALOPF1_MERGE:
-        case ALOPF3:
-        case ALOPF10:
-        case ALOPF11_LIT8:
-        case ALOPF12_PSHUFH:
-        case ALOPF21:
-            is_match = true;
-            break;
-        case ALOPF2:
-        case ALOPF15:
-            is_match = desc->extra1 == alop->als.opce1;
-            break;
-        case ALOPF7:
-            is_match = desc->extra1 == alop->als.opc_cmp;
-            break;
-        case ALOPF8:
-            is_match = desc->extra1 == alop->als.opc_cmp
-                && alop->als.opce1 == 0xc0;
-            break;
-        case ALOPF11:
-        case ALOPF11_MAS:
-        case ALOPF11_MERGE:
-        case ALOPF12_ICALLD:
-        case ALOPF13:
-        case ALOPF17:
-            is_match = desc->extra1 == alop->ales.opce3;
-            break;
-        case ALOPF12:
-        case ALOPF12_IBRANCHD:
-        case ALOPF22:
-            is_match = desc->extra1 == alop->als.opce1
-                && desc->extra2 == alop->ales.opce3;
-            break;
-        case ALOPF16:
-            is_match = desc->extra1 == alop->als.opce2;
-            break;
-        default:
-            g_assert_not_reached();
-            break;
-        }
-
-        if (is_match) {
-            alop->format = desc->alopf;
-            alop->op = desc->op;
-            alop->args = desc->args;
-            alop->name = desc->dsc;
-            return;
-        }
-
-        index = desc->next[alop->chan];
-    }
-
-    gen_tr_excp_illopc(ctx);
-}
-
-static void gen_alop_simple(Alop *alop)
-{
-    DisasContext *ctx = alop->ctx;
-
-    switch(alop->op) {
-    case OP_NONE:
-        g_assert_not_reached();
-    case OP_ANDS:           gen_alf1_sss(alop, tcg_gen_and_i32); break;
-    case OP_ANDD:           gen_alf1_ddd(alop, tcg_gen_and_i64); break;
-    case OP_ANDNS:          gen_alf1_sss(alop, gen_andn_i32); break;
-    case OP_ANDND:          gen_alf1_ddd(alop, gen_andn_i64); break;
-    case OP_ORS:            gen_alf1_sss(alop, tcg_gen_or_i32); break;
-    case OP_ORD:            gen_alf1_ddd(alop, tcg_gen_or_i64); break;
-    case OP_ORNS:           gen_alf1_sss(alop, gen_orn_i32); break;
-    case OP_ORND:           gen_alf1_ddd(alop, gen_orn_i64); break;
-    case OP_XORS:           gen_alf1_sss(alop, tcg_gen_xor_i32); break;
-    case OP_XORD:           gen_alf1_ddd(alop, tcg_gen_xor_i64); break;
-    case OP_XORNS:          gen_alf1_sss(alop, gen_xorn_i32); break;
-    case OP_XORND:          gen_alf1_ddd(alop, gen_xorn_i64); break;
-    case OP_SXT:            gen_sxt(alop); break;
-    case OP_ADDS:           gen_alf1_sss(alop, tcg_gen_add_i32); break;
-    case OP_ADDD:           gen_alf1_ddd(alop, tcg_gen_add_i64); break;
-    case OP_SUBS:           gen_alf1_sss(alop, tcg_gen_sub_i32); break;
-    case OP_SUBD:           gen_alf1_ddd(alop, tcg_gen_sub_i64); break;
-    case OP_SCLS:           gen_alf1_sss(alop, tcg_gen_rotl_i32); break;
-    case OP_SCLD:           gen_alf1_ddd(alop, tcg_gen_rotl_i64); break;
-    case OP_SCRS:           gen_alf1_sss(alop, tcg_gen_rotr_i32); break;
-    case OP_SCRD:           gen_alf1_ddd(alop, tcg_gen_rotr_i64); break;
-    case OP_SHLS:           gen_alf1_sss(alop, tcg_gen_shl_i32); break;
-    case OP_SHLD:           gen_alf1_ddd(alop, tcg_gen_shl_i64); break;
-    case OP_SHRS:           gen_alf1_sss(alop, tcg_gen_shr_i32); break;
-    case OP_SHRD:           gen_alf1_ddd(alop, tcg_gen_shr_i64); break;
-    case OP_SARS:           gen_alf1_sss(alop, tcg_gen_sar_i32); break;
-    case OP_SARD:           gen_alf1_ddd(alop, tcg_gen_sar_i64); break;
-    case OP_GETFS:          gen_getfs(alop); break;
-    case OP_GETFD:          gen_getfd(alop); break;
-    case OP_MERGES:         gen_merges(alop); break;
-    case OP_MERGED:         gen_merged(alop); break;
-    case OP_CMPOSB:         gen_alf7_sss(alop, gen_cmposb); break;
-    case OP_CMPBSB:         gen_alf7_sss(alop, gen_cmpbsb); break;
-    case OP_CMPESB:         gen_alf7_sss(alop, gen_cmpesb); break;
-    case OP_CMPBESB:        gen_alf7_sss(alop, gen_cmpbesb); break;
-    case OP_CMPSSB:         gen_alf7_sss(alop, gen_cmpssb); break;
-    case OP_CMPPSB:         gen_alf7_sss(alop, gen_cmppsb); break;
-    case OP_CMPLSB:         gen_alf7_sss(alop, gen_cmplsb); break;
-    case OP_CMPLESB:        gen_alf7_sss(alop, gen_cmplesb); break;
-    case OP_CMPODB:         gen_alf7_ddd(alop, gen_cmpodb); break;
-    case OP_CMPBDB:         gen_alf7_ddd(alop, gen_cmpbdb); break;
-    case OP_CMPEDB:         gen_alf7_ddd(alop, gen_cmpedb); break;
-    case OP_CMPBEDB:        gen_alf7_ddd(alop, gen_cmpbedb); break;
-    case OP_CMPSDB:         gen_alf7_ddd(alop, gen_cmpsdb); break;
-    case OP_CMPPDB:         gen_alf7_ddd(alop, gen_cmppdb); break;
-    case OP_CMPLDB:         gen_alf7_ddd(alop, gen_cmpldb); break;
-    case OP_CMPLEDB:        gen_alf7_ddd(alop, gen_cmpledb); break;
-    case OP_CMPANDESB:      gen_alf7_sss(alop, gen_cmpandesb); break;
-    case OP_CMPANDSSB:      gen_alf7_sss(alop, gen_cmpandssb); break;
-    case OP_CMPANDPSB:      gen_alf7_sss(alop, gen_cmpandpsb); break;
-    case OP_CMPANDLESB:     gen_alf7_sss(alop, gen_cmpandlesb); break;
-    case OP_CMPANDEDB:      gen_alf7_ddd(alop, gen_cmpandedb); break;
-    case OP_CMPANDSDB:      gen_alf7_ddd(alop, gen_cmpandsdb); break;
-    case OP_CMPANDPDB:      gen_alf7_ddd(alop, gen_cmpandpdb); break;
-    case OP_CMPANDLEDB:     gen_alf7_ddd(alop, gen_cmpandledb); break;
-    case OP_FCMPEQSB:       gen_alf7_env_sss(alop, gen_helper_fcmpeqs); break;
-    case OP_FCMPLTSB:       gen_alf7_env_sss(alop, gen_helper_fcmplts); break;
-    case OP_FCMPLESB:       gen_alf7_env_sss(alop, gen_helper_fcmples); break;
-    case OP_FCMPUODSB:      gen_alf7_env_sss(alop, gen_helper_fcmpuods); break;
-    case OP_FCMPNEQSB:      gen_alf7_env_sss(alop, gen_helper_fcmpneqs); break;
-    case OP_FCMPNLTSB:      gen_alf7_env_sss(alop, gen_helper_fcmpnlts); break;
-    case OP_FCMPNLESB:      gen_alf7_env_sss(alop, gen_helper_fcmpnles); break;
-    case OP_FCMPODSB:       gen_alf7_env_sss(alop, gen_helper_fcmpods); break;
-    case OP_FCMPEQDB:       gen_alf7_env_ddd(alop, gen_helper_fcmpeqd); break;
-    case OP_FCMPLTDB:       gen_alf7_env_ddd(alop, gen_helper_fcmpltd); break;
-    case OP_FCMPLEDB:       gen_alf7_env_ddd(alop, gen_helper_fcmpled); break;
-    case OP_FCMPUODDB:      gen_alf7_env_ddd(alop, gen_helper_fcmpuodd); break;
-    case OP_FCMPNEQDB:      gen_alf7_env_ddd(alop, gen_helper_fcmpneqd); break;
-    case OP_FCMPNLTDB:      gen_alf7_env_ddd(alop, gen_helper_fcmpnltd); break;
-    case OP_FCMPNLEDB:      gen_alf7_env_ddd(alop, gen_helper_fcmpnled); break;
-    case OP_FCMPODDB:       gen_alf7_env_ddd(alop, gen_helper_fcmpodd); break;
-    case OP_FXCMPEQSB:      gen_alf7_env_dxs(alop, gen_helper_fxcmpeqs); break;
-    case OP_FXCMPLTSB:      gen_alf7_env_dxs(alop, gen_helper_fxcmplts); break;
-    case OP_FXCMPLESB:      gen_alf7_env_dxs(alop, gen_helper_fxcmples); break;
-    case OP_FXCMPUODSB:     gen_alf7_env_dxs(alop, gen_helper_fxcmpuods); break;
-    case OP_FXCMPNEQSB:     gen_alf7_env_dxs(alop, gen_helper_fxcmpneqs); break;
-    case OP_FXCMPNLTSB:     gen_alf7_env_dxs(alop, gen_helper_fxcmpnlts); break;
-    case OP_FXCMPNLESB:     gen_alf7_env_dxs(alop, gen_helper_fxcmpnles); break;
-    case OP_FXCMPODSB:      gen_alf7_env_dxs(alop, gen_helper_fxcmpods); break;
-    case OP_FXCMPEQDB:      gen_alf7_env_dxd(alop, gen_helper_fxcmpeqd); break;
-    case OP_FXCMPLTDB:      gen_alf7_env_dxd(alop, gen_helper_fxcmpltd); break;
-    case OP_FXCMPLEDB:      gen_alf7_env_dxd(alop, gen_helper_fxcmpled); break;
-    case OP_FXCMPUODDB:     gen_alf7_env_dxd(alop, gen_helper_fxcmpuodd); break;
-    case OP_FXCMPNEQDB:     gen_alf7_env_dxd(alop, gen_helper_fxcmpneqd); break;
-    case OP_FXCMPNLTDB:     gen_alf7_env_dxd(alop, gen_helper_fxcmpnltd); break;
-    case OP_FXCMPNLEDB:     gen_alf7_env_dxd(alop, gen_helper_fxcmpnled); break;
-    case OP_FXCMPODDB:      gen_alf7_env_dxd(alop, gen_helper_fxcmpodd); break;
-    case OP_FXCMPEQXB:      gen_alf7_env_dxx(alop, gen_helper_fxcmpeqx); break;
-    case OP_FXCMPLTXB:      gen_alf7_env_dxx(alop, gen_helper_fxcmpltx); break;
-    case OP_FXCMPLEXB:      gen_alf7_env_dxx(alop, gen_helper_fxcmplex); break;
-    case OP_FXCMPUODXB:     gen_alf7_env_dxx(alop, gen_helper_fxcmpuodx); break;
-    case OP_FXCMPNEQXB:     gen_alf7_env_dxx(alop, gen_helper_fxcmpneqx); break;
-    case OP_FXCMPNLTXB:     gen_alf7_env_dxx(alop, gen_helper_fxcmpnltx); break;
-    case OP_FXCMPNLEXB:     gen_alf7_env_dxx(alop, gen_helper_fxcmpnlex); break;
-    case OP_FXCMPODXB:      gen_alf7_env_dxx(alop, gen_helper_fxcmpodx); break;
-    case OP_STB:            gen_stb(alop, gen_addr_i64, ADDR_FLAT); break;
-    case OP_STH:            gen_sth(alop, gen_addr_i64, ADDR_FLAT); break;
-    case OP_STW:            gen_stw(alop, gen_addr_i64, ADDR_FLAT); break;
-    case OP_STD:            gen_std(alop, gen_addr_i64, ADDR_FLAT); break;
-    case OP_STQP:           gen_stqp(alop, gen_addr_i64, ADDR_FLAT); break;
-    case OP_STMQP:          gen_stmqp(alop, gen_addr_src1_i64, ADDR_FLAT); break;
-    case OP_STCSB:          gen_stb(alop, gen_addr_i32, ADDR_CS); break;
-    case OP_STDSB:          gen_stb(alop, gen_addr_i32, ADDR_DS); break;
-    case OP_STESB:          gen_stb(alop, gen_addr_i32, ADDR_ES); break;
-    case OP_STFSB:          gen_stb(alop, gen_addr_i32, ADDR_FS); break;
-    case OP_STGDB:          gen_stb(alop, gen_addr_i32, ADDR_GD); break;
-    case OP_STGSB:          gen_stb(alop, gen_addr_i32, ADDR_GS); break;
-    case OP_STSSB:          gen_stb(alop, gen_addr_i32, ADDR_SS); break;
-    case OP_STCSH:          gen_sth(alop, gen_addr_i32, ADDR_CS); break;
-    case OP_STDSH:          gen_sth(alop, gen_addr_i32, ADDR_DS); break;
-    case OP_STESH:          gen_sth(alop, gen_addr_i32, ADDR_ES); break;
-    case OP_STFSH:          gen_sth(alop, gen_addr_i32, ADDR_FS); break;
-    case OP_STGDH:          gen_sth(alop, gen_addr_i32, ADDR_GD); break;
-    case OP_STGSH:          gen_sth(alop, gen_addr_i32, ADDR_GS); break;
-    case OP_STSSH:          gen_sth(alop, gen_addr_i32, ADDR_SS); break;
-    case OP_STCSW:          gen_stw(alop, gen_addr_i32, ADDR_CS); break;
-    case OP_STDSW:          gen_stw(alop, gen_addr_i32, ADDR_DS); break;
-    case OP_STESW:          gen_stw(alop, gen_addr_i32, ADDR_ES); break;
-    case OP_STFSW:          gen_stw(alop, gen_addr_i32, ADDR_FS); break;
-    case OP_STGDW:          gen_stw(alop, gen_addr_i32, ADDR_GD); break;
-    case OP_STGSW:          gen_stw(alop, gen_addr_i32, ADDR_GS); break;
-    case OP_STSSW:          gen_stw(alop, gen_addr_i32, ADDR_SS); break;
-    case OP_STCSD:          gen_std(alop, gen_addr_i32, ADDR_CS); break;
-    case OP_STDSD:          gen_std(alop, gen_addr_i32, ADDR_DS); break;
-    case OP_STESD:          gen_std(alop, gen_addr_i32, ADDR_ES); break;
-    case OP_STFSD:          gen_std(alop, gen_addr_i32, ADDR_FS); break;
-    case OP_STGDD:          gen_std(alop, gen_addr_i32, ADDR_GD); break;
-    case OP_STGSD:          gen_std(alop, gen_addr_i32, ADDR_GS); break;
-    case OP_STSSD:          gen_std(alop, gen_addr_i32, ADDR_SS); break;
-    case OP_STCSQP:         gen_stqp(alop, gen_addr_i32, ADDR_CS); break;
-    case OP_STDSQP:         gen_stqp(alop, gen_addr_i32, ADDR_DS); break;
-    case OP_STESQP:         gen_stqp(alop, gen_addr_i32, ADDR_ES); break;
-    case OP_STFSQP:         gen_stqp(alop, gen_addr_i32, ADDR_FS); break;
-    case OP_STGDQP:         gen_stqp(alop, gen_addr_i32, ADDR_GD); break;
-    case OP_STGSQP:         gen_stqp(alop, gen_addr_i32, ADDR_GS); break;
-    case OP_STSSQP:         gen_stqp(alop, gen_addr_i32, ADDR_SS); break;
-    case OP_STCSMQP:        gen_stmqp(alop, gen_addr_src1_i32, ADDR_CS); break;
-    case OP_STDSMQP:        gen_stmqp(alop, gen_addr_src1_i32, ADDR_DS); break;
-    case OP_STESMQP:        gen_stmqp(alop, gen_addr_src1_i32, ADDR_ES); break;
-    case OP_STFSMQP:        gen_stmqp(alop, gen_addr_src1_i32, ADDR_FS); break;
-    case OP_STGDMQP:        gen_stmqp(alop, gen_addr_src1_i32, ADDR_GD); break;
-    case OP_STGSMQP:        gen_stmqp(alop, gen_addr_src1_i32, ADDR_GS); break;
-    case OP_STSSMQP:        gen_stmqp(alop, gen_addr_src1_i32, ADDR_SS); break;
-    case OP_LDB:            gen_ldb(alop, gen_addr_i64, ADDR_FLAT); break;
-    case OP_LDH:            gen_ldh(alop, gen_addr_i64, ADDR_FLAT); break;
-    case OP_LDW:            gen_ldw(alop, gen_addr_i64, ADDR_FLAT); break;
-    case OP_LDD:            gen_ldd(alop, gen_addr_i64, ADDR_FLAT); break;
-    case OP_LDQP:           gen_ldqp(alop, gen_addr_i64, ADDR_FLAT); break;
-#ifdef TARGET_E2K32
-    case OP_LDCSB:          gen_ldb(alop, gen_addr_i32, ADDR_CS); break;
-    case OP_LDDSB:          gen_ldb(alop, gen_addr_i32, ADDR_DS); break;
-    case OP_LDESB:          gen_ldb(alop, gen_addr_i32, ADDR_ES); break;
-    case OP_LDFSB:          gen_ldb(alop, gen_addr_i32, ADDR_FS); break;
-    case OP_LDGDB:          gen_ldb(alop, gen_addr_i32, ADDR_GD); break;
-    case OP_LDGSB:          gen_ldb(alop, gen_addr_i32, ADDR_GS); break;
-    case OP_LDSSB:          gen_ldb(alop, gen_addr_i32, ADDR_SS); break;
-    case OP_LDCSH:          gen_ldh(alop, gen_addr_i32, ADDR_CS); break;
-    case OP_LDDSH:          gen_ldh(alop, gen_addr_i32, ADDR_DS); break;
-    case OP_LDESH:          gen_ldh(alop, gen_addr_i32, ADDR_ES); break;
-    case OP_LDFSH:          gen_ldh(alop, gen_addr_i32, ADDR_FS); break;
-    case OP_LDGDH:          gen_ldh(alop, gen_addr_i32, ADDR_GD); break;
-    case OP_LDGSH:          gen_ldh(alop, gen_addr_i32, ADDR_GS); break;
-    case OP_LDSSH:          gen_ldh(alop, gen_addr_i32, ADDR_SS); break;
-    case OP_LDCSW:          gen_ldw(alop, gen_addr_i32, ADDR_CS); break;
-    case OP_LDDSW:          gen_ldw(alop, gen_addr_i32, ADDR_DS); break;
-    case OP_LDESW:          gen_ldw(alop, gen_addr_i32, ADDR_ES); break;
-    case OP_LDFSW:          gen_ldw(alop, gen_addr_i32, ADDR_FS); break;
-    case OP_LDGDW:          gen_ldw(alop, gen_addr_i32, ADDR_GD); break;
-    case OP_LDGSW:          gen_ldw(alop, gen_addr_i32, ADDR_GS); break;
-    case OP_LDSSW:          gen_ldw(alop, gen_addr_i32, ADDR_SS); break;
-    case OP_LDCSD:          gen_ldd(alop, gen_addr_i32, ADDR_CS); break;
-    case OP_LDDSD:          gen_ldd(alop, gen_addr_i32, ADDR_DS); break;
-    case OP_LDESD:          gen_ldd(alop, gen_addr_i32, ADDR_ES); break;
-    case OP_LDFSD:          gen_ldd(alop, gen_addr_i32, ADDR_FS); break;
-    case OP_LDGDD:          gen_ldd(alop, gen_addr_i32, ADDR_GD); break;
-    case OP_LDGSD:          gen_ldd(alop, gen_addr_i32, ADDR_GS); break;
-    case OP_LDSSD:          gen_ldd(alop, gen_addr_i32, ADDR_SS); break;
-    case OP_LDCSQP:         gen_ldqp(alop, gen_addr_i32, ADDR_CS); break;
-    case OP_LDDSQP:         gen_ldqp(alop, gen_addr_i32, ADDR_DS); break;
-    case OP_LDESQP:         gen_ldqp(alop, gen_addr_i32, ADDR_ES); break;
-    case OP_LDFSQP:         gen_ldqp(alop, gen_addr_i32, ADDR_FS); break;
-    case OP_LDGDQP:         gen_ldqp(alop, gen_addr_i32, ADDR_GD); break;
-    case OP_LDGSQP:         gen_ldqp(alop, gen_addr_i32, ADDR_GS); break;
-    case OP_LDSSQP:         gen_ldqp(alop, gen_addr_i32, ADDR_SS); break;
-#else
-    case OP_LDCSB:
-    case OP_LDDSB:
-    case OP_LDESB:
-    case OP_LDFSB:
-    case OP_LDGDB:
-    case OP_LDGSB:
-    case OP_LDSSB:
-    case OP_LDCSH:
-    case OP_LDDSH:
-    case OP_LDESH:
-    case OP_LDFSH:
-    case OP_LDGDH:
-    case OP_LDGSH:
-    case OP_LDSSH:
-    case OP_LDCSW:
-    case OP_LDDSW:
-    case OP_LDESW:
-    case OP_LDFSW:
-    case OP_LDGDW:
-    case OP_LDGSW:
-    case OP_LDSSW:
-    case OP_LDCSD:
-    case OP_LDDSD:
-    case OP_LDESD:
-    case OP_LDFSD:
-    case OP_LDGDD:
-    case OP_LDGSD:
-    case OP_LDSSD:
-    case OP_LDCSQP:
-    case OP_LDDSQP:
-    case OP_LDESQP:
-    case OP_LDFSQP:
-    case OP_LDGDQP:
-    case OP_LDGSQP:
-    case OP_LDSSQP:
-        // FIXME: find out why the exception is generated
-        gen_tr_excp_array_bounds(ctx);
-        break;
-#endif
-    case OP_BITREVS:        gen_alf2_ss(alop, gen_bitrevs); break;
-    case OP_BITREVD:        gen_alf2_dd(alop, gen_bitrevd); break;
-    case OP_LZCNTS:         gen_alf2_ss(alop, gen_lzcnts); break;
-    case OP_LZCNTD:         gen_alf2_dd(alop, gen_lzcntd); break;
-    case OP_POPCNTS:        gen_alf2_ss(alop, tcg_gen_ctpop_i32); break;
-    case OP_POPCNTD:        gen_alf2_dd(alop, tcg_gen_ctpop_i64); break;
-    case OP_FADDS:          gen_alf1_env_sss(alop, gen_helper_fadds); break;
-    case OP_FADDD:          gen_alf1_env_ddd(alop, gen_helper_faddd); break;
-    case OP_FSUBS:          gen_alf1_env_sss(alop, gen_helper_fsubs); break;
-    case OP_FSUBD:          gen_alf1_env_ddd(alop, gen_helper_fsubd); break;
-    case OP_FMINS:          gen_alf1_env_sss(alop, gen_helper_fmins); break;
-    case OP_FMIND:          gen_alf1_env_ddd(alop, gen_helper_fmind); break;
-    case OP_FMAXS:          gen_alf1_env_sss(alop, gen_helper_fmaxs); break;
-    case OP_FMAXD:          gen_alf1_env_ddd(alop, gen_helper_fmaxd); break;
-    case OP_FMULS:          gen_alf1_env_sss(alop, gen_helper_fmuls); break;
-    case OP_FMULD:          gen_alf1_env_ddd(alop, gen_helper_fmuld); break;
-    case OP_FCMPEQS:        gen_alf1_env_sss(alop, gen_helper_fcmpeqs); break;
-    case OP_FCMPLTS:        gen_alf1_env_sss(alop, gen_helper_fcmplts); break;
-    case OP_FCMPLES:        gen_alf1_env_sss(alop, gen_helper_fcmples); break;
-    case OP_FCMPUODS:       gen_alf1_env_sss(alop, gen_helper_fcmpuods); break;
-    case OP_FCMPNEQS:       gen_alf1_env_sss(alop, gen_helper_fcmpneqs); break;
-    case OP_FCMPNLTS:       gen_alf1_env_sss(alop, gen_helper_fcmpnlts); break;
-    case OP_FCMPNLES:       gen_alf1_env_sss(alop, gen_helper_fcmpnles); break;
-    case OP_FCMPODS:        gen_alf1_env_sss(alop, gen_helper_fcmpods); break;
-    case OP_FCMPEQD:        gen_alf1_env_ddd(alop, gen_helper_fcmpeqd); break;
-    case OP_FCMPLTD:        gen_alf1_env_ddd(alop, gen_helper_fcmpltd); break;
-    case OP_FCMPLED:        gen_alf1_env_ddd(alop, gen_helper_fcmpled); break;
-    case OP_FCMPUODD:       gen_alf1_env_ddd(alop, gen_helper_fcmpuodd); break;
-    case OP_FCMPNEQD:       gen_alf1_env_ddd(alop, gen_helper_fcmpneqd); break;
-    case OP_FCMPNLTD:       gen_alf1_env_ddd(alop, gen_helper_fcmpnltd); break;
-    case OP_FCMPNLED:       gen_alf1_env_ddd(alop, gen_helper_fcmpnled); break;
-    case OP_FCMPODD:        gen_alf1_env_ddd(alop, gen_helper_fcmpodd); break;
-    case OP_FSTOIS:         gen_alf2_env_ss(alop, gen_helper_fstois); break;
-    case OP_FSTOISTR:       gen_alf2_env_ss(alop, gen_helper_fstoistr); break;
-    case OP_ISTOFS:         gen_alf2_env_ss(alop, gen_helper_istofs); break;
-    case OP_FDTOID:         gen_alf2_env_dd(alop, gen_helper_fdtoid); break;
-    case OP_IDTOFD:         gen_alf2_env_dd(alop, gen_helper_idtofd); break;
-    case OP_FXTOFD:         gen_alf2_env_dx(alop, gen_helper_fxtofd); break;
-    case OP_FDTOFX:         gen_alf2_env_xd(alop, gen_helper_fdtofx); break;
-    case OP_FSTOID:         gen_alf2_env_ds(alop, gen_helper_fstoid); break;
-    case OP_FSTOIDTR:       gen_alf2_env_ds(alop, gen_helper_fstoidtr); break;
-    case OP_FDTOIDTR:       gen_alf2_env_dd(alop, gen_helper_fdtoidtr); break;
-    case OP_ISTOFD:         gen_alf2_env_ds(alop, gen_helper_istofd); break;
-    case OP_FSTOFD:         gen_alf2_env_ds(alop, gen_helper_fstofd); break;
-    case OP_FSTOFX:         gen_alf2_env_xs(alop, gen_helper_fstofx); break;
-    case OP_FDTOISTR:       gen_alf2_env_sd(alop, gen_helper_fdtoistr); break;
-    case OP_FDTOIS:         gen_alf2_env_sd(alop, gen_helper_fdtois); break;
-    case OP_IDTOFS:         gen_alf2_env_sd(alop, gen_helper_idtofs); break;
-    case OP_FDTOFS:         gen_alf2_env_sd(alop, gen_helper_fdtofs); break;
-    case OP_FXTOFS:         gen_alf2_env_sx(alop, gen_helper_fxtofs); break;
-    case OP_FXTOIS:         gen_alf2_env_sx(alop, gen_helper_fxtois); break;
-    case OP_FXTOISTR:       gen_alf2_env_sx(alop, gen_helper_fxtoistr); break;
-    case OP_FXTOID:         gen_alf2_env_dx(alop, gen_helper_fxtoid); break;
-    case OP_FXTOIDTR:       gen_alf2_env_dx(alop, gen_helper_fxtoidtr); break;
-    case OP_ISTOFX:         gen_alf2_env_xs(alop, gen_helper_istofx); break;
-    case OP_IDTOFX:         gen_alf2_env_xd(alop, gen_helper_idtofx); break;
-    case OP_UDIVS:          gen_alf1_tag_sss(alop, gen_udivs); break;
-    case OP_UDIVD:          gen_alf1_tag_ddd(alop, gen_udivd); break;
-    case OP_SDIVS:          gen_alf1_tag_sss(alop, gen_sdivs); break;
-    case OP_SDIVD:          gen_alf1_tag_ddd(alop, gen_sdivd); break;
-    case OP_FXADDSS:        gen_alf1_env_sxs(alop, gen_helper_fxaddss); break;
-    case OP_FXADDDD:        gen_alf1_env_dxd(alop, gen_helper_fxadddd); break;
-    case OP_FXADDSX:        gen_alf1_env_xxs(alop, gen_helper_fxaddsx); break;
-    case OP_FXADDDX:        gen_alf1_env_xxd(alop, gen_helper_fxadddx); break;
-    case OP_FXADDXX:        gen_alf1_env_xxx(alop, gen_helper_fxaddxx); break;
-    case OP_FXADDXD:        gen_alf1_env_dxx(alop, gen_helper_fxaddxd); break;
-    case OP_FXADDXS:        gen_alf1_env_sxx(alop, gen_helper_fxaddxs); break;
-    case OP_FXSUBSS:        gen_alf1_env_sxs(alop, gen_helper_fxsubss); break;
-    case OP_FXSUBDD:        gen_alf1_env_dxd(alop, gen_helper_fxsubdd); break;
-    case OP_FXSUBSX:        gen_alf1_env_xxs(alop, gen_helper_fxsubsx); break;
-    case OP_FXSUBDX:        gen_alf1_env_xxd(alop, gen_helper_fxsubdx); break;
-    case OP_FXSUBXX:        gen_alf1_env_xxx(alop, gen_helper_fxsubxx); break;
-    case OP_FXSUBXD:        gen_alf1_env_dxx(alop, gen_helper_fxsubxd); break;
-    case OP_FXSUBXS:        gen_alf1_env_sxx(alop, gen_helper_fxsubxs); break;
-    case OP_FXRSUBSS:       gen_alf1_env_sxs(alop, gen_helper_fxrsubss); break;
-    case OP_FXRSUBDD:       gen_alf1_env_dxd(alop, gen_helper_fxrsubdd); break;
-    case OP_FXRSUBSX:       gen_alf1_env_xxs(alop, gen_helper_fxrsubsx); break;
-    case OP_FXRSUBDX:       gen_alf1_env_xxd(alop, gen_helper_fxrsubdx); break;
-    case OP_FXMULSS:        gen_alf1_env_sxs(alop, gen_helper_fxmulss); break;
-    case OP_FXMULDD:        gen_alf1_env_dxd(alop, gen_helper_fxmuldd); break;
-    case OP_FXMULSX:        gen_alf1_env_xxs(alop, gen_helper_fxmulsx); break;
-    case OP_FXMULDX:        gen_alf1_env_xxd(alop, gen_helper_fxmuldx); break;
-    case OP_FXMULXX:        gen_alf1_env_xxx(alop, gen_helper_fxmulxx); break;
-    case OP_FXMULXD:        gen_alf1_env_dxx(alop, gen_helper_fxmulxd); break;
-    case OP_FXMULXS:        gen_alf1_env_sxx(alop, gen_helper_fxmulxs); break;
-    case OP_FXDIVSS:        gen_alf1_env_sxs(alop, gen_helper_fxdivss); break;
-    case OP_FXDIVDD:        gen_alf1_env_dxd(alop, gen_helper_fxdivdd); break;
-    case OP_FXDIVSX:        gen_alf1_env_xxs(alop, gen_helper_fxdivsx); break;
-    case OP_FXDIVDX:        gen_alf1_env_xxd(alop, gen_helper_fxdivdx); break;
-    case OP_FXDIVXX:        gen_alf1_env_xxx(alop, gen_helper_fxdivxx); break;
-    case OP_FXDIVXD:        gen_alf1_env_dxx(alop, gen_helper_fxdivxd); break;
-    case OP_FXDIVXS:        gen_alf1_env_sxx(alop, gen_helper_fxdivxs); break;
-    case OP_MOVFI:          gen_alf2_sx(alop, gen_movfi); break;
-    case OP_MOVIF:          gen_alf1_xds(alop, gen_movif); break;
-    case OP_MOVX:           gen_alf2_xx(alop, gen_movx); break;
-    case OP_MOVXA:          gen_alf2_xx(alop, gen_movxa); break;
-    case OP_MOVXC:          gen_alf2_xx(alop, gen_movxc); break;
-    case OP_MOVTS:          gen_movts(alop); break;
-    case OP_MOVTCS:         gen_movtcs(alop); break;
-    case OP_MOVTD:          gen_movtd(alop); break;
-    case OP_MOVTCD:         gen_movtcd(alop); break;
-    case OP_MOVTQ:          gen_movtq(alop); break;
-    case OP_MOVTCQ:         gen_movtcq(alop); break;
-    case OP_GETPL:          gen_getpl(alop); break;
-    case OP_PANDD:          gen_alf1_ddd(alop, tcg_gen_and_i64); break;
-    case OP_PANDND:         gen_alf1_ddd(alop, gen_andn_i64); break;
-    case OP_PORD:           gen_alf1_ddd(alop, tcg_gen_or_i64); break;
-    case OP_PXORD:          gen_alf1_ddd(alop, tcg_gen_xor_i64); break;
-    case OP_PMINUB:         gen_alf1_ddd(alop, gen_helper_pminub); break;
-    case OP_PMINSB:         gen_alf1_ddd(alop, gen_helper_pminsb); break;
-    case OP_PMINUH:         gen_alf1_ddd(alop, gen_helper_pminuh); break;
-    case OP_PMINSH:         gen_alf1_ddd(alop, gen_helper_pminsh); break;
-    case OP_PMINUW:         gen_alf1_ddd(alop, gen_helper_pminuw); break;
-    case OP_PMINSW:         gen_alf1_ddd(alop, gen_helper_pminsw); break;
-    case OP_PMAXUB:         gen_alf1_ddd(alop, gen_helper_pmaxub); break;
-    case OP_PMAXSB:         gen_alf1_ddd(alop, gen_helper_pmaxsb); break;
-    case OP_PMAXUH:         gen_alf1_ddd(alop, gen_helper_pmaxuh); break;
-    case OP_PMAXSH:         gen_alf1_ddd(alop, gen_helper_pmaxsh); break;
-    case OP_PMAXUW:         gen_alf1_ddd(alop, gen_helper_pmaxuw); break;
-    case OP_PMAXSW:         gen_alf1_ddd(alop, gen_helper_pmaxsw); break;
-    case OP_PCMPEQB:        gen_alf1_ddd(alop, gen_helper_pcmpeqb); break;
-    case OP_PCMPEQH:        gen_alf1_ddd(alop, gen_helper_pcmpeqh); break;
-    case OP_PCMPEQW:        gen_alf1_ddd(alop, gen_helper_pcmpeqw); break;
-    case OP_PCMPEQD:        gen_alf1_ddd(alop, gen_helper_pcmpeqd); break;
-    case OP_PCMPGTB:        gen_alf1_ddd(alop, gen_helper_pcmpgtb); break;
-    case OP_PCMPGTH:        gen_alf1_ddd(alop, gen_helper_pcmpgth); break;
-    case OP_PCMPGTW:        gen_alf1_ddd(alop, gen_helper_pcmpgtw); break;
-    case OP_PCMPGTD:        gen_alf1_ddd(alop, gen_helper_pcmpgtd); break;
-    case OP_PADDB:          gen_alf1_ddd(alop, tcg_gen_vec_add8_i64); break;
-    case OP_PADDH:          gen_alf1_ddd(alop, tcg_gen_vec_add16_i64); break;
-    case OP_PADDW:          gen_alf1_ddd(alop, tcg_gen_vec_add32_i64); break;
-    case OP_PADDD:          gen_alf1_ddd(alop, tcg_gen_add_i64); break;
-    case OP_PADDSB:         gen_alf1_ddd(alop, gen_helper_paddsb); break;
-    case OP_PADDSH:         gen_alf1_ddd(alop, gen_helper_paddsh); break;
-    case OP_PADDUSB:        gen_alf1_ddd(alop, gen_helper_paddusb); break;
-    case OP_PADDUSH:        gen_alf1_ddd(alop, gen_helper_paddush); break;
-    case OP_PHADDH:         gen_alf1_ddd(alop, gen_helper_phaddh); break;
-    case OP_PHADDW:         gen_alf1_ddd(alop, gen_helper_phaddw); break;
-    case OP_PHADDSH:        gen_alf1_ddd(alop, gen_helper_phaddsh); break;
-    case OP_PSUBB:          gen_alf1_ddd(alop, tcg_gen_vec_sub8_i64); break;
-    case OP_PSUBH:          gen_alf1_ddd(alop, tcg_gen_vec_sub16_i64); break;
-    case OP_PSUBW:          gen_alf1_ddd(alop, tcg_gen_vec_sub32_i64); break;
-    case OP_PSUBD:          gen_alf1_ddd(alop, tcg_gen_sub_i64); break;
-    case OP_PSUBSB:         gen_alf1_ddd(alop, gen_helper_psubsb); break;
-    case OP_PSUBSH:         gen_alf1_ddd(alop, gen_helper_psubsh); break;
-    case OP_PSUBUSB:        gen_alf1_ddd(alop, gen_helper_psubusb); break;
-    case OP_PSUBUSH:        gen_alf1_ddd(alop, gen_helper_psubush); break;
-    case OP_PHSUBH:         gen_alf1_ddd(alop, gen_helper_phsubh); break;
-    case OP_PHSUBW:         gen_alf1_ddd(alop, gen_helper_phsubw); break;
-    case OP_PHSUBSH:        gen_alf1_ddd(alop, gen_helper_phsubsh); break;
-    case OP_PMULHH:         gen_alf1_ddd(alop, gen_helper_pmulhh); break;
-    case OP_PMULLH:         gen_alf1_ddd(alop, gen_helper_pmullh); break;
-    case OP_PMULHUH:        gen_alf1_ddd(alop, gen_helper_pmulhuh); break;
-    case OP_PMULUBHH:       gen_alf1_ddd(alop, gen_helper_pmulubhh); break;
-    case OP_PMULHRSH:       gen_alf1_ddd(alop, gen_helper_pmulhrsh); break;
-    case OP_PMADDH:         gen_alf1_ddd(alop, gen_helper_pmaddh); break;
-    case OP_PMADDUBSH:      gen_alf1_ddd(alop, gen_helper_pmaddubsh); break;
-    case OP_MPSADBH:        gen_alf1_ddd(alop, gen_helper_mpsadbh); break;
-    case OP_PSADBW:         gen_alf1_ddd(alop, gen_helper_psadbw); break;
-    case OP_PSIGNB:         gen_alf1_ddd(alop, gen_helper_psignb); break;
-    case OP_PSIGNH:         gen_alf1_ddd(alop, gen_helper_psignh); break;
-    case OP_PSIGNW:         gen_alf1_ddd(alop, gen_helper_psignw); break;
-    case OP_PSLLH:          gen_alf1_ddd(alop, gen_helper_psllh); break;
-    case OP_PSLLW:          gen_alf1_ddd(alop, gen_helper_psllw); break;
-    case OP_PSLLD:          gen_alf1_ddd(alop, gen_pslld); break;
-    case OP_PSRLH:          gen_alf1_ddd(alop, gen_helper_psrlh); break;
-    case OP_PSRLW:          gen_alf1_ddd(alop, gen_helper_psrlw); break;
-    case OP_PSRLD:          gen_alf1_ddd(alop, gen_psrld); break;
-    case OP_PSRAH:          gen_alf1_ddd(alop, gen_helper_psrah); break;
-    case OP_PSRAW:          gen_alf1_ddd(alop, gen_helper_psraw); break;
-    case OP_PAVGUSB:        gen_alf1_ddd(alop, gen_helper_pavgusb); break;
-    case OP_PAVGUSH:        gen_alf1_ddd(alop, gen_helper_pavgush); break;
-    case OP_PSLLQL:         gen_alf1_lit8_ddd(alop, gen_psllql); break;
-    case OP_PSLLQH:         gen_alf1_lit8_ddd(alop, gen_psllqh); break;
-    case OP_PSRLQL:         gen_alf1_lit8_ddd(alop, gen_psrlql); break;
-    case OP_PSRLQH:         gen_alf1_lit8_ddd(alop, gen_psrlqh); break;
-    case OP_PINSH:          gen_alf1_lit8_ddd(alop, gen_pinsh); break;
-    case OP_PEXTRH:         gen_alf1_lit8_ddd(alop, gen_pextrh); break;
-    case OP_PSHUFH:         gen_alf2_pshufh_dd(alop, gen_helper_pshufh); break;
-    case OP_PSHUFW:         gen_alf1_lit8_ddd(alop, gen_pshufw); break;
-    case OP_PMOVMSKB:       gen_alf1_ddd(alop, gen_helper_pmovmskb); break;
-    case OP_PMOVMSKPS:      gen_alf1_ddd(alop, gen_helper_pmovmskps); break;
-    case OP_PMOVMSKPD:      gen_alf1_ddd(alop, gen_helper_pmovmskpd); break;
-    case OP_PACKSSHB:       gen_alf1_ddd(alop, gen_helper_packsshb); break;
-    case OP_PACKUSHB:       gen_alf1_ddd(alop, gen_helper_packushb); break;
-    case OP_PACKSSWH:       gen_alf1_ddd(alop, gen_helper_packsswh); break;
-    case OP_PACKUSWH:       gen_alf1_ddd(alop, gen_helper_packuswh); break;
-    case OP_PUNPCKLBH:      gen_alf1_ddd(alop, gen_helper_punpcklbh); break;
-    case OP_PUNPCKLHW:      gen_alf1_ddd(alop, gen_helper_punpcklhw); break;
-    case OP_PUNPCKLWD:      gen_alf1_ddd(alop, gen_helper_punpcklwd); break;
-    case OP_PUNPCKHBH:      gen_alf1_ddd(alop, gen_helper_punpckhbh); break;
-    case OP_PUNPCKHHW:      gen_alf1_ddd(alop, gen_helper_punpckhhw); break;
-    case OP_PUNPCKHWD:      gen_alf1_ddd(alop, gen_helper_punpckhwd); break;
-    case OP_PHMINPOSUH:     gen_alf1_ddd(alop, gen_helper_phminposuh); break;
-    case OP_GETTAGS:        gen_gettags(alop); break;
-    case OP_GETTAGD:        gen_gettagd(alop); break;
-    case OP_PUTTAGS:        gen_puttags(alop); break;
-    case OP_PUTTAGD:        gen_puttagd(alop); break;
-    case OP_PUTTAGQP:       gen_puttagqp(alop); break;
-    case OP_STAAB:          gen_staab(alop); break;
-    case OP_STAAH:          gen_staah(alop); break;
-    case OP_STAAW:          gen_staaw(alop); break;
-    case OP_STAAD:          gen_staad(alop); break;
-    case OP_STAAQ:          gen_staaq(alop); break;
-    case OP_STAAQP:         gen_staaqp(alop); break;
-    case OP_MULS:           gen_alf1_sss(alop, tcg_gen_mul_i32); break;
-    case OP_MULD:           gen_alf1_ddd(alop, tcg_gen_mul_i64); break;
-    case OP_UMULX:          gen_alf1_dss(alop, gen_umulx); break;
-    case OP_SMULX:          gen_alf1_dss(alop, gen_smulx); break;
-    case OP_RWS:            gen_rws(alop); break;
-    case OP_RWD:            gen_rwd(alop); break;
-    case OP_RRS:            gen_rrs(alop); break;
-    case OP_RRD:            gen_rrd(alop); break;
-    case OP_FDIVS:          gen_alf1_env_sss(alop, gen_helper_fdivs); break;
-    case OP_FDIVD:          gen_alf1_env_ddd(alop, gen_helper_fdivd); break;
-    case OP_GETSP:          gen_alf2_env_ds(alop, gen_helper_getsp); break;
-    case OP_UMULHD:         gen_alf1_ddd(alop, gen_umulhd); break;
-    case OP_SMULHD:         gen_alf1_ddd(alop, gen_smulhd); break;
-    case OP_FCMPODSF:       gen_alf1_env_sss(alop, gen_helper_fcmpodsf); break;
-    case OP_FCMPUDSF:       gen_alf1_env_sss(alop, gen_helper_fcmpudsf); break;
-    case OP_FCMPODDF:       gen_alf1_env_sdd(alop, gen_helper_fcmpoddf); break;
-    case OP_FCMPUDDF:       gen_alf1_env_sdd(alop, gen_helper_fcmpoddf); break;
-    case OP_FXCMPODSF:      gen_alf1_env_sxs(alop, gen_helper_fxcmpodsf); break;
-    case OP_FXCMPUDSF:      gen_alf1_env_sxs(alop, gen_helper_fxcmpudsf); break;
-    case OP_FXCMPODDF:      gen_alf1_env_sxd(alop, gen_helper_fxcmpoddf); break;
-    case OP_FXCMPUDDF:      gen_alf1_env_sxd(alop, gen_helper_fxcmpuddf); break;
-    case OP_FXCMPODXF:      gen_alf1_env_sxx(alop, gen_helper_fxcmpodxf); break;
-    case OP_FXCMPUDXF:      gen_alf1_env_sxx(alop, gen_helper_fxcmpudxf); break;
-    case OP_FSTOIFS:        gen_alf1_env_sss(alop, gen_helper_fstoifs); break;
-    case OP_FDTOIFD:        gen_alf1_env_ddd(alop, gen_helper_fdtoifd); break;
-    case OP_UDIVX:          gen_alf1_tag_sds(alop, gen_udivx); break;
-    case OP_UMODX:          gen_alf1_tag_sds(alop, gen_umodx); break;
-    case OP_SDIVX:          gen_alf1_tag_sds(alop, gen_sdivx); break;
-    case OP_SMODX:          gen_alf1_tag_sds(alop, gen_smodx); break;
-    case OP_PFMULD:         gen_alf1_env_ddd(alop, gen_helper_fmuld); break;
-    case OP_PFADDD:         gen_alf1_env_ddd(alop, gen_helper_faddd); break;
-    case OP_PFSUBD:         gen_alf1_env_ddd(alop, gen_helper_fsubd); break;
-    case OP_PFDIVD:         gen_alf1_env_ddd(alop, gen_helper_fdivd); break;
-    case OP_PFMIND:         gen_alf1_env_ddd(alop, gen_helper_fmind); break;
-    case OP_PFMAXD:         gen_alf1_env_ddd(alop, gen_helper_fmaxd); break;
-    case OP_PFADDS:         gen_alf1_env_ddd(alop, gen_helper_pfadds); break;
-    case OP_PFSUBS:         gen_alf1_env_ddd(alop, gen_helper_pfsubs); break;
-    case OP_PFMULS:         gen_alf1_env_ddd(alop, gen_helper_pfmuls); break;
-    case OP_PFDIVS:         gen_alf1_env_sss(alop, gen_helper_fdivs); break;
-    case OP_PFMAXS:         gen_alf1_env_ddd(alop, gen_helper_pfmaxs); break;
-    case OP_PFMINS:         gen_alf1_env_ddd(alop, gen_helper_pfmins); break;
-    case OP_PFHADDS:        gen_alf1_env_ddd(alop, gen_helper_pfhadds); break;
-    case OP_PFHSUBS:        gen_alf1_env_ddd(alop, gen_helper_pfhsubs); break;
-    case OP_PFADDSUBS:      gen_alf1_env_ddd(alop, gen_helper_pfaddsubs); break;
-    case OP_PFSQRTS:        gen_alf2_env_ss(alop, gen_helper_fsqrts); break;
-    case OP_PFSTOIFS:       gen_alf1_env_ddd(alop, gen_helper_pfstoifs); break;
-    case OP_PISTOFS:        gen_alf2_env_dd(alop, gen_helper_pistofs); break;
-    case OP_PFSTOIS:        gen_alf2_env_dd(alop, gen_helper_pfstois); break;
-    case OP_PFSTOISTR:      gen_alf2_env_dd(alop, gen_helper_pfstoistr); break;
-    case OP_PFSTOFD:        gen_alf2_env_ds(alop, gen_helper_fstofd); break;
-    case OP_PFDTOFS:        gen_alf2_env_sd(alop, gen_helper_fdtofs); break;
-    case OP_PFDTOIFD:       gen_alf1_env_ddd(alop, gen_helper_fdtoifd); break;
-    case OP_PFDTOIS:        gen_alf2_env_sd(alop, gen_helper_fdtois); break;
-    case OP_PFDTOISTR:      gen_alf2_env_sd(alop, gen_helper_fdtoistr); break;
-    case OP_PFCMPEQS:       gen_alf1_env_ddd(alop, gen_helper_pfcmpeqs); break;
-    case OP_PFCMPLTS:       gen_alf1_env_ddd(alop, gen_helper_pfcmplts); break;
-    case OP_PFCMPLES:       gen_alf1_env_ddd(alop, gen_helper_pfcmples); break;
-    case OP_PFCMPUODS:      gen_alf1_env_ddd(alop, gen_helper_pfcmpuods); break;
-    case OP_PFCMPNEQS:      gen_alf1_env_ddd(alop, gen_helper_pfcmpneqs); break;
-    case OP_PFCMPNLTS:      gen_alf1_env_ddd(alop, gen_helper_pfcmpnlts); break;
-    case OP_PFCMPNLES:      gen_alf1_env_ddd(alop, gen_helper_pfcmpnles); break;
-    case OP_PFCMPODS:       gen_alf1_env_ddd(alop, gen_helper_pfcmpods); break;
-    case OP_PFCMPEQD:       gen_alf1_env_ddd(alop, gen_helper_fcmpeqd); break;
-    case OP_PFCMPLTD:       gen_alf1_env_ddd(alop, gen_helper_fcmpltd); break;
-    case OP_PFCMPLED:       gen_alf1_env_ddd(alop, gen_helper_fcmpled); break;
-    case OP_PFCMPUODD:      gen_alf1_env_ddd(alop, gen_helper_fcmpuodd); break;
-    case OP_PFCMPNEQD:      gen_alf1_env_ddd(alop, gen_helper_fcmpneqd); break;
-    case OP_PFCMPNLTD:      gen_alf1_env_ddd(alop, gen_helper_fcmpnltd); break;
-    case OP_PFCMPNLED:      gen_alf1_env_ddd(alop, gen_helper_fcmpnled); break;
-    case OP_PFCMPODD:       gen_alf1_env_ddd(alop, gen_helper_fcmpodd); break;
-    case OP_FSCALED:        gen_alf1_env_dds(alop, gen_helper_fscaled); break;
-    case OP_FSCALES:        gen_alf1_env_sss(alop, gen_helper_fscales); break;
-    case OP_FXSCALESX:      gen_alf1_env_xxs(alop, gen_helper_fxscalesx); break;
-    case OP_FRCPS:          gen_alf2_env_ss(alop, gen_helper_frcps); break;
-    case OP_FSQRTS:         gen_alf2_env_ss(alop, gen_helper_fsqrts); break;
-    case OP_FRSQRTS:        gen_alf2_env_ss(alop, gen_helper_frsqrts); break;
-    case OP_FSQRTID:        gen_alf2_dd(alop, gen_fsqrtid); break;
-    case OP_FXSQRTISX:      gen_alf1_xsx(alop, gen_fxsqrtisx); break;
-    case OP_FXSQRTIDX:      gen_alf1_xdx(alop, gen_fxsqrtidx); break;
-    case OP_FXSQRTIXX:      gen_alf1_xxx(alop, gen_fxsqrtixx); break;
-    case OP_FXSQRTUSX:      gen_alf1_xsx(alop, gen_fxsqrtusx); break;
-    case OP_FXSQRTUDX:      gen_alf1_xdx(alop, gen_fxsqrtudx); break;
-    case OP_FXSQRTUXX:      gen_alf1_xxx(alop, gen_fxsqrtuxx); break;
-    case OP_FXSQRTTSX:      gen_alf1_env_xsx(alop, gen_helper_fxsqrttsx); break;
-    case OP_FXSQRTTDX:      gen_alf1_env_xdx(alop, gen_helper_fxsqrttdx); break;
-    case OP_FXSQRTTXX:      gen_alf1_env_xxx(alop, gen_helper_fxsqrttxx); break;
-    case OP_PFSQRTTD: /* fallthrough */
-    case OP_FSQRTTD:        gen_alf1_env_ddd(alop, gen_helper_fsqrttd); break;
-    case OP_INSFS:          gen_alf21_ssss(alop, gen_insfs); break;
-    case OP_INSFD:          gen_insfd(alop); break;
-    case OP_PSHUFB:         gen_alf21_dddd(alop, gen_helper_pshufb); break;
-    case OP_PMERGE:         gen_alf21_dddd(alop, gen_helper_pmerge); break;
-    case OP_FXDIVTSS:       gen_alf1_env_ssx(alop, gen_helper_fxdivtss); break;
-    case OP_FXDIVTDD:       gen_alf1_env_ddx(alop, gen_helper_fxdivtdd); break;
-    case OP_FXDIVTSX:       gen_alf1_env_xsx(alop, gen_helper_fxdivtsx); break;
-    case OP_FXDIVTDX:       gen_alf1_env_xdx(alop, gen_helper_fxdivtdx); break;
-    case OP_QPPACKDL:       gen_alf1_qdd(alop, gen_qppackdl); break;
-    case OP_QPSWITCHW:      gen_alf2_qq(alop, gen_qpswitchw); break;
-    case OP_QPSWITCHD:      gen_alf2_qq(alop, gen_qpswitchd); break;
-    case OP_QPAND:          gen_alf1_qqq(alop, gen_qpand); break;
-    case OP_QPANDN:         gen_alf1_qqq(alop, gen_qpandn); break;
-    case OP_QPOR:           gen_alf1_qqq(alop, gen_qpor); break;
-    case OP_QPXOR:          gen_alf1_qqq(alop, gen_qpxor); break;
-    case OP_QPMAXSB:        gen_alf1_qqq(alop, gen_qpmaxsb); break;
-    case OP_QPMAXSH:        gen_alf1_qqq(alop, gen_qpmaxsh); break;
-    case OP_QPMAXSW:        gen_alf1_qqq(alop, gen_qpmaxsw); break;
-    case OP_QPMAXUB:        gen_alf1_qqq(alop, gen_qpmaxub); break;
-    case OP_QPMAXUH:        gen_alf1_qqq(alop, gen_qpmaxuh); break;
-    case OP_QPMAXUW:        gen_alf1_qqq(alop, gen_qpmaxuw); break;
-    case OP_QPMINSB:        gen_alf1_qqq(alop, gen_qpminsb); break;
-    case OP_QPMINSH:        gen_alf1_qqq(alop, gen_qpminsh); break;
-    case OP_QPMINSW:        gen_alf1_qqq(alop, gen_qpminsw); break;
-    case OP_QPMINUB:        gen_alf1_qqq(alop, gen_qpminub); break;
-    case OP_QPMINUH:        gen_alf1_qqq(alop, gen_qpminuh); break;
-    case OP_QPMINUW:        gen_alf1_qqq(alop, gen_qpminuw); break;
-    case OP_QPCMPEQB:       gen_alf1_qqq(alop, gen_qpcmpeqb); break;
-    case OP_QPCMPEQD:       gen_alf1_qqq(alop, gen_qpcmpeqd); break;
-    case OP_QPCMPEQH:       gen_alf1_qqq(alop, gen_qpcmpeqh); break;
-    case OP_QPCMPEQW:       gen_alf1_qqq(alop, gen_qpcmpeqw); break;
-    case OP_QPCMPGTB:       gen_alf1_qqq(alop, gen_qpcmpgtb); break;
-    case OP_QPCMPGTD:       gen_alf1_qqq(alop, gen_qpcmpgtd); break;
-    case OP_QPCMPGTH:       gen_alf1_qqq(alop, gen_qpcmpgth); break;
-    case OP_QPCMPGTW:       gen_alf1_qqq(alop, gen_qpcmpgtw); break;
-    case OP_QPADDSB:        gen_alf1_qqq(alop, gen_qpaddsb); break;
-    case OP_QPADDSH:        gen_alf1_qqq(alop, gen_qpaddsh); break;
-    case OP_QPADDUSB:       gen_alf1_qqq(alop, gen_qpaddusb); break;
-    case OP_QPADDUSH:       gen_alf1_qqq(alop, gen_qpaddush); break;
-    case OP_QPSUBSB:        gen_alf1_qqq(alop, gen_qpsubsb); break;
-    case OP_QPSUBSH:        gen_alf1_qqq(alop, gen_qpsubsh); break;
-    case OP_QPSUBUSB:       gen_alf1_qqq(alop, gen_qpsubusb); break;
-    case OP_QPSUBUSH:       gen_alf1_qqq(alop, gen_qpsubush); break;
-    case OP_QPADDB:         gen_alf1_qqq(alop, gen_qpaddb); break;
-    case OP_QPADDH:         gen_alf1_qqq(alop, gen_qpaddh); break;
-    case OP_QPADDW:         gen_alf1_qqq(alop, gen_qpaddw); break;
-    case OP_QPADDD:         gen_alf1_qqq(alop, gen_qpaddd); break;
-    case OP_QPSUBB:         gen_alf1_qqq(alop, gen_qpsubb); break;
-    case OP_QPSUBH:         gen_alf1_qqq(alop, gen_qpsubh); break;
-    case OP_QPSUBW:         gen_alf1_qqq(alop, gen_qpsubw); break;
-    case OP_QPSUBD:         gen_alf1_qqq(alop, gen_qpsubd); break;
-    case OP_QPSLLH:         gen_alf1_qqd(alop, gen_qpsllh); break;
-    case OP_QPSLLW:         gen_alf1_qqd(alop, gen_qpsllw); break;
-    case OP_QPSLLD:         gen_alf1_qqd(alop, gen_qpslld); break;
-    case OP_QPSRLH:         gen_alf1_qqd(alop, gen_qpsrlh); break;
-    case OP_QPSRLW:         gen_alf1_qqd(alop, gen_qpsrlw); break;
-    case OP_QPSRLD:         gen_alf1_qqd(alop, gen_qpsrld); break;
-    case OP_QPSRAH:         gen_alf1_qqd(alop, gen_qpsrah); break;
-    case OP_QPSRAW:         gen_alf1_qqd(alop, gen_qpsraw); break;
-    case OP_QPACKSSHB:      gen_alf1_qqq(alop, gen_qpacksshb); break;
-    case OP_QPACKSSWH:      gen_alf1_qqq(alop, gen_qpacksswh); break;
-    case OP_QPACKUSHB:      gen_alf1_qqq(alop, gen_qpackushb); break;
-    case OP_QPACKUSWH:      gen_alf1_qqq(alop, gen_qpackuswh); break;
-    case OP_QPAVGUSB:       gen_alf1_qqq(alop, gen_qpavgusb); break;
-    case OP_QPAVGUSH:       gen_alf1_qqq(alop, gen_qpavgush); break;
-    case OP_QPHADDH:        gen_alf1_qqq(alop, gen_helper_qphaddh); break;
-    case OP_QPHADDSH:       gen_alf1_qqq(alop, gen_helper_qphaddsh); break;
-    case OP_QPHADDW:        gen_alf1_qqq(alop, gen_helper_qphaddw); break;
-    case OP_QPHSUBH:        gen_alf1_qqq(alop, gen_helper_qphsubh); break;
-    case OP_QPHSUBSH:       gen_alf1_qqq(alop, gen_helper_qphsubsh); break;
-    case OP_QPHSUBW:        gen_alf1_qqq(alop, gen_helper_qphsubw); break;
-    case OP_QPMULHH:        gen_alf1_qqq(alop, gen_qpmulhh); break;
-    case OP_QPMULHRSH:      gen_alf1_qqq(alop, gen_qpmulhrsh); break;
-    case OP_QPMULHUH:       gen_alf1_qqq(alop, gen_qpmulhuh); break;
-    case OP_QPMULLH:        gen_alf1_qqq(alop, gen_qpmullh); break;
-    case OP_QPMULUBHH:      gen_alf1_qdq(alop, gen_helper_qpmulubhh); break;
-    case OP_QPSIGNB:        gen_alf1_qqq(alop, gen_qpsignb); break;
-    case OP_QPSIGNH:        gen_alf1_qqq(alop, gen_qpsignh); break;
-    case OP_QPSIGNW:        gen_alf1_qqq(alop, gen_qpsignw); break;
-    case OP_QPHMINPOSUH:    gen_alf1_dqq(alop, gen_helper_qphminposuh); break;
-    case OP_QPMADDH:        gen_alf1_qqq(alop, gen_qpmaddh); break;
-    case OP_QPMADDUBSH:     gen_alf1_qqq(alop, gen_qpmaddubsh); break;
-    case OP_QPMPSADBH:      gen_alf1_qqs(alop, gen_helper_qpmpsadbh); break;
-    case OP_QPSADBW:        gen_alf1_qqq(alop, gen_qpsadbw); break;
-    case OP_QPFADDS:        gen_alf1_env_qqq(alop, gen_qpfadds); break;
-    case OP_QPFADDD:        gen_alf1_env_qqq(alop, gen_qpfaddd); break;
-    case OP_QPFSUBS:        gen_alf1_env_qqq(alop, gen_qpfsubs); break;
-    case OP_QPFSUBD:        gen_alf1_env_qqq(alop, gen_qpfsubd); break;
-    case OP_QPFMULS:        gen_alf1_env_qqq(alop, gen_qpfmuls); break;
-    case OP_QPFMULD:        gen_alf1_env_qqq(alop, gen_qpfmuld); break;
-    case OP_QPFHADDS:       gen_alf1_env_qqq(alop, gen_helper_qpfhadds); break;
-    case OP_QPFHSUBS:       gen_alf1_env_qqq(alop, gen_helper_qpfhsubs); break;
-    case OP_QPFADDSUBS:     gen_alf1_env_qqq(alop, gen_qpfaddsubs); break;
-    case OP_QPFADDSUBD:     gen_alf1_env_qqq(alop, gen_qpfaddsubd); break;
-    case OP_QPFMINS:        gen_alf1_env_qqq(alop, gen_qpfmins); break;
-    case OP_QPFMIND:        gen_alf1_env_qqq(alop, gen_qpfmind); break;
-    case OP_QPFMAXS:        gen_alf1_env_qqq(alop, gen_qpfmaxs); break;
-    case OP_QPFMAXD:        gen_alf1_env_qqq(alop, gen_qpfmaxd); break;
-    case OP_QPFCMPEQS:      gen_alf1_env_qqq(alop, gen_qpfcmpeqs); break;
-    case OP_QPFCMPLTS:      gen_alf1_env_qqq(alop, gen_qpfcmplts); break;
-    case OP_QPFCMPLES:      gen_alf1_env_qqq(alop, gen_qpfcmples); break;
-    case OP_QPFCMPUODS:     gen_alf1_env_qqq(alop, gen_qpfcmpuods); break;
-    case OP_QPFCMPNEQS:     gen_alf1_env_qqq(alop, gen_qpfcmpneqs); break;
-    case OP_QPFCMPNLTS:     gen_alf1_env_qqq(alop, gen_qpfcmpnlts); break;
-    case OP_QPFCMPNLES:     gen_alf1_env_qqq(alop, gen_qpfcmpnles); break;
-    case OP_QPFCMPODS:      gen_alf1_env_qqq(alop, gen_qpfcmpods); break;
-    case OP_QPFCMPEQD:      gen_alf1_env_qqq(alop, gen_qpfcmpeqd); break;
-    case OP_QPFCMPLTD:      gen_alf1_env_qqq(alop, gen_qpfcmpltd); break;
-    case OP_QPFCMPLED:      gen_alf1_env_qqq(alop, gen_qpfcmpled); break;
-    case OP_QPFCMPUODD:     gen_alf1_env_qqq(alop, gen_qpfcmpuodd); break;
-    case OP_QPFCMPNEQD:     gen_alf1_env_qqq(alop, gen_qpfcmpneqd); break;
-    case OP_QPFCMPNLTD:     gen_alf1_env_qqq(alop, gen_qpfcmpnltd); break;
-    case OP_QPFCMPNLED:     gen_alf1_env_qqq(alop, gen_qpfcmpnled); break;
-    case OP_QPFCMPODD:      gen_alf1_env_qqq(alop, gen_qpfcmpodd); break;
-    case OP_QPFSTOIFS:      gen_alf1_env_qdq(alop, gen_qpfstoifs); break;
-    case OP_QPFDTOIFD:      gen_alf1_env_qdq(alop, gen_qpfdtoifd); break;
-    case OP_QPSRCD:         gen_alf1_qqd(alop, gen_qpsrcd); break;
-    case OP_QPSRCW:         gen_alf1_qqd(alop, gen_qpsrcw); break;
-    case OP_PSRCD:          gen_alf1_ddd(alop, gen_psrcd); break;
-    case OP_PSRCW:          gen_alf1_ddd(alop, gen_psrcw); break;
-    case OP_PMULLW:         gen_alf1_ddd(alop, gen_pmullw); break;
-    case OP_QPMULLW:        gen_alf1_qqq(alop, gen_qpmullw); break;
-    case OP_QPFSTOIS:       gen_alf2_env_qq(alop, gen_qpfstois); break;
-    case OP_QPFSTOISTR:     gen_alf2_env_qq(alop, gen_qpfstoistr); break;
-    case OP_QPISTOFS:       gen_alf2_env_qq(alop, gen_qpistofs); break;
-    case OP_QPFDTOID:       gen_alf2_env_qq(alop, gen_qpfdtoid); break;
-    case OP_QPFDTOIDTR:     gen_alf2_env_qq(alop, gen_qpfdtoidtr); break;
-    case OP_QPIDTOFD:       gen_alf2_env_qq(alop, gen_qpidtofd); break;
-    case OP_QPFSTOID:       gen_alf2_env_qd(alop, gen_helper_qpfstoid); break;
-    case OP_QPFSTOIDTR:     gen_alf2_env_qd(alop, gen_helper_qpfstoidtr); break;
-    case OP_QPISTOFD:       gen_alf2_env_qd(alop, gen_helper_qpistofd); break;
-    case OP_QPFSTOFD:       gen_alf2_env_qd(alop, gen_helper_qpfstofd); break;
-    case OP_QPFDTOIS:       gen_alf2_env_dq(alop, gen_helper_qpfdtois); break;
-    case OP_QPFDTOISTR:     gen_alf2_env_dq(alop, gen_helper_qpfdtoistr); break;
-    case OP_QPIDTOFS:       gen_alf2_env_dq(alop, gen_helper_qpidtofs); break;
-    case OP_QPFDTOFS:       gen_alf2_env_dq(alop, gen_helper_qpfdtofs); break;
-    case OP_QPMSK2SGNB:     gen_alf1_qqs(alop, gen_helper_qpmsk2sgnb); break;
-    case OP_QPSGN2MSKB:     gen_alf2_sq(alop, gen_helper_qpsgn2mskb); break;
-    case OP_GETFZS:         gen_alf1_sss(alop, gen_getfzs); break;
-    case OP_GETFZD:         gen_alf1_ddd(alop, gen_getfzd); break;
-    case OP_ADDCD:          gen_alf21_ddds(alop, gen_addcd); break;
-    case OP_ADDCD_C:        gen_alf21_ddds(alop, gen_addcd_c); break;
-    case OP_SUBCD:          gen_alf21_ddds(alop, gen_subcd); break;
-    case OP_SUBCD_C:        gen_alf21_ddds(alop, gen_subcd_c); break;
-    case OP_QPMERGE:        gen_alf21_qqqq(alop, gen_qpmerge); break;
-    case OP_QPSHUFB:        gen_alf21_qqqq(alop, gen_helper_qpshufb); break;
-    case OP_QPPERMB:        gen_alf21_qqqq(alop, gen_helper_qppermb); break;
-    case OP_PLOG_0x00:
-    case OP_PLOG_0x80:      gen_alf21_log_dddd(alop, gen_plog); break;
-    case OP_QPLOG_0x00:
-    case OP_QPLOG_0x80:     gen_alf21_log_qqqq(alop, gen_qplog); break;
-    case OP_FMAS:           gen_alf21_env_ssss(alop, gen_helper_fmas); break;
-    case OP_FMSS:           gen_alf21_env_ssss(alop, gen_helper_fmss); break;
-    case OP_FNMAS:          gen_alf21_env_ssss(alop, gen_helper_fnmas); break;
-    case OP_FNMSS:          gen_alf21_env_ssss(alop, gen_helper_fnmss); break;
-    case OP_FMAD:           gen_alf21_env_dddd(alop, gen_helper_fmad); break;
-    case OP_FMSD:           gen_alf21_env_dddd(alop, gen_helper_fmsd); break;
-    case OP_FNMAD:          gen_alf21_env_dddd(alop, gen_helper_fnmad); break;
-    case OP_FNMSD:          gen_alf21_env_dddd(alop, gen_helper_fnmsd); break;
-    case OP_QPFMAS:         gen_alf21_env_qqqq(alop, gen_helper_qpfmas); break;
-    case OP_QPFMSS:         gen_alf21_env_qqqq(alop, gen_helper_qpfmss); break;
-    case OP_QPFNMAS:        gen_alf21_env_qqqq(alop, gen_helper_qpfnmas); break;
-    case OP_QPFNMSS:        gen_alf21_env_qqqq(alop, gen_helper_qpfnmss); break;
-    case OP_QPFMASS:        gen_alf21_env_qqqq(alop, gen_helper_qpfmass); break;
-    case OP_QPFMSAS:        gen_alf21_env_qqqq(alop, gen_helper_qpfmsas); break;
-    case OP_QPFMAD:         gen_alf21_env_qqqq(alop, gen_helper_qpfmad); break;
-    case OP_QPFMSD:         gen_alf21_env_qqqq(alop, gen_helper_qpfmsd); break;
-    case OP_QPFNMAD:        gen_alf21_env_qqqq(alop, gen_helper_qpfnmad); break;
-    case OP_QPFNMSD:        gen_alf21_env_qqqq(alop, gen_helper_qpfnmsd); break;
-    case OP_QPFMASD:        gen_alf21_env_qqqq(alop, gen_helper_qpfmasd); break;
-    case OP_QPFMSAD:        gen_alf21_env_qqqq(alop, gen_helper_qpfmsad); break;
-    case OP_PCMPEQBOP:      gen_alf7_ddd(alop, gen_pcmpeqbop); break;
-    case OP_PCMPEQHOP:      gen_alf7_ddd(alop, gen_pcmpeqhop); break;
-    case OP_PCMPEQWOP:      gen_alf7_ddd(alop, gen_pcmpeqwop); break;
-    case OP_PCMPEQDOP:      gen_alf7_ddd(alop, gen_pcmpeqdop); break;
-    case OP_PCMPGTBOP:      gen_alf7_ddd(alop, gen_pcmpgtbop); break;
-    case OP_PCMPGTHOP:      gen_alf7_ddd(alop, gen_pcmpgthop); break;
-    case OP_PCMPGTWOP:      gen_alf7_ddd(alop, gen_pcmpgtwop); break;
-    case OP_PCMPGTDOP:      gen_alf7_ddd(alop, gen_pcmpgtdop); break;
-    case OP_PCMPEQBAP:      gen_alf7_ddd(alop, gen_pcmpeqbap); break;
-    case OP_PCMPEQHAP:      gen_alf7_ddd(alop, gen_pcmpeqhap); break;
-    case OP_PCMPEQWAP:      gen_alf7_ddd(alop, gen_pcmpeqwap); break;
-    case OP_PCMPEQDAP:      gen_alf7_ddd(alop, gen_pcmpeqdap); break;
-    case OP_PCMPGTBAP:      gen_alf7_ddd(alop, gen_pcmpgtbap); break;
-    case OP_PCMPGTHAP:      gen_alf7_ddd(alop, gen_pcmpgthap); break;
-    case OP_PCMPGTWAP:      gen_alf7_ddd(alop, gen_pcmpgtwap); break;
-    case OP_PCMPGTDAP:      gen_alf7_ddd(alop, gen_pcmpgtdap); break;
-    case OP_QPCMPEQBOP:     gen_alf7_dqq(alop, gen_qpcmpeqbop); break;
-    case OP_QPCMPEQHOP:     gen_alf7_dqq(alop, gen_qpcmpeqhop); break;
-    case OP_QPCMPEQWOP:     gen_alf7_dqq(alop, gen_qpcmpeqwop); break;
-    case OP_QPCMPEQDOP:     gen_alf7_dqq(alop, gen_qpcmpeqdop); break;
-    case OP_QPCMPGTBOP:     gen_alf7_dqq(alop, gen_qpcmpgtbop); break;
-    case OP_QPCMPGTHOP:     gen_alf7_dqq(alop, gen_qpcmpgthop); break;
-    case OP_QPCMPGTWOP:     gen_alf7_dqq(alop, gen_qpcmpgtwop); break;
-    case OP_QPCMPGTDOP:     gen_alf7_dqq(alop, gen_qpcmpgtdop); break;
-    case OP_QPCMPEQBAP:     gen_alf7_dqq(alop, gen_qpcmpeqbap); break;
-    case OP_QPCMPEQHAP:     gen_alf7_dqq(alop, gen_qpcmpeqhap); break;
-    case OP_QPCMPEQWAP:     gen_alf7_dqq(alop, gen_qpcmpeqwap); break;
-    case OP_QPCMPEQDAP:     gen_alf7_dqq(alop, gen_qpcmpeqdap); break;
-    case OP_QPCMPGTBAP:     gen_alf7_dqq(alop, gen_qpcmpgtbap); break;
-    case OP_QPCMPGTHAP:     gen_alf7_dqq(alop, gen_qpcmpgthap); break;
-    case OP_QPCMPGTWAP:     gen_alf7_dqq(alop, gen_qpcmpgtwap); break;
-    case OP_QPCMPGTDAP:     gen_alf7_dqq(alop, gen_qpcmpgtdap); break;
-    case OP_QPSRAD:         gen_alf1_qqd(alop, gen_qpsrad); break;
-    case OP_PMRGP:          gen_merged(alop); break;
-    case OP_QPMRGP:         gen_qpmrgp(alop); break;
-    case OP_CLMULH:         gen_alf1_ddd(alop, gen_helper_clmulh); break;
-    case OP_CLMULL:         gen_alf1_ddd(alop, gen_helper_clmull); break;
-    case OP_QPCEXT_0X00:    gen_alf2_qd(alop, gen_qpcext_0x00); break;
-    case OP_QPCEXT_0X7F:    gen_alf2_qd(alop, gen_qpcext_0x7f); break;
-    case OP_QPCEXT_0X80:    gen_alf2_qd(alop, gen_qpcext_0x80); break;
-    case OP_QPCEXT_0XFF:    gen_alf2_qd(alop, gen_qpcext_0xff); break;
-    case OP_CCTOPO:         gen_cctopo(alop); break;
-    case OP_CCTOPB:         gen_cctopb(alop); break;
-    case OP_CCTOPE:         gen_cctope(alop); break;
-    case OP_CCTOPBE:        gen_cctopbe(alop); break;
-    case OP_CCTOPS:         gen_cctops(alop); break;
-    case OP_CCTOPP:         gen_cctopp(alop); break;
-    case OP_CCTOPL:         gen_cctopl(alop); break;
-    case OP_CCTOPLE:        gen_cctople(alop); break;
-    case OP_ICALLD:         gen_icalld(alop); break;
-    case OP_IBRANCHD:       gen_ibranchd(alop); break;
-    case OP_QPACKHBSS:      gen_alf1_qqq(alop, gen_qpackhbss); break;
-    case OP_QPACKHBUS:      gen_alf1_qqq(alop, gen_qpackhbus); break;
-    case OP_QPACKWHSS:      gen_alf1_qqq(alop, gen_qpackwhss); break;
-    case OP_QPACKWHUS:      gen_alf1_qqq(alop, gen_qpackwhus); break;
-    case OP_VFSI:
-    case OP_MOVTRS:
-    case OP_MOVTRCS:
-    case OP_MOVTRD:
-    case OP_MOVTRCD:
-    case OP_GETSAP:
-    case OP_CUDTOAP:
-    case OP_GDTOAP:
-    /*
-    case OP_AAURW:
-    case OP_AAURWS:
-    case OP_AAURWD:
-    case OP_AAURWQ:
-    case OP_AAURR:
-    case OP_AAURRD:
-    case OP_AAURRQ:
-    */
-    case OP_APTOAP:
-    case OP_APTOAPB:
-    case OP_GETVA:
-    case OP_LDRD:
-    case OP_PUTTC:
-    case OP_CAST:
-    case OP_TDTOMP:
-    case OP_ODTOAP:
-    case OP_LDCUDB:
-    case OP_LDCUDH:
-    case OP_LDCUDW:
-    case OP_LDCUDD:
-    case OP_LDCUDQ:
-    case OP_LDAPB:
-    case OP_LDAPH:
-    case OP_LDAPW:
-    case OP_LDAPD:
-    case OP_LDAPQ:
-    case OP_LDODWB:
-    case OP_LDODWD:
-    case OP_LDODWH:
-    case OP_LDODWQ:
-    case OP_LDODWW:
-    case OP_LDODPB:
-    case OP_LDODPD:
-    case OP_LDODPH:
-    case OP_LDODPQ:
-    case OP_LDODPW:
-    case OP_LDODRB:
-    case OP_LDODRD:
-    case OP_LDODRH:
-    case OP_LDODRQ:
-    case OP_LDODRW:
-    case OP_LDCSQ:
-    case OP_LDDSQ:
-    case OP_LDESQ:
-    case OP_LDFSQ:
-    case OP_LDGDQ:
-    case OP_LDGSQ:
-    case OP_LDSSQ:
-    case OP_GETTD:
-    case OP_GETTC:
-    case OP_INVTC:
-    case OP_GETSOD:
-    case OP_STCSQ:
-    case OP_STDSQ:
-    case OP_STESQ:
-    case OP_STFSQ:
-    case OP_STGDQ:
-    case OP_STGSQ:
-    case OP_STSSQ:
-    case OP_STRD:
-    case OP_STAPB:
-    case OP_STAPH:
-    case OP_STAPW:
-    case OP_STAPD:
-    case OP_STAPQ:
-    case OP_STODPB:
-    case OP_STODPD:
-    case OP_STODPH:
-    case OP_STODPQ:
-    case OP_STODPW:
-    case OP_STODRB:
-    case OP_STODRD:
-    case OP_STODRH:
-    case OP_STODRQ:
-    case OP_STODRW:
-    case OP_STODWB:
-    case OP_STODWD:
-    case OP_STODWH:
-    case OP_STODWQ:
-    case OP_STODWW:
-    case OP_MOVTRQ:
-    case OP_MOVTRCQ:
-    case OP_PUTTST:
-    case OP_LDQ:
-    case OP_LDCUDQP:
-    case OP_LDAPQP:
-    case OP_LDRQP:
-    case OP_STQ:
-    case OP_STAPQP:
-    case OP_STAPMQP:
-    case OP_STRQP:
-    case OP_VFBGV:
-    case OP_MKFSW:
-    case OP_MODBGV:
-        e2k_todo_illop(ctx, "unimplemented %d (%s)", alop->op, alop->name);
-        break;
-    }
-}
-
 typedef enum {
     ICOMB_AND = 0,
     ICOMB_ANDN = 1,
@@ -6109,97 +5321,6 @@ typedef enum {
     FCOMB_COUNT = 8,
 } FComb;
 
-static inline bool fcomb_is_add_unit(FComb op)
-{
-    switch (op) {
-    case FCOMB_ADD:
-    case FCOMB_SUB:
-    case FCOMB_RSUB:
-        return true;
-    default:
-        return false;
-    }
-}
-
-static inline bool fcomb_is_mul_unit(FComb op)
-{
-    return op == FCOMB_MUL;
-}
-
-static inline bool fcomb_check(DisasContext *ctx, Alop *alop,
-    FComb opc1, FComb opc2)
-{
-    int ver = ctx->version;
-
-    if (opc1 == FCOMB_RSUB || (ver < 4 && is_chan_25(alop->chan))) {
-        return false;
-    }
-
-    if (ver >= 2) {
-        return (fcomb_is_add_unit(opc1) || fcomb_is_mul_unit(opc1))
-            && fcomb_is_add_unit(opc2);
-    } else {
-        return fcomb_is_add_unit(opc1) == fcomb_is_mul_unit(opc2);
-    }
-}
-
-static bool pfcomb_map[FCOMB_COUNT][FCOMB_COUNT] = { false };
-
-static void pfcomb_map_set(FComb op, FComb *list, int n)
-{
-    int i;
-
-    for (i = 0; i < n; i++) {
-        pfcomb_map[op][list[i]] = true;
-    }
-}
-
-static void pfcomb_map_update(FComb *first, int nf, FComb *second, int ns)
-{
-    int i;
-
-    for (i = 0; i < nf; i++) {
-        pfcomb_map_set(first[i], second, ns);
-    }
-}
-
-static void pfcomb_init(DisasContext *ctx)
-{
-    FComb l0[] = { FCOMB_ADD, FCOMB_SUB, FCOMB_RSUB };
-
-    pfcomb_map_set(FCOMB_MUL, l0, ARRAY_SIZE(l0));
-
-    if (ctx->version == 1) {
-        pfcomb_map[FCOMB_ADD][FCOMB_MUL] = true;
-        pfcomb_map[FCOMB_SUB][FCOMB_MUL] = true;
-    }
-
-    if (ctx->version >= 2) {
-        FComb l1[] = { FCOMB_ADD, FCOMB_SUB };
-
-        pfcomb_map_update(l1, ARRAY_SIZE(l1), l0, ARRAY_SIZE(l0));
-    }
-
-    if (ctx->version >= 3) {
-        FComb l1[] = { FCOMB_ADD, FCOMB_SUB, FCOMB_MUL, };
-        FComb l2[] = { FCOMB_HADD, FCOMB_HSUB, FCOMB_ADDSUB };
-
-        pfcomb_map_update(l1, ARRAY_SIZE(l1), l2, ARRAY_SIZE(l2));
-        pfcomb_map_update(l2, ARRAY_SIZE(l2), l2, ARRAY_SIZE(l2));
-        pfcomb_map_update(l2, ARRAY_SIZE(l2), l0, ARRAY_SIZE(l0));
-    }
-}
-
-static inline bool pfcomb_check(DisasContext *ctx, Alop *alop,
-    FComb opc1, FComb opc2)
-{
-    if (ctx->version < 4 && is_chan_25(alop->chan)) {
-        return false;
-    }
-
-    return pfcomb_map[opc1][opc2];
-}
-
 #define IMPL_GEN_FCOMB_OP(S, T) \
     static void glue(gen_fcomb_op_, S)(Alop *alop, FComb opc, \
         glue(TCGv_, S) ret, glue(TCGv_, S) arg1, glue(TCGv_, S) arg2) \
@@ -6271,16 +5392,6 @@ static void gen_qpfcomb_op_i64(Alop *alop, FComb opc,
     }
 }
 
-static inline int comb_opc1(Alop *alop, int m1)
-{
-    return (alop->als.opc1 >> 1) & m1;
-}
-
-static inline int comb_opc2(Alop *alop, int m1, int m2)
-{
-    return ((alop->ales.opc2 & m2) << 2) | ((alop->als.opc1 >> 5) & m1);
-}
-
 #define icomb_opc1(instr) comb_opc1(instr, 0xf)
 #define fcomb_opc1(instr) comb_opc1(instr, 0x7)
 
@@ -6312,24 +5423,6 @@ IMPL_GEN_COMB(gen_pfcomb_i32, pfcomb, d, gen_pfcomb_op_i32)
 IMPL_GEN_COMB(gen_qpfcomb_i64, pfcomb, q, gen_qpfcomb_op_i64)
 IMPL_GEN_COMB(gen_qpfcomb_i32, pfcomb, q, gen_qpfcomb_op_i32)
 
-#define IMPL_GEN_COMB_SELECT(NAME) \
-    static void glue(gen_, NAME)(Alop *alop) \
-    { \
-        int opc1 = alop->op & 0xffff; \
-        int opc2 = alop->op >> 16; \
-        \
-        if (alop->als.opc1 & 1) { \
-            glue3(gen_, NAME, _i64)(alop, opc1, opc2); \
-        } else { \
-            glue3(gen_, NAME, _i32)(alop, opc1, opc2); \
-        } \
-    }
-
-IMPL_GEN_COMB_SELECT(icomb)
-IMPL_GEN_COMB_SELECT(fcomb)
-IMPL_GEN_COMB_SELECT(pfcomb)
-IMPL_GEN_COMB_SELECT(qpfcomb)
-
 static inline bool rlp_check_chan(uint16_t rlp, int chan)
 {
     return extract16(rlp, 14, 1) == (chan > 2) &&
@@ -6351,144 +5444,6 @@ static inline bool rlp_is_chan_pred(uint16_t rlp, int chan)
 #include "trans/alop-v5.c.inc"
 #include "trans/alop-v6.c.inc"
 #include "trans/alop-v7.c.inc"
-
-static void decode_alop_old(Alop *alop, AlesFlag ales_present)
-{
-    DisasContext *ctx = alop->ctx;
-
-    switch (alop->ales.opc2) {
-    case ALOP_SHORT:
-    case ALOP_EXT:
-    case ALOP_EXT1:
-    case ALOP_EXT2:
-        alop_table_find(ctx, alop, ales_present);
-        break;
-    case ALOP_ICMB0:
-    case ALOP_ICMB1:
-    case ALOP_ICMB2:
-    case ALOP_ICMB3:
-        if (alop->ales.opc2 == ALOP_ICMB3
-            && (alop->als.opc1 == 0x6c || alop->als.opc1 == 0x6d))
-        {
-            if (!is_chan_0134(alop->chan)) {
-                gen_tr_excp_illopc(ctx);
-                return;
-            }
-            alop->format = ALOPF21;
-            alop->op = alop->als.opc1 & 1 ? OP_INSFD : OP_INSFS;
-        } else {
-            int opc1 = icomb_opc1(alop);
-            int opc2 = icomb_opc2(alop);
-            if (!icomb_check(ctx, alop, opc1, opc2)) {
-                gen_tr_excp_illopc(ctx);
-                return;
-            }
-            alop->format = ALOPF21_ICOMB;
-            alop->op = (opc2 << 16) | opc1;
-        }
-        alop->args = alop->als.opc1 & 1 ? ARGS_DDDD : ARGS_SSSS;
-        break;
-    case ALOP_FLB:
-    case ALOP_FLH:
-    case ALOP_FLW:
-    case ALOP_FLD:
-        e2k_todo_illop(ctx, "flags ops");
-        break;
-    case ALOP_FCMB0:
-    case ALOP_FCMB1: {
-        int opc1 = fcomb_opc1(alop);
-        int opc2 = fcomb_opc2(alop);
-        if (!fcomb_check(ctx, alop, opc1, opc2)) {
-            gen_tr_excp_illopc(ctx);
-            return;
-        }
-        alop->format = ALOPF21_FCOMB;
-        alop->op = (opc2 << 16) | opc1;
-        alop->args = alop->als.opc1 & 1 ? ARGS_DDDD : ARGS_SSSS;
-        break;
-    }
-    case ALOP_PFCMB0:
-    case ALOP_PFCMB1:
-        if (alop->ales.opc2 == ALOP_PFCMB1 && is_chan_0134(alop->chan)
-            && ctx->version >= 2 && alop->als.opc1 == 0x4d)
-        {
-            alop->format = ALOPF21;
-            alop->op = OP_PSHUFB;
-            alop->args = ARGS_DDDD;
-        } else if (alop->ales.opc2 == ALOP_PFCMB1 && is_chan_0134(alop->chan)
-            && ctx->version >= 2 && alop->als.opc1 == 0x6d)
-        {
-            alop->format = ALOPF21;
-            alop->op = OP_PMERGE;
-            alop->args = ARGS_DDDD;
-        } else {
-            int opc1 = fcomb_opc1(alop);
-            int opc2 = fcomb_opc2(alop);
-            if (!pfcomb_check(ctx, alop, opc1, opc2)) {
-                gen_tr_excp_illopc(ctx);
-                return;
-            }
-            alop->format = ALOPF21_PFCOMB;
-            alop->op = (opc2 << 16) | opc1;
-            alop->args = ARGS_DDDD;
-        }
-        break;
-    case ALOP_LCMBD0:
-    case ALOP_LCMBD1:
-        if (is_chan_0134(alop->chan) && ctx->version >= 5) {
-            alop->format = ALOPF21;
-            alop->op = alop->ales.opc2 == ALOP_LCMBD0 ? OP_PLOG_0x00 : OP_PLOG_0x80;
-            alop->args = ARGS_DDDD;
-        } else {
-            gen_tr_excp_illopc(ctx);
-        }
-        break;
-    case ALOP_LCMBQ0:
-    case ALOP_LCMBQ1:
-        if ((is_chan_0134(alop->chan) && ctx->version >= 5) ||
-                (is_chan_25(alop->chan) && ctx->version >= 7)) {
-            alop->format = ALOPF21;
-            alop->op = alop->ales.opc2 == ALOP_LCMBQ0 ? OP_QPLOG_0x00 : OP_QPLOG_0x80;
-            alop->args = ARGS_PPPP;
-        } else {
-            gen_tr_excp_illopc(ctx);
-        }
-        break;
-    case ALOP_QPFCMB0:
-    case ALOP_QPFCMB1:
-        if (alop->ales.opc2 == ALOP_QPFCMB1 && is_chan_0134(alop->chan)
-            && ctx->version >= 5 && alop->als.opc1 == 0xd)
-        {
-            alop->format = ALOPF21;
-            alop->op = OP_QPPERMB;
-        } else if (alop->ales.opc2 == ALOP_QPFCMB1 && is_chan_0134(alop->chan)
-            && ctx->version >= 5 && alop->als.opc1 == 0x4d)
-        {
-            alop->format = ALOPF21;
-            alop->op = OP_QPSHUFB;
-        } else if (alop->ales.opc2 == ALOP_QPFCMB1 && is_chan_0134(alop->chan)
-            && ctx->version >= 5 && alop->als.opc1 == 0x6d)
-        {
-            alop->format = ALOPF21;
-            alop->op = OP_QPMERGE;
-        } else {
-            int opc1 = fcomb_opc1(alop);
-            int opc2 = fcomb_opc2(alop);
-            // TODO: qpfcomb check ops
-            if (ctx->version < 5) {
-                gen_tr_excp_illopc(ctx);
-                return;
-            }
-            alop->format = ALOPF21_QPFCOMB;
-            alop->op = (opc2 << 16) | opc1;
-        }
-        alop->args = ARGS_PPPP;
-        break;
-    default:
-        gen_tr_excp_illopc(ctx);
-        break;
-    }
-}
 
 static inline void check_reg_src(int *max_r, int *max_b, uint8_t src)
 {
@@ -6611,8 +5566,7 @@ static void decode_alops(DisasContext *ctx)
             alop->ales.raw = ctx->bundle.ales[i];
 
             if (!decode_alop(ctx, alop_insn(alop))) {
-                // fallback
-                decode_alop_old(alop, ctx->bundle.ales_present[i]);
+                gen_tr_excp_illopc(ctx);
             }
         }
     }
@@ -6719,31 +5673,7 @@ static void gen_alop(Alop *alop)
     }
 
     ctx->cur_alop = alop->chan;
-    if (!decode_alop(ctx, alop_insn(alop))) {
-        // fallback
-        switch (alop->format) {
-        case ALOPF21_ICOMB:
-            e2k_todo(ctx, "fallback icomb");
-            gen_icomb(alop);
-            break;
-        case ALOPF21_FCOMB:
-            e2k_todo(ctx, "fallback fcomb");
-            gen_fcomb(alop);
-            break;
-        case ALOPF21_PFCOMB:
-            e2k_todo(ctx, "fallback pfcomb");
-            gen_pfcomb(alop);
-            break;
-        case ALOPF21_QPFCOMB:
-            e2k_todo(ctx, "fallback qpfcomb");
-            gen_qpfcomb(alop);
-            break;
-        default:
-            e2k_todo(ctx, "fallback simple %s.%d", alop->name, alop->chan);
-            gen_alop_simple(alop);
-            break;
-        }
-    }
+    decode_alop(ctx, alop_insn(alop));
 
     switch (alop->result.kind) {
     case ALOP_RESULT_NONE:
@@ -6899,31 +5829,6 @@ static void gen_alc(DisasContext *ctx)
     for (i = 0; i < 6; i++) {
         gen_alop(&ctx->alops[i]);
     }
-}
-
-static void alc_init(DisasContext *ctx)
-{
-    int i, j;
-
-    memset(alops_map, -1, sizeof(alops_map));
-    memset(pfcomb_map, 0, sizeof(pfcomb_map));
-
-    // TODO: symmetric alops table
-    /* Most alops are symmetric and can be stored in a half table. */
-    for (i = 0; i < ARRAY_SIZE(alops); i++) {
-        AlopDesc *desc = &alops[i];
-        if (desc->min_version <= ctx->version && ctx->version <= desc->max_version) {
-            for (j = 0; j < 6; j++) {
-                if (desc->channels & (1 << j)) {
-                    int16_t *p = &alops_map[desc->opc2][desc->opc1][j];
-                    desc->next[j] = *p;
-                    *p = i;
-                }
-            }
-        }
-    }
-
-    pfcomb_init(ctx);
 }
 
 static void gen_load_prefetch_program(DisasContext *ctx)
@@ -7855,7 +6760,6 @@ static void do_branch(DisasContext *ctx, target_ulong pc_next)
 
 static void e2k_tr_init_disas_context(DisasContextBase *db, CPUState *cs)
 {
-    static int version = -1;
     DisasContext *ctx = container_of(db, DisasContext, base);
     E2KCPU *cpu = E2K_CPU(cs);
     CPUE2KState *env = &cpu->env;
@@ -7863,15 +6767,6 @@ static void e2k_tr_init_disas_context(DisasContextBase *db, CPUState *cs)
     ctx->version = env->version;
     ctx->enable_tags = env->enable_tags;
     ctx->force_save_alc_dst = env->force_save_alc_dst;
-
-    if (version != ctx->version) {
-        if (version > 0) {
-            // FIXME: can it happen?
-            e2k_todo(ctx, "reinitialize alc map");
-        }
-        alc_init(ctx);
-        version = ctx->version;
-    }
 }
 
 static void e2k_tr_tb_start(DisasContextBase *db, CPUState *cs)

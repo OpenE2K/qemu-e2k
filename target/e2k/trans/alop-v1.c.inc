@@ -469,9 +469,9 @@ TRANSW(fxrsubss,        1, 1, 0, 1, 1, 0, S,X,S,0, alf1, _env_, gen_helper_fxrsu
 TRANSW(fxrsubdd,        1, 1, 0, 1, 1, 0, D,X,D,0, alf1, _env_, gen_helper_fxrsubdd);
 TRANSW(fxrsubsx,        1, 1, 0, 1, 1, 0, X,X,S,0, alf1, _env_, gen_helper_fxrsubsx);
 TRANSW(fxrsubdx,        1, 1, 0, 1, 1, 0, X,X,D,0, alf1, _env_, gen_helper_fxrsubdx);
-TRANSW(fxsqrtisx,       0, 0, 0, 0, 0, 1, X,0,S,0, alf2, _env_, gen_helper_fstofx);
-TRANSW(fxsqrtidx,       0, 0, 0, 0, 0, 1, X,0,D,0, alf2, _env_, gen_helper_fdtofx);
-TRANSW(fxsqrtixx,       0, 0, 0, 0, 0, 1, X,0,X,0, alf2, _,     gen_movx);
+TRANSW(fxsqrtisx,       0, 0, 0, 0, 0, 1, X,S,X,0, alf1, _,     gen_fxsqrtisx);
+TRANSW(fxsqrtidx,       0, 0, 0, 0, 0, 1, X,D,X,0, alf1, _,     gen_fxsqrtidx);
+TRANSW(fxsqrtixx,       0, 0, 0, 0, 0, 1, X,X,X,0, alf1, _,     gen_fxsqrtixx);
 TRANSW(fxsqrtuxx,       0, 0, 0, 0, 0, 1, X,X,X,0, alf1, _,     gen_fxsqrtuxx);
 TRANSW(fxsqrtusx,       0, 0, 0, 0, 0, 1, X,S,X,0, alf1, _,     gen_fxsqrtusx);
 TRANSW(fxsqrtudx,       0, 0, 0, 0, 0, 1, X,D,X,0, alf1, _,     gen_fxsqrtudx);
@@ -612,7 +612,7 @@ TRANSW(fdivd,           0, 0, 0, 0, 0, 1, D,D,D,0, alf1, _env_, gen_helper_fdivd
 TRANSW(pfdivs,          0, 0, 0, 0, 0, 1, S,S,S,0, alf1, _env_, gen_helper_fdivs);
 TRANSW(pfdivd,          0, 0, 0, 0, 0, 1, D,D,D,0, alf1, _env_, gen_helper_fdivd);
 TRANSW(fsqrts,          0, 0, 0, 0, 0, 1, S,0,S,0, alf2, _env_, gen_helper_fsqrts);
-TRANSW(fsqrtid,         0, 0, 0, 0, 0, 1, D,0,D,0, alf2, _,     tcg_gen_mov_i64);
+TRANSW(fsqrtid,         0, 0, 0, 0, 0, 1, D,0,D,0, alf2, _,     gen_fsqrtid);
 TRANSW(pfsqrts,         0, 0, 0, 0, 0, 1, S,0,S,0, alf2, _env_, gen_helper_fsqrts);
 TRANSW(frcps,           0, 0, 0, 0, 0, 1, S,0,S,0, alf2, _env_, gen_helper_frcps);
 TRANSW(fsqrttd,         0, 0, 0, 0, 0, 1, D,D,D,0, alf1, _env_, gen_helper_fsqrttd);
