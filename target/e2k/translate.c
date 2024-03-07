@@ -515,7 +515,6 @@ typedef struct DisasContext {
     Cs1 cs1;
     int cur_alop;
     Alop alops[6];
-    target_ulong pc;
     int mmuidx;
     bool loop_mode;
     bool only_check;
@@ -575,7 +574,7 @@ static inline void gen_save_pc(target_ulong pc)
 
 static inline void gen_save_cpu_state(DisasContext *ctx)
 {
-    gen_save_pc(ctx->pc);
+    gen_save_pc(ctx->base.pc_next);
 }
 
 static inline void gen_tr_exception(DisasContext *ctx, int exception_index)
@@ -618,7 +617,7 @@ IMPL_GEN_EXCP(gen_excp_illopc, EXCP_ILLEGAL_OPCODE)
 IMPL_GEN_EXCP(gen_excp_window_bounds, EXCP_WINDOW_BOUNDS)
 
 #define e2k_todo(ctx, fmt, ...) \
-    qemu_log(TARGET_FMT_lx ": " fmt " (%s:%d)\n", ctx->pc, \
+    qemu_log(TARGET_FMT_lx ": " fmt " (%s:%d)\n", ctx->base.pc_next, \
         ## __VA_ARGS__, __FILE__, __LINE__)
 
 #define e2k_todo_illop(ctx, fmt, ...) \
@@ -637,7 +636,6 @@ IMPL_GEN_EXCP(gen_excp_window_bounds, EXCP_WINDOW_BOUNDS)
 IMPL_TAGGED_FNS(Tagged_i32, i32)
 IMPL_TAGGED_FNS(Tagged_i64, i64)
 IMPL_TAGGED_FNS(Tagged_i128, i128)
-IMPL_TAGGED_FNS(Tagged_ptr, ptr)
 
 static void gen_dec_wrapi_i32(TCGv_i32 ret, TCGv_i32 cur, int n,
     int size)
@@ -662,7 +660,7 @@ static inline uint64_t ctpr_new(uint8_t tag, uint8_t opc, uint8_t ipd,
 
 static inline uint64_t ctpr_new_disp(DisasContext *ctx, Cs0Disp *disp)
 {
-    target_ulong base = ctx->pc + disp->sdisp;
+    target_ulong base = ctx->base.pc_next + disp->sdisp;
     return ctpr_new(CTPR_TAG_DISP, disp->opc, disp->ipd, base);
 }
 
@@ -690,7 +688,7 @@ static size_t unpack_bundle(CPUE2KState *env, DisasContext *ctx)
     unsigned int i;
     uint32_t hs;
     UnpackedBundle *bundle = &ctx->bundle;
-    target_ulong pc = ctx->pc;
+    target_ulong pc = ctx->base.pc_next;
 
     memset(bundle, 0, sizeof(UnpackedBundle));
 
@@ -7209,7 +7207,7 @@ static inline void gen_cs0(DisasContext *ctx)
         } else {
             ctx->ct.type = CT_IBRANCH;
         }
-        ctx->ct.u.target = ctx->pc + cs0->ibranch.sdisp;
+        ctx->ct.u.target = ctx->base.pc_next + cs0->ibranch.sdisp;
         break;
     case CS0_PREF:
         /* prefetch code */
@@ -7456,12 +7454,11 @@ static target_ulong do_decode(DisasContext *ctx, CPUState *cs)
     CPUE2KState *env = &cpu->env;
     unsigned int len;
 
-    ctx->pc = ctx->base.pc_next;
     len = unpack_bundle(env, ctx);
 
     if (len == 0) {
         gen_tr_excp_illopc(ctx);
-        return ctx->pc + 8;
+        return ctx->base.pc_next + 8;
     }
 
     ctx->only_check = true;
@@ -7471,7 +7468,7 @@ static target_ulong do_decode(DisasContext *ctx, CPUState *cs)
     decode_alops(ctx);
     ctx->only_check = false;
 
-    return ctx->pc + len;
+    return ctx->base.pc_next + len;
 }
 
 static bool validate_state_reg(DisasContext *ctx, int index, bool write)
