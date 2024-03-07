@@ -20,13 +20,13 @@ TRANSM(stssqp,              0, 0, 5, 0, 0, 5, P,D,D,0, alf3_mas, gen_addr_i64, g
 TRANSM(stgdqp,              0, 0, 5, 0, 0, 5, P,S,S,0, alf3_mas, gen_addr_i64, gen_st_raw_i128, MO_UO, ADDR_GD);
 //stapqp,              0, 0, 5, 0, 0, 5, P,Q,S,0, alf3_mas
 TRANSM(stmqp,               0, 0, 5, 0, 0, 5, P,D,D,0, alf3_mas, gen_addr_src1_i64, gen_stm_raw_i128, MO_UO, ADDR_FLAT);
-TRANSM(stcsmqp,             0, 0, 5, 0, 0, 5, P,D,D,0, alf3_mas, gen_addr_src1_i64, gen_stm_raw_i128, MO_UO, ADDR_CS);
-TRANSM(stdsmqp,             0, 0, 5, 0, 0, 5, P,D,D,0, alf3_mas, gen_addr_src1_i64, gen_stm_raw_i128, MO_UO, ADDR_DS);
-TRANSM(stesmqp,             0, 0, 5, 0, 0, 5, P,D,D,0, alf3_mas, gen_addr_src1_i64, gen_stm_raw_i128, MO_UO, ADDR_ES);
-TRANSM(stfsmqp,             0, 0, 5, 0, 0, 5, P,D,D,0, alf3_mas, gen_addr_src1_i64, gen_stm_raw_i128, MO_UO, ADDR_FS);
-TRANSM(stgsmqp,             0, 0, 5, 0, 0, 5, P,D,D,0, alf3_mas, gen_addr_src1_i64, gen_stm_raw_i128, MO_UO, ADDR_GS);
-TRANSM(stssmqp,             0, 0, 5, 0, 0, 5, P,D,D,0, alf3_mas, gen_addr_src1_i64, gen_stm_raw_i128, MO_UO, ADDR_SS);
-TRANSM(stgdmqp,             0, 0, 5, 0, 0, 5, P,S,S,0, alf3_mas, gen_addr_src1_i64, gen_stm_raw_i128, MO_UO, ADDR_GD);
+TRANSM(stcsmqp,             0, 0, 5, 0, 0, 5, P,D,D,0, alf3_mas, gen_addr_src1_i32, gen_stm_raw_i128, MO_UO, ADDR_CS);
+TRANSM(stdsmqp,             0, 0, 5, 0, 0, 5, P,D,D,0, alf3_mas, gen_addr_src1_i32, gen_stm_raw_i128, MO_UO, ADDR_DS);
+TRANSM(stesmqp,             0, 0, 5, 0, 0, 5, P,D,D,0, alf3_mas, gen_addr_src1_i32, gen_stm_raw_i128, MO_UO, ADDR_ES);
+TRANSM(stfsmqp,             0, 0, 5, 0, 0, 5, P,D,D,0, alf3_mas, gen_addr_src1_i32, gen_stm_raw_i128, MO_UO, ADDR_FS);
+TRANSM(stgsmqp,             0, 0, 5, 0, 0, 5, P,D,D,0, alf3_mas, gen_addr_src1_i32, gen_stm_raw_i128, MO_UO, ADDR_GS);
+TRANSM(stssmqp,             0, 0, 5, 0, 0, 5, P,D,D,0, alf3_mas, gen_addr_src1_i32, gen_stm_raw_i128, MO_UO, ADDR_SS);
+TRANSM(stgdmqp,             0, 0, 5, 0, 0, 5, P,S,S,0, alf3_mas, gen_addr_src1_i32, gen_stm_raw_i128, MO_UO, ADDR_GD);
 //stapmqp,             0, 0, 5, 0, 0, 5, P,Q,S,0, alf13_mas
 //ldrqp,               5, 0, 5, 5, 0, 5, P,D,D,0, alf1_mas
 //strqp,               0, 0, 5, 0, 0, 5, P,D,D,0, alf3_mas
