@@ -127,12 +127,12 @@ uint64 HELPER(fsqrtid)(CPUE2KState *env, uint64_t x)
 #define make_i64(v) (v)
 #define make_f32(v) make_float32(v)
 #define make_f64(v) make_float64(v)
-#define make_f80(v) make_floatx80(((v) >> 64), (v))
+#define make_f80(v) make_floatx80(int128_gethi(v), int128_getlo(v))
 #define make(S, v) glue(make_, S)(v)
 
 #define float_val_f32(v) float32_val(v)
 #define float_val_f64(v) float64_val(v)
-#define float_val_f80(v) (((Int128) (v).high << 64) | (v).low)
+#define float_val_f80(v) int128_make128((v).low, (v).high)
 #define float_val(S, v) glue(float_val_, S)(v)
 
 #define type_i32 uint32_t

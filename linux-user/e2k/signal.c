@@ -368,3 +368,9 @@ abi_long do_swapcontext(CPUArchState *env, abi_ulong uold_ctx,
     qemu_log_mask(LOG_UNIMP, "do_swapcontext: not implemented\n");
     return 0;
 }
+
+#if defined(__MCST__) && defined(__LCC__)
+void setup_sigtramp(abi_ulong sigtramp_page) {
+    abort();
+}
+#endif
