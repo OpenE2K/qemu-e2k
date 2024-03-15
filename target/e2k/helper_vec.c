@@ -712,6 +712,7 @@ void HELPER(stmqp6)(CPUE2KState *env, target_ulong addr, Int128 value,
 uint32_t HELPER(stmqp_mlock)(CPUE2KState *env, target_ulong addr, Int128 value,
     uint32_t mask, uint32_t sm, Int128 last_val)
 {
+#if defined(CONFIG_ATOMIC128) || HAVE_CMPXCHG128
     Int128 t;
     MemOpIdx oi = make_memop_idx(MO_ALIGN | MO_LE | MO_UO, cpu_mmu_index(env, false));
 
@@ -723,4 +724,9 @@ uint32_t HELPER(stmqp_mlock)(CPUE2KState *env, target_ulong addr, Int128 value,
     } else {
         return 0;
     }
+#else
+    // TODO: e2k mlock without cmpxchg128
+    g_assert(0 && "implement stmqp mlock");
+    return 0;
+#endif
 }
