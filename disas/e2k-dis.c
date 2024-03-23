@@ -68,6 +68,8 @@ struct e2k_private_data
 
   unsigned short version;
   int lines;
+
+  int align;
 };
 
 #define implement_me(c) assert((c) && "implement me");
@@ -82,7 +84,7 @@ struct e2k_private_data
  print_styled (info, dis_style_mnemonic, __VA_ARGS__)
 
 #define print_align(info) \
- print_text (info, "\t")
+ print_text (info, "        ")
 
 #define print_aligned_text(info, ...) \
  print_align (info); \
@@ -93,7 +95,7 @@ struct e2k_private_data
  print_styled (info, dis_style_mnemonic, __VA_ARGS__)
 
 #define print_operand_alignment(info, width) \
-  print_text (info, "%c", width < 8 ? '\t' : ' ');
+ print_text (info, "%*c", width < 8 ? 8 - width % 8 : 4 - width % 4, ' ')
 
 #define print_sub_mnemonic(info, ...) \
  print_styled (info, dis_style_sub_mnemonic, __VA_ARGS__)
@@ -488,7 +490,7 @@ print_syllable_impl (struct disassemble_info *info)
 
   if (pd->syll_cur >= pd->syll_len)
     {
-      print_text (info, "%20c", ' ');
+      print_text (info, "%16c", ' ');
       return;
     }
 
@@ -698,7 +700,8 @@ static void
 print_nl (struct disassemble_info *info)
 {
   struct e2k_private_data *pd = info->private_data;
-  print_styled (info, dis_style_comment_stop, "\n\t");
+  print_styled (info, dis_style_comment_stop, "\n");
+  print_text (info, "%*c", pd->align, ' ');
   print_syllable (pd, info);
   ++pd->lines;
 }
@@ -891,7 +894,7 @@ decode_pls (struct disassemble_info *info,
       if (!used[i + 4])
         continue;
 
-      print_text (info, "plu%d\t", i);
+      print_text (info, "plu%d    ", i);
       switch (pls & LP_OPC_MASK)
         {
         case LP_ANDP:
@@ -1735,10 +1738,13 @@ decode_al (bfd_vma memaddr, struct disassemble_info *info,
         return;
     }
 
-  print_text (info, "alc%d", ch);
   if (ALS_DECODE_SM (als))
-    print_sub_mnemonic (info, ".sm");
-  print_text (info, "\t");
+    {
+      print_text (info, "alc%d", ch);
+      print_sub_mnemonic (info, ".sm ");
+    }
+  else
+    print_text (info, "alc%d    ", ch);
   print_mnemonic (info, "%s", opcode->name);
   width = strlen (opcode->name);
 
@@ -1947,7 +1953,7 @@ decode_al (bfd_vma memaddr, struct disassemble_info *info,
   /* Special case for staa instructions.  */
   if (opcode->format == ALF10_MAS && ALS_DECODE_AA_INC (als))
     {
-      print_text (info, "alc%d\t", ch);
+      print_text (info, "alc%d    ", ch);
       print_mnemonic (info, "incr");
       print_operand_alignment (info, 4);
       print_aaincr (info, ALS_DECODE_AA_INCR (als));
@@ -2007,7 +2013,6 @@ print_bundle (bfd_vma memaddr, struct disassemble_info *info)
       return status;
     }
 
-  print_text (info, "\n\t");
   len = HS_DECODE_BSZ (packet[0]);
   status = (*info->read_memory_func) (memaddr, packet, len, info);
   if (status != 0 || !bundle_unpack (pd, packet, len, &bundle))
@@ -2069,7 +2074,7 @@ print_bundle (bfd_vma memaddr, struct disassemble_info *info)
       decode_nop (info, bundle.hs);
     }
 
-  //print_aligned_text (info, "--");
+  print_aligned_text (info, "--");
 
   /* Force print tail syllables.  */
   if (pd->show_syllables)
@@ -2092,6 +2097,8 @@ print_insn_e2k (bfd_vma memaddr, struct disassemble_info *info)
     info->private_data = calloc (1, sizeof (struct e2k_private_data));
 
   pd = info->private_data;
+
+  pd->align = MAX((64 - clz64(memaddr) + 3) / 4, 8) + 5;
 
   if (info->disassembler_options != NULL)
     {
