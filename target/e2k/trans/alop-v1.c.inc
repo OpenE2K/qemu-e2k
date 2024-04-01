@@ -135,7 +135,7 @@ TRANSW(sxtw,            1, 1, 1, 1, 1, 1, D,0,S,0, alf2, _, gen_sxtw);
 TRANSW(zxtb,            1, 1, 1, 1, 1, 1, D,0,S,0, alf2, _, gen_zxtb);
 TRANSW(zxth,            1, 1, 1, 1, 1, 1, D,0,S,0, alf2, _, gen_zxth);
 TRANSW(zxtw,            1, 1, 1, 1, 1, 1, D,0,S,0, alf2, _, gen_zxtw);
-TRANSD(sxt,             1, 1, 1, 1, 1, 1, D,S,S,0, alf1,    gen_sxt);
+TRANSW(sxt,             1, 1, 1, 1, 1, 1, D,S,S,0, alf1, _, gen_helper_sxt);
 TRANSD(mergew,          1, 1, 1, 1, 1, 1, S,S,S,0, alf1,    gen_merges);
 TRANSD(merged,          1, 1, 1, 1, 1, 1, D,D,D,0, alf1,    gen_merged);
 TRANSW(addw,            1, 1, 1, 1, 1, 1, S,S,S,0, alf1, _, tcg_gen_add_i32);
