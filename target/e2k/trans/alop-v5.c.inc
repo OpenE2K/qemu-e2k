@@ -1,3 +1,9 @@
+/*
+ * E2K ISA version 5 translation
+ *
+ * SPDX-License-Identifier: GPL-2.0-only
+ */
+
 //ldq,                 5, 0, 5, 5, 0, 5, Q,D,D,0, alf1_mas, AF_PAIR
 TRANSM(ldqp,                5, 0, 5, 5, 0, 5, P,D,D,0, alf1_mas, gen_addr_i64, gen_ld_raw_i128, MO_UO, ADDR_FLAT);
 TRANSM(ldcsqp,              5, 0, 5, 5, 0, 5, P,D,D,0, alf1_mas, gen_addr_i64, gen_ld_raw_i128, MO_UO, ADDR_CS);

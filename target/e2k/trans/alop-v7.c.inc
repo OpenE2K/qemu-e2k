@@ -1,3 +1,9 @@
+/*
+ * E2K ISA version 7 translation
+ *
+ * SPDX-License-Identifier: GPL-2.0-only
+ */
+
 //qpmgme,              7, 0, 0, 0, 0, 0, P,P,P,P, alf21
 //qpaesltr,            0, 7, 0, 0, 0, 0, P,P,P,P, alf21
 //qpaesiltr,           0, 7, 0, 0, 0, 0, P,P,P,P, alf21

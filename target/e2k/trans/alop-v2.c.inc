@@ -1,3 +1,9 @@
+/*
+ * E2K ISA version 2 translation
+ *
+ * SPDX-License-Identifier: GPL-2.0-only
+ */
+
 TRANSW(bitrevw,     2, 2, 0, 2, 2, 0, S,0,S,0, alf2,  _,     gen_bitrevs);
 TRANSW(bitrevd,     2, 2, 0, 2, 2, 0, D,0,D,0, alf2,  _,     gen_bitrevd);
 TRANSW(lzcnts,      0, 2, 0, 0, 2, 0, S,0,S,0, alf2,  _,     gen_lzcnts);

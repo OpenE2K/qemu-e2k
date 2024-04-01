@@ -1,5 +1,11 @@
-#ifndef E2K_CPU_H
-#define E2K_CPU_H
+/*
+ * QEMU E2K CPU
+ *
+ * SPDX-License-Identifier: GPL-2.0-only
+ */
+
+#ifndef TARGET_E2K_CPU_H
+#define TARGET_E2K_CPU_H
 
 #include "qemu/bswap.h"
 #include "cpu-qom.h"
@@ -1033,4 +1039,4 @@ void e2k_proc_return(CPUE2KState *env, bool force_fx);
 
 #include "exec/cpu-all.h"
 
-#endif
+#endif /* TARGET_E2K_CPU_H */

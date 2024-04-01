@@ -1,3 +1,9 @@
+/*
+ * E2K translation to TCG
+ *
+ * SPDX-License-Identifier: GPL-2.0-only
+ */
+
 #include "qemu/osdep.h"
 #include "exec/log.h"
 #include "exec/translator.h"

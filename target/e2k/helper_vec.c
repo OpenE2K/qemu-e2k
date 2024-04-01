@@ -1,3 +1,9 @@
+/*
+ * SIMD E2K helpers
+ *
+ * SPDX-License-Identifier: GPL-2.0-only
+ */
+
 #include "qemu/osdep.h"
 #include "qemu/log.h"
 #include "cpu.h"
