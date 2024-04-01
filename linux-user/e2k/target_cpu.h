@@ -1,5 +1,9 @@
-#ifndef E2K_TARGET_CPU_H
-#define E2K_TARGET_CPU_H
+/*
+ * SPDX-License-Identifier: GPL-2.0-only
+ */
+
+#ifndef LINUX_USER_E2K_TARGET_CPU_H
+#define LINUX_USER_E2K_TARGET_CPU_H
 
 #include "user-mmap.h"
 
@@ -89,4 +93,4 @@ static inline abi_ulong get_sp_from_cpustate(CPUE2KState *env)
     return env->usd.base;
 }
 
-#endif /* E2K_TARGET_CPU_H */
+#endif /* LINUX_USER_E2K_TARGET_CPU_H */

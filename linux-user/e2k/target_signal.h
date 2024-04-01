@@ -1,5 +1,9 @@
-#ifndef TARGET_SIGNAL_H
-#define TARGET_SIGNAL_H
+/*
+ * SPDX-License-Identifier: GPL-2.0-only
+ */
+
+#ifndef LINUX_USER_E2K_TARGET_SIGNAL_H
+#define LINUX_USER_E2K_TARGET_SIGNAL_H
 
 /*
  * sigaltstack controls
@@ -18,4 +22,4 @@
 
 #include "generic/signal.h"
 
-#endif /* TARGET_SIGNAL_H */ 
+#endif /* LINUX_USER_E2K_TARGET_SIGNAL_H */

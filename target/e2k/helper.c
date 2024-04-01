@@ -1,3 +1,9 @@
+/*
+ * Misc E2K helpers
+ *
+ * SPDX-License-Identifier: GPL-2.0-only
+ */
+
 #include "helper-tcg.h"
 #include "qemu/log.h"
 #include "qemu/host-utils.h"

@@ -1,3 +1,9 @@
+/*
+ * E2K ISA version 1 translation
+ *
+ * SPDX-License-Identifier: GPL-2.0-only
+ */
+
 #define compat_format_alf1          ALOPF1
 #define compat_format_alf1_mas      ALOPF1_MAS
 #define compat_format_alf1_lit8     ALOPF11_LIT8

@@ -1,5 +1,9 @@
-#ifndef E2K_TARGET_ELF_H
-#define E2K_TARGET_ELF_H
+/*
+ * SPDX-License-Identifier: GPL-2.0-only
+ */
+
+#ifndef LINUX_USER_E2K_TARGET_ELF_H
+#define LINUX_USER_E2K_TARGET_ELF_H
 
 #define E2K_ELF_IPD_MASK  ((1U << 1)|(1U << 0))
 #define E2K_ELF_X86APP    (1U << 2)
@@ -34,4 +38,4 @@
 
 const char *cpu_get_model(uint32_t eflags);
 
-#endif /* E2K_TARGET_ELF_H */
+#endif /* LINUX_USER_E2K_TARGET_ELF_H */

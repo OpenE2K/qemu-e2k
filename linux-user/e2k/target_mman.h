@@ -1,3 +1,7 @@
+/*
+ * SPDX-License-Identifier: GPL-2.0-only
+ */
+
 #ifndef LINUX_USER_E2K_TARGET_MMAN_H
 #define LINUX_USER_E2K_TARGET_MMAN_H
 

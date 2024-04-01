@@ -1,23 +1,9 @@
 /*
- *  Emulation of Linux signals
+ * Emulation of Linux signals
  *
- *  Copyright (c) 2003 Fabrice Bellard
- *  Copyright (c) 2020 Alibek Omarov
- *  Copyright (c) 2021 Denis Drakhnya
- *
- *  This program is free software; you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation; either version 2 of the License, or
- *  (at your option) any later version.
- *
- *  This program is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License
- *  along with this program; if not, see <http://www.gnu.org/licenses/>.
+ * SPDX-License-Identifier: GPL-2.0-only
  */
+
 #include "qemu/osdep.h"
 #include "qemu.h"
 #include "user-internals.h"
@@ -25,30 +11,30 @@
 #include "linux-user/trace.h"
 #include "target/e2k/helper-tcg.h"
 
-#define MAX_TC_SIZE	10
+#define MAX_TC_SIZE 10
 
 #define TIR_NUM 19
 #define DAM_ENTRIES_NUM 32
 #define SBBP_ENTRIES_NUM 32
 
 /* from user.h !!! */
-#define MLT_NUM (16 * 3)		/* common for E3M and E3S */
+#define MLT_NUM (16 * 3) /* common for E3M and E3S */
 
 struct target_sigcontext {
-	abi_ullong	cr0_lo;
-	abi_ullong	cr0_hi;
-	abi_ullong	cr1_lo;
-	abi_ullong	cr1_hi;
-	abi_ullong	sbr;	 /* 21 Stack base register: top of */
-					 /*    local data (user) stack */
-	abi_ullong	usd_lo;	 /* 22 Local data (user) stack */
-	abi_ullong	usd_hi;	 /* 23 descriptor: base & size */
-	abi_ullong	psp_lo;	 /* 24 Procedure stack pointer: */
-	abi_ullong	psp_hi;	 /* 25 base & index & size */
-	abi_ullong	pcsp_lo; /* 26 Procedure chain stack */
-	abi_ullong	pcsp_hi; /* 27 pointer: base & index & size */
+    abi_ullong cr0_lo;
+    abi_ullong cr0_hi;
+    abi_ullong cr1_lo;
+    abi_ullong cr1_hi;
+    abi_ullong sbr;     /* 21 Stack base register: top of */
+                        /*    local data (user) stack */
+    abi_ullong usd_lo;  /* 22 Local data (user) stack */
+    abi_ullong usd_hi;  /* 23 descriptor: base & size */
+    abi_ullong psp_lo;  /* 24 Procedure stack pointer: */
+    abi_ullong psp_hi;  /* 25 base & index & size */
+    abi_ullong pcsp_lo; /* 26 Procedure chain stack */
+    abi_ullong pcsp_hi; /* 27 pointer: base & index & size */
 
-	/* additional part (for binary compiler) */
+    /* additional part (for binary compiler) */
     abi_ullong rpr_hi;
     abi_ullong rpr_lo;
 
@@ -228,9 +214,9 @@ static void target_setup_frame(int sig, struct target_sigaction *ka,
     copy_to_user(frame_addr + offsetof(struct target_sigframe, gregs),
         &env->greg[16], 16 * sizeof(E2KReg));
     if (env->enable_tags) {
-		copy_to_user(frame_addr + offsetof(struct target_sigframe, gtags),
-			&env->gtag[16], 16);
-	}
+        copy_to_user(frame_addr + offsetof(struct target_sigframe, gtags),
+            &env->gtag[16], 16);
+    }
 
     if (ka->sa_flags & TARGET_SA_RESTORER) {
         // TODO: sa_restorer?
@@ -338,9 +324,9 @@ long do_rt_sigreturn(CPUE2KState *env)
     copy_from_user(&env->greg[16], frame_addr
         + offsetof(struct target_sigframe, gregs), 16 * sizeof(E2KReg));
     if (env->enable_tags) {
-		copy_from_user(&env->gtag[16], frame_addr
-			+ offsetof(struct target_sigframe, gtags), 16);
-	}
+        copy_from_user(&env->gtag[16], frame_addr
+            + offsetof(struct target_sigframe, gtags), 16);
+    }
 
     if (do_sigaltstack(frame_addr +
             offsetof(struct target_sigframe, uc.uc_stack),

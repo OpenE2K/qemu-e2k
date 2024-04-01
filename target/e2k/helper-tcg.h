@@ -1,29 +1,11 @@
 /*
- * e2k TCG specific prototypes for helpers
+ * TCG E2K specific prototypes for helpers
  *
- * Copyright (c) 2020-2021 Denis Drakhnya, Alibek Omarov
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
- * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
- * THE SOFTWARE.
+ * SPDX-License-Identifier: GPL-2.0-only
  */
 
-#ifndef E2K_HELPER_TCG_H
-#define E2K_HELPER_TCG_H
+#ifndef TARGET_E2K_HELPER_TCG_H
+#define TARGET_E2K_HELPER_TCG_H
 
 #include "qemu/osdep.h"
 #include "cpu.h"
@@ -144,4 +126,4 @@ static inline void env_usd_lo_set(CPUE2KState *env, uint64_t value)
     env->usd.write = (value & USD_LO_WRITE_BIT) != 0;
 }
 
-#endif /* E2K_HELPER_TCG_H */
+#endif /* TARGET_E2K_HELPER_TCG_H */

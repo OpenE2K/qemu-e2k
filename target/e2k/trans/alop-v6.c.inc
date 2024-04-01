@@ -1,3 +1,9 @@
+/*
+ * E2K ISA version 6 translation
+ *
+ * SPDX-License-Identifier: GPL-2.0-only
+ */
+
 //vfbgv,               0, 6, 0, 0, 6, 0, S,S,S,0, alf1
 //modbgv,              0, 6, 0, 0, 6, 0, S,0,S,0, alf2
 //mkfsw,               0, 6, 0, 0, 6, 0, D,S,S,0, alf1
