@@ -82,7 +82,7 @@ static void e2k_cpu_disas_set_info(CPUState *cs, disassemble_info *info)
     E2KCPU *cpu = E2K_CPU(cs);
     CPUE2KState *env = &cpu->env;
 
-    info->mach = env->version * 3;
+    info->mach = env->def.isa * 3;
     info->print_insn = print_insn_e2k;
 }
 
@@ -105,41 +105,42 @@ static void e2k_cpu_disas_set_info(CPUState *cs, disassemble_info *info)
 #define MDL_E48C            13    /* Elbrus-48C FIXME: assumption */
 #define MDL_E8V7            14    /* Elbrus-8v7 FIXME: assumption */
 
-#define CPU_MODEL(ISET, NAME, GDB_ARCH, IDR, CANON) \
+#define CPU_MODEL(ISET, NAME, GDB_ARCH, IDR, MODEL, CANON) \
     { \
         .name           = NAME,     \
         .canonical_name = CANON,    \
+        .model_name     = MODEL,    \
         .gdb_arch       = GDB_ARCH, \
-        .isa_version    = ISET,     \
+        .isa            = ISET,     \
         .idr            = IDR,      \
     }
 
 static const struct e2k_def_t e2k_defs[] = {
-    CPU_MODEL(1, "elbrus-v1",   "elbrus-v1",    MDL_E3M,        "MCST Elbrus"),
-    CPU_MODEL(2, "elbrus-v2",   "elbrus-v2",    MDL_ES,         "MCST Elbrus-S"),
-    CPU_MODEL(3, "elbrus-v3",   "elbrus-v3",    MDL_E2S,        "MCST Elbrus-4C"),
-    CPU_MODEL(4, "elbrus-v4",   "elbrus-v4",    MDL_E8C,        "MCST Elbrus-8C"),
-    CPU_MODEL(5, "elbrus-v5",   "elbrus-v5",    MDL_E8C2,       "MCST Elbrus-8C2"),
-    CPU_MODEL(6, "elbrus-v6",   "elbrus-v6",    MDL_E16C,       "MCST Elbrus-16C"),
-    CPU_MODEL(7, "elbrus-v7",   "elbrus-v7",    MDL_E48C,       "MCST Elbrus-48C"),
-    CPU_MODEL(1, "generic",     "elbrus-v1",    MDL_E3M,        "MCST Elbrus"),
-    CPU_MODEL(1, "elbrus",      "elbrus-v1",    MDL_E3M,        "MCST Elbrus"),
-    CPU_MODEL(1, "e3m",         "elbrus-v1",    MDL_E3M,        "MCST Elbrus-3M1"),
-    CPU_MODEL(2, "elbrus-s",    "elbrus-v2",    MDL_ES,         "MCST Elbrus-S"),
-    CPU_MODEL(2, "e3s",         "elbrus-v2",    MDL_E3S,        "MCST Elbrus-3S"),
-    CPU_MODEL(2, "es2",         "elbrus-v2",    MDL_ES2,        "MCST Elbrus-2C+ (Monocube)"),
-    CPU_MODEL(2, "e2cplus",     "elbrus-v2",    MDL_ES2,        "MCST Elbrus-2C+ (Monocube)"),
-    CPU_MODEL(2, "e2cm",        "elbrus-v2",    MDL_ES2_NO_DSP, "MCST Elbrus-2CM"),
-    CPU_MODEL(3, "e2s",         "elbrus-v3",    MDL_E2S,        "MCST Elbrus-4C"),
-    CPU_MODEL(3, "e4c",         "elbrus-v3",    MDL_E2S,        "MCST Elbrus-4C"),
-    CPU_MODEL(4, "e8c",         "elbrus-8c",    MDL_E8C,        "MCST Elbrus-8C"),
-    CPU_MODEL(4, "e1cplus",     "elbrus-1c+",   MDL_E1CP,       "MCST Elbrus-1C+"),
-    CPU_MODEL(5, "e8c2",        "elbrus-v5",    MDL_E8C2,       "MCST Elbrus-8C2"),
-    CPU_MODEL(6, "e16c",        "elbrus-16c",   MDL_E16C,       "MCST Elbrus-16C"),
-    CPU_MODEL(6, "e12c",        "elbrus-12c",   MDL_E12C,       "MCST Elbrus-12C"),
-    CPU_MODEL(6, "e2c3",        "elbrus-2c3",   MDL_E2C3,       "MCST Elbrus-2C3"),
-    CPU_MODEL(7, "e48c",        "elbrus-v7",    MDL_E48C,       "MCST Elbrus-48C"),
-    CPU_MODEL(7, "e8v7",        "elbrus-v7",    MDL_E8V7,       "MCST Elbrus-8v7"),
+    CPU_MODEL(1, "elbrus-v1",   "elbrus-v1",    MDL_E3M,        "E3M",       "MCST Elbrus"),
+    CPU_MODEL(2, "elbrus-v2",   "elbrus-v2",    MDL_ES,         "ES",        "MCST Elbrus-S"),
+    CPU_MODEL(3, "elbrus-v3",   "elbrus-v3",    MDL_E2S,        "E2S",       "MCST Elbrus-4C"),
+    CPU_MODEL(4, "elbrus-v4",   "elbrus-v4",    MDL_E8C,        "E8C",       "MCST Elbrus-8C"),
+    CPU_MODEL(5, "elbrus-v5",   "elbrus-v5",    MDL_E8C2,       "E8C2",      "MCST Elbrus-8C2"),
+    CPU_MODEL(6, "elbrus-v6",   "elbrus-v6",    MDL_E16C,       "E16C",      "MCST Elbrus-16C"),
+    CPU_MODEL(7, "elbrus-v7",   "elbrus-v7",    MDL_E48C,       "E48C",      "MCST Elbrus-48C"),
+    CPU_MODEL(1, "generic",     "elbrus-v1",    MDL_E3M,        "E3M",       "MCST Elbrus"),
+    CPU_MODEL(1, "elbrus",      "elbrus-v1",    MDL_E3M,        "E3M",       "MCST Elbrus"),
+    CPU_MODEL(1, "e3m",         "elbrus-v1",    MDL_E3M,        "E3M",       "MCST Elbrus-3M1"),
+    CPU_MODEL(2, "elbrus-s",    "elbrus-v2",    MDL_ES,         "ES",        "MCST Elbrus-S"),
+    CPU_MODEL(2, "e3s",         "elbrus-v2",    MDL_E3S,        "E3S",       "MCST Elbrus-3S"),
+    CPU_MODEL(2, "es2",         "elbrus-v2",    MDL_ES2,        "E2C+DSP",   "MCST Elbrus-2C+ (Monocube)"),
+    CPU_MODEL(2, "e2cplus",     "elbrus-v2",    MDL_ES2,        "E2C+DSP",   "MCST Elbrus-2C+ (Monocube)"),
+    CPU_MODEL(2, "e2cm",        "elbrus-v2",    MDL_ES2_NO_DSP, "E2C",       "MCST Elbrus-2CM"),
+    CPU_MODEL(3, "e2s",         "elbrus-v3",    MDL_E2S,        "E2S",       "MCST Elbrus-4C"),
+    CPU_MODEL(3, "e4c",         "elbrus-v3",    MDL_E2S,        "E2S",       "MCST Elbrus-4C"),
+    CPU_MODEL(4, "e8c",         "elbrus-8c",    MDL_E8C,        "E8C",       "MCST Elbrus-8C"),
+    CPU_MODEL(4, "e1cplus",     "elbrus-1c+",   MDL_E1CP,       "E1CP",      "MCST Elbrus-1C+"),
+    CPU_MODEL(5, "e8c2",        "elbrus-v5",    MDL_E8C2,       "E8C2",      "MCST Elbrus-8C2"),
+    CPU_MODEL(6, "e16c",        "elbrus-16c",   MDL_E16C,       "E16C",      "MCST Elbrus-16C"),
+    CPU_MODEL(6, "e12c",        "elbrus-12c",   MDL_E12C,       "E12C",      "MCST Elbrus-12C"),
+    CPU_MODEL(6, "e2c3",        "elbrus-2c3",   MDL_E2C3,       "E2C3",      "MCST Elbrus-2C3"),
+    CPU_MODEL(7, "e48c",        "elbrus-v7",    MDL_E48C,       "E48C",      "MCST Elbrus-48C"),
+    CPU_MODEL(7, "e8v7",        "elbrus-v7",    MDL_E8V7,       "E8V7",      "MCST Elbrus-8v7"),
 };
 
 static void e2k_cpu_set_pc(CPUState *cs, vaddr value)
@@ -213,11 +214,6 @@ static void e2k_cpu_realizefn(DeviceState *dev, Error **errp)
     CPUState *cs = CPU(dev);
     E2KCPUClass *ecc = E2K_CPU_GET_CLASS(dev);
     Error *local_err = NULL;
-    E2KCPU *cpu = E2K_CPU(dev);
-    CPUE2KState *env = &cpu->env;
-
-    env->idr = env->def.idr;
-    env->version = env->def.isa_version;
 
     cpu_exec_realizefn(cs, &local_err);
     if (local_err != NULL) {
@@ -349,7 +345,7 @@ void e2k_cpu_list(void)
         qemu_printf("%12s (%-30s) ISA version: v%d\n",
             e2k_defs[i].name,
             e2k_defs[i].canonical_name,
-            e2k_defs[i].isa_version
+            e2k_defs[i].isa
         );
     }
 

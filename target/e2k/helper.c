@@ -53,7 +53,7 @@ static void ps_spill(CPUE2KState *env, int n, bool fx)
     }
 #endif
 
-    if (env->version >= 5) {
+    if (env->def.isa >= 5) {
         for (int i = 0; i < n; i++, index += 16) {
             ps_write(env, env->regs[i].lo, env->tags[i], index);
 
@@ -87,7 +87,7 @@ static void ps_fill(CPUE2KState *env, int n, bool fx)
         raise_exception(env, E2K_EXCP_PROC_STACK_BOUNDS);
     }
 
-    if (env->version >= 5) {
+    if (env->def.isa >= 5) {
         for (int i = n; i-- > 0; index -= 16) {
             if (fx) {
                 env->regs[i].hi = ps_read(env, NULL, index - 8);

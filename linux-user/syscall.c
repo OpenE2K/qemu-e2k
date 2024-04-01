@@ -7169,7 +7169,7 @@ static abi_long copy_procedure_stack(CPUE2KState *env, abi_ulong dst,
 
     /* v5+ has different stack layout and we need to shuffle registers
      * for backward compatibility. */
-    if (env->version >= 5) {
+    if (env->def.isa >= 5) {
         int i, j;
         bool to_ps = dst >= env->psp.base
             && dst < (env->psp.base + env->psp.size);

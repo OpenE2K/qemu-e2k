@@ -178,7 +178,7 @@ uint64_t HELPER(state_reg_get)(CPUE2KState *env, int index)
     case SR_ILCR:       return env_ilcr_get(env);
     case SR_BR:         return env_br_get(env);
     case SR_BGR:        return env->bgr;
-    case SR_IDR:        return env->idr;
+    case SR_IDR:        return env->def.idr;
     case SR_CLKR:       return cpu_get_host_ticks(); // FIXME
     case SR_RNDPR:
     case SR_SCLKR:

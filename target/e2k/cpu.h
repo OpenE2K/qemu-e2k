@@ -422,8 +422,10 @@ typedef enum {
 struct e2k_def_t {
     const char *name;
     const char *canonical_name;
+    const char *model_name;
     const char *gdb_arch;
-    uint32_t isa_version;
+    /* ISA version */
+    uint32_t isa;
     uint64_t idr;
 };
 
@@ -928,9 +930,6 @@ typedef struct CPUArchState {
     /* Fields up to this point are cleared by a CPU reset */
     struct {} end_reset_fields;
 
-    uint64_t idr;
-    /* ISA version */
-    uint32_t version;
     /* Force alop to preserve the destination register before writing to it.
      * Default: false */
     bool force_save_alc_dst;
