@@ -7292,7 +7292,7 @@ static abi_long copy_procedure_stack(CPUE2KState *env, abi_ulong dst,
 
     /* v5+ has different stack layout and we need to shuffle registers
      * for backward compatibility. */
-    if (env->version >= 5) {
+    if (env->def.isa >= 5) {
         int i, j;
         bool to_ps = dst >= env->psp.base
             && dst < (env->psp.base + env->psp.size);
@@ -8872,7 +8872,7 @@ void target_exception_dump(CPUArchState *env, const char *fmt, int code)
 
 #if HOST_BIG_ENDIAN != TARGET_BIG_ENDIAN || \
     defined(TARGET_SPARC) || defined(TARGET_M68K) || defined(TARGET_HPPA) || \
-    defined(TARGET_RISCV) || defined(TARGET_S390X)
+    defined(TARGET_RISCV) || defined(TARGET_S390X) || defined(TARGET_E2K)
 static int is_proc(const char *filename, const char *entry)
 {
     return strcmp(filename, entry) == 0;
@@ -9088,6 +9088,36 @@ static int open_hardware(CPUArchState *cpu_env, int fd)
 }
 #endif
 
+#if defined(TARGET_E2K)
+static int open_cpuinfo(CPUArchState *cpu_env, int fd)
+{
+    CPUE2KState *env = &env_archcpu(cpu_env)->env;
+    int i, num_cpus, model, revision;
+
+    model = extract32(env->def.idr, IDR_MDL_OFF, IDR_MDL_LEN);
+    revision = extract32(env->def.idr, IDR_REV_OFF, IDR_REV_LEN);
+
+    num_cpus = sysconf(_SC_NPROCESSORS_ONLN);
+    for (i = 0; i < num_cpus; i++) {
+        dprintf(fd, "processor\t: %d\n", i);
+        dprintf(fd, "vendor_id\t: QEMU\n");
+        dprintf(fd, "cpu family\t: %d\n", env->def.isa);
+        dprintf(fd, "model\t\t: %d\n", model);
+        dprintf(fd, "model name\t: %s\n", env->def.model_name);
+        dprintf(fd, "revision\t: %d\n\n", revision);
+    }
+
+#if 0
+    dprintf(fd, "cache0\t\t: level=1 type=Instruction scope=Private size=128K line_size=256 associativity=4\n");
+    dprintf(fd, "cache1\t\t: level=1 type=Data scope=Private size=64K line_size=32 associativity=4\n");
+    dprintf(fd, "cache2\t\t: level=2 type=Unified scope=Private size=512K line_size=64 associativity=4\n");
+    dprintf(fd, "cache3\t\t: level=3 type=Unified scope=Shared size=16384K line_size=64 associativity=16\n");
+#endif
+
+    return 0;
+}
+#endif
+
 
 int do_guest_openat(CPUArchState *cpu_env, int dirfd, const char *fname,
                     int flags, mode_t mode, bool safe)
@@ -9110,7 +9140,8 @@ int do_guest_openat(CPUArchState *cpu_env, int dirfd, const char *fname,
         { "/proc/net/route", open_net_route, is_proc },
 #endif
 #if defined(TARGET_SPARC) || defined(TARGET_HPPA) || \
-    defined(TARGET_RISCV) || defined(TARGET_S390X)
+    defined(TARGET_RISCV) || defined(TARGET_S390X) || \
+    defined(TARGET_E2K)
         { "/proc/cpuinfo", open_cpuinfo, is_proc },
 #endif
 #if defined(TARGET_M68K)

@@ -66,7 +66,7 @@ target_ulong HELPER(mova_ptr)(CPUE2KState *env, int chan, int area, int ind,
         helper_raise_exception(env, EXCP_ILLEGAL_OPCODE);
     }
 
-    if ((env->version <= 4 || (env->version == 5 && size == 16)) && addr & (size - 1)) {
+    if ((env->def.isa <= 4 || (env->def.isa == 5 && size == 16)) && addr & (size - 1)) {
         return 0;
     } else if (page != as->last_page) {
         void *ignore;

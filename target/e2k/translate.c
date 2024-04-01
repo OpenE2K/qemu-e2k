@@ -6710,7 +6710,7 @@ static void e2k_tr_init_disas_context(DisasContextBase *db, CPUState *cs)
     E2KCPU *cpu = E2K_CPU(cs);
     CPUE2KState *env = &cpu->env;
 
-    ctx->version = env->version;
+    ctx->version = env->def.isa;
     ctx->enable_tags = env->enable_tags;
     ctx->force_save_alc_dst = env->force_save_alc_dst;
 }
