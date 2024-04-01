@@ -1211,7 +1211,7 @@ static inline void decode_cs0(DisasContext *ctx, const UnpackedBundle *raw)
         if (ctx->cs1.type == CS1_ICALL) {
             break;
         }
-        /* fallthrough */
+        QEMU_FALLTHROUGH;
     case CS0_DONE:
     case CS0_HRET:
     case CS0_GLAUNCH:
@@ -2117,7 +2117,7 @@ static void gen_cond_i32(DisasContext *ctx, TCGv_i32 ret, uint8_t psrc)
     }
 }
 
-static inline void scan_needed(DisasContext *ctx, int need[7])
+static inline void scan_needed_lp(DisasContext *ctx, int need[7])
 {
     const UnpackedBundle *bundle = &ctx->bundle;
     bool once_more = true;
@@ -2182,7 +2182,7 @@ static void gen_plu(DisasContext *ctx)
     int i, need[7] = { 0 };
     TCGv_i32 *lp = ctx->lp;
 
-    scan_needed(ctx, need);
+    scan_needed_lp(ctx, need);
 
     for (i = 0; i < 7; i++) {
         if (need[i]) {
@@ -4400,19 +4400,6 @@ IMPL_GEN_ADDR(gen_addr_i32, s, tcg_gen_ext_i32_tl)
 IMPL_GEN_ADDR_SRC1(gen_addr_src1_i64, d, tcg_gen_trunc_i64_tl)
 IMPL_GEN_ADDR_SRC1(gen_addr_src1_i32, s, tcg_gen_ext_i32_tl)
 
-#define gen_ldb(i, a, b)    gen_alf1_mas(i, a, gen_ld_raw_i64,    MO_UB, b)
-#define gen_ldh(i, a, b)    gen_alf1_mas(i, a, gen_ld_raw_i64,    MO_UW, b)
-#define gen_ldw(i, a, b)    gen_alf1_mas(i, a, gen_ld_raw_i64,    MO_UL, b)
-#define gen_ldd(i, a, b)    gen_alf1_mas(i, a, gen_ld_raw_i64,    MO_UQ, b)
-#define gen_ldqp(i, a, b)   gen_alf1_mas(i, a, gen_ld_raw_i128,   MO_UO, b)
-
-#define gen_stb(i, a, b)    gen_alf3_mas(i, a, gen_st_raw_i32,    MO_UB, b)
-#define gen_sth(i, a, b)    gen_alf3_mas(i, a, gen_st_raw_i32,    MO_UW, b)
-#define gen_stw(i, a, b)    gen_alf3_mas(i, a, gen_st_raw_i32,    MO_UL, b)
-#define gen_std(i, a, b)    gen_alf3_mas(i, a, gen_st_raw_i64,    MO_UQ, b)
-#define gen_stqp(i, a, b)   gen_alf3_mas(i, a, gen_st_raw_i128,   MO_UO, b)
-#define gen_stmqp(i, a, b)  gen_alf3_mas(i, a, gen_stm_raw_i128,  MO_UO, b)
-
 static void gen_aaurwd_aad(Alop *alop, TCGv_i64 arg1, TCGv_i32 tag)
 {
     gen_helper_aaurwd_aad(tcg_env, tcg_constant_i32(alop->als.aad), arg1, tag);
@@ -5038,37 +5025,6 @@ static void gen_zxtw(TCGv_i64 ret, TCGv_i32 v)
     tcg_gen_extu_i32_i64(ret, v);
 }
 
-static void gen_sxt(Alop *alop)
-{
-    tagged(s) s1 = gen_tagged_src1(s, alop);
-    tagged(s) s2 = gen_tagged_src2(s, alop);
-    tagged(d) r = tagged_temp_new(d);
-
-    gen_tag2(d, r, s1, s2);
-
-    if (IS_IMM5(alop->als.src1)) {
-        uint8_t imm = GET_IMM5(alop->als.src1);
-
-        if (imm & 4) {
-            switch (imm & 3) {
-            case 0:     gen_zxtb(r.val, s2.val); break;
-            case 1:     gen_zxth(r.val, s2.val); break;
-            default:    gen_zxtw(r.val, s2.val); break;
-            }
-        } else {
-            switch (imm & 3) {
-            case 0:     gen_sxtb(r.val, s2.val); break;
-            case 1:     gen_sxth(r.val, s2.val); break;
-            default:    gen_sxtw(r.val, s2.val); break;
-            }
-        }
-    } else {
-        gen_helper_sxt(r.val, s1.val, s2.val);
-    }
-
-    gen_al_result(d, alop, r);
-}
-
 #define IMPL_GEN_HELPER_GETF(S) \
     static void glue(gen_helper_getf, S)(DisasContext *ctx, \
             temp(S) ret, temp(S) src1, temp(S) src2) \
@@ -5293,22 +5249,6 @@ typedef enum {
 
 IMPL_GEN_ICOMB_OP(i64)
 IMPL_GEN_ICOMB_OP(i32)
-
-static inline bool icomb_check(DisasContext *ctx, Alop *alop,
-    IComb opc1, IComb opc2)
-{
-    if (!is_chan_14(alop->chan)) {
-        return false;
-    }
-
-    if (ctx->version == 1) {
-        return opc1 != ICOMB_RSUB;
-    } else {
-        return opc1 != ICOMB_RSUB
-            && opc2 < ICOMB_SCL
-            && opc2 != ICOMB_MERGE;
-    }
-}
 
 typedef enum {
     FCOMB_ADD = 0,
@@ -6079,7 +6019,7 @@ static inline void gen_cs1(DisasContext *ctx)
         break;
     case CS1_CALL:
         ctx->ct.type = CT_CALL;
-        /* fallthrough */
+        QEMU_FALLTHROUGH;
     case CS1_ICALL:
         if (ctx->w_size < cs1->call_wbs * 2) {
             gen_tr_excp_window_bounds(ctx);
