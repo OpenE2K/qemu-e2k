@@ -28,8 +28,7 @@ void migration_tls_channel_process_incoming(MigrationState *s,
                                             QIOChannel *ioc,
                                             Error **errp);
 
-QIOChannelTLS *migration_tls_client_create(MigrationState *s,
-                                           QIOChannel *ioc,
+QIOChannelTLS *migration_tls_client_create(QIOChannel *ioc,
                                            const char *hostname,
                                            Error **errp);
 
@@ -37,4 +36,8 @@ void migration_tls_channel_connect(MigrationState *s,
                                    QIOChannel *ioc,
                                    const char *hostname,
                                    Error **errp);
+
+/* Whether the QIO channel requires further TLS handshake? */
+bool migrate_channel_requires_tls_upgrade(QIOChannel *ioc);
+
 #endif

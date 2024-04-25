@@ -28,7 +28,6 @@
 #include "sysemu/numa.h"
 #include "exec/cpu-common.h"
 #include "exec/ramlist.h"
-#include "qemu/bitmap.h"
 #include "qemu/error-report.h"
 #include "qapi/error.h"
 #include "qapi/opts-visitor.h"
@@ -36,7 +35,6 @@
 #include "sysemu/qtest.h"
 #include "hw/core/cpu.h"
 #include "hw/mem/pc-dimm.h"
-#include "migration/vmstate.h"
 #include "hw/boards.h"
 #include "hw/mem/memory-device.h"
 #include "qemu/option.h"
@@ -130,9 +128,9 @@ static void parse_numa_node(MachineState *ms, NumaNodeOptions *node,
         }
     }
 
-    have_memdevs = have_memdevs ? : node->has_memdev;
-    have_mem = have_mem ? : node->has_mem;
-    if ((node->has_mem && have_memdevs) || (node->has_memdev && have_mem)) {
+    have_memdevs = have_memdevs || node->memdev;
+    have_mem = have_mem || node->has_mem;
+    if ((node->has_mem && have_memdevs) || (node->memdev && have_mem)) {
         error_setg(errp, "numa configuration should use either mem= or memdev=,"
                    "mixing both is not allowed");
         return;
@@ -152,7 +150,7 @@ static void parse_numa_node(MachineState *ms, NumaNodeOptions *node,
                         " use -numa node,memdev instead");
         }
     }
-    if (node->has_memdev) {
+    if (node->memdev) {
         Object *o;
         o = object_resolve_path_type(node->memdev, TYPE_MEMORY_BACKEND, NULL);
         if (!o) {
@@ -229,7 +227,8 @@ void parse_numa_hmat_lb(NumaState *numa_state, NumaHmatLBOptions *node,
                    node->target, numa_state->num_nodes);
         return;
     }
-    if (!numa_info[node->initiator].has_cpu) {
+    if (!numa_info[node->initiator].has_cpu &&
+        !numa_info[node->initiator].has_gi) {
         error_setg(errp, "Invalid initiator=%d, it isn't an "
                    "initiator proximity domain", node->initiator);
         return;
@@ -531,10 +530,17 @@ static int parse_numa(void *opaque, QemuOpts *opts, Error **errp)
     /* Fix up legacy suffix-less format */
     if ((object->type == NUMA_OPTIONS_TYPE_NODE) && object->u.node.has_mem) {
         const char *mem_str = qemu_opt_get(opts, "mem");
-        qemu_strtosz_MiB(mem_str, NULL, &object->u.node.mem);
+        int ret = qemu_strtosz_MiB(mem_str, NULL, &object->u.node.mem);
+
+        if (ret < 0) {
+            error_setg_errno(&err, -ret, "could not parse memory size '%s'",
+                             mem_str);
+        }
     }
 
-    set_numa_options(ms, object, &err);
+    if (!err) {
+        set_numa_options(ms, object, &err);
+    }
 
     qapi_free_NumaOptions(object);
     if (err) {
@@ -822,6 +828,19 @@ static int ram_block_notify_add_single(RAMBlock *rb, void *opaque)
     return 0;
 }
 
+static int ram_block_notify_remove_single(RAMBlock *rb, void *opaque)
+{
+    const ram_addr_t max_size = qemu_ram_get_max_length(rb);
+    const ram_addr_t size = qemu_ram_get_used_length(rb);
+    void *host = qemu_ram_get_host_addr(rb);
+    RAMBlockNotifier *notifier = opaque;
+
+    if (host) {
+        notifier->ram_block_removed(notifier, host, size, max_size);
+    }
+    return 0;
+}
+
 void ram_block_notifier_add(RAMBlockNotifier *n)
 {
     QLIST_INSERT_HEAD(&ram_list.ramblock_notifiers, n, next);
@@ -835,13 +854,18 @@ void ram_block_notifier_add(RAMBlockNotifier *n)
 void ram_block_notifier_remove(RAMBlockNotifier *n)
 {
     QLIST_REMOVE(n, next);
+
+    if (n->ram_block_removed) {
+        qemu_ram_foreach_block(ram_block_notify_remove_single, n);
+    }
 }
 
 void ram_block_notify_add(void *host, size_t size, size_t max_size)
 {
     RAMBlockNotifier *notifier;
+    RAMBlockNotifier *next;
 
-    QLIST_FOREACH(notifier, &ram_list.ramblock_notifiers, next) {
+    QLIST_FOREACH_SAFE(notifier, &ram_list.ramblock_notifiers, next, next) {
         if (notifier->ram_block_added) {
             notifier->ram_block_added(notifier, host, size, max_size);
         }
@@ -851,8 +875,9 @@ void ram_block_notify_add(void *host, size_t size, size_t max_size)
 void ram_block_notify_remove(void *host, size_t size, size_t max_size)
 {
     RAMBlockNotifier *notifier;
+    RAMBlockNotifier *next;
 
-    QLIST_FOREACH(notifier, &ram_list.ramblock_notifiers, next) {
+    QLIST_FOREACH_SAFE(notifier, &ram_list.ramblock_notifiers, next, next) {
         if (notifier->ram_block_removed) {
             notifier->ram_block_removed(notifier, host, size, max_size);
         }
@@ -862,8 +887,9 @@ void ram_block_notify_remove(void *host, size_t size, size_t max_size)
 void ram_block_notify_resize(void *host, size_t old_size, size_t new_size)
 {
     RAMBlockNotifier *notifier;
+    RAMBlockNotifier *next;
 
-    QLIST_FOREACH(notifier, &ram_list.ramblock_notifiers, next) {
+    QLIST_FOREACH_SAFE(notifier, &ram_list.ramblock_notifiers, next, next) {
         if (notifier->ram_block_resized) {
             notifier->ram_block_resized(notifier, host, old_size, new_size);
         }

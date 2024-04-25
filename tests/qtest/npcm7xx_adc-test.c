@@ -50,7 +50,7 @@
 #define CON_INT     BIT(18)
 #define CON_EN      BIT(17)
 #define CON_RST     BIT(16)
-#define CON_CONV    BIT(14)
+#define CON_CONV    BIT(13)
 #define CON_DIV(rv) extract32(rv, 1, 8)
 
 #define FST_RDST    BIT(1)
@@ -90,7 +90,7 @@ typedef struct ADC {
     uint64_t base_addr;
 } ADC;
 
-ADC adc = {
+ADC adc_defs = {
     .irq        = 0,
     .base_addr  = 0xf000c000
 };
@@ -367,12 +367,12 @@ int main(int argc, char **argv)
 {
     g_test_init(&argc, &argv, NULL);
 
-    add_test(init, &adc);
-    add_test(convert_internal, &adc);
-    add_test(convert_external, &adc);
-    add_test(interrupt, &adc);
-    add_test(reset, &adc);
-    add_test(calibrate, &adc);
+    add_test(init, &adc_defs);
+    add_test(convert_internal, &adc_defs);
+    add_test(convert_external, &adc_defs);
+    add_test(interrupt, &adc_defs);
+    add_test(reset, &adc_defs);
+    add_test(calibrate, &adc_defs);
 
     return g_test_run();
 }

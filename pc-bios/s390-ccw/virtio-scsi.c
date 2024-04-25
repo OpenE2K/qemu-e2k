@@ -150,7 +150,7 @@ static bool scsi_report_luns(VDev *vdev, void *data, uint32_t data_size)
 }
 
 static bool scsi_read_10(VDev *vdev,
-                         ulong sector, int sectors, void *data,
+                         unsigned long sector, int sectors, void *data,
                          unsigned int data_size)
 {
     ScsiCdbRead10 cdb = {
@@ -195,7 +195,7 @@ static bool scsi_read_capacity(VDev *vdev,
 /* virtio-scsi routines */
 
 /*
- * Tries to locate a SCSI device and and adds the information for the found
+ * Tries to locate a SCSI device and adds the information for the found
  * device to the vdev->scsi_device structure.
  * Returns 0 if SCSI device could be located, or a error code < 0 otherwise
  */
@@ -269,7 +269,7 @@ static int virtio_scsi_locate_device(VDev *vdev)
 }
 
 int virtio_scsi_read_many(VDev *vdev,
-                          ulong sector, void *load_addr, int sec_num)
+                          unsigned long sector, void *load_addr, int sec_num)
 {
     int sector_count;
     int f = vdev->blk_factor;
@@ -329,7 +329,7 @@ static void scsi_parse_capacity_report(void *data,
     }
 }
 
-int virtio_scsi_setup(VDev *vdev)
+static int virtio_scsi_setup(VDev *vdev)
 {
     int retry_test_unit_ready = 3;
     uint8_t data[256];
@@ -429,4 +429,21 @@ int virtio_scsi_setup(VDev *vdev)
                                (uint32_t *) &vdev->scsi_block_size);
 
     return 0;
+}
+
+int virtio_scsi_setup_device(SubChannelId schid)
+{
+    VDev *vdev = virtio_get_device();
+
+    vdev->schid = schid;
+    virtio_setup_ccw(vdev);
+
+    IPL_assert(vdev->config.scsi.sense_size == VIRTIO_SCSI_SENSE_SIZE,
+               "Config: sense size mismatch");
+    IPL_assert(vdev->config.scsi.cdb_size == VIRTIO_SCSI_CDB_SIZE,
+               "Config: CDB size mismatch");
+
+    sclp_print("Using virtio-scsi.\n");
+
+    return virtio_scsi_setup(vdev);
 }

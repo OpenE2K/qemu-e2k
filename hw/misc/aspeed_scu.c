@@ -270,6 +270,7 @@ static uint64_t aspeed_scu_read(void *opaque, hwaddr offset, unsigned size)
         break;
     }
 
+    trace_aspeed_scu_read(offset, size, s->regs[reg]);
     return s->regs[reg];
 }
 
@@ -530,7 +531,7 @@ static const VMStateDescription vmstate_aspeed_scu = {
     .name = "aspeed.scu",
     .version_id = 2,
     .minimum_version_id = 2,
-    .fields = (VMStateField[]) {
+    .fields = (const VMStateField[]) {
         VMSTATE_UINT32_ARRAY(regs, AspeedSCUState, ASPEED_AST2600_SCU_NR_REGS),
         VMSTATE_END_OF_LIST()
     }
@@ -637,6 +638,7 @@ static uint64_t aspeed_ast2600_scu_read(void *opaque, hwaddr offset,
         break;
     }
 
+    trace_aspeed_scu_read(offset, size, s->regs[reg]);
     return s->regs[reg];
 }
 

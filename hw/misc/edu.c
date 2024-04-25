@@ -115,7 +115,7 @@ static void edu_check_range(uint64_t addr, uint64_t size1, uint64_t start,
     uint64_t end2 = start + size2;
 
     if (within(addr, start, end2) &&
-            end1 > addr && within(end1, start, end2)) {
+            end1 > addr && end1 <= end2) {
         return;
     }
 
@@ -267,6 +267,8 @@ static void edu_mmio_write(void *opaque, hwaddr addr, uint64_t val,
     case 0x20:
         if (val & EDU_STATUS_IRQFACT) {
             qatomic_or(&edu->status, EDU_STATUS_IRQFACT);
+            /* Order check of the COMPUTING flag after setting IRQFACT.  */
+            smp_mb__after_rmw();
         } else {
             qatomic_and(&edu->status, ~EDU_STATUS_IRQFACT);
         }
@@ -349,10 +351,13 @@ static void *edu_fact_thread(void *opaque)
         qemu_mutex_unlock(&edu->thr_mutex);
         qatomic_and(&edu->status, ~EDU_STATUS_COMPUTING);
 
+        /* Clear COMPUTING flag before checking IRQFACT.  */
+        smp_mb__after_rmw();
+
         if (qatomic_read(&edu->status) & EDU_STATUS_IRQFACT) {
-            qemu_mutex_lock_iothread();
+            bql_lock();
             edu_raise_irq(edu, FACT_IRQ);
-            qemu_mutex_unlock_iothread();
+            bql_unlock();
         }
     }
 

@@ -267,6 +267,13 @@ static void acpi_ged_unplug_cb(HotplugHandler *hotplug_dev,
     }
 }
 
+static void acpi_ged_ospm_status(AcpiDeviceIf *adev, ACPIOSTInfoList ***list)
+{
+    AcpiGedState *s = ACPI_GED(adev);
+
+    acpi_memory_ospm_status(&s->memhp_state, list);
+}
+
 static void acpi_ged_send_event(AcpiDeviceIf *adev, AcpiEventStatusBits ev)
 {
     AcpiGedState *s = ACPI_GED(adev);
@@ -305,7 +312,7 @@ static const VMStateDescription vmstate_memhp_state = {
     .name = "acpi-ged/memhp",
     .version_id = 1,
     .minimum_version_id = 1,
-    .fields      = (VMStateField[]) {
+    .fields = (const VMStateField[]) {
         VMSTATE_MEMORY_HOTPLUG(memhp_state, AcpiGedState),
         VMSTATE_END_OF_LIST()
     }
@@ -315,7 +322,7 @@ static const VMStateDescription vmstate_ged_state = {
     .name = "acpi-ged-state",
     .version_id = 1,
     .minimum_version_id = 1,
-    .fields      = (VMStateField[]) {
+    .fields = (const VMStateField[]) {
         VMSTATE_UINT32(sel, GEDState),
         VMSTATE_END_OF_LIST()
     }
@@ -325,7 +332,7 @@ static const VMStateDescription vmstate_ghes = {
     .name = "acpi-ghes",
     .version_id = 1,
     .minimum_version_id = 1,
-    .fields     = (VMStateField[]) {
+    .fields = (const VMStateField[]) {
         VMSTATE_UINT64(ghes_addr_le, AcpiGhesState),
         VMSTATE_END_OF_LIST()
     },
@@ -342,7 +349,7 @@ static const VMStateDescription vmstate_ghes_state = {
     .version_id = 1,
     .minimum_version_id = 1,
     .needed = ghes_needed,
-    .fields      = (VMStateField[]) {
+    .fields = (const VMStateField[]) {
         VMSTATE_STRUCT(ghes_state, AcpiGedState, 1,
                        vmstate_ghes, AcpiGhesState),
         VMSTATE_END_OF_LIST()
@@ -353,11 +360,11 @@ static const VMStateDescription vmstate_acpi_ged = {
     .name = "acpi-ged",
     .version_id = 1,
     .minimum_version_id = 1,
-    .fields = (VMStateField[]) {
+    .fields = (const VMStateField[]) {
         VMSTATE_STRUCT(ged_state, AcpiGedState, 1, vmstate_ged_state, GEDState),
         VMSTATE_END_OF_LIST(),
     },
-    .subsections = (const VMStateDescription * []) {
+    .subsections = (const VMStateDescription * const []) {
         &vmstate_memhp_state,
         &vmstate_ghes_state,
         NULL
@@ -409,6 +416,7 @@ static void acpi_ged_class_init(ObjectClass *class, void *data)
     hc->unplug_request = acpi_ged_unplug_request_cb;
     hc->unplug = acpi_ged_unplug_cb;
 
+    adevc->ospm_status = acpi_ged_ospm_status;
     adevc->send_event = acpi_ged_send_event;
 }
 

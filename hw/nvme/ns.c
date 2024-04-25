@@ -14,8 +14,10 @@
 
 #include "qemu/osdep.h"
 #include "qemu/units.h"
+#include "qemu/cutils.h"
 #include "qemu/error-report.h"
 #include "qapi/error.h"
+#include "qemu/bitops.h"
 #include "sysemu/sysemu.h"
 #include "sysemu/block-backend.h"
 
@@ -87,6 +89,7 @@ static int nvme_ns_init(NvmeNamespace *ns, Error **errp)
     id_ns->mcl = cpu_to_le32(ns->params.mcl);
     id_ns->msrc = ns->params.msrc;
     id_ns->eui64 = cpu_to_be64(ns->params.eui64);
+    memcpy(&id_ns->nguid, &ns->params.nguid.data, sizeof(id_ns->nguid));
 
     ds = 31 - clz32(ns->blkconf.logical_block_size);
     ms = ns->params.ms;
@@ -105,7 +108,7 @@ static int nvme_ns_init(NvmeNamespace *ns, Error **errp)
 
     ns->pif = ns->params.pif;
 
-    static const NvmeLBAF lbaf[16] = {
+    static const NvmeLBAF defaults[16] = {
         [0] = { .ds =  9           },
         [1] = { .ds =  9, .ms =  8 },
         [2] = { .ds =  9, .ms = 16 },
@@ -118,7 +121,7 @@ static int nvme_ns_init(NvmeNamespace *ns, Error **errp)
 
     ns->nlbaf = 8;
 
-    memcpy(&id_ns->lbaf, &lbaf, sizeof(lbaf));
+    memcpy(&id_ns->lbaf, &defaults, sizeof(defaults));
 
     for (i = 0; i < ns->nlbaf; i++) {
         NvmeLBAF *lbaf = &id_ns->lbaf[i];
@@ -377,6 +380,164 @@ static void nvme_zoned_ns_shutdown(NvmeNamespace *ns)
     assert(ns->nr_open_zones == 0);
 }
 
+static NvmeRuHandle *nvme_find_ruh_by_attr(NvmeEnduranceGroup *endgrp,
+                                           uint8_t ruha, uint16_t *ruhid)
+{
+    for (uint16_t i = 0; i < endgrp->fdp.nruh; i++) {
+        NvmeRuHandle *ruh = &endgrp->fdp.ruhs[i];
+
+        if (ruh->ruha == ruha) {
+            *ruhid = i;
+            return ruh;
+        }
+    }
+
+    return NULL;
+}
+
+static bool nvme_ns_init_fdp(NvmeNamespace *ns, Error **errp)
+{
+    NvmeEnduranceGroup *endgrp = ns->endgrp;
+    NvmeRuHandle *ruh;
+    uint8_t lbafi = NVME_ID_NS_FLBAS_INDEX(ns->id_ns.flbas);
+    g_autofree unsigned int *ruhids = NULL;
+    unsigned int n, m, *ruhid;
+    const char *endptr, *token;
+    char *r, *p;
+    uint16_t *ph;
+
+    if (!ns->params.fdp.ruhs) {
+        ns->fdp.nphs = 1;
+        ph = ns->fdp.phs = g_new(uint16_t, 1);
+
+        ruh = nvme_find_ruh_by_attr(endgrp, NVME_RUHA_CTRL, ph);
+        if (!ruh) {
+            ruh = nvme_find_ruh_by_attr(endgrp, NVME_RUHA_UNUSED, ph);
+            if (!ruh) {
+                error_setg(errp, "no unused reclaim unit handles left");
+                return false;
+            }
+
+            ruh->ruha = NVME_RUHA_CTRL;
+            ruh->lbafi = lbafi;
+            ruh->ruamw = endgrp->fdp.runs >> ns->lbaf.ds;
+
+            for (uint16_t rg = 0; rg < endgrp->fdp.nrg; rg++) {
+                ruh->rus[rg].ruamw = ruh->ruamw;
+            }
+        } else if (ruh->lbafi != lbafi) {
+            error_setg(errp, "lba format index of controller assigned "
+                       "reclaim unit handle does not match namespace lba "
+                       "format index");
+            return false;
+        }
+
+        return true;
+    }
+
+    ruhid = ruhids = g_new0(unsigned int, endgrp->fdp.nruh);
+    r = p = strdup(ns->params.fdp.ruhs);
+
+    /* parse the placement handle identifiers */
+    while ((token = qemu_strsep(&p, ";")) != NULL) {
+        if (qemu_strtoui(token, &endptr, 0, &n) < 0) {
+            error_setg(errp, "cannot parse reclaim unit handle identifier");
+            free(r);
+            return false;
+        }
+
+        m = n;
+
+        /* parse range */
+        if (*endptr == '-') {
+            token = endptr + 1;
+
+            if (qemu_strtoui(token, NULL, 0, &m) < 0) {
+                error_setg(errp, "cannot parse reclaim unit handle identifier");
+                free(r);
+                return false;
+            }
+
+            if (m < n) {
+                error_setg(errp, "invalid reclaim unit handle identifier range");
+                free(r);
+                return false;
+            }
+        }
+
+        for (; n <= m; n++) {
+            if (ns->fdp.nphs++ == endgrp->fdp.nruh) {
+                error_setg(errp, "too many placement handles");
+                free(r);
+                return false;
+            }
+
+            *ruhid++ = n;
+        }
+    }
+
+    free(r);
+
+    /* verify that the ruhids are unique */
+    for (unsigned int i = 0; i < ns->fdp.nphs; i++) {
+        for (unsigned int j = i + 1; j < ns->fdp.nphs; j++) {
+            if (ruhids[i] == ruhids[j]) {
+                error_setg(errp, "duplicate reclaim unit handle identifier: %u",
+                           ruhids[i]);
+                return false;
+            }
+        }
+    }
+
+    ph = ns->fdp.phs = g_new(uint16_t, ns->fdp.nphs);
+
+    ruhid = ruhids;
+
+    /* verify the identifiers */
+    for (unsigned int i = 0; i < ns->fdp.nphs; i++, ruhid++, ph++) {
+        if (*ruhid >= endgrp->fdp.nruh) {
+            error_setg(errp, "invalid reclaim unit handle identifier");
+            return false;
+        }
+
+        ruh = &endgrp->fdp.ruhs[*ruhid];
+
+        switch (ruh->ruha) {
+        case NVME_RUHA_UNUSED:
+            ruh->ruha = NVME_RUHA_HOST;
+            ruh->lbafi = lbafi;
+            ruh->ruamw = endgrp->fdp.runs >> ns->lbaf.ds;
+
+            for (uint16_t rg = 0; rg < endgrp->fdp.nrg; rg++) {
+                ruh->rus[rg].ruamw = ruh->ruamw;
+            }
+
+            break;
+
+        case NVME_RUHA_HOST:
+            if (ruh->lbafi != lbafi) {
+                error_setg(errp, "lba format index of host assigned"
+                           "reclaim unit handle does not match namespace "
+                           "lba format index");
+                return false;
+            }
+
+            break;
+
+        case NVME_RUHA_CTRL:
+            error_setg(errp, "reclaim unit handle is controller assigned");
+            return false;
+
+        default:
+            abort();
+        }
+
+        *ph = *ruhid;
+    }
+
+    return true;
+}
+
 static int nvme_ns_check_constraints(NvmeNamespace *ns, Error **errp)
 {
     unsigned int pi_size;
@@ -414,6 +575,11 @@ static int nvme_ns_check_constraints(NvmeNamespace *ns, Error **errp)
     if (ns->params.nsid > NVME_MAX_NAMESPACES) {
         error_setg(errp, "invalid namespace id (must be between 0 and %d)",
                    NVME_MAX_NAMESPACES);
+        return -1;
+    }
+
+    if (ns->params.zoned && ns->endgrp && ns->endgrp->fdp.enabled) {
+        error_setg(errp, "cannot be a zoned- in an FDP configuration");
         return -1;
     }
 
@@ -502,6 +668,12 @@ int nvme_ns_setup(NvmeNamespace *ns, Error **errp)
         nvme_ns_init_zoned(ns);
     }
 
+    if (ns->endgrp && ns->endgrp->fdp.enabled) {
+        if (!nvme_ns_init_fdp(ns, errp)) {
+            return -1;
+        }
+    }
+
     return 0;
 }
 
@@ -525,6 +697,10 @@ void nvme_ns_cleanup(NvmeNamespace *ns)
         g_free(ns->zone_array);
         g_free(ns->zd_extensions);
     }
+
+    if (ns->endgrp && ns->endgrp->fdp.enabled) {
+        g_free(ns->fdp.phs);
+    }
 }
 
 static void nvme_ns_unrealize(DeviceState *dev)
@@ -546,6 +722,8 @@ static void nvme_ns_realize(DeviceState *dev, Error **errp)
     int i;
 
     if (!n->subsys) {
+        /* If no subsys, the ns cannot be attached to more than one ctrl. */
+        ns->params.shared = false;
         if (ns->params.detached) {
             error_setg(errp, "detached requires that the nvme device is "
                        "linked to an nvme-subsys device");
@@ -559,6 +737,8 @@ static void nvme_ns_realize(DeviceState *dev, Error **errp)
         if (!qdev_set_parent_bus(dev, &subsys->bus.parent_bus, errp)) {
             return;
         }
+        ns->subsys = subsys;
+        ns->endgrp = &subsys->endgrp;
     }
 
     if (nvme_ns_setup(ns, errp)) {
@@ -589,6 +769,8 @@ static void nvme_ns_realize(DeviceState *dev, Error **errp)
     if (subsys) {
         subsys->namespaces[nsid] = ns;
 
+        ns->id_ns.endgid = cpu_to_le16(0x1);
+
         if (ns->params.detached) {
             return;
         }
@@ -597,13 +779,14 @@ static void nvme_ns_realize(DeviceState *dev, Error **errp)
             for (i = 0; i < ARRAY_SIZE(subsys->ctrls); i++) {
                 NvmeCtrl *ctrl = subsys->ctrls[i];
 
-                if (ctrl) {
+                if (ctrl && ctrl != SUBSYS_SLOT_RSVD) {
                     nvme_attach_ns(ctrl, ns);
                 }
             }
 
             return;
         }
+
     }
 
     nvme_attach_ns(n, ns);
@@ -615,6 +798,7 @@ static Property nvme_ns_props[] = {
     DEFINE_PROP_BOOL("shared", NvmeNamespace, params.shared, true),
     DEFINE_PROP_UINT32("nsid", NvmeNamespace, params.nsid, 0),
     DEFINE_PROP_UUID_NODEFAULT("uuid", NvmeNamespace, params.uuid),
+    DEFINE_PROP_NGUID_NODEFAULT("nguid", NvmeNamespace, params.nguid),
     DEFINE_PROP_UINT64("eui64", NvmeNamespace, params.eui64, 0),
     DEFINE_PROP_UINT16("ms", NvmeNamespace, params.ms, 0),
     DEFINE_PROP_UINT8("mset", NvmeNamespace, params.mset, 0),
@@ -642,6 +826,7 @@ static Property nvme_ns_props[] = {
     DEFINE_PROP_SIZE("zoned.zrwafg", NvmeNamespace, params.zrwafg, -1),
     DEFINE_PROP_BOOL("eui64-default", NvmeNamespace, params.eui64_default,
                      false),
+    DEFINE_PROP_STRING("fdp.ruhs", NvmeNamespace, params.fdp.ruhs),
     DEFINE_PROP_END_OF_LIST(),
 };
 

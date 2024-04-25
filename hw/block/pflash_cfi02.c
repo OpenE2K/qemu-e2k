@@ -400,8 +400,8 @@ static void pflash_update(PFlashCFI02 *pfl, int offset, int size)
         /* widen to sector boundaries */
         offset = QEMU_ALIGN_DOWN(offset, BDRV_SECTOR_SIZE);
         offset_end = QEMU_ALIGN_UP(offset_end, BDRV_SECTOR_SIZE);
-        ret = blk_pwrite(pfl->blk, offset, pfl->storage + offset,
-                   offset_end - offset, 0);
+        ret = blk_pwrite(pfl->blk, offset, offset_end - offset,
+                         pfl->storage + offset, 0);
         if (ret < 0) {
             /* TODO set error bit in status */
             error_report("Could not update PFLASH: %s", strerror(-ret));
@@ -546,7 +546,7 @@ static void pflash_write(void *opaque, hwaddr offset, uint64_t value,
                 }
                 goto reset_flash;
             }
-            trace_pflash_data_write(pfl->name, offset, width, value, 0);
+            trace_pflash_data_write(pfl->name, offset, width, value);
             if (!pfl->ro) {
                 p = (uint8_t *)pfl->storage + offset;
                 if (pfl->be) {
@@ -902,7 +902,7 @@ static void pflash_cfi02_realize(DeviceState *dev, Error **errp)
     }
 
     if (pfl->blk) {
-        if (!blk_check_size_and_read_all(pfl->blk, pfl->storage,
+        if (!blk_check_size_and_read_all(pfl->blk, dev, pfl->storage,
                                          pfl->chip_len, errp)) {
             vmstate_unregister_ram(&pfl->orig_mem, DEVICE(pfl));
             return;

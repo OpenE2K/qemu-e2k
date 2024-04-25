@@ -25,6 +25,8 @@
 #include "sysemu/kvm.h"
 #include "sysemu/sysemu.h"
 #include "kvm_arm.h"
+#include "target/arm/cpu-qom.h"
+#include "target/arm/gtimer.h"
 
 #define GIC_NUM_SPI_INTR 160
 
@@ -143,6 +145,14 @@ static const int adma_ch_intr[XLNX_ZYNQMP_NUM_ADMA_CH] = {
     77, 78, 79, 80, 81, 82, 83, 84
 };
 
+static const uint64_t usb_addr[XLNX_ZYNQMP_NUM_USB] = {
+    0xFE200000, 0xFE300000
+};
+
+static const int usb_intr[XLNX_ZYNQMP_NUM_USB] = {
+    65, 70
+};
+
 typedef struct XlnxZynqMPGICRegion {
     int region_index;
     uint32_t address;
@@ -205,7 +215,7 @@ static void xlnx_zynqmp_create_rpu(MachineState *ms, XlnxZynqMPState *s,
                                    const char *boot_cpu, Error **errp)
 {
     int i;
-    int num_rpus = MIN(ms->smp.cpus - XLNX_ZYNQMP_NUM_APU_CPUS,
+    int num_rpus = MIN((int)(ms->smp.cpus - XLNX_ZYNQMP_NUM_APU_CPUS),
                        XLNX_ZYNQMP_NUM_RPU_CPUS);
 
     if (num_rpus <= 0) {
@@ -428,6 +438,10 @@ static void xlnx_zynqmp_init(Object *obj)
     object_initialize_child(obj, "qspi-dma", &s->qspi_dma, TYPE_XLNX_CSU_DMA);
     object_initialize_child(obj, "qspi-irq-orgate",
                             &s->qspi_irq_orgate, TYPE_OR_IRQ);
+
+    for (i = 0; i < XLNX_ZYNQMP_NUM_USB; i++) {
+        object_initialize_child(obj, "usb[*]", &s->usb[i], TYPE_USB_DWC3);
+    }
 }
 
 static void xlnx_zynqmp_realize(DeviceState *dev, Error **errp)
@@ -604,13 +618,7 @@ static void xlnx_zynqmp_realize(DeviceState *dev, Error **errp)
     }
 
     for (i = 0; i < XLNX_ZYNQMP_NUM_GEMS; i++) {
-        NICInfo *nd = &nd_table[i];
-
-        /* FIXME use qdev NIC properties instead of nd_table[] */
-        if (nd->used) {
-            qemu_check_nic_model(nd, TYPE_CADENCE_GEM);
-            qdev_set_nic_properties(DEVICE(&s->gem[i]), nd);
-        }
+        qemu_configure_nic_device(DEVICE(&s->gem[i]), true, NULL);
         object_property_set_int(OBJECT(&s->gem[i]), "revision", GEM_REVISION,
                                 &error_abort);
         object_property_set_int(OBJECT(&s->gem[i]), "phy-addr", 23,
@@ -813,6 +821,30 @@ static void xlnx_zynqmp_realize(DeviceState *dev, Error **errp)
         /* Alias controller SPI bus to the SoC itself */
         object_property_add_alias(OBJECT(s), bus_name,
                                   OBJECT(&s->qspi), target_bus);
+    }
+
+    for (i = 0; i < XLNX_ZYNQMP_NUM_USB; i++) {
+        if (!object_property_set_link(OBJECT(&s->usb[i].sysbus_xhci), "dma",
+                                      OBJECT(system_memory), errp)) {
+            return;
+        }
+
+        qdev_prop_set_uint32(DEVICE(&s->usb[i].sysbus_xhci), "intrs", 4);
+        qdev_prop_set_uint32(DEVICE(&s->usb[i].sysbus_xhci), "slots", 2);
+
+        if (!sysbus_realize(SYS_BUS_DEVICE(&s->usb[i]), errp)) {
+            return;
+        }
+
+        sysbus_mmio_map(SYS_BUS_DEVICE(&s->usb[i]), 0, usb_addr[i]);
+        sysbus_connect_irq(SYS_BUS_DEVICE(&s->usb[i].sysbus_xhci), 0,
+                           gic_spi[usb_intr[i]]);
+        sysbus_connect_irq(SYS_BUS_DEVICE(&s->usb[i].sysbus_xhci), 1,
+                           gic_spi[usb_intr[i] + 1]);
+        sysbus_connect_irq(SYS_BUS_DEVICE(&s->usb[i].sysbus_xhci), 2,
+                           gic_spi[usb_intr[i] + 2]);
+        sysbus_connect_irq(SYS_BUS_DEVICE(&s->usb[i].sysbus_xhci), 3,
+                           gic_spi[usb_intr[i] + 3]);
     }
 }
 

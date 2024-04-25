@@ -12,23 +12,9 @@
 #include "qemu/error-report.h"
 #include "qemu/queue.h"
 #include "qemu/option.h"
+#include "qemu/plugin-event.h"
 #include "exec/memopidx.h"
-
-/*
- * Events that plugins can subscribe to.
- */
-enum qemu_plugin_event {
-    QEMU_PLUGIN_EV_VCPU_INIT,
-    QEMU_PLUGIN_EV_VCPU_EXIT,
-    QEMU_PLUGIN_EV_VCPU_TB_TRANS,
-    QEMU_PLUGIN_EV_VCPU_IDLE,
-    QEMU_PLUGIN_EV_VCPU_RESUME,
-    QEMU_PLUGIN_EV_VCPU_SYSCALL,
-    QEMU_PLUGIN_EV_VCPU_SYSCALL_RET,
-    QEMU_PLUGIN_EV_FLUSH,
-    QEMU_PLUGIN_EV_ATEXIT,
-    QEMU_PLUGIN_EV_MAX, /* total number of plugin events we support */
-};
+#include "hw/core/cpu.h"
 
 /*
  * Option parsing/processing.
@@ -64,7 +50,7 @@ static inline void qemu_plugin_add_opts(void)
     qemu_add_opts(&qemu_plugin_opts);
 }
 
-void qemu_plugin_opt_parse(const char *optarg, QemuPluginList *head);
+void qemu_plugin_opt_parse(const char *optstr, QemuPluginList *head);
 int qemu_plugin_load_list(QemuPluginList *head, Error **errp);
 
 union qemu_plugin_cb_sig {
@@ -87,6 +73,7 @@ enum plugin_dyn_cb_type {
 
 enum plugin_dyn_cb_subtype {
     PLUGIN_CB_REGULAR,
+    PLUGIN_CB_REGULAR_R,
     PLUGIN_CB_INLINE,
     PLUGIN_N_CB_SUBTYPES,
 };
@@ -105,6 +92,7 @@ struct qemu_plugin_dyn_cb {
     /* fields specific to each dyn_cb type go here */
     union {
         struct {
+            qemu_plugin_u64 entry;
             enum qemu_plugin_op op;
             uint64_t imm;
         } inline_insn;
@@ -118,8 +106,17 @@ struct qemu_plugin_insn {
     void *haddr;
     GArray *cbs[PLUGIN_N_CB_TYPES][PLUGIN_N_CB_SUBTYPES];
     bool calls_helpers;
+
+    /* if set, the instruction calls helpers that might access guest memory */
     bool mem_helper;
+
     bool mem_only;
+};
+
+/* A scoreboard is an array of values, indexed by vcpu_index */
+struct qemu_plugin_scoreboard {
+    GArray *data;
+    QLIST_ENTRY(qemu_plugin_scoreboard) entry;
 };
 
 /*
@@ -158,6 +155,10 @@ struct qemu_plugin_tb {
     void *haddr1;
     void *haddr2;
     bool mem_only;
+
+    /* if set, the TB calls helpers that might access guest memory */
+    bool mem_helper;
+
     GArray *cbs[PLUGIN_N_CB_SUBTYPES];
 };
 
@@ -192,6 +193,19 @@ struct qemu_plugin_insn *qemu_plugin_tb_insn_get(struct qemu_plugin_tb *tb,
     return insn;
 }
 
+/**
+ * struct CPUPluginState - per-CPU state for plugins
+ * @event_mask: plugin event bitmap. Modified only via async work.
+ */
+struct CPUPluginState {
+    DECLARE_BITMAP(event_mask, QEMU_PLUGIN_EV_MAX);
+};
+
+/**
+ * qemu_plugin_create_vcpu_state: allocate plugin state
+ */
+CPUPluginState *qemu_plugin_create_vcpu_state(void);
+
 void qemu_plugin_vcpu_init_hook(CPUState *cpu);
 void qemu_plugin_vcpu_exit_hook(CPUState *cpu);
 void qemu_plugin_tb_trans_cb(CPUState *cpu, struct qemu_plugin_tb *tb);
@@ -212,7 +226,10 @@ void qemu_plugin_atexit_cb(void);
 
 void qemu_plugin_add_dyn_cb_arr(GArray *arr);
 
-void qemu_plugin_disable_mem_helpers(CPUState *cpu);
+static inline void qemu_plugin_disable_mem_helpers(CPUState *cpu)
+{
+    cpu->plugin_mem_cbs = NULL;
+}
 
 /**
  * qemu_plugin_user_exit(): clean-up callbacks before calling exit callbacks
@@ -224,12 +241,29 @@ void qemu_plugin_disable_mem_helpers(CPUState *cpu);
  */
 void qemu_plugin_user_exit(void);
 
+/**
+ * qemu_plugin_user_prefork_lock(): take plugin lock before forking
+ *
+ * This is a user-mode only helper to take the internal plugin lock
+ * before a fork event. This is ensure a consistent lock state
+ */
+void qemu_plugin_user_prefork_lock(void);
+
+/**
+ * qemu_plugin_user_postfork(): reset the plugin lock
+ * @is_child: is this thread the child
+ *
+ * This user-mode only helper resets the lock state after a fork so we
+ * can continue using the plugin interface.
+ */
+void qemu_plugin_user_postfork(bool is_child);
+
 #else /* !CONFIG_PLUGIN */
 
 static inline void qemu_plugin_add_opts(void)
 { }
 
-static inline void qemu_plugin_opt_parse(const char *optarg,
+static inline void qemu_plugin_opt_parse(const char *optstr,
                                          QemuPluginList *head)
 {
     error_report("plugin interface not enabled in this build");
@@ -287,6 +321,13 @@ static inline void qemu_plugin_disable_mem_helpers(CPUState *cpu)
 
 static inline void qemu_plugin_user_exit(void)
 { }
+
+static inline void qemu_plugin_user_prefork_lock(void)
+{ }
+
+static inline void qemu_plugin_user_postfork(bool is_child)
+{ }
+
 #endif /* !CONFIG_PLUGIN */
 
 #endif /* QEMU_PLUGIN_H */

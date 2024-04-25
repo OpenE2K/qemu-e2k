@@ -29,7 +29,7 @@
 
 #include "qemu/osdep.h"
 #include "hw/irq.h"
-#include "hw/pci/pci.h"
+#include "hw/pci/pci_device.h"
 #include "hw/qdev-properties.h"
 #include "migration/vmstate.h"
 #include "net/net.h"
@@ -147,7 +147,7 @@ static const VMStateDescription vmstate_pci_pcnet = {
     .name = "pcnet",
     .version_id = 3,
     .minimum_version_id = 2,
-    .fields = (VMStateField[]) {
+    .fields = (const VMStateField[]) {
         VMSTATE_PCI_DEVICE(parent_obj, PCIPCNetState),
         VMSTATE_STRUCT(state, PCIPCNetState, 0, vmstate_pcnet, PCNetState),
         VMSTATE_END_OF_LIST()

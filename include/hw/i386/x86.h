@@ -18,13 +18,10 @@
 #define HW_I386_X86_H
 
 #include "exec/hwaddr.h"
-#include "qemu/notify.h"
 
-#include "hw/i386/topology.h"
 #include "hw/boards.h"
-#include "hw/nmi.h"
+#include "hw/intc/ioapic.h"
 #include "hw/isa/isa.h"
-#include "hw/i386/ioapic.h"
 #include "qom/object.h"
 
 struct X86MachineClass {
@@ -37,6 +34,8 @@ struct X86MachineClass {
     bool save_tsc_khz;
     /* use DMA capable linuxboot option rom */
     bool fwcfg_dma_enabled;
+    /* CPU and apic information: */
+    bool apic_xrupt_override;
 };
 
 struct X86MachineState {
@@ -56,8 +55,10 @@ struct X86MachineState {
     /* RAM information (sizes, addresses, configuration): */
     ram_addr_t below_4g_mem_size, above_4g_mem_size;
 
+    /* Start address of the initial RAM above 4G */
+    uint64_t above_4g_mem_start;
+
     /* CPU and apic information: */
-    bool apic_xrupt_override;
     unsigned pci_irq_mask;
     unsigned apic_id_limit;
     uint16_t boot_cpus;
@@ -95,8 +96,6 @@ struct X86MachineState {
 #define TYPE_X86_MACHINE   MACHINE_TYPE_NAME("x86")
 OBJECT_DECLARE_TYPE(X86MachineState, X86MachineClass, X86_MACHINE)
 
-void init_topo_info(X86CPUTopoInfo *topo_info, const X86MachineState *x86ms);
-
 uint32_t x86_cpu_apic_id_from_index(X86MachineState *pcms,
                                     unsigned int cpu_index);
 
@@ -130,7 +129,6 @@ bool x86_machine_is_acpi_enabled(const X86MachineState *x86ms);
 
 /* Global System Interrupts */
 
-#define GSI_NUM_PINS IOAPIC_NUM_PINS
 #define ACPI_BUILD_PCI_IRQS ((1<<5) | (1<<9) | (1<<10) | (1<<11))
 
 typedef struct GSIState {
@@ -141,7 +139,7 @@ typedef struct GSIState {
 
 qemu_irq x86_allocate_cpu_irq(void);
 void gsi_handler(void *opaque, int n, int level);
-void ioapic_init_gsi(GSIState *gsi_state, const char *parent_name);
+void ioapic_init_gsi(GSIState *gsi_state, Object *parent);
 DeviceState *ioapic_init_secondary(GSIState *gsi_state);
 
 /* pc_sysfw.c */

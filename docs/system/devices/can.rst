@@ -1,12 +1,12 @@
 CAN Bus Emulation Support
 =========================
 The CAN bus emulation provides mechanism to connect multiple
-emulated CAN controller chips together by one or multiple CAN busses
-(the controller device "canbus"  parameter). The individual busses
+emulated CAN controller chips together by one or multiple CAN buses
+(the controller device "canbus"  parameter). The individual buses
 can be connected to host system CAN API (at this time only Linux
 SocketCAN is supported).
 
-The concept of busses is generic and different CAN controllers
+The concept of buses is generic and different CAN controllers
 can be implemented.
 
 The initial submission implemented SJA1000 controller which
@@ -169,8 +169,9 @@ and with bitrate switch::
 
   cangen can0 -b
 
-The test can be run viceversa, generate messages in the guest system and capture them
-in the host one and much more combinations.
+The test can also be run the other way around, generating messages in the
+guest system and capturing them in the host system. Other combinations are
+also possible.
 
 Links to other resources
 ------------------------

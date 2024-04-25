@@ -11,54 +11,42 @@
 
 - System emulation
 
-  Mainly emulate a virt 3A5000 board and ls7a bridge that is not exactly the same as the host.
-  3A5000 support multiple interrupt cascading while here we just emulate the extioi interrupt
-  cascading. LS7A1000 host bridge support multiple devices, such as sata, gmac, uart, rtc
-  and so on. But we just realize the rtc. Others use the qemu common devices. It does not affect
-  the general use. We also introduced the emulation of devices at docs/system/loongarch/loongson3.rst.
+  You can reference docs/system/loongarch/loongson3.rst to get the information about system emulation of LoongArch.
 
-  This version only supports running binary files in ELF format, and does not depend on BIOS and kernel file.
-  You can compile the test program with 'make & make check-tcg' and run the test case with the following command:
+- Linux-user emulation
 
-  1. Install LoongArch cross-tools on X86 machines.
+  We already support Linux user emulation. We can use LoongArch cross-tools to build LoongArch executables on X86 machines,
+  and We can also use qemu-loongarch64 to run LoongArch executables.
 
-    Download cross-tools.
+  1. Config cross-tools env.
 
-      wget https://github.com/loongson/build-tools/releases/latest/download/loongarch64-clfs-20211202-cross-tools.tar.xz
-
-      tar -vxf loongarch64-clfs-20211202-cross-tools.tar.xz -C /opt
-
-    Config cross-tools env.
-
-      . setenv.sh
-
-      setenv.sh:
-
-          #!/bin/sh
-          set -x
-          CC_PREFIX=/opt/cross-tools
-
-          export PATH=$CC_PREFIX/bin:$PATH
-          export LD_LIBRARY_PATH=$CC_PREFIX/lib:$LD_LIBRARY_PATH
-          export LD_LIBRARY_PATH=$CC_PREFIX/loongarch64-unknown-linux-gnu/lib/:$LD_LIBRARY_PATH
-          set +x
+     see System emulation.
 
   2. Test tests/tcg/multiarch.
 
-    ./configure --disable-rdma --disable-pvrdma --prefix=/usr  \
-            --target-list="loongarch64-softmmu"  \
-            --disable-libiscsi --disable-libnfs --disable-libpmem \
-            --disable-glusterfs --enable-libusb --enable-usb-redir \
-            --disable-opengl --disable-xen --enable-spice --disable-werror \
-            --enable-debug --disable-capstone --disable-kvm --enable-profiler
+     ./configure  --static  --prefix=/usr  --disable-werror --target-list="loongarch64-linux-user" --enable-debug
 
-    cd  build/
+     cd build
 
-    make && make check-tcg
+     make && make check-tcg
 
-    or
+  3. Run LoongArch system basic command with loongarch-clfs-system.
 
-    ./build/qemu-system-loongarch64 -machine virt -m 4G -cpu Loongson-3A5000 -smp 1 -kernel build/tests/tcg/loongarch64-softmmu/hello -monitor none -display none -chardev file,path=hello.out,id=output -serial chardev:output
+     - Config clfs env.
+
+       wget https://github.com/loongson/build-tools/releases/download/2022.05.29/loongarch64-clfs-system-5.0.tar.bz2
+
+       tar -vxf loongarch64-clfs-system-5.0.tar.bz2 -C /opt/clfs
+
+       cp /opt/clfs/lib64/ld-linux-loongarch-lp64d.so.1  /lib64
+
+       export LD_LIBRARY_PATH="/opt/clfs/lib64"
+
+     - Run LoongArch system basic command.
+
+       ./qemu-loongarch64  /opt/clfs/usr/bin/bash
+       ./qemu-loongarch64  /opt/clfs/usr/bin/ls
+       ./qemu-loongarch64  /opt/clfs/usr/bin/pwd
 
 - Note.
   We can get the latest LoongArch documents or LoongArch tools at https://github.com/loongson/

@@ -15,7 +15,7 @@
 #include "qemu/log.h"
 #include "qemu/main-loop.h"
 #include "qemu/module.h"
-#include "arm-powerctl.h"
+#include "target/arm/arm-powerctl.h"
 #include "hw/core/cpu.h"
 
 #ifndef DEBUG_IMX6_SRC
@@ -77,7 +77,7 @@ static const VMStateDescription vmstate_imx6_src = {
     .name = TYPE_IMX6_SRC,
     .version_id = 1,
     .minimum_version_id = 1,
-    .fields = (VMStateField[]) {
+    .fields = (const VMStateField[]) {
         VMSTATE_UINT32_ARRAY(regs, IMX6SRCState, SRC_MAX),
         VMSTATE_END_OF_LIST()
     },
@@ -131,7 +131,7 @@ static void imx6_clear_reset_bit(CPUState *cpu, run_on_cpu_data data)
     struct SRCSCRResetInfo *ri = data.host_ptr;
     IMX6SRCState *s = ri->s;
 
-    assert(qemu_mutex_iothread_locked());
+    assert(bql_locked());
 
     s->regs[SRC_SCR] = deposit32(s->regs[SRC_SCR], ri->reset_bit, 1, 0);
     DPRINTF("reg[%s] <= 0x%" PRIx32 "\n",

@@ -20,8 +20,8 @@
 #include "block/blockjob_int.h"
 #include "block/block_backup.h"
 #include "block/block-copy.h"
+#include "block/dirty-bitmap.h"
 #include "qapi/error.h"
-#include "qapi/qmp/qerror.h"
 #include "qemu/cutils.h"
 #include "sysemu/block-backend.h"
 #include "qemu/bitmap.h"
@@ -228,15 +228,13 @@ out:
 
 static void backup_init_bcs_bitmap(BackupBlockJob *job)
 {
-    bool ret;
     uint64_t estimate;
     BdrvDirtyBitmap *bcs_bitmap = block_copy_dirty_bitmap(job->bcs);
 
     if (job->sync_mode == MIRROR_SYNC_MODE_BITMAP) {
         bdrv_clear_dirty_bitmap(bcs_bitmap, NULL);
-        ret = bdrv_dirty_bitmap_merge_internal(bcs_bitmap, job->sync_bitmap,
-                                               NULL, true);
-        assert(ret);
+        bdrv_dirty_bitmap_merge_internal(bcs_bitmap, job->sync_bitmap, NULL,
+                                         true);
     } else if (job->sync_mode == MIRROR_SYNC_MODE_TOP) {
         /*
          * We can't hog the coroutine to initialize this thoroughly.
@@ -271,7 +269,10 @@ static int coroutine_fn backup_run(Job *job, Error **errp)
                 return -ECANCELED;
             }
 
+            /* rdlock protects the subsequent call to bdrv_is_allocated() */
+            bdrv_graph_co_rdlock();
             ret = block_copy_reset_unallocated(s->bcs, offset, &count);
+            bdrv_graph_co_rdunlock();
             if (ret < 0) {
                 return ret;
             }
@@ -311,7 +312,7 @@ static void coroutine_fn backup_pause(Job *job)
     }
 }
 
-static void coroutine_fn backup_set_speed(BlockJob *job, int64_t speed)
+static void backup_set_speed(BlockJob *job, int64_t speed)
 {
     BackupBlockJob *s = container_of(job, BackupBlockJob, common);
 
@@ -383,31 +384,33 @@ BlockJob *backup_job_create(const char *job_id, BlockDriverState *bs,
         return NULL;
     }
 
+    bdrv_graph_rdlock_main_loop();
     if (!bdrv_is_inserted(bs)) {
         error_setg(errp, "Device is not inserted: %s",
                    bdrv_get_device_name(bs));
-        return NULL;
+        goto error_rdlock;
     }
 
     if (!bdrv_is_inserted(target)) {
         error_setg(errp, "Device is not inserted: %s",
                    bdrv_get_device_name(target));
-        return NULL;
+        goto error_rdlock;
     }
 
     if (compress && !bdrv_supports_compressed_writes(target)) {
         error_setg(errp, "Compression is not supported for this drive %s",
                    bdrv_get_device_name(target));
-        return NULL;
+        goto error_rdlock;
     }
 
     if (bdrv_op_is_blocked(bs, BLOCK_OP_TYPE_BACKUP_SOURCE, errp)) {
-        return NULL;
+        goto error_rdlock;
     }
 
     if (bdrv_op_is_blocked(target, BLOCK_OP_TYPE_BACKUP_TARGET, errp)) {
-        return NULL;
+        goto error_rdlock;
     }
+    bdrv_graph_rdunlock_main_loop();
 
     if (perf->max_workers < 1 || perf->max_workers > INT_MAX) {
         error_setg(errp, "max-workers must be between 1 and %d", INT_MAX);
@@ -435,6 +438,7 @@ BlockJob *backup_job_create(const char *job_id, BlockDriverState *bs,
 
     len = bdrv_getlength(bs);
     if (len < 0) {
+        GRAPH_RDLOCK_GUARD_MAINLOOP();
         error_setg_errno(errp, -len, "Unable to get length for '%s'",
                          bdrv_get_device_or_node_name(bs));
         goto error;
@@ -442,6 +446,7 @@ BlockJob *backup_job_create(const char *job_id, BlockDriverState *bs,
 
     target_len = bdrv_getlength(target);
     if (target_len < 0) {
+        GRAPH_RDLOCK_GUARD_MAINLOOP();
         error_setg_errno(errp, -target_len, "Unable to get length for '%s'",
                          bdrv_get_device_or_node_name(bs));
         goto error;
@@ -491,8 +496,10 @@ BlockJob *backup_job_create(const char *job_id, BlockDriverState *bs,
     block_copy_set_speed(bcs, speed);
 
     /* Required permissions are taken by copy-before-write filter target */
+    bdrv_graph_wrlock();
     block_job_add_bdrv(&job->common, "target", target, 0, BLK_PERM_ALL,
                        &error_abort);
+    bdrv_graph_wrunlock();
 
     return &job->common;
 
@@ -504,5 +511,9 @@ BlockJob *backup_job_create(const char *job_id, BlockDriverState *bs,
         bdrv_cbw_drop(cbw);
     }
 
+    return NULL;
+
+error_rdlock:
+    bdrv_graph_rdunlock_main_loop();
     return NULL;
 }

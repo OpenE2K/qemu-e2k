@@ -23,6 +23,7 @@
  */
 
 #include "qemu/osdep.h"
+#include "block/block-io.h"
 #include "qemu/memalign.h"
 #include "qcow2.h"
 #include "trace.h"
@@ -162,7 +163,8 @@ int qcow2_cache_destroy(Qcow2Cache *c)
     return 0;
 }
 
-static int qcow2_cache_flush_dependency(BlockDriverState *bs, Qcow2Cache *c)
+static int GRAPH_RDLOCK
+qcow2_cache_flush_dependency(BlockDriverState *bs, Qcow2Cache *c)
 {
     int ret;
 
@@ -177,7 +179,8 @@ static int qcow2_cache_flush_dependency(BlockDriverState *bs, Qcow2Cache *c)
     return 0;
 }
 
-static int qcow2_cache_entry_flush(BlockDriverState *bs, Qcow2Cache *c, int i)
+static int GRAPH_RDLOCK
+qcow2_cache_entry_flush(BlockDriverState *bs, Qcow2Cache *c, int i)
 {
     BDRVQcow2State *s = bs->opaque;
     int ret = 0;
@@ -223,8 +226,8 @@ static int qcow2_cache_entry_flush(BlockDriverState *bs, Qcow2Cache *c, int i)
         BLKDBG_EVENT(bs->file, BLKDBG_L2_UPDATE);
     }
 
-    ret = bdrv_pwrite(bs->file, c->entries[i].offset,
-                      qcow2_cache_get_table_addr(c, i), c->table_size);
+    ret = bdrv_pwrite(bs->file, c->entries[i].offset, c->table_size,
+                      qcow2_cache_get_table_addr(c, i), 0);
     if (ret < 0) {
         return ret;
     }
@@ -317,8 +320,9 @@ int qcow2_cache_empty(BlockDriverState *bs, Qcow2Cache *c)
     return 0;
 }
 
-static int qcow2_cache_do_get(BlockDriverState *bs, Qcow2Cache *c,
-    uint64_t offset, void **table, bool read_from_disk)
+static int GRAPH_RDLOCK
+qcow2_cache_do_get(BlockDriverState *bs, Qcow2Cache *c, uint64_t offset,
+                   void **table, bool read_from_disk)
 {
     BDRVQcow2State *s = bs->opaque;
     int i;
@@ -379,9 +383,8 @@ static int qcow2_cache_do_get(BlockDriverState *bs, Qcow2Cache *c,
             BLKDBG_EVENT(bs->file, BLKDBG_L2_LOAD);
         }
 
-        ret = bdrv_pread(bs->file, offset,
-                         qcow2_cache_get_table_addr(c, i),
-                         c->table_size);
+        ret = bdrv_pread(bs->file, offset, c->table_size,
+                         qcow2_cache_get_table_addr(c, i), 0);
         if (ret < 0) {
             return ret;
         }

@@ -6,7 +6,7 @@
  */
 
 #include "qemu/osdep.h"
-#include "hw/xen/xen_pt.h"
+#include "hw/xen/xen_igd.h"
 #include "qapi/error.h"
 
 bool xen_igd_gfx_pt_enabled(void)
@@ -19,4 +19,8 @@ void xen_igd_gfx_pt_set(bool value, Error **errp)
     if (value) {
         error_setg(errp, "Xen PCI passthrough support not built in");
     }
+}
+
+void xen_igd_reserve_slot(PCIBus *pci_bus)
+{
 }

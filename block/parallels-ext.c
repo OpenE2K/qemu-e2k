@@ -25,7 +25,9 @@
 
 #include "qemu/osdep.h"
 #include "qapi/error.h"
+#include "block/block-io.h"
 #include "block/block_int.h"
+#include "block/dirty-bitmap.h"
 #include "parallels.h"
 #include "crypto/hash.h"
 #include "qemu/uuid.h"
@@ -57,11 +59,10 @@ typedef struct ParallelsDirtyBitmapFeature {
 } QEMU_PACKED ParallelsDirtyBitmapFeature;
 
 /* Given L1 table read bitmap data from the image and populate @bitmap */
-static int parallels_load_bitmap_data(BlockDriverState *bs,
-                                      const uint64_t *l1_table,
-                                      uint32_t l1_size,
-                                      BdrvDirtyBitmap *bitmap,
-                                      Error **errp)
+static int GRAPH_RDLOCK
+parallels_load_bitmap_data(BlockDriverState *bs, const uint64_t *l1_table,
+                           uint32_t l1_size, BdrvDirtyBitmap *bitmap,
+                           Error **errp)
 {
     BDRVParallelsState *s = bs->opaque;
     int ret = 0;
@@ -93,8 +94,8 @@ static int parallels_load_bitmap_data(BlockDriverState *bs,
         if (entry == 1) {
             bdrv_dirty_bitmap_deserialize_ones(bitmap, offset, count, false);
         } else {
-            ret = bdrv_pread(bs->file, entry << BDRV_SECTOR_BITS, buf,
-                             s->cluster_size);
+            ret = bdrv_pread(bs->file, entry << BDRV_SECTOR_BITS,
+                             s->cluster_size, buf, 0);
             if (ret < 0) {
                 error_setg_errno(errp, -ret,
                                  "Failed to read bitmap data cluster");
@@ -118,17 +119,16 @@ finish:
  * @data buffer (of @data_size size) is the Dirty bitmaps feature which
  * consists of ParallelsDirtyBitmapFeature followed by L1 table.
  */
-static BdrvDirtyBitmap *parallels_load_bitmap(BlockDriverState *bs,
-                                              uint8_t *data,
-                                              size_t data_size,
-                                              Error **errp)
+static BdrvDirtyBitmap * GRAPH_RDLOCK
+parallels_load_bitmap(BlockDriverState *bs, uint8_t *data, size_t data_size,
+                      Error **errp)
 {
     int ret;
     ParallelsDirtyBitmapFeature bf;
     g_autofree uint64_t *l1_table = NULL;
     BdrvDirtyBitmap *bitmap;
     QemuUUID uuid;
-    char uuidstr[UUID_FMT_LEN + 1];
+    char uuidstr[UUID_STR_LEN];
     int i;
 
     if (data_size < sizeof(bf)) {
@@ -181,8 +181,9 @@ static BdrvDirtyBitmap *parallels_load_bitmap(BlockDriverState *bs,
     return bitmap;
 }
 
-static int parallels_parse_format_extension(BlockDriverState *bs,
-                                            uint8_t *ext_cluster, Error **errp)
+static int GRAPH_RDLOCK
+parallels_parse_format_extension(BlockDriverState *bs, uint8_t *ext_cluster,
+                                 Error **errp)
 {
     BDRVParallelsState *s = bs->opaque;
     int ret;
@@ -286,7 +287,7 @@ int parallels_read_format_extension(BlockDriverState *bs,
 
     assert(ext_off > 0);
 
-    ret = bdrv_pread(bs->file, ext_off, ext_cluster, s->cluster_size);
+    ret = bdrv_pread(bs->file, ext_off, s->cluster_size, ext_cluster, 0);
     if (ret < 0) {
         error_setg_errno(errp, -ret, "Failed to read Format Extension cluster");
         goto out;

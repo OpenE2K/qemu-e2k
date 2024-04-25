@@ -22,7 +22,6 @@
 #include "qemu/error-report.h"
 #include "qemu/log.h"
 #include "qemu/module.h"
-#include "hw/virtio/virtio-access.h"
 #include "hw/virtio/virtio-bus.h"
 #include "hw/s390x/adapter.h"
 #include "hw/s390x/s390_flic.h"
@@ -88,7 +87,7 @@ const VMStateDescription vmstate_virtio_ccw_dev_tmp = {
     .name = "s390_virtio_ccw_dev_tmp",
     .pre_save = virtio_ccw_dev_tmp_pre_save,
     .post_load = virtio_ccw_dev_tmp_post_load,
-    .fields = (VMStateField[]) {
+    .fields = (const VMStateField[]) {
         VMSTATE_UINT16(config_vector, VirtioCcwDeviceTmp),
         VMSTATE_END_OF_LIST()
     }
@@ -99,7 +98,7 @@ const VMStateDescription vmstate_virtio_ccw_dev = {
     .version_id = 1,
     .minimum_version_id = 1,
     .post_load = virtio_ccw_dev_post_load,
-    .fields = (VMStateField[]) {
+    .fields = (const VMStateField[]) {
         VMSTATE_CCW_DEVICE(parent_obj, VirtioCcwDevice),
         VMSTATE_PTR_TO_IND_ADDR(indicators, VirtioCcwDevice),
         VMSTATE_PTR_TO_IND_ADDR(indicators2, VirtioCcwDevice),
@@ -237,6 +236,7 @@ static int virtio_ccw_set_vqs(SubchDev *sch, VqInfoBlock *info,
                 return -EINVAL;
             }
             virtio_queue_set_num(vdev, index, num);
+            virtio_init_region_cache(vdev, index);
         } else if (virtio_queue_get_num(vdev, index) > num) {
             /* Fail if we don't have a big enough queue. */
             return -EINVAL;
@@ -249,12 +249,11 @@ static int virtio_ccw_set_vqs(SubchDev *sch, VqInfoBlock *info,
     return 0;
 }
 
-static void virtio_ccw_reset_virtio(VirtioCcwDevice *dev, VirtIODevice *vdev)
+static void virtio_ccw_reset_virtio(VirtioCcwDevice *dev)
 {
     CcwDevice *ccw_dev = CCW_DEVICE(dev);
 
-    virtio_ccw_stop_ioeventfd(dev);
-    virtio_reset(vdev);
+    virtio_bus_reset(&dev->bus);
     if (dev->indicators) {
         release_indicator(&dev->routes.adapter, dev->indicators);
         dev->indicators = NULL;
@@ -359,7 +358,7 @@ static int virtio_ccw_cb(SubchDev *sch, CCW1 ccw)
         ret = virtio_ccw_handle_set_vq(sch, ccw, check_len, dev->revision < 1);
         break;
     case CCW_CMD_VDEV_RESET:
-        virtio_ccw_reset_virtio(dev, vdev);
+        virtio_ccw_reset_virtio(dev);
         ret = 0;
         break;
     case CCW_CMD_READ_FEAT:
@@ -536,7 +535,7 @@ static int virtio_ccw_cb(SubchDev *sch, CCW1 ccw)
             }
             if (virtio_set_status(vdev, status) == 0) {
                 if (vdev->status == 0) {
-                    virtio_ccw_reset_virtio(dev, vdev);
+                    virtio_ccw_reset_virtio(dev);
                 }
                 if (status & VIRTIO_CONFIG_S_DRIVER_OK) {
                     virtio_ccw_start_ioeventfd(dev);
@@ -769,10 +768,6 @@ static void virtio_ccw_device_realize(VirtioCcwDevice *dev, Error **errp)
         sch->cssid, sch->ssid, sch->schid, sch->devno,
         ccw_dev->devno.valid ? "user-configured" : "auto-configured");
 
-    if (kvm_enabled() && !kvm_eventfds_enabled()) {
-        dev->flags &= ~VIRTIO_CCW_FLAG_USE_IOEVENTFD;
-    }
-
     /* fd-based ioevents can't be synchronized in record/replay */
     if (replay_mode != REPLAY_MODE_NONE) {
         dev->flags &= ~VIRTIO_CCW_FLAG_USE_IOEVENTFD;
@@ -921,10 +916,9 @@ static void virtio_ccw_notify(DeviceState *d, uint16_t vector)
 static void virtio_ccw_reset(DeviceState *d)
 {
     VirtioCcwDevice *dev = VIRTIO_CCW_DEVICE(d);
-    VirtIODevice *vdev = virtio_bus_get_device(&dev->bus);
     VirtIOCCWDeviceClass *vdc = VIRTIO_CCW_DEVICE_GET_CLASS(dev);
 
-    virtio_ccw_reset_virtio(dev, vdev);
+    virtio_ccw_reset_virtio(dev);
     if (vdc->parent_reset) {
         vdc->parent_reset(d);
     }

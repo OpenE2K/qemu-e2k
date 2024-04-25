@@ -707,57 +707,9 @@ static void tap_win32_send(void *opaque)
     }
 }
 
-static bool tap_has_ufo(NetClientState *nc)
-{
-    return false;
-}
-
-static bool tap_has_vnet_hdr(NetClientState *nc)
-{
-    return false;
-}
-
-int tap_probe_vnet_hdr_len(int fd, int len)
-{
-    return 0;
-}
-
-void tap_fd_set_vnet_hdr_len(int fd, int len)
-{
-}
-
-int tap_fd_set_vnet_le(int fd, int is_le)
-{
-    return -EINVAL;
-}
-
-int tap_fd_set_vnet_be(int fd, int is_be)
-{
-    return -EINVAL;
-}
-
-static void tap_using_vnet_hdr(NetClientState *nc, bool using_vnet_hdr)
-{
-}
-
-static void tap_set_offload(NetClientState *nc, int csum, int tso4,
-                     int tso6, int ecn, int ufo)
-{
-}
-
 struct vhost_net *tap_get_vhost_net(NetClientState *nc)
 {
     return NULL;
-}
-
-static bool tap_has_vnet_hdr_len(NetClientState *nc, int len)
-{
-    return false;
-}
-
-static void tap_set_vnet_hdr_len(NetClientState *nc, int len)
-{
-    abort();
 }
 
 static NetClientInfo net_tap_win32_info = {
@@ -765,12 +717,6 @@ static NetClientInfo net_tap_win32_info = {
     .size = sizeof(TAPState),
     .receive = tap_receive,
     .cleanup = tap_cleanup,
-    .has_ufo = tap_has_ufo,
-    .has_vnet_hdr = tap_has_vnet_hdr,
-    .has_vnet_hdr_len = tap_has_vnet_hdr_len,
-    .using_vnet_hdr = tap_using_vnet_hdr,
-    .set_offload = tap_set_offload,
-    .set_vnet_hdr_len = tap_set_vnet_hdr_len,
 };
 
 static int tap_win32_init(NetClientState *peer, const char *model,
@@ -789,8 +735,7 @@ static int tap_win32_init(NetClientState *peer, const char *model,
 
     s = DO_UPCAST(TAPState, nc, nc);
 
-    snprintf(s->nc.info_str, sizeof(s->nc.info_str),
-             "tap: ifname=%s", ifname);
+    qemu_set_info_str(&s->nc, "tap: ifname=%s", ifname);
 
     s->handle = handle;
 
@@ -808,7 +753,7 @@ int net_init_tap(const Netdev *netdev, const char *name,
     assert(netdev->type == NET_CLIENT_DRIVER_TAP);
     tap = &netdev->u.tap;
 
-    if (!tap->has_ifname) {
+    if (!tap->ifname) {
         error_report("tap: no interface name");
         return -1;
     }

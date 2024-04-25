@@ -248,7 +248,7 @@ static int spapr_tce_table_post_load(void *opaque, int version_id)
         memcpy(tcet->table, tcet->mig_table,
                tcet->nb_table * sizeof(tcet->table[0]));
 
-        free(tcet->mig_table);
+        g_free(tcet->mig_table);
         tcet->mig_table = NULL;
     }
 
@@ -270,7 +270,7 @@ static const VMStateDescription vmstate_spapr_tce_table_ex = {
     .version_id = 1,
     .minimum_version_id = 1,
     .needed = spapr_tce_table_ex_needed,
-    .fields = (VMStateField[]) {
+    .fields = (const VMStateField[]) {
         VMSTATE_UINT64(bus_offset, SpaprTceTable),
         VMSTATE_UINT32(page_shift, SpaprTceTable),
         VMSTATE_END_OF_LIST()
@@ -279,11 +279,11 @@ static const VMStateDescription vmstate_spapr_tce_table_ex = {
 
 static const VMStateDescription vmstate_spapr_tce_table = {
     .name = "spapr_iommu",
-    .version_id = 2,
+    .version_id = 3,
     .minimum_version_id = 2,
     .pre_save = spapr_tce_table_pre_save,
     .post_load = spapr_tce_table_post_load,
-    .fields      = (VMStateField []) {
+    .fields = (const VMStateField []) {
         /* Sanity check */
         VMSTATE_UINT32_EQUAL(liobn, SpaprTceTable, NULL),
 
@@ -292,10 +292,11 @@ static const VMStateDescription vmstate_spapr_tce_table = {
         VMSTATE_BOOL(bypass, SpaprTceTable),
         VMSTATE_VARRAY_UINT32_ALLOC(mig_table, SpaprTceTable, mig_nb_table, 0,
                                     vmstate_info_uint64, uint64_t),
+        VMSTATE_BOOL_V(def_win, SpaprTceTable, 3),
 
         VMSTATE_END_OF_LIST()
     },
-    .subsections = (const VMStateDescription*[]) {
+    .subsections = (const VMStateDescription * const []) {
         &vmstate_spapr_tce_table_ex,
         NULL
     }

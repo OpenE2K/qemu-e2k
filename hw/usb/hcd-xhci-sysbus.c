@@ -29,7 +29,7 @@ void xhci_sysbus_reset(DeviceState *dev)
 {
     XHCISysbusState *s = XHCI_SYSBUS(dev);
 
-    device_legacy_reset(DEVICE(&s->xhci));
+    device_cold_reset(DEVICE(&s->xhci));
 }
 
 static void xhci_sysbus_realize(DeviceState *dev, Error **errp)
@@ -91,7 +91,7 @@ static Property xhci_sysbus_props[] = {
 static const VMStateDescription vmstate_xhci_sysbus = {
     .name = "xhci-sysbus",
     .version_id = 1,
-    .fields = (VMStateField[]) {
+    .fields = (const VMStateField[]) {
         VMSTATE_STRUCT(xhci, XHCISysbusState, 1, vmstate_xhci, XHCIState),
         VMSTATE_END_OF_LIST()
     }

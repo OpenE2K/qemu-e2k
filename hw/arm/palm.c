@@ -29,9 +29,10 @@
 #include "hw/input/tsc2xxx.h"
 #include "hw/irq.h"
 #include "hw/loader.h"
-#include "cpu.h"
 #include "qemu/cutils.h"
 #include "qom/object.h"
+#include "qemu/error-report.h"
+
 
 static uint64_t static_read(void *opaque, hwaddr offset, unsigned size)
 {
@@ -115,7 +116,7 @@ static struct {
 
 static void palmte_button_event(void *opaque, int keycode)
 {
-    struct omap_mpu_state_s *cpu = (struct omap_mpu_state_s *) opaque;
+    struct omap_mpu_state_s *cpu = opaque;
 
     if (palmte_keymap[keycode & 0x7f].row != -1)
         omap_mpuio_key(cpu->mpuio,
@@ -308,6 +309,9 @@ static void palmte_machine_init(MachineClass *mc)
     mc->default_cpu_type = ARM_CPU_TYPE_NAME("ti925t");
     mc->default_ram_size = 0x02000000;
     mc->default_ram_id = "omap1.dram";
+    mc->deprecation_reason = "machine is old and unmaintained";
+
+    machine_add_audiodev_property(mc);
 }
 
 DEFINE_MACHINE("cheetah", palmte_machine_init)

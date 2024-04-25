@@ -10,7 +10,9 @@ the basics if you are adding new files and targets to the build.
 
    build-system
    kconfig
+   docs
    testing
+   acpi-bits
    qtest
    ci
    qapi-code-gen

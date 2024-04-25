@@ -108,7 +108,7 @@ void can_sja_single_filter(struct qemu_can_filter *filter,
         }
 
         filter->can_mask = (uint32_t)amr[0] << 3;
-        filter->can_mask |= (uint32_t)amr[1] << 5;
+        filter->can_mask |= (uint32_t)amr[1] >> 5;
         filter->can_mask = ~filter->can_mask & QEMU_CAN_SFF_MASK;
         if (!(amr[1] & 0x10)) {
             filter->can_mask |= QEMU_CAN_RTR_FLAG;
@@ -431,7 +431,7 @@ void can_sja_mem_write(CanSJA1000State *s, hwaddr addr, uint64_t val,
             (unsigned long long)val, (unsigned int)addr);
 
     if (addr > CAN_SJA_MEM_SIZE) {
-        return ;
+        return;
     }
 
     if (s->clock & 0x80) { /* PeliCAN Mode */
@@ -929,7 +929,7 @@ const VMStateDescription vmstate_qemu_can_filter = {
     .name = "qemu_can_filter",
     .version_id = 1,
     .minimum_version_id = 1,
-    .fields = (VMStateField[]) {
+    .fields = (const VMStateField[]) {
         VMSTATE_UINT32(can_id, qemu_can_filter),
         VMSTATE_UINT32(can_mask, qemu_can_filter),
         VMSTATE_END_OF_LIST()
@@ -953,7 +953,7 @@ const VMStateDescription vmstate_can_sja = {
     .version_id = 1,
     .minimum_version_id = 1,
     .post_load = can_sja_post_load,
-    .fields = (VMStateField[]) {
+    .fields = (const VMStateField[]) {
         VMSTATE_UINT8(mode, CanSJA1000State),
 
         VMSTATE_UINT8(status_pel, CanSJA1000State),

@@ -24,6 +24,8 @@ AST2500 SoC based machines :
 - ``sonorapass-bmc``       OCP SonoraPass BMC
 - ``fp5280g2-bmc``         Inspur FP5280G2 BMC
 - ``g220a-bmc``            Bytedance G220A BMC
+- ``yosemitev2-bmc``       Facebook YosemiteV2 BMC
+- ``tiogapass-bmc``        Facebook Tiogapass BMC
 
 AST2600 SoC based machines :
 
@@ -31,7 +33,10 @@ AST2600 SoC based machines :
 - ``tacoma-bmc``           OpenPOWER Witherspoon POWER9 AST2600 BMC
 - ``rainier-bmc``          IBM Rainier POWER10 BMC
 - ``fuji-bmc``             Facebook Fuji BMC
+- ``bletchley-bmc``        Facebook Bletchley BMC
 - ``fby35-bmc``            Facebook fby35 BMC
+- ``qcom-dc-scm-v1-bmc``   Qualcomm DC-SCM V1 BMC
+- ``qcom-firework-bmc``    Qualcomm Firework BMC
 
 Supported devices
 -----------------
@@ -40,7 +45,7 @@ Supported devices
  * Interrupt Controller (VIC)
  * Timer Controller
  * RTC Controller
- * I2C Controller
+ * I2C Controller, including the new register interface of the AST2600
  * System Control Unit (SCU)
  * SRAM mapping
  * X-DMA Controller (basic interface)
@@ -57,6 +62,10 @@ Supported devices
  * LPC Peripheral Controller (a subset of subdevices are supported)
  * Hash/Crypto Engine (HACE) - Hash support only. TODO: HMAC and RSA
  * ADC
+ * Secure Boot Controller (AST2600)
+ * eMMC Boot Controller (dummy)
+ * PECI Controller (minimal)
+ * I3C Controller
 
 
 Missing devices
@@ -68,12 +77,10 @@ Missing devices
  * Super I/O Controller
  * PCI-Express 1 Controller
  * Graphic Display Controller
- * PECI Controller
  * MCTP Controller
  * Mailbox Controller
  * Virtual UART
  * eSPI Controller
- * I3C Controller
 
 Boot options
 ------------
@@ -97,7 +104,7 @@ To boot a kernel directly from a Linux build tree:
         -dtb arch/arm/boot/dts/aspeed-ast2600-evb.dtb \
         -initrd rootfs.cpio
 
-The image should be attached as an MTD drive. Run :
+To boot the machine from the flash image, use an MTD drive :
 
 .. code-block:: bash
 
@@ -110,18 +117,52 @@ Options specific to Aspeed machines are :
    device by using the FMC controller to load the instructions, and
    not simply from RAM. This takes a little longer.
 
- * ``fmc-model`` to change the FMC Flash model. FW needs support for
-   the chip model to boot.
+ * ``fmc-model`` to change the default FMC Flash model. FW needs
+   support for the chip model to boot.
 
- * ``spi-model`` to change the SPI Flash model.
+ * ``spi-model`` to change the default SPI Flash model.
 
-For instance, to start the ``ast2500-evb`` machine with a different
-FMC chip and a bigger (64M) SPI chip, use :
+ * ``bmc-console`` to change the default console device. Most of the
+   machines use the ``UART5`` device for a boot console, which is
+   mapped on ``/dev/ttyS4`` under Linux, but it is not always the
+   case.
+
+To use other flash models, for instance a different FMC chip and a
+bigger (64M) SPI for the ``ast2500-evb`` machine, run :
 
 .. code-block:: bash
 
   -M ast2500-evb,fmc-model=mx25l25635e,spi-model=mx66u51235f
 
+When more flexibility is needed to define the flash devices, to use
+different flash models or define all flash devices (up to 8), the
+``-nodefaults`` QEMU option can be used to avoid creating the default
+flash devices.
+
+Flash devices should then be created from the command line and attached
+to a block device :
+
+.. code-block:: bash
+
+  $ qemu-system-arm -M ast2600-evb \
+        -blockdev node-name=fmc0,driver=file,filename=/path/to/fmc0.img \
+	-device mx66u51235f,bus=ssi.0,cs=0x0,drive=fmc0 \
+	-blockdev node-name=fmc1,driver=file,filename=/path/to/fmc1.img \
+	-device mx66u51235f,bus=ssi.0,cs=0x1,drive=fmc1 \
+	-blockdev node-name=spi1,driver=file,filename=/path/to/spi1.img \
+	-device mx66u51235f,cs=0x0,bus=ssi.1,drive=spi1 \
+	-nographic -nodefaults
+
+In that case, the machine boots fetching instructions from the FMC0
+device. It is slower to start but closer to what HW does. Using the
+machine option ``execute-in-place`` has a similar effect.
+
+To change the boot console and use device ``UART3`` (``/dev/ttyS2``
+under Linux), use :
+
+.. code-block:: bash
+
+  -M ast2500-evb,bmc-console=uart3
 
 Aspeed minibmc family boards (``ast1030-evb``)
 ==================================================================
@@ -154,6 +195,8 @@ Supported devices
  * LPC Peripheral Controller (a subset of subdevices are supported)
  * Hash/Crypto Engine (HACE) - Hash support only. TODO: HMAC and RSA
  * ADC
+ * Secure Boot Controller
+ * PECI Controller (minimal)
 
 
 Missing devices
@@ -161,7 +204,6 @@ Missing devices
 
  * PWM and Fan Controller
  * Slave GPIO Controller
- * PECI Controller
  * Mailbox Controller
  * Virtual UART
  * eSPI Controller
@@ -182,3 +224,51 @@ To boot a kernel directly from a Zephyr build tree:
 
   $ qemu-system-arm -M ast1030-evb -nographic \
         -kernel zephyr.elf
+
+Facebook Yosemite v3.5 Platform and CraterLake Server (``fby35``)
+==================================================================
+
+Facebook has a series of multi-node compute server designs named
+Yosemite. The most recent version released was
+`Yosemite v3 <https://www.opencompute.org/documents/ocp-yosemite-v3-platform-design-specification-1v16-pdf>`__.
+
+Yosemite v3.5 is an iteration on this design, and is very similar: there's a
+baseboard with a BMC, and 4 server slots. The new server board design termed
+"CraterLake" includes a Bridge IC (BIC), with room for expansion boards to
+include various compute accelerators (video, inferencing, etc). At the moment,
+only the first server slot's BIC is included.
+
+Yosemite v3.5 is itself a sled which fits into a 40U chassis, and 3 sleds
+can be fit into a chassis. See `here <https://www.opencompute.org/products/423/wiwynn-yosemite-v3-server>`__
+for an example.
+
+In this generation, the BMC is an AST2600 and each BIC is an AST1030. The BMC
+runs `OpenBMC <https://github.com/facebook/openbmc>`__, and the BIC runs
+`OpenBIC <https://github.com/facebook/openbic>`__.
+
+Firmware images can be retrieved from the Github releases or built from the
+source code, see the README's for instructions on that. This image uses the
+"fby35" machine recipe from OpenBMC, and the "yv35-cl" target from OpenBIC.
+Some reference images can also be found here:
+
+.. code-block:: bash
+
+    $ wget https://github.com/facebook/openbmc/releases/download/openbmc-e2294ff5d31d/fby35.mtd
+    $ wget https://github.com/peterdelevoryas/OpenBIC/releases/download/oby35-cl-2022.13.01/Y35BCL.elf
+
+Since this machine has multiple SoC's, each with their own serial console, the
+recommended way to run it is to allocate a pseudoterminal for each serial
+console and let the monitor use stdio. Also, starting in a paused state is
+useful because it allows you to attach to the pseudoterminals before the boot
+process starts.
+
+.. code-block:: bash
+
+    $ qemu-system-arm -machine fby35 \
+        -drive file=fby35.mtd,format=raw,if=mtd \
+        -device loader,file=Y35BCL.elf,addr=0,cpu-num=2 \
+        -serial pty -serial pty -serial mon:stdio \
+        -display none -S
+    $ screen /dev/tty0 # In a separate TMUX pane, terminal window, etc.
+    $ screen /dev/tty1
+    $ (qemu) c		   # Start the boot process once screen is setup.

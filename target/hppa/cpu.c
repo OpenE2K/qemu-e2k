@@ -26,7 +26,7 @@
 #include "qemu/module.h"
 #include "exec/exec-all.h"
 #include "fpu/softfloat.h"
-
+#include "tcg/tcg.h"
 
 static void hppa_cpu_set_pc(CPUState *cs, vaddr value)
 {
@@ -36,10 +36,19 @@ static void hppa_cpu_set_pc(CPUState *cs, vaddr value)
     cpu->env.iaoq_b = value + 4;
 }
 
+static vaddr hppa_cpu_get_pc(CPUState *cs)
+{
+    HPPACPU *cpu = HPPA_CPU(cs);
+
+    return cpu->env.iaoq_f;
+}
+
 static void hppa_cpu_synchronize_from_tb(CPUState *cs,
                                          const TranslationBlock *tb)
 {
     HPPACPU *cpu = HPPA_CPU(cs);
+
+    tcg_debug_assert(!(cs->tcg_cflags & CF_PCREL));
 
 #ifdef CONFIG_USER_ONLY
     cpu->env.iaoq_f = tb->pc;
@@ -61,9 +70,39 @@ static void hppa_cpu_synchronize_from_tb(CPUState *cs,
     cpu->env.psw_n = (tb->flags & PSW_N) != 0;
 }
 
+static void hppa_restore_state_to_opc(CPUState *cs,
+                                      const TranslationBlock *tb,
+                                      const uint64_t *data)
+{
+    HPPACPU *cpu = HPPA_CPU(cs);
+
+    cpu->env.iaoq_f = data[0];
+    if (data[1] != (target_ulong)-1) {
+        cpu->env.iaoq_b = data[1];
+    }
+    cpu->env.unwind_breg = data[2];
+    /*
+     * Since we were executing the instruction at IAOQ_F, and took some
+     * sort of action that provoked the cpu_restore_state, we can infer
+     * that the instruction was not nullified.
+     */
+    cpu->env.psw_n = 0;
+}
+
 static bool hppa_cpu_has_work(CPUState *cs)
 {
     return cs->interrupt_request & (CPU_INTERRUPT_HARD | CPU_INTERRUPT_NMI);
+}
+
+static int hppa_cpu_mmu_index(CPUState *cs, bool ifetch)
+{
+    CPUHPPAState *env = cpu_env(cs);
+
+    if (env->psw & (ifetch ? PSW_C : PSW_D)) {
+        return PRIV_P_TO_MMU_IDX(env->iaoq_f & 3, env->psw & PSW_P);
+    }
+    /* mmu disabled */
+    return env->psw & PSW_W ? MMU_ABS_W_IDX : MMU_ABS_IDX;
 }
 
 static void hppa_cpu_disas_set_info(CPUState *cs, disassemble_info *info)
@@ -82,13 +121,10 @@ void hppa_cpu_do_unaligned_access(CPUState *cs, vaddr addr,
     CPUHPPAState *env = &cpu->env;
 
     cs->exception_index = EXCP_UNALIGN;
-    if (env->psw & PSW_Q) {
-        /* ??? Needs tweaking for hppa64.  */
-        env->cr[CR_IOR] = addr;
-        env->cr[CR_ISR] = addr >> 32;
-    }
+    cpu_restore_state(cs, retaddr);
+    hppa_set_ior_and_isr(env, addr, MMU_IDX_MMU_DISABLED(mmu_idx));
 
-    cpu_loop_exit_restore(cs, retaddr);
+    cpu_loop_exit(cs);
 }
 #endif /* CONFIG_USER_ONLY */
 
@@ -110,8 +146,10 @@ static void hppa_cpu_realizefn(DeviceState *dev, Error **errp)
 #ifndef CONFIG_USER_ONLY
     {
         HPPACPU *cpu = HPPA_CPU(cs);
+
         cpu->alarm_timer = timer_new_ns(QEMU_CLOCK_VIRTUAL,
                                         hppa_cpu_alarm_timer, cpu);
+        hppa_ptlbe(&cpu->env);
     }
 #endif
 }
@@ -122,7 +160,6 @@ static void hppa_cpu_initfn(Object *obj)
     HPPACPU *cpu = HPPA_CPU(obj);
     CPUHPPAState *env = &cpu->env;
 
-    cpu_set_cpustate_pointers(cpu);
     cs->exception_index = -1;
     cpu_hppa_loaded_fr0(env);
     cpu_hppa_put_psw(env, PSW_W);
@@ -130,7 +167,9 @@ static void hppa_cpu_initfn(Object *obj)
 
 static ObjectClass *hppa_cpu_class_by_name(const char *cpu_model)
 {
-    return object_class_by_name(TYPE_HPPA_CPU);
+    g_autofree char *typename = g_strconcat(cpu_model, "-cpu", NULL);
+
+    return object_class_by_name(typename);
 }
 
 #ifndef CONFIG_USER_ONLY
@@ -143,15 +182,17 @@ static const struct SysemuCPUOps hppa_sysemu_ops = {
 
 #include "hw/core/tcg-cpu-ops.h"
 
-static const struct TCGCPUOps hppa_tcg_ops = {
+static const TCGCPUOps hppa_tcg_ops = {
     .initialize = hppa_translate_init,
     .synchronize_from_tb = hppa_cpu_synchronize_from_tb,
+    .restore_state_to_opc = hppa_restore_state_to_opc,
 
 #ifndef CONFIG_USER_ONLY
     .tlb_fill = hppa_cpu_tlb_fill,
     .cpu_exec_interrupt = hppa_cpu_exec_interrupt,
     .do_interrupt = hppa_cpu_do_interrupt,
     .do_unaligned_access = hppa_cpu_do_unaligned_access,
+    .do_transaction_failed = hppa_cpu_do_transaction_failed,
 #endif /* !CONFIG_USER_ONLY */
 };
 
@@ -166,8 +207,10 @@ static void hppa_cpu_class_init(ObjectClass *oc, void *data)
 
     cc->class_by_name = hppa_cpu_class_by_name;
     cc->has_work = hppa_cpu_has_work;
+    cc->mmu_index = hppa_cpu_mmu_index;
     cc->dump_state = hppa_cpu_dump_state;
     cc->set_pc = hppa_cpu_set_pc;
+    cc->get_pc = hppa_cpu_get_pc;
     cc->gdb_read_register = hppa_cpu_gdb_read_register;
     cc->gdb_write_register = hppa_cpu_gdb_write_register;
 #ifndef CONFIG_USER_ONLY
@@ -179,19 +222,21 @@ static void hppa_cpu_class_init(ObjectClass *oc, void *data)
     cc->tcg_ops = &hppa_tcg_ops;
 }
 
-static const TypeInfo hppa_cpu_type_info = {
-    .name = TYPE_HPPA_CPU,
-    .parent = TYPE_CPU,
-    .instance_size = sizeof(HPPACPU),
-    .instance_init = hppa_cpu_initfn,
-    .abstract = false,
-    .class_size = sizeof(HPPACPUClass),
-    .class_init = hppa_cpu_class_init,
+static const TypeInfo hppa_cpu_type_infos[] = {
+    {
+        .name = TYPE_HPPA_CPU,
+        .parent = TYPE_CPU,
+        .instance_size = sizeof(HPPACPU),
+        .instance_align = __alignof(HPPACPU),
+        .instance_init = hppa_cpu_initfn,
+        .abstract = false,
+        .class_size = sizeof(HPPACPUClass),
+        .class_init = hppa_cpu_class_init,
+    },
+    {
+        .name = TYPE_HPPA64_CPU,
+        .parent = TYPE_HPPA_CPU,
+    },
 };
 
-static void hppa_cpu_register_types(void)
-{
-    type_register_static(&hppa_cpu_type_info);
-}
-
-type_init(hppa_cpu_register_types)
+DEFINE_TYPES(hppa_cpu_type_infos)

@@ -33,7 +33,7 @@
 #include "qapi/error.h"
 #include "chardev/char.h"
 #include "hw/irq.h"
-#include "hw/pci/pci.h"
+#include "hw/pci/pci_device.h"
 #include "hw/qdev-properties.h"
 #include "migration/vmstate.h"
 #include "net/can_emu.h"
@@ -204,7 +204,7 @@ static const VMStateDescription vmstate_pcm3680i_pci = {
     .name = "pcm3680i_pci",
     .version_id = 1,
     .minimum_version_id = 1,
-    .fields = (VMStateField[]) {
+    .fields = (const VMStateField[]) {
         VMSTATE_PCI_DEVICE(dev, Pcm3680iPCIState),
         VMSTATE_STRUCT(sja_state[0], Pcm3680iPCIState, 0,
                        vmstate_can_sja, CanSJA1000State),

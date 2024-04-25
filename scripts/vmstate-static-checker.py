@@ -40,7 +40,7 @@ def check_fields_match(name, s_field, d_field):
         return True
 
     # Some fields changed names between qemu versions.  This list
-    # is used to whitelist such changes in each section / description.
+    # is used to allow such changes in each section / description.
     changed_names = {
         'apic': ['timer', 'timer_expiry'],
         'e1000': ['dev', 'parent_obj'],
@@ -134,6 +134,11 @@ def exists_in_substruct(fields, item):
     return check_fields_match(fields["Description"]["name"],
                               substruct_fields[0]["field"], item)
 
+def size_total(entry):
+    size = entry["size"]
+    if "num" not in entry:
+        return size
+    return size * entry["num"]
 
 def check_fields(src_fields, dest_fields, desc, sec):
     # This function checks for all the fields in a section.  If some
@@ -249,17 +254,19 @@ def check_fields(src_fields, dest_fields, desc, sec):
                 continue
 
             if s_item["field"] == "unused" or d_item["field"] == "unused":
-                if s_item["size"] == d_item["size"]:
+                s_size = size_total(s_item)
+                d_size = size_total(d_item)
+                if s_size == d_size:
                     continue
 
                 if d_item["field"] == "unused":
                     advance_dest = False
-                    unused_count = d_item["size"] - s_item["size"]
+                    unused_count = d_size - s_size;
                     continue
 
                 if s_item["field"] == "unused":
                     advance_src = False
-                    unused_count = s_item["size"] - d_item["size"]
+                    unused_count = s_size - d_size
                     continue
 
             print("Section \"" + sec + "\",", end=' ')
@@ -367,7 +374,6 @@ def check_machine_type(s, d):
     if s["Name"] != d["Name"]:
         print("Warning: checking incompatible machine types:", end=' ')
         print("\"" + s["Name"] + "\", \"" + d["Name"] + "\"")
-    return
 
 
 def main():

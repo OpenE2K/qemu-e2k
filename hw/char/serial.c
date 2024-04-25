@@ -38,55 +38,55 @@
 #include "hw/qdev-properties.h"
 #include "hw/qdev-properties-system.h"
 
-#define UART_LCR_DLAB	0x80	/* Divisor latch access bit */
+#define UART_LCR_DLAB   0x80    /* Divisor latch access bit */
 
-#define UART_IER_MSI	0x08	/* Enable Modem status interrupt */
-#define UART_IER_RLSI	0x04	/* Enable receiver line status interrupt */
-#define UART_IER_THRI	0x02	/* Enable Transmitter holding register int. */
-#define UART_IER_RDI	0x01	/* Enable receiver data interrupt */
+#define UART_IER_MSI    0x08    /* Enable Modem status interrupt */
+#define UART_IER_RLSI   0x04    /* Enable receiver line status interrupt */
+#define UART_IER_THRI   0x02    /* Enable Transmitter holding register int. */
+#define UART_IER_RDI    0x01    /* Enable receiver data interrupt */
 
-#define UART_IIR_NO_INT	0x01	/* No interrupts pending */
-#define UART_IIR_ID	0x06	/* Mask for the interrupt ID */
+#define UART_IIR_NO_INT 0x01    /* No interrupts pending */
+#define UART_IIR_ID     0x06    /* Mask for the interrupt ID */
 
-#define UART_IIR_MSI	0x00	/* Modem status interrupt */
-#define UART_IIR_THRI	0x02	/* Transmitter holding register empty */
-#define UART_IIR_RDI	0x04	/* Receiver data interrupt */
-#define UART_IIR_RLSI	0x06	/* Receiver line status interrupt */
+#define UART_IIR_MSI    0x00    /* Modem status interrupt */
+#define UART_IIR_THRI   0x02    /* Transmitter holding register empty */
+#define UART_IIR_RDI    0x04    /* Receiver data interrupt */
+#define UART_IIR_RLSI   0x06    /* Receiver line status interrupt */
 #define UART_IIR_CTI    0x0C    /* Character Timeout Indication */
 
-#define UART_IIR_FENF   0x80    /* Fifo enabled, but not functionning */
+#define UART_IIR_FENF   0x80    /* Fifo enabled, but not functioning */
 #define UART_IIR_FE     0xC0    /* Fifo enabled */
 
 /*
  * These are the definitions for the Modem Control Register
  */
-#define UART_MCR_LOOP	0x10	/* Enable loopback test mode */
-#define UART_MCR_OUT2	0x08	/* Out2 complement */
-#define UART_MCR_OUT1	0x04	/* Out1 complement */
-#define UART_MCR_RTS	0x02	/* RTS complement */
-#define UART_MCR_DTR	0x01	/* DTR complement */
+#define UART_MCR_LOOP   0x10    /* Enable loopback test mode */
+#define UART_MCR_OUT2   0x08    /* Out2 complement */
+#define UART_MCR_OUT1   0x04    /* Out1 complement */
+#define UART_MCR_RTS    0x02    /* RTS complement */
+#define UART_MCR_DTR    0x01    /* DTR complement */
 
 /*
  * These are the definitions for the Modem Status Register
  */
-#define UART_MSR_DCD	0x80	/* Data Carrier Detect */
-#define UART_MSR_RI	0x40	/* Ring Indicator */
-#define UART_MSR_DSR	0x20	/* Data Set Ready */
-#define UART_MSR_CTS	0x10	/* Clear to Send */
-#define UART_MSR_DDCD	0x08	/* Delta DCD */
-#define UART_MSR_TERI	0x04	/* Trailing edge ring indicator */
-#define UART_MSR_DDSR	0x02	/* Delta DSR */
-#define UART_MSR_DCTS	0x01	/* Delta CTS */
-#define UART_MSR_ANY_DELTA 0x0F	/* Any of the delta bits! */
+#define UART_MSR_DCD        0x80    /* Data Carrier Detect */
+#define UART_MSR_RI         0x40    /* Ring Indicator */
+#define UART_MSR_DSR        0x20    /* Data Set Ready */
+#define UART_MSR_CTS        0x10    /* Clear to Send */
+#define UART_MSR_DDCD       0x08    /* Delta DCD */
+#define UART_MSR_TERI       0x04    /* Trailing edge ring indicator */
+#define UART_MSR_DDSR       0x02    /* Delta DSR */
+#define UART_MSR_DCTS       0x01    /* Delta CTS */
+#define UART_MSR_ANY_DELTA  0x0F    /* Any of the delta bits! */
 
-#define UART_LSR_TEMT	0x40	/* Transmitter empty */
-#define UART_LSR_THRE	0x20	/* Transmit-hold-register empty */
-#define UART_LSR_BI	0x10	/* Break interrupt indicator */
-#define UART_LSR_FE	0x08	/* Frame error indicator */
-#define UART_LSR_PE	0x04	/* Parity error indicator */
-#define UART_LSR_OE	0x02	/* Overrun error indicator */
-#define UART_LSR_DR	0x01	/* Receiver data ready */
-#define UART_LSR_INT_ANY 0x1E	/* Any of the lsr-interrupt-triggering status bits */
+#define UART_LSR_TEMT       0x40    /* Transmitter empty */
+#define UART_LSR_THRE       0x20    /* Transmit-hold-register empty */
+#define UART_LSR_BI         0x10    /* Break interrupt indicator */
+#define UART_LSR_FE         0x08    /* Frame error indicator */
+#define UART_LSR_PE         0x04    /* Parity error indicator */
+#define UART_LSR_OE         0x02    /* Overrun error indicator */
+#define UART_LSR_DR         0x01    /* Receiver data ready */
+#define UART_LSR_INT_ANY    0x1E    /* Any of the lsr-interrupt-triggering status bits */
 
 /* Interrupt trigger levels. The byte-counts are for 16550A - in newer UARTs the byte-count for each ITL is higher. */
 
@@ -226,7 +226,7 @@ static gboolean serial_watch_cb(void *do_not_use, GIOCondition cond,
     SerialState *s = opaque;
     s->watch_tag = 0;
     serial_xmit(s);
-    return FALSE;
+    return G_SOURCE_REMOVE;
 }
 
 static void serial_xmit(SerialState *s)
@@ -707,7 +707,7 @@ static const VMStateDescription vmstate_serial_thr_ipending = {
     .version_id = 1,
     .minimum_version_id = 1,
     .needed = serial_thr_ipending_needed,
-    .fields = (VMStateField[]) {
+    .fields = (const VMStateField[]) {
         VMSTATE_INT32(thr_ipending, SerialState),
         VMSTATE_END_OF_LIST()
     }
@@ -724,7 +724,7 @@ static const VMStateDescription vmstate_serial_tsr = {
     .version_id = 1,
     .minimum_version_id = 1,
     .needed = serial_tsr_needed,
-    .fields = (VMStateField[]) {
+    .fields = (const VMStateField[]) {
         VMSTATE_UINT32(tsr_retry, SerialState),
         VMSTATE_UINT8(thr, SerialState),
         VMSTATE_UINT8(tsr, SerialState),
@@ -744,7 +744,7 @@ static const VMStateDescription vmstate_serial_recv_fifo = {
     .version_id = 1,
     .minimum_version_id = 1,
     .needed = serial_recv_fifo_needed,
-    .fields = (VMStateField[]) {
+    .fields = (const VMStateField[]) {
         VMSTATE_STRUCT(recv_fifo, SerialState, 1, vmstate_fifo8, Fifo8),
         VMSTATE_END_OF_LIST()
     }
@@ -761,7 +761,7 @@ static const VMStateDescription vmstate_serial_xmit_fifo = {
     .version_id = 1,
     .minimum_version_id = 1,
     .needed = serial_xmit_fifo_needed,
-    .fields = (VMStateField[]) {
+    .fields = (const VMStateField[]) {
         VMSTATE_STRUCT(xmit_fifo, SerialState, 1, vmstate_fifo8, Fifo8),
         VMSTATE_END_OF_LIST()
     }
@@ -778,7 +778,7 @@ static const VMStateDescription vmstate_serial_fifo_timeout_timer = {
     .version_id = 1,
     .minimum_version_id = 1,
     .needed = serial_fifo_timeout_timer_needed,
-    .fields = (VMStateField[]) {
+    .fields = (const VMStateField[]) {
         VMSTATE_TIMER_PTR(fifo_timeout_timer, SerialState),
         VMSTATE_END_OF_LIST()
     }
@@ -795,7 +795,7 @@ static const VMStateDescription vmstate_serial_timeout_ipending = {
     .version_id = 1,
     .minimum_version_id = 1,
     .needed = serial_timeout_ipending_needed,
-    .fields = (VMStateField[]) {
+    .fields = (const VMStateField[]) {
         VMSTATE_INT32(timeout_ipending, SerialState),
         VMSTATE_END_OF_LIST()
     }
@@ -812,7 +812,7 @@ static const VMStateDescription vmstate_serial_poll = {
     .version_id = 1,
     .needed = serial_poll_needed,
     .minimum_version_id = 1,
-    .fields = (VMStateField[]) {
+    .fields = (const VMStateField[]) {
         VMSTATE_INT32(poll_msl, SerialState),
         VMSTATE_TIMER_PTR(modem_status_poll, SerialState),
         VMSTATE_END_OF_LIST()
@@ -826,7 +826,7 @@ const VMStateDescription vmstate_serial = {
     .pre_save = serial_pre_save,
     .pre_load = serial_pre_load,
     .post_load = serial_post_load,
-    .fields = (VMStateField[]) {
+    .fields = (const VMStateField[]) {
         VMSTATE_UINT16_V(divider, SerialState, 2),
         VMSTATE_UINT8(rbr, SerialState),
         VMSTATE_UINT8(ier, SerialState),
@@ -839,7 +839,7 @@ const VMStateDescription vmstate_serial = {
         VMSTATE_UINT8_V(fcr_vmstate, SerialState, 3),
         VMSTATE_END_OF_LIST()
     },
-    .subsections = (const VMStateDescription*[]) {
+    .subsections = (const VMStateDescription * const []) {
         &vmstate_serial_thr_ipending,
         &vmstate_serial_tsr,
         &vmstate_serial_recv_fifo,
@@ -961,6 +961,9 @@ void serial_set_frequency(SerialState *s, uint32_t frequency)
 const MemoryRegionOps serial_io_ops = {
     .read = serial_ioport_read,
     .write = serial_ioport_write,
+    .valid = {
+        .unaligned = 1,
+    },
     .impl = {
         .min_access_size = 1,
         .max_access_size = 1,
@@ -1053,7 +1056,7 @@ static const VMStateDescription vmstate_serial_mm = {
     .name = "serial",
     .version_id = 3,
     .minimum_version_id = 2,
-    .fields = (VMStateField[]) {
+    .fields = (const VMStateField[]) {
         VMSTATE_STRUCT(serial, SerialMM, 0, vmstate_serial, SerialState),
         VMSTATE_END_OF_LIST()
     }

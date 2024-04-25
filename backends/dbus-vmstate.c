@@ -114,14 +114,19 @@ dbus_get_proxies(DBusVMState *self, GError **err)
                     "org.qemu.VMState1",
                     NULL, err);
         if (!proxy) {
-            return NULL;
+            if (err != NULL && *err != NULL) {
+                warn_report("%s: Failed to create proxy: %s",
+                            __func__, (*err)->message);
+                g_clear_error(err);
+            }
+            continue;
         }
 
         result = g_dbus_proxy_get_cached_property(proxy, "Id");
         if (!result) {
-            g_set_error_literal(err, G_IO_ERROR, G_IO_ERROR_FAILED,
-                                "VMState Id property is missing.");
-            return NULL;
+            warn_report("%s: VMState Id property is missing.", __func__);
+            g_clear_object(&proxy);
+            continue;
         }
 
         id = g_variant_dup_string(result, &size);
@@ -388,7 +393,7 @@ static const VMStateDescription dbus_vmstate = {
     .version_id = 0,
     .pre_save = dbus_vmstate_pre_save,
     .post_load = dbus_vmstate_post_load,
-    .fields = (VMStateField[]) {
+    .fields = (const VMStateField[]) {
         VMSTATE_UINT32(data_size, DBusVMState),
         VMSTATE_VBUFFER_ALLOC_UINT32(data, DBusVMState, 0, 0, data_size),
         VMSTATE_END_OF_LIST()
@@ -421,8 +426,7 @@ dbus_vmstate_complete(UserCreatable *uc, Error **errp)
         return;
     }
 
-    if (vmstate_register(VMSTATE_IF(self), VMSTATE_INSTANCE_ID_ANY,
-                         &dbus_vmstate, self) < 0) {
+    if (vmstate_register_any(VMSTATE_IF(self), &dbus_vmstate, self) < 0) {
         error_setg(errp, "Failed to register vmstate");
     }
 }

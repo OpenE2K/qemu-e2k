@@ -22,11 +22,12 @@ class OpenBSDVM(basevm.BaseVM):
     name = "openbsd"
     arch = "x86_64"
 
-    link = "https://cdn.openbsd.org/pub/OpenBSD/7.1/amd64/install71.iso"
-    csum = "d3a7c5b9bf890bc404304a1c96f9ee72e1d9bbcf9cc849c1133bdb0d67843396"
+    link = "https://cdn.openbsd.org/pub/OpenBSD/7.4/amd64/install74.iso"
+    csum = "a1001736ed9fe2307965b5fcdb426ae11f9b80d26eb21e404a705144a0a224a0"
     size = "20G"
     pkgs = [
         # tools
+        "dtc",
         "git",
         "pkgconf",
         "bzip2", "xz",
@@ -56,6 +57,9 @@ class OpenBSDVM(basevm.BaseVM):
 
         # libs: migration
         "zstd",
+
+        # libs: networking
+        "libslirp",
     ]
 
     BUILD_SCRIPT = """
@@ -64,8 +68,9 @@ class OpenBSDVM(basevm.BaseVM):
         cd $(mktemp -d /home/qemu/qemu-test.XXXXXX);
         mkdir src build; cd src;
         tar -xf /dev/rsd1c;
-        cd ../build
-        ../src/configure --cc=cc --python=python3 {configure_opts};
+        cd ../build;
+        ../src/configure --cc=cc  --extra-cflags=-I/usr/local/include \
+                         --extra-ldflags=-L/usr/local/lib {configure_opts};
         gmake --output-sync -j{jobs} {target} {verbose};
     """
     poweroff = "halt -p"
@@ -82,7 +87,6 @@ class OpenBSDVM(basevm.BaseVM):
 
         self.print_step("Booting installer")
         self.boot(img_tmp, extra_args = [
-            "-bios", "pc-bios/bios-256k.bin",
             "-machine", "graphics=off",
             "-device", "VGA",
             "-cdrom", iso
@@ -95,17 +99,16 @@ class OpenBSDVM(basevm.BaseVM):
         self.console_wait_send("(I)nstall",               "i\n")
         self.console_wait_send("Terminal type",           "xterm\n")
         self.console_wait_send("System hostname",         "openbsd\n")
-        self.console_wait_send("Which network interface", "vio0\n")
+        self.console_wait_send("Network interface to configure", "vio0\n")
         self.console_wait_send("IPv4 address",            "autoconf\n")
         self.console_wait_send("IPv6 address",            "none\n")
-        self.console_wait_send("Which network interface", "done\n")
+        self.console_wait_send("Network interface to configure", "done\n")
         self.console_wait("Password for root account")
         self.console_send("%s\n" % self._config["root_pass"])
         self.console_wait("Password for root account")
         self.console_send("%s\n" % self._config["root_pass"])
         self.console_wait_send("Start sshd(8)",           "yes\n")
-        self.console_wait_send("X Window System",         "\n")
-        self.console_wait_send("xenodm",                  "\n")
+        self.console_wait_send("X Window System",         "no\n")
         self.console_wait_send("console to com0",         "\n")
         self.console_wait_send("Which speed",             "\n")
 
@@ -121,8 +124,34 @@ class OpenBSDVM(basevm.BaseVM):
         self.console_wait_send("Allow root ssh login",    "yes\n")
         self.console_wait_send("timezone",                "UTC\n")
         self.console_wait_send("root disk",               "\n")
+        self.console_wait_send("Encrypt the root disk with a passphrase", "no\n")
         self.console_wait_send("(W)hole disk",            "\n")
-        self.console_wait_send("(A)uto layout",           "\n")
+        self.console_wait_send("(A)uto layout",           "c\n")
+
+        # 4000 MB / as /dev/sd0a, at start of disk
+        self.console_wait_send("sd0>", "a a\n")
+        self.console_wait_send("offset:", "\n")
+        self.console_wait_send("size:", "4000M\n")
+        self.console_wait_send("FS type", "4.2BSD\n")
+        self.console_wait_send("mount point:", "/\n")
+
+        # 256 MB swap as /dev/sd0b
+        self.console_wait_send("sd0*>", "a b\n")
+        self.console_wait_send("offset:", "\n")
+        self.console_wait_send("size:", "256M\n")
+        self.console_wait_send("FS type", "swap\n")
+
+        # All remaining space for /home as /dev/sd0d
+        # NB, 'c' isn't allowed to be used.
+        self.console_wait_send("sd0*>", "a d\n")
+        self.console_wait_send("offset:", "\n")
+        self.console_wait_send("size:", "\n")
+        self.console_wait_send("FS type", "4.2BSD\n")
+        self.console_wait_send("mount point:", "/home\n")
+
+        self.console_wait_send("sd0*>", "q\n")
+        self.console_wait_send("Write new label?:", "y\n")
+
         self.console_wait_send("Location of sets",        "cd0\n")
         self.console_wait_send("Pathname to the sets",    "\n")
         self.console_wait_send("Set name(s)",             "\n")

@@ -1,13 +1,14 @@
 config PSERIES
     bool
+    imply USB_OHCI_PCI
     imply PCI_DEVICES
     imply TEST_DEVICES
     imply VIRTIO_VGA
-    imply NVDIMM
+    imply VFIO_PCI if LINUX   # needed by spapr_pci_vfio.c
+    select NVDIMM
     select DIMM
     select PCI
     select SPAPR_VSCSI
-    select VFIO if LINUX   # needed by spapr_pci_vfio.c
     select XICS
     select XIVE
     select MSI_NONBROKEN
@@ -32,6 +33,8 @@ config POWERNV
     select XIVE
     select FDT_PPC
     select PCI_POWERNV
+    select PCA9552
+    select PCA9554
 
 config PPC405
     bool
@@ -46,6 +49,7 @@ config PPC440
     imply TEST_DEVICES
     imply E1000_PCI
     select PCI_EXPRESS
+    select PPC440_PCIX
     select PPC4XX
     select SERIAL
     select FDT_PPC
@@ -53,12 +57,11 @@ config PPC440
 config PPC4XX
     bool
     select BITBANG_I2C
-    select PCI
+    select PPC4XX_PCI
     select PPC_UIC
 
 config SAM460EX
     bool
-    select PPC405
     select PFLASH_CFI01
     select IDE_SII3112
     select M41T80
@@ -67,19 +70,23 @@ config SAM460EX
     select SM501
     select SMBUS_EEPROM
     select USB_EHCI_SYSBUS
-    select USB_OHCI
+    select USB_OHCI_SYSBUS
     select FDT_PPC
+
+config AMIGAONE
+    bool
+    imply ATI_VGA
+    select ARTICIA
+    select VT82C686
+    select SMBUS_EEPROM
 
 config PEGASOS2
     bool
+    imply ATI_VGA
     select MV64361
     select VT82C686
-    select IDE_VIA
     select SMBUS_EEPROM
     select VOF
-# This should come with VT82C686
-    select ACPI_X86
-    imply ATI_VGA
 
 config PREP
     bool
@@ -113,6 +120,7 @@ config MAC_NEWWORLD
     imply PCI_DEVICES
     imply SUNGEM
     imply TEST_DEVICES
+    imply USB_OHCI_PCI
     select ADB
     select MACIO
     select MACIO_GPIO
@@ -125,13 +133,25 @@ config E500
     imply AT24C
     imply VIRTIO_PCI
     select ETSEC
+    select GPIO_MPC8XXX
     select OPENPIC
+    select PFLASH_CFI01
     select PLATFORM_BUS
     select PPCE500_PCI
+    select SDHCI
     select SERIAL
     select MPC_I2C
     select FDT_PPC
     select DS1338
+    select UNIMP
+
+config E500PLAT
+    bool
+    select E500
+
+config MPC8544DS
+    bool
+    select E500
 
 config VIRTEX
     bool

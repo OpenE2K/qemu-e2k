@@ -23,6 +23,7 @@
  */
 
 #include "qemu/osdep.h"
+#include "hw/block/flash.h"
 #include "hw/sysbus.h"
 #include "migration/vmstate.h"
 #include "qemu/log.h"
@@ -388,7 +389,7 @@ static inline int aspeed_smc_flash_cmd(const AspeedSMCFlash *fl)
 static inline int aspeed_smc_flash_addr_width(const AspeedSMCFlash *fl)
 {
     const AspeedSMCState *s = fl->controller;
-    AspeedSMCClass *asc = ASPEED_SMC_GET_CLASS(s);
+    AspeedSMCClass *asc = fl->asc;
 
     if (asc->addr_width) {
         return asc->addr_width(s);
@@ -420,7 +421,7 @@ static uint32_t aspeed_smc_check_segment_addr(const AspeedSMCFlash *fl,
                                               uint32_t addr)
 {
     const AspeedSMCState *s = fl->controller;
-    AspeedSMCClass *asc = ASPEED_SMC_GET_CLASS(s);
+    AspeedSMCClass *asc = fl->asc;
     AspeedSegments seg;
 
     asc->reg_to_segment(s, s->regs[R_SEG_ADDR0 + fl->cs], &seg);
@@ -488,7 +489,7 @@ static uint64_t aspeed_smc_flash_read(void *opaque, hwaddr addr, unsigned size)
     switch (aspeed_smc_flash_mode(fl)) {
     case CTRL_USERMODE:
         for (i = 0; i < size; i++) {
-            ret |= ssi_transfer(s->spi, 0x0) << (8 * i);
+            ret |= (uint64_t) ssi_transfer(s->spi, 0x0) << (8 * i);
         }
         break;
     case CTRL_READMODE:
@@ -497,7 +498,7 @@ static uint64_t aspeed_smc_flash_read(void *opaque, hwaddr addr, unsigned size)
         aspeed_smc_flash_setup(fl, addr);
 
         for (i = 0; i < size; i++) {
-            ret |= ssi_transfer(s->spi, 0x0) << (8 * i);
+            ret |= (uint64_t) ssi_transfer(s->spi, 0x0) << (8 * i);
         }
 
         aspeed_smc_flash_unselect(fl);
@@ -690,6 +691,22 @@ static void aspeed_smc_reset(DeviceState *d)
         memcpy(s->regs, asc->resets, sizeof s->regs);
     } else {
         memset(s->regs, 0, sizeof s->regs);
+    }
+
+    for (i = 0; i < asc->cs_num_max; i++) {
+        DeviceState *dev = ssi_get_cs(s->spi, i);
+        if (dev) {
+            Object *o = OBJECT(dev);
+
+            if (!object_dynamic_cast(o, TYPE_M25P80)) {
+                warn_report("Aspeed SMC %s.%d : Invalid %s device type",
+                            BUS(s->spi)->name, i, object_get_typename(o));
+                continue;
+            }
+
+            qemu_irq cs_line = qdev_get_gpio_in_named(dev, SSI_GPIO_CS, 0);
+            qdev_connect_gpio_out_named(DEVICE(s), "cs", i, cs_line);
+        }
     }
 
     /* Unselect all peripherals */
@@ -1134,10 +1151,7 @@ static void aspeed_smc_realize(DeviceState *dev, Error **errp)
 
     /* Setup cs_lines for peripherals */
     s->cs_lines = g_new0(qemu_irq, asc->cs_num_max);
-
-    for (i = 0; i < asc->cs_num_max; ++i) {
-        sysbus_init_irq(sbd, &s->cs_lines[i]);
-    }
+    qdev_init_gpio_out_named(DEVICE(s), s->cs_lines, "cs", asc->cs_num_max);
 
     /* The memory region for the controller registers */
     memory_region_init_io(&s->mmio, OBJECT(s), &aspeed_smc_ops, s,
@@ -1196,7 +1210,7 @@ static const VMStateDescription vmstate_aspeed_smc = {
     .name = "aspeed.smc",
     .version_id = 2,
     .minimum_version_id = 2,
-    .fields = (VMStateField[]) {
+    .fields = (const VMStateField[]) {
         VMSTATE_UINT32_ARRAY(regs, AspeedSMCState, ASPEED_SMC_R_MAX),
         VMSTATE_UINT8(snoop_index, AspeedSMCState),
         VMSTATE_UINT8(snoop_dummies, AspeedSMCState),
@@ -1234,7 +1248,6 @@ static const TypeInfo aspeed_smc_info = {
 static void aspeed_smc_flash_realize(DeviceState *dev, Error **errp)
 {
     AspeedSMCFlash *s = ASPEED_SMC_FLASH(dev);
-    AspeedSMCClass *asc;
     g_autofree char *name = g_strdup_printf(TYPE_ASPEED_SMC_FLASH ".%d", s->cs);
 
     if (!s->controller) {
@@ -1242,14 +1255,14 @@ static void aspeed_smc_flash_realize(DeviceState *dev, Error **errp)
         return;
     }
 
-    asc = ASPEED_SMC_GET_CLASS(s->controller);
+    s->asc = ASPEED_SMC_GET_CLASS(s->controller);
 
     /*
      * Use the default segment value to size the memory region. This
      * can be changed by FW at runtime.
      */
     memory_region_init_io(&s->mmio, OBJECT(s), &aspeed_smc_flash_ops,
-                          s, name, asc->segments[s->cs].size);
+                          s, name, s->asc->segments[s->cs].size);
     sysbus_init_mmio(SYS_BUS_DEVICE(dev), &s->mmio);
 }
 

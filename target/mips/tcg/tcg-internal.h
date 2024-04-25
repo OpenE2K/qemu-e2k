@@ -21,6 +21,9 @@ void mips_cpu_synchronize_from_tb(CPUState *cs, const TranslationBlock *tb);
 G_NORETURN void mips_cpu_do_unaligned_access(CPUState *cpu, vaddr addr,
                                              MMUAccessType access_type, int mmu_idx,
                                              uintptr_t retaddr);
+void mips_restore_state_to_opc(CPUState *cs,
+                               const TranslationBlock *tb,
+                               const uint64_t *data);
 
 const char *mips_exception_name(int32_t exception);
 
@@ -61,6 +64,8 @@ void cpu_mips_tlb_flush(CPUMIPSState *env);
 bool mips_cpu_tlb_fill(CPUState *cs, vaddr address, int size,
                        MMUAccessType access_type, int mmu_idx,
                        bool probe, uintptr_t retaddr);
+
+void mips_semihosting(CPUMIPSState *env);
 
 #endif /* !CONFIG_USER_ONLY */
 

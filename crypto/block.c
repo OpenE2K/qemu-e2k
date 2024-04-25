@@ -87,6 +87,7 @@ QCryptoBlock *qcrypto_block_create(QCryptoBlockCreateOptions *options,
                                    QCryptoBlockInitFunc initfunc,
                                    QCryptoBlockWriteFunc writefunc,
                                    void *opaque,
+                                   unsigned int flags,
                                    Error **errp)
 {
     QCryptoBlock *block = g_new0(QCryptoBlock, 1);
@@ -102,6 +103,7 @@ QCryptoBlock *qcrypto_block_create(QCryptoBlockCreateOptions *options,
     }
 
     block->driver = qcrypto_block_drivers[options->format];
+    block->detached_header = flags & QCRYPTO_BLOCK_CREATE_DETACHED;
 
     if (block->driver->create(block, options, optprefix, initfunc,
                               writefunc, opaque, errp) < 0) {
@@ -115,7 +117,7 @@ QCryptoBlock *qcrypto_block_create(QCryptoBlockCreateOptions *options,
 }
 
 
-static ssize_t qcrypto_block_headerlen_hdr_init_func(QCryptoBlock *block,
+static int qcrypto_block_headerlen_hdr_init_func(QCryptoBlock *block,
         size_t headerlen, void *opaque, Error **errp)
 {
     size_t *headerlenp = opaque;
@@ -126,12 +128,12 @@ static ssize_t qcrypto_block_headerlen_hdr_init_func(QCryptoBlock *block,
 }
 
 
-static ssize_t qcrypto_block_headerlen_hdr_write_func(QCryptoBlock *block,
+static int qcrypto_block_headerlen_hdr_write_func(QCryptoBlock *block,
         size_t offset, const uint8_t *buf, size_t buflen,
         void *opaque, Error **errp)
 {
     /* Discard the bytes, we're not actually writing to an image */
-    return buflen;
+    return 0;
 }
 
 
@@ -146,7 +148,7 @@ qcrypto_block_calculate_payload_offset(QCryptoBlockCreateOptions *create_opts,
         qcrypto_block_create(create_opts, optprefix,
                              qcrypto_block_headerlen_hdr_init_func,
                              qcrypto_block_headerlen_hdr_write_func,
-                             len, errp);
+                             len, 0, errp);
     return crypto != NULL;
 }
 

@@ -242,7 +242,7 @@ static void tosa_init(MachineState *machine)
     TC6393xbState *tmio;
     DeviceState *scp0, *scp1;
 
-    mpu = pxa255_init(address_space_mem, tosa_binfo.ram_size);
+    mpu = pxa255_init(tosa_binfo.ram_size);
 
     memory_region_init_rom(rom, NULL, "tosa.rom", TOSA_ROM, &error_fatal);
     memory_region_add_subregion(address_space_mem, 0, rom);
@@ -270,6 +270,7 @@ static void tosapda_machine_init(MachineClass *mc)
     mc->init = tosa_init;
     mc->block_default_type = IF_IDE;
     mc->ignore_memory_transaction_failures = true;
+    mc->deprecation_reason = "machine is old and unmaintained";
 }
 
 DEFINE_MACHINE("tosa", tosapda_machine_init)

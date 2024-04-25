@@ -283,11 +283,11 @@ static ssize_t tcp_chr_recv(Chardev *chr, char *buf, size_t len)
     if (qio_channel_has_feature(s->ioc, QIO_CHANNEL_FEATURE_FD_PASS)) {
         ret = qio_channel_readv_full(s->ioc, &iov, 1,
                                      &msgfds, &msgfds_num,
-                                     NULL);
+                                     0, NULL);
     } else {
         ret = qio_channel_readv_full(s->ioc, &iov, 1,
                                      NULL, NULL,
-                                     NULL);
+                                     0, NULL);
     }
 
     if (msgfds_num) {
@@ -377,6 +377,10 @@ static void tcp_chr_free_connection(Chardev *chr)
         yank_unregister_function(CHARDEV_YANK_INSTANCE(chr->label),
                                  char_socket_yank_iochannel,
                                  QIO_CHANNEL(s->sioc));
+    }
+
+    if (s->ioc) {
+        qio_channel_close(s->ioc, NULL);
     }
     object_unref(OBJECT(s->sioc));
     s->sioc = NULL;
@@ -557,12 +561,10 @@ static char *qemu_chr_compute_filename(SocketChardev *s)
     const char *left = "", *right = "";
 
     switch (ss->ss_family) {
-#ifndef _WIN32
     case AF_UNIX:
         return g_strdup_printf("unix:%s%s",
                                ((struct sockaddr_un *)(ss))->sun_path,
                                s->is_listen ? ",server=on" : "");
-#endif
     case AF_INET6:
         left  = "[";
         right = "]";
@@ -599,6 +601,22 @@ static void update_ioc_handlers(SocketChardev *s)
 
     remove_hup_source(s);
     s->hup_source = qio_channel_create_watch(s->ioc, G_IO_HUP);
+    /*
+     * poll() is liable to return POLLHUP even when there is
+     * still incoming data available to read on the FD. If
+     * we have the hup_source at the same priority as the
+     * main io_add_watch_poll GSource, then we might end up
+     * processing the POLLHUP event first, closing the FD,
+     * and as a result silently discard data we should have
+     * read.
+     *
+     * By setting the hup_source to G_PRIORITY_DEFAULT + 1,
+     * we ensure that io_add_watch_poll GSource will always
+     * be dispatched first, thus guaranteeing we will be
+     * able to process all incoming data before closing the
+     * FD
+     */
+    g_source_set_priority(s->hup_source, G_PRIORITY_DEFAULT + 1);
     g_source_set_callback(s->hup_source, (GSourceFunc)tcp_chr_hup,
                           chr, NULL);
     g_source_attach(s->hup_source, chr->gcontext);
@@ -712,7 +730,7 @@ static void tcp_chr_telnet_init(Chardev *chr)
 
     if (!s->is_tn3270) {
         init->buflen = 12;
-        /* Prep the telnet negotion to put telnet in binary,
+        /* Prep the telnet negotiation to put telnet in binary,
          * no echo, single char mode */
         IACSET(init->buf, 0xff, 0xfb, 0x01);  /* IAC WILL ECHO */
         IACSET(init->buf, 0xff, 0xfb, 0x03);  /* IAC WILL Suppress go ahead */
@@ -720,7 +738,7 @@ static void tcp_chr_telnet_init(Chardev *chr)
         IACSET(init->buf, 0xff, 0xfd, 0x00);  /* IAC DO Binary */
     } else {
         init->buflen = 21;
-        /* Prep the TN3270 negotion based on RFC1576 */
+        /* Prep the TN3270 negotiation based on RFC1576 */
         IACSET(init->buf, 0xff, 0xfd, 0x19);  /* IAC DO EOR */
         IACSET(init->buf, 0xff, 0xfb, 0x19);  /* IAC WILL EOR */
         IACSET(init->buf, 0xff, 0xfd, 0x00);  /* IAC DO BINARY */
@@ -744,8 +762,12 @@ static void tcp_chr_websock_handshake(QIOTask *task, gpointer user_data)
 {
     Chardev *chr = user_data;
     SocketChardev *s = user_data;
+    Error *err = NULL;
 
-    if (qio_task_propagate_error(task, NULL)) {
+    if (qio_task_propagate_error(task, &err)) {
+        error_reportf_err(err,
+                          "websock handshake of character device %s failed: ",
+                          chr->label);
         tcp_chr_disconnect(chr);
     } else {
         if (s->do_telnetopt) {
@@ -780,8 +802,12 @@ static void tcp_chr_tls_handshake(QIOTask *task,
 {
     Chardev *chr = user_data;
     SocketChardev *s = user_data;
+    Error *err = NULL;
 
-    if (qio_task_propagate_error(task, NULL)) {
+    if (qio_task_propagate_error(task, &err)) {
+        error_reportf_err(err,
+                          "TLS handshake of character device %s failed: ",
+                          chr->label);
         tcp_chr_disconnect(chr);
     } else {
         if (s->is_websock) {
@@ -1067,6 +1093,7 @@ static void char_socket_finalize(Object *obj)
         qio_net_listener_set_client_func_full(s->listener, NULL, NULL,
                                               NULL, chr->gcontext);
         object_unref(OBJECT(s->listener));
+        s->listener = NULL;
     }
     if (s->tls_creds) {
         object_unref(OBJECT(s->tls_creds));
@@ -1253,7 +1280,7 @@ static bool qmp_chardev_validate_socket(ChardevSocket *sock,
                        "'fd' address type");
             return false;
         }
-        if (sock->has_tls_creds &&
+        if (sock->tls_creds &&
             !(sock->has_server && sock->server)) {
             error_setg(errp,
                        "'tls_creds' option is incompatible with "
@@ -1263,7 +1290,7 @@ static bool qmp_chardev_validate_socket(ChardevSocket *sock,
         break;
 
     case SOCKET_ADDRESS_TYPE_UNIX:
-        if (sock->has_tls_creds) {
+        if (sock->tls_creds) {
             error_setg(errp,
                        "'tls_creds' option is incompatible with "
                        "'unix' address type");
@@ -1275,7 +1302,7 @@ static bool qmp_chardev_validate_socket(ChardevSocket *sock,
         break;
 
     case SOCKET_ADDRESS_TYPE_VSOCK:
-        if (sock->has_tls_creds) {
+        if (sock->tls_creds) {
             error_setg(errp,
                        "'tls_creds' option is incompatible with "
                        "'vsock' address type");
@@ -1286,12 +1313,12 @@ static bool qmp_chardev_validate_socket(ChardevSocket *sock,
         break;
     }
 
-    if (sock->has_tls_authz && !sock->has_tls_creds) {
+    if (sock->tls_authz && !sock->tls_creds) {
         error_setg(errp, "'tls_authz' option requires 'tls_creds' option");
         return false;
     }
 
-    /* Validate any options which have a dependancy on client vs server */
+    /* Validate any options which have a dependency on client vs server */
     if (!sock->has_server || sock->server) {
         if (sock->has_reconnect) {
             error_setg(errp,
@@ -1372,10 +1399,12 @@ static void qmp_chardev_open_socket(Chardev *chr,
     }
 
     qemu_chr_set_feature(chr, QEMU_CHAR_FEATURE_RECONNECTABLE);
+#ifndef _WIN32
     /* TODO SOCKET_ADDRESS_FD where fd has AF_UNIX */
     if (addr->type == SOCKET_ADDRESS_TYPE_UNIX) {
         qemu_chr_set_feature(chr, QEMU_CHAR_FEATURE_FD_PASS);
     }
+#endif
 
     /*
      * In the chardev-change special-case, we shouldn't register a new yank
@@ -1465,9 +1494,7 @@ static void qemu_chr_parse_socket(QemuOpts *opts, ChardevBackend *backend,
     sock->wait = qemu_opt_get_bool(opts, "wait", true);
     sock->has_reconnect = qemu_opt_find(opts, "reconnect");
     sock->reconnect = qemu_opt_get_number(opts, "reconnect", 0);
-    sock->has_tls_creds = qemu_opt_get(opts, "tls-creds");
     sock->tls_creds = g_strdup(qemu_opt_get(opts, "tls-creds"));
-    sock->has_tls_authz = qemu_opt_get(opts, "tls-authz");
     sock->tls_authz = g_strdup(qemu_opt_get(opts, "tls-authz"));
 
     addr = g_new0(SocketAddressLegacy, 1);
@@ -1497,7 +1524,7 @@ static void qemu_chr_parse_socket(QemuOpts *opts, ChardevBackend *backend,
         };
     } else {
         addr->type = SOCKET_ADDRESS_TYPE_FD;
-        addr->u.fd.data = g_new(String, 1);
+        addr->u.fd.data = g_new(FdSocketAddress, 1);
         addr->u.fd.data->str = g_strdup(fd);
     }
     sock->addr = addr;

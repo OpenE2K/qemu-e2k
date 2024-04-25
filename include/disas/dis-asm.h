@@ -11,10 +11,6 @@
 
 #include "qemu/bswap.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 typedef void *PTR;
 typedef uint64_t bfd_vma;
 typedef int64_t bfd_signed_vma;
@@ -192,20 +188,20 @@ enum bfd_architecture
 #define bfd_mach_alpha_ev5  0x20
 #define bfd_mach_alpha_ev6  0x30
   bfd_arch_arm,        /* Advanced Risc Machines ARM */
-#define bfd_mach_arm_unknown	0
-#define bfd_mach_arm_2		1
-#define bfd_mach_arm_2a		2
-#define bfd_mach_arm_3		3
-#define bfd_mach_arm_3M 	4
-#define bfd_mach_arm_4 		5
-#define bfd_mach_arm_4T 	6
-#define bfd_mach_arm_5 		7
-#define bfd_mach_arm_5T		8
-#define bfd_mach_arm_5TE	9
-#define bfd_mach_arm_XScale	10
-#define bfd_mach_arm_ep9312	11
-#define bfd_mach_arm_iWMMXt	12
-#define bfd_mach_arm_iWMMXt2	13
+#define bfd_mach_arm_unknown  0
+#define bfd_mach_arm_2        1
+#define bfd_mach_arm_2a       2
+#define bfd_mach_arm_3        3
+#define bfd_mach_arm_3M       4
+#define bfd_mach_arm_4        5
+#define bfd_mach_arm_4T       6
+#define bfd_mach_arm_5        7
+#define bfd_mach_arm_5T       8
+#define bfd_mach_arm_5TE      9
+#define bfd_mach_arm_XScale   10
+#define bfd_mach_arm_ep9312   11
+#define bfd_mach_arm_iWMMXt   12
+#define bfd_mach_arm_iWMMXt2  13
   bfd_arch_ns32k,      /* National Semiconductors ns32000 */
   bfd_arch_w65,        /* WDC 65816 */
   bfd_arch_tic30,      /* Texas Instruments TMS320C30 */
@@ -262,7 +258,7 @@ enum bfd_architecture
   bfd_arch_ia64,      /* HP/Intel ia64 */
 #define bfd_mach_ia64_elf64    64
 #define bfd_mach_ia64_elf32    32
-  bfd_arch_nios2,	/* Nios II */
+  bfd_arch_nios2,      /* Nios II */
 #define bfd_mach_nios2          0
 #define bfd_mach_nios2r1        1
 #define bfd_mach_nios2r2        2
@@ -290,14 +286,14 @@ typedef int (*fprintf_function)(FILE *f, const char *fmt, ...)
     G_GNUC_PRINTF(2, 3);
 
 enum dis_insn_type {
-  dis_noninsn,			/* Not a valid instruction */
-  dis_nonbranch,		/* Not a branch instruction */
-  dis_branch,			/* Unconditional branch */
-  dis_condbranch,		/* Conditional branch */
-  dis_jsr,			/* Jump to subroutine */
-  dis_condjsr,			/* Conditional jump to subroutine */
-  dis_dref,			/* Data reference instruction */
-  dis_dref2			/* Two data references in instruction */
+  dis_noninsn,          /* Not a valid instruction */
+  dis_nonbranch,        /* Not a branch instruction */
+  dis_branch,           /* Unconditional branch */
+  dis_condbranch,       /* Conditional branch */
+  dis_jsr,              /* Jump to subroutine */
+  dis_condjsr,          /* Conditional jump to subroutine */
+  dis_dref,             /* Data reference instruction */
+  dis_dref2             /* Two data references in instruction */
 };
 
 /* This struct is passed into the instruction decoding routine,
@@ -340,8 +336,8 @@ typedef struct disassemble_info {
      The top 16 bits are reserved for public use (and are documented here).
      The bottom 16 bits are for the internal use of the disassembler.  */
   unsigned long flags;
-#define INSN_HAS_RELOC	0x80000000
-#define INSN_ARM_BE32	0x00010000
+#define INSN_HAS_RELOC  0x80000000
+#define INSN_ARM_BE32   0x00010000
   PTR private_data;
 
   /* Function used to get bytes to disassemble.  MEMADDR is the
@@ -351,7 +347,7 @@ typedef struct disassemble_info {
      Returns an errno value or 0 for success.  */
   int (*read_memory_func)
     (bfd_vma memaddr, bfd_byte *myaddr, int length,
-	     struct disassemble_info *info);
+        struct disassemble_info *info);
 
   /* Function which should be called if we get an error that we can't
      recover from.  STATUS is the errno value from read_memory_func and
@@ -405,20 +401,28 @@ typedef struct disassemble_info {
      To determine whether this decoder supports this information, set
      insn_info_valid to 0, decode an instruction, then check it.  */
 
-  char insn_info_valid;		/* Branch info has been set. */
-  char branch_delay_insns;	/* How many sequential insn's will run before
-				   a branch takes effect.  (0 = normal) */
-  char data_size;		/* Size of data reference in insn, in bytes */
-  enum dis_insn_type insn_type;	/* Type of instruction */
-  bfd_vma target;		/* Target address of branch or dref, if known;
-				   zero if unknown.  */
-  bfd_vma target2;		/* Second target address for dref2 */
+  char insn_info_valid;         /* Branch info has been set. */
+  char branch_delay_insns;      /* How many sequential insn's will run before
+                                   a branch takes effect.  (0 = normal) */
+  char data_size;               /* Size of data reference in insn, in bytes */
+  enum dis_insn_type insn_type; /* Type of instruction */
+  bfd_vma target;               /* Target address of branch or dref, if known;
+                                   zero if unknown.  */
+  bfd_vma target2;              /* Second target address for dref2 */
 
   /* Command line options specific to the target disassembler.  */
   char * disassembler_options;
 
+  /*
+   * When true instruct the disassembler it may preface the
+   * disassembly with the opcodes values if it wants to. This is
+   * mainly for the benefit of the plugin interface which doesn't want
+   * that.
+   */
+  bool show_opcodes;
+
   /* Field intended to be used by targets in any way they deem suitable.  */
-  int64_t target_info;
+  void *target_info;
 
   /* Options for Capstone disassembly.  */
   int cap_arch;
@@ -531,9 +535,5 @@ static inline bfd_vma bfd_getb16(const bfd_byte *addr)
 }
 
 typedef bool bfd_boolean;
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif /* DISAS_DIS_ASM_H */

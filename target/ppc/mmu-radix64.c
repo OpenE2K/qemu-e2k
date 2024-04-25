@@ -145,6 +145,13 @@ static void ppc_radix64_raise_hsi(PowerPCCPU *cpu, MMUAccessType access_type,
     CPUState *cs = CPU(cpu);
     CPUPPCState *env = &cpu->env;
 
+    env->error_code = 0;
+    if (cause & DSISR_PRTABLE_FAULT) {
+        /* HDSI PRTABLE_FAULT gets the originating access type in error_code */
+        env->error_code = access_type;
+        access_type = MMU_DATA_LOAD;
+    }
+
     qemu_log_mask(CPU_LOG_MMU, "%s for %s @0x%"VADDR_PRIx" 0x%"
                   HWADDR_PRIx" cause %08x\n",
                   __func__, access_str(access_type),
@@ -166,7 +173,6 @@ static void ppc_radix64_raise_hsi(PowerPCCPU *cpu, MMUAccessType access_type,
         env->spr[SPR_HDSISR] = cause;
         env->spr[SPR_HDAR] = eaddr;
         env->spr[SPR_ASDR] = g_raddr;
-        env->error_code = 0;
         break;
     default:
         g_assert_not_reached();
@@ -213,39 +219,68 @@ static bool ppc_radix64_check_prot(PowerPCCPU *cpu, MMUAccessType access_type,
     return false;
 }
 
-static void ppc_radix64_set_rc(PowerPCCPU *cpu, MMUAccessType access_type,
-                               uint64_t pte, hwaddr pte_addr, int *prot)
+static int ppc_radix64_check_rc(MMUAccessType access_type, uint64_t pte)
 {
-    CPUState *cs = CPU(cpu);
-    uint64_t npte;
+    switch (access_type) {
+    case MMU_DATA_STORE:
+        if (!(pte & R_PTE_C)) {
+            break;
+        }
+        /* fall through */
+    case MMU_INST_FETCH:
+    case MMU_DATA_LOAD:
+        if (!(pte & R_PTE_R)) {
+            break;
+        }
 
-    npte = pte | R_PTE_R; /* Always set reference bit */
-
-    if (access_type == MMU_DATA_STORE) { /* Store/Write */
-        npte |= R_PTE_C; /* Set change bit */
-    } else {
-        /*
-         * Treat the page as read-only for now, so that a later write
-         * will pass through this function again to set the C bit.
-         */
-        *prot &= ~PAGE_WRITE;
+        /* R/C bits are already set appropriately for this access */
+        return 0;
     }
 
-    if (pte ^ npte) { /* If pte has changed then write it back */
-        stq_phys(cs->as, pte_addr, npte);
+    return 1;
+}
+
+static bool ppc_radix64_is_valid_level(int level, int psize, uint64_t nls)
+{
+    bool ret;
+
+    /*
+     * Check if this is a valid level, according to POWER9 and POWER10
+     * Processor User's Manuals, sections 4.10.4.1 and 5.10.6.1, respectively:
+     * Supported Radix Tree Configurations and Resulting Page Sizes.
+     *
+     * Note: these checks are specific to POWER9 and POWER10 CPUs. Any future
+     * CPUs that supports a different Radix MMU configuration will need their
+     * own implementation.
+     */
+    switch (level) {
+    case 0:     /* Root Page Dir */
+        ret = psize == 52 && nls == 13;
+        break;
+    case 1:
+    case 2:
+        ret = nls == 9;
+        break;
+    case 3:
+        ret = nls == 9 || nls == 5;
+        break;
+    default:
+        ret = false;
     }
+
+    if (unlikely(!ret)) {
+        qemu_log_mask(LOG_GUEST_ERROR, "invalid radix configuration: "
+                      "level %d size %d nls %"PRIu64"\n",
+                      level, psize, nls);
+    }
+    return ret;
 }
 
 static int ppc_radix64_next_level(AddressSpace *as, vaddr eaddr,
                                   uint64_t *pte_addr, uint64_t *nls,
                                   int *psize, uint64_t *pte, int *fault_cause)
 {
-    uint64_t index, pde;
-
-    if (*nls < 5) { /* Directory maps less than 2**5 entries */
-        *fault_cause |= DSISR_R_BADCONFIG;
-        return 1;
-    }
+    uint64_t index, mask, nlb, pde;
 
     /* Read page <directory/table> entry from guest address space */
     pde = ldq_phys(as, *pte_addr);
@@ -260,7 +295,17 @@ static int ppc_radix64_next_level(AddressSpace *as, vaddr eaddr,
         *nls = pde & R_PDE_NLS;
         index = eaddr >> (*psize - *nls);       /* Shift */
         index &= ((1UL << *nls) - 1);           /* Mask */
-        *pte_addr = (pde & R_PDE_NLB) + (index * sizeof(pde));
+        nlb = pde & R_PDE_NLB;
+        mask = MAKE_64BIT_MASK(0, *nls + 3);
+
+        if (nlb & mask) {
+            qemu_log_mask(LOG_GUEST_ERROR,
+                "%s: misaligned page dir/table base: 0x%" PRIx64
+                " page dir size: 0x%" PRIx64 "\n",
+                __func__, nlb, mask + 1);
+            nlb &= ~mask;
+        }
+        *pte_addr = nlb + index * sizeof(pde);
     }
     return 0;
 }
@@ -270,18 +315,29 @@ static int ppc_radix64_walk_tree(AddressSpace *as, vaddr eaddr,
                                  hwaddr *raddr, int *psize, uint64_t *pte,
                                  int *fault_cause, hwaddr *pte_addr)
 {
-    uint64_t index, pde, rpn , mask;
-
-    if (nls < 5) { /* Directory maps less than 2**5 entries */
-        *fault_cause |= DSISR_R_BADCONFIG;
-        return 1;
-    }
+    uint64_t index, pde, rpn, mask;
+    int level = 0;
 
     index = eaddr >> (*psize - nls);    /* Shift */
-    index &= ((1UL << nls) - 1);       /* Mask */
-    *pte_addr = base_addr + (index * sizeof(pde));
+    index &= ((1UL << nls) - 1);        /* Mask */
+    mask = MAKE_64BIT_MASK(0, nls + 3);
+
+    if (base_addr & mask) {
+        qemu_log_mask(LOG_GUEST_ERROR,
+            "%s: misaligned page dir base: 0x%" PRIx64
+            " page dir size: 0x%" PRIx64 "\n",
+            __func__, base_addr, mask + 1);
+        base_addr &= ~mask;
+    }
+    *pte_addr = base_addr + index * sizeof(pde);
+
     do {
         int ret;
+
+        if (!ppc_radix64_is_valid_level(level++, *psize, nls)) {
+            *fault_cause |= DSISR_R_BADCONFIG;
+            return 1;
+        }
 
         ret = ppc_radix64_next_level(as, eaddr, pte_addr, &nls, psize, &pde,
                                      fault_cause);
@@ -317,16 +373,26 @@ static bool validate_pate(PowerPCCPU *cpu, uint64_t lpid, ppc_v3_pate_t *pate)
 }
 
 static int ppc_radix64_partition_scoped_xlate(PowerPCCPU *cpu,
-                                              MMUAccessType access_type,
+                                              MMUAccessType orig_access_type,
                                               vaddr eaddr, hwaddr g_raddr,
                                               ppc_v3_pate_t pate,
                                               hwaddr *h_raddr, int *h_prot,
                                               int *h_page_size, bool pde_addr,
-                                              int mmu_idx, bool guest_visible)
+                                              int mmu_idx, uint64_t lpid,
+                                              bool guest_visible)
 {
+    MMUAccessType access_type = orig_access_type;
     int fault_cause = 0;
     hwaddr pte_addr;
     uint64_t pte;
+
+    if (pde_addr) {
+        /*
+         * Translation of process-scoped tables/directories is performed as
+         * a read-access.
+         */
+        access_type = MMU_DATA_LOAD;
+    }
 
     qemu_log_mask(CPU_LOG_MMU, "%s for %s @0x%"VADDR_PRIx
                   " mmu_idx %u 0x%"HWADDR_PRIx"\n",
@@ -344,13 +410,31 @@ static int ppc_radix64_partition_scoped_xlate(PowerPCCPU *cpu,
             fault_cause |= DSISR_PRTABLE_FAULT;
         }
         if (guest_visible) {
-            ppc_radix64_raise_hsi(cpu, access_type, eaddr, g_raddr, fault_cause);
+            ppc_radix64_raise_hsi(cpu, orig_access_type,
+                                  eaddr, g_raddr, fault_cause);
         }
         return 1;
     }
 
     if (guest_visible) {
-        ppc_radix64_set_rc(cpu, access_type, pte, pte_addr, h_prot);
+        if (ppc_radix64_check_rc(access_type, pte)) {
+            /*
+             * Per ISA 3.1 Book III, 7.5.3 and 7.5.5, failure to set R/C during
+             * partition-scoped translation when effLPID = 0 results in normal
+             * (non-Hypervisor) Data and Instruction Storage Interrupts
+             * respectively.
+             *
+             * ISA 3.0 is ambiguous about this, but tests on POWER9 hardware
+             * seem to exhibit the same behavior.
+             */
+            if (lpid > 0) {
+                ppc_radix64_raise_hsi(cpu, access_type, eaddr, g_raddr,
+                                      DSISR_ATOMIC_RC);
+            } else {
+                ppc_radix64_raise_si(cpu, access_type, eaddr, DSISR_ATOMIC_RC);
+            }
+            return 1;
+        }
     }
 
     return 0;
@@ -379,11 +463,12 @@ static int ppc_radix64_process_scoped_xlate(PowerPCCPU *cpu,
                                             vaddr eaddr, uint64_t pid,
                                             ppc_v3_pate_t pate, hwaddr *g_raddr,
                                             int *g_prot, int *g_page_size,
-                                            int mmu_idx, bool guest_visible)
+                                            int mmu_idx, uint64_t lpid,
+                                            bool guest_visible)
 {
     CPUState *cs = CPU(cpu);
     CPUPPCState *env = &cpu->env;
-    uint64_t offset, size, prtbe_addr, prtbe0, base_addr, nls, index, pte;
+    uint64_t offset, size, prtb, prtbe_addr, prtbe0, base_addr, nls, index, pte;
     int fault_cause = 0, h_page_size, h_prot;
     hwaddr h_raddr, pte_addr;
     int ret;
@@ -393,9 +478,18 @@ static int ppc_radix64_process_scoped_xlate(PowerPCCPU *cpu,
                   __func__, access_str(access_type),
                   eaddr, mmu_idx, pid);
 
+    prtb = (pate.dw1 & PATE1_R_PRTB);
+    size = 1ULL << ((pate.dw1 & PATE1_R_PRTS) + 12);
+    if (prtb & (size - 1)) {
+        /* Process Table not properly aligned */
+        if (guest_visible) {
+            ppc_radix64_raise_si(cpu, access_type, eaddr, DSISR_R_BADCONFIG);
+        }
+        return 1;
+    }
+
     /* Index Process Table by PID to Find Corresponding Process Table Entry */
     offset = pid * sizeof(struct prtb_entry);
-    size = 1ULL << ((pate.dw1 & PATE1_R_PRTS) + 12);
     if (offset >= size) {
         /* offset exceeds size of the process table */
         if (guest_visible) {
@@ -403,7 +497,7 @@ static int ppc_radix64_process_scoped_xlate(PowerPCCPU *cpu,
         }
         return 1;
     }
-    prtbe_addr = (pate.dw1 & PATE1_R_PRTB) + offset;
+    prtbe_addr = prtb + offset;
 
     if (vhyp_flat_addressing(cpu)) {
         prtbe0 = ldq_phys(cs->as, prtbe_addr);
@@ -416,11 +510,11 @@ static int ppc_radix64_process_scoped_xlate(PowerPCCPU *cpu,
          * is only used to translate the effective addresses of the
          * process table entries.
          */
-        ret = ppc_radix64_partition_scoped_xlate(cpu, 0, eaddr, prtbe_addr,
-                                                 pate, &h_raddr, &h_prot,
-                                                 &h_page_size, true,
-            /* mmu_idx is 5 because we're translating from hypervisor scope */
-                                                 5, guest_visible);
+        /* mmu_idx is 5 because we're translating from hypervisor scope */
+        ret = ppc_radix64_partition_scoped_xlate(cpu, access_type, eaddr,
+                                                 prtbe_addr, pate, &h_raddr,
+                                                 &h_prot, &h_page_size, true,
+                                                 5, lpid, guest_visible);
         if (ret) {
             return ret;
         }
@@ -447,6 +541,7 @@ static int ppc_radix64_process_scoped_xlate(PowerPCCPU *cpu,
         }
     } else {
         uint64_t rpn, mask;
+        int level = 0;
 
         index = (eaddr & R_EADDR_MASK) >> (*g_page_size - nls); /* Shift */
         index &= ((1UL << nls) - 1);                            /* Mask */
@@ -457,17 +552,25 @@ static int ppc_radix64_process_scoped_xlate(PowerPCCPU *cpu,
          * translation
          */
         do {
-            ret = ppc_radix64_partition_scoped_xlate(cpu, 0, eaddr, pte_addr,
-                                                     pate, &h_raddr, &h_prot,
-                                                     &h_page_size, true,
             /* mmu_idx is 5 because we're translating from hypervisor scope */
-                                                     5, guest_visible);
+            ret = ppc_radix64_partition_scoped_xlate(cpu, access_type, eaddr,
+                                                     pte_addr, pate, &h_raddr,
+                                                     &h_prot, &h_page_size,
+                                                     true, 5, lpid,
+                                                     guest_visible);
             if (ret) {
                 return ret;
             }
 
-            ret = ppc_radix64_next_level(cs->as, eaddr & R_EADDR_MASK, &h_raddr,
-                                         &nls, g_page_size, &pte, &fault_cause);
+            if (!ppc_radix64_is_valid_level(level++, *g_page_size, nls)) {
+                fault_cause |= DSISR_R_BADCONFIG;
+                ret = 1;
+            } else {
+                ret = ppc_radix64_next_level(cs->as, eaddr & R_EADDR_MASK,
+                                             &h_raddr, &nls, g_page_size,
+                                             &pte, &fault_cause);
+            }
+
             if (ret) {
                 /* No valid pte */
                 if (guest_visible) {
@@ -495,7 +598,11 @@ static int ppc_radix64_process_scoped_xlate(PowerPCCPU *cpu,
     }
 
     if (guest_visible) {
-        ppc_radix64_set_rc(cpu, access_type, pte, pte_addr, g_prot);
+        /* R/C bits not appropriately set for access */
+        if (ppc_radix64_check_rc(access_type, pte)) {
+            ppc_radix64_raise_si(cpu, access_type, eaddr, DSISR_ATOMIC_RC);
+            return 1;
+        }
     }
 
     return 0;
@@ -568,7 +675,7 @@ static bool ppc_radix64_xlate_impl(PowerPCCPU *cpu, vaddr eaddr,
         return false;
     }
 
-    /* Get Process Table */
+    /* Get Partition Table */
     if (cpu->vhyp) {
         PPCVirtualHypervisorClass *vhc;
         vhc = PPC_VIRTUAL_HYPERVISOR_GET_CLASS(cpu->vhyp);
@@ -610,7 +717,8 @@ static bool ppc_radix64_xlate_impl(PowerPCCPU *cpu, vaddr eaddr,
     if (relocation) {
         int ret = ppc_radix64_process_scoped_xlate(cpu, access_type, eaddr, pid,
                                                    pate, &g_raddr, &prot,
-                                                   &psize, mmu_idx, guest_visible);
+                                                   &psize, mmu_idx, lpid,
+                                                   guest_visible);
         if (ret) {
             return false;
         }
@@ -634,7 +742,8 @@ static bool ppc_radix64_xlate_impl(PowerPCCPU *cpu, vaddr eaddr,
             ret = ppc_radix64_partition_scoped_xlate(cpu, access_type, eaddr,
                                                      g_raddr, pate, raddr,
                                                      &prot, &psize, false,
-                                                     mmu_idx, guest_visible);
+                                                     mmu_idx, lpid,
+                                                     guest_visible);
             if (ret) {
                 return false;
             }

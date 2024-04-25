@@ -30,8 +30,8 @@
 #ifndef HOST_UTILS_H
 #define HOST_UTILS_H
 
-#include "qemu/compiler.h"
 #include "qemu/bswap.h"
+#include "qemu/int128.h"
 
 #ifdef CONFIG_INT128
 static inline void mulu64(uint64_t *plow, uint64_t *phigh,
@@ -54,6 +54,11 @@ static inline void muls64(uint64_t *plow, uint64_t *phigh,
 static inline uint64_t muldiv64(uint64_t a, uint32_t b, uint32_t c)
 {
     return (__int128_t)a * b / c;
+}
+
+static inline uint64_t muldiv64_round_up(uint64_t a, uint32_t b, uint32_t c)
+{
+    return ((__int128_t)a * b + c - 1) / c;
 }
 
 static inline uint64_t divu128(uint64_t *plow, uint64_t *phigh,
@@ -83,7 +88,8 @@ void mulu64(uint64_t *plow, uint64_t *phigh, uint64_t a, uint64_t b);
 uint64_t divu128(uint64_t *plow, uint64_t *phigh, uint64_t divisor);
 int64_t divs128(uint64_t *plow, int64_t *phigh, int64_t divisor);
 
-static inline uint64_t muldiv64(uint64_t a, uint32_t b, uint32_t c)
+static inline uint64_t muldiv64_rounding(uint64_t a, uint32_t b, uint32_t c,
+                                  bool round_up)
 {
     union {
         uint64_t ll;
@@ -99,13 +105,56 @@ static inline uint64_t muldiv64(uint64_t a, uint32_t b, uint32_t c)
 
     u.ll = a;
     rl = (uint64_t)u.l.low * (uint64_t)b;
+    if (round_up) {
+        rl += c - 1;
+    }
     rh = (uint64_t)u.l.high * (uint64_t)b;
     rh += (rl >> 32);
     res.l.high = rh / c;
     res.l.low = (((rh % c) << 32) + (rl & 0xffffffff)) / c;
     return res.ll;
 }
+
+static inline uint64_t muldiv64(uint64_t a, uint32_t b, uint32_t c)
+{
+    return muldiv64_rounding(a, b, c, false);
+}
+
+static inline uint64_t muldiv64_round_up(uint64_t a, uint32_t b, uint32_t c)
+{
+    return muldiv64_rounding(a, b, c, true);
+}
 #endif
+
+/**
+ * clz8 - count leading zeros in a 8-bit value.
+ * @val: The value to search
+ *
+ * Returns 8 if the value is zero.  Note that the GCC builtin is
+ * undefined if the value is zero.
+ *
+ * Note that the GCC builtin will upcast its argument to an `unsigned int`
+ * so this function subtracts off the number of prepended zeroes.
+ */
+static inline int clz8(uint8_t val)
+{
+    return val ? __builtin_clz(val) - 24 : 8;
+}
+
+/**
+ * clz16 - count leading zeros in a 16-bit value.
+ * @val: The value to search
+ *
+ * Returns 16 if the value is zero.  Note that the GCC builtin is
+ * undefined if the value is zero.
+ *
+ * Note that the GCC builtin will upcast its argument to an `unsigned int`
+ * so this function subtracts off the number of prepended zeroes.
+ */
+static inline int clz16(uint16_t val)
+{
+    return val ? __builtin_clz(val) - 16 : 16;
+}
 
 /**
  * clz32 - count leading zeros in a 32-bit value.
@@ -151,6 +200,30 @@ static inline int clz64(uint64_t val)
 static inline int clo64(uint64_t val)
 {
     return clz64(~val);
+}
+
+/**
+ * ctz8 - count trailing zeros in a 8-bit value.
+ * @val: The value to search
+ *
+ * Returns 8 if the value is zero.  Note that the GCC builtin is
+ * undefined if the value is zero.
+ */
+static inline int ctz8(uint8_t val)
+{
+    return val ? __builtin_ctz(val) : 8;
+}
+
+/**
+ * ctz16 - count trailing zeros in a 16-bit value.
+ * @val: The value to search
+ *
+ * Returns 16 if the value is zero.  Note that the GCC builtin is
+ * undefined if the value is zero.
+ */
+static inline int ctz16(uint16_t val)
+{
+    return val ? __builtin_ctz(val) : 16;
 }
 
 /**
@@ -375,12 +448,7 @@ static inline uint64_t uabs64(int64_t v)
  */
 static inline bool sadd32_overflow(int32_t x, int32_t y, int32_t *ret)
 {
-#if __has_builtin(__builtin_add_overflow) || __GNUC__ >= 5
     return __builtin_add_overflow(x, y, ret);
-#else
-    *ret = x + y;
-    return ((*ret ^ x) & ~(x ^ y)) < 0;
-#endif
 }
 
 /**
@@ -393,12 +461,7 @@ static inline bool sadd32_overflow(int32_t x, int32_t y, int32_t *ret)
  */
 static inline bool sadd64_overflow(int64_t x, int64_t y, int64_t *ret)
 {
-#if __has_builtin(__builtin_add_overflow) || __GNUC__ >= 5
     return __builtin_add_overflow(x, y, ret);
-#else
-    *ret = x + y;
-    return ((*ret ^ x) & ~(x ^ y)) < 0;
-#endif
 }
 
 /**
@@ -411,12 +474,7 @@ static inline bool sadd64_overflow(int64_t x, int64_t y, int64_t *ret)
  */
 static inline bool uadd32_overflow(uint32_t x, uint32_t y, uint32_t *ret)
 {
-#if __has_builtin(__builtin_add_overflow) || __GNUC__ >= 5
     return __builtin_add_overflow(x, y, ret);
-#else
-    *ret = x + y;
-    return *ret < x;
-#endif
 }
 
 /**
@@ -429,12 +487,7 @@ static inline bool uadd32_overflow(uint32_t x, uint32_t y, uint32_t *ret)
  */
 static inline bool uadd64_overflow(uint64_t x, uint64_t y, uint64_t *ret)
 {
-#if __has_builtin(__builtin_add_overflow) || __GNUC__ >= 5
     return __builtin_add_overflow(x, y, ret);
-#else
-    *ret = x + y;
-    return *ret < x;
-#endif
 }
 
 /**
@@ -448,12 +501,7 @@ static inline bool uadd64_overflow(uint64_t x, uint64_t y, uint64_t *ret)
  */
 static inline bool ssub32_overflow(int32_t x, int32_t y, int32_t *ret)
 {
-#if __has_builtin(__builtin_sub_overflow) || __GNUC__ >= 5
     return __builtin_sub_overflow(x, y, ret);
-#else
-    *ret = x - y;
-    return ((*ret ^ x) & (x ^ y)) < 0;
-#endif
 }
 
 /**
@@ -467,12 +515,7 @@ static inline bool ssub32_overflow(int32_t x, int32_t y, int32_t *ret)
  */
 static inline bool ssub64_overflow(int64_t x, int64_t y, int64_t *ret)
 {
-#if __has_builtin(__builtin_sub_overflow) || __GNUC__ >= 5
     return __builtin_sub_overflow(x, y, ret);
-#else
-    *ret = x - y;
-    return ((*ret ^ x) & (x ^ y)) < 0;
-#endif
 }
 
 /**
@@ -486,12 +529,7 @@ static inline bool ssub64_overflow(int64_t x, int64_t y, int64_t *ret)
  */
 static inline bool usub32_overflow(uint32_t x, uint32_t y, uint32_t *ret)
 {
-#if __has_builtin(__builtin_sub_overflow) || __GNUC__ >= 5
     return __builtin_sub_overflow(x, y, ret);
-#else
-    *ret = x - y;
-    return x < y;
-#endif
 }
 
 /**
@@ -505,12 +543,7 @@ static inline bool usub32_overflow(uint32_t x, uint32_t y, uint32_t *ret)
  */
 static inline bool usub64_overflow(uint64_t x, uint64_t y, uint64_t *ret)
 {
-#if __has_builtin(__builtin_sub_overflow) || __GNUC__ >= 5
     return __builtin_sub_overflow(x, y, ret);
-#else
-    *ret = x - y;
-    return x < y;
-#endif
 }
 
 /**
@@ -523,13 +556,7 @@ static inline bool usub64_overflow(uint64_t x, uint64_t y, uint64_t *ret)
  */
 static inline bool smul32_overflow(int32_t x, int32_t y, int32_t *ret)
 {
-#if __has_builtin(__builtin_mul_overflow) || __GNUC__ >= 5
     return __builtin_mul_overflow(x, y, ret);
-#else
-    int64_t z = (int64_t)x * y;
-    *ret = z;
-    return *ret != z;
-#endif
 }
 
 /**
@@ -542,14 +569,7 @@ static inline bool smul32_overflow(int32_t x, int32_t y, int32_t *ret)
  */
 static inline bool smul64_overflow(int64_t x, int64_t y, int64_t *ret)
 {
-#if __has_builtin(__builtin_mul_overflow) || __GNUC__ >= 5
     return __builtin_mul_overflow(x, y, ret);
-#else
-    uint64_t hi, lo;
-    muls64(&lo, &hi, x, y);
-    *ret = lo;
-    return hi != ((int64_t)lo >> 63);
-#endif
 }
 
 /**
@@ -562,13 +582,7 @@ static inline bool smul64_overflow(int64_t x, int64_t y, int64_t *ret)
  */
 static inline bool umul32_overflow(uint32_t x, uint32_t y, uint32_t *ret)
 {
-#if __has_builtin(__builtin_mul_overflow) || __GNUC__ >= 5
     return __builtin_mul_overflow(x, y, ret);
-#else
-    uint64_t z = (uint64_t)x * y;
-    *ret = z;
-    return z > UINT32_MAX;
-#endif
 }
 
 /**
@@ -581,13 +595,7 @@ static inline bool umul32_overflow(uint32_t x, uint32_t y, uint32_t *ret)
  */
 static inline bool umul64_overflow(uint64_t x, uint64_t y, uint64_t *ret)
 {
-#if __has_builtin(__builtin_mul_overflow) || __GNUC__ >= 5
     return __builtin_mul_overflow(x, y, ret);
-#else
-    uint64_t hi;
-    mulu64(ret, &hi, x, y);
-    return hi != 0;
-#endif
 }
 
 /*
@@ -597,8 +605,7 @@ static inline bool umul64_overflow(uint64_t x, uint64_t y, uint64_t *ret)
  */
 static inline bool mulu128(uint64_t *plow, uint64_t *phigh, uint64_t factor)
 {
-#if defined(CONFIG_INT128) && \
-    (__has_builtin(__builtin_mul_overflow) || __GNUC__ >= 5)
+#if defined(CONFIG_INT128)
     bool res;
     __uint128_t r;
     __uint128_t f = ((__uint128_t)*phigh << 64) | *plow;
@@ -661,7 +668,7 @@ static inline uint64_t uadd64_carry(uint64_t x, uint64_t y, bool *pcarry)
  */
 static inline uint64_t usub64_borrow(uint64_t x, uint64_t y, bool *pborrow)
 {
-#if __has_builtin(__builtin_subcll)
+#if __has_builtin(__builtin_subcll) && !defined(BUILTIN_SUBCLL_BROKEN)
     unsigned long long b = *pborrow;
     x = __builtin_subcll(x, y, b, &b);
     *pborrow = b & 1;
@@ -849,4 +856,6 @@ static inline uint64_t udiv_qrnnd(uint64_t *r, uint64_t n1,
 #endif
 }
 
+Int128 divu256(Int128 *plow, Int128 *phigh, Int128 divisor);
+Int128 divs256(Int128 *plow, Int128 *phigh, Int128 divisor);
 #endif

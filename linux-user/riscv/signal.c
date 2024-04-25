@@ -21,6 +21,7 @@
 #include "user-internals.h"
 #include "signal-common.h"
 #include "linux-user/trace.h"
+#include "vdso-asmoffset.h"
 
 /* Signal handler invocation must be transparent for the code being
    interrupted. Complete CPU (hart) state is saved on entry and restored
@@ -37,9 +38,11 @@ struct target_sigcontext {
     uint32_t fcsr;
 }; /* cf. riscv-linux:arch/riscv/include/uapi/asm/ptrace.h */
 
+QEMU_BUILD_BUG_ON(offsetof(struct target_sigcontext, fpr) != offsetof_freg0);
+
 struct target_ucontext {
-    unsigned long uc_flags;
-    struct target_ucontext *uc_link;
+    abi_ulong uc_flags;
+    abi_ptr uc_link;
     target_stack_t uc_stack;
     target_sigset_t uc_sigmask;
     uint8_t   __unused[1024 / 8 - sizeof(target_sigset_t)];
@@ -50,6 +53,11 @@ struct target_rt_sigframe {
     struct target_siginfo info;
     struct target_ucontext uc;
 };
+
+QEMU_BUILD_BUG_ON(sizeof(struct target_rt_sigframe)
+                  != sizeof_rt_sigframe);
+QEMU_BUILD_BUG_ON(offsetof(struct target_rt_sigframe, uc.uc_mcontext)
+                  != offsetof_uc_mcontext);
 
 static abi_ulong get_sigframe(struct target_sigaction *ka,
                               CPURISCVState *regs, size_t framesize)
@@ -64,9 +72,7 @@ static abi_ulong get_sigframe(struct target_sigaction *ka,
 
     /* This is the X/Open sanctioned signal stack switching.  */
     sp = target_sigsp(sp, ka) - framesize;
-
-    /* XXX: kernel aligns with 0xf ? */
-    sp &= ~3UL; /* align sp on 4-byte boundary */
+    sp &= ~0xf;
 
     return sp;
 }
@@ -119,7 +125,7 @@ void setup_rt_frame(int sig, struct target_sigaction *ka,
     }
 
     setup_ucontext(&frame->uc, env, set);
-    tswap_siginfo(&frame->info, info);
+    frame->info = *info;
 
     env->pc = ka->_sa_handler;
     env->gpr[xSP] = frame_addr;

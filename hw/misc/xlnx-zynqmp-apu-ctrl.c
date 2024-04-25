@@ -18,7 +18,6 @@
 #include "hw/register.h"
 
 #include "qemu/bitops.h"
-#include "qapi/qmp/qerror.h"
 
 #include "hw/misc/xlnx-zynqmp-apu-ctrl.h"
 
@@ -219,7 +218,7 @@ static const VMStateDescription vmstate_zynqmp_apu = {
     .name = TYPE_XLNX_ZYNQMP_APU_CTRL,
     .version_id = 1,
     .minimum_version_id = 1,
-    .fields = (VMStateField[]) {
+    .fields = (const VMStateField[]) {
         VMSTATE_UINT32_ARRAY(regs, XlnxZynqMPAPUCtrl, APU_R_MAX),
         VMSTATE_END_OF_LIST(),
     }

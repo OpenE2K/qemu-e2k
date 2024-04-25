@@ -39,7 +39,7 @@
 #define TYPE_PREP_SYSTEMIO "prep-systemio"
 OBJECT_DECLARE_SIMPLE_TYPE(PrepSystemIoState, PREP_SYSTEMIO)
 
-/* Bit as defined in PowerPC Reference Plaform v1.1, sect. 6.1.5, p. 132 */
+/* Bit as defined in PowerPC Reference Platform v1.1, sect. 6.1.5, p. 132 */
 #define PREP_BIT(n) (1 << (7 - (n)))
 
 struct PrepSystemIoState {
@@ -262,7 +262,7 @@ static void prep_systemio_realize(DeviceState *dev, Error **errp)
     qemu_set_irq(s->non_contiguous_io_map_irq,
                  s->iomap_type & PORT0850_IOMAP_NONCONTIGUOUS);
     cpu = POWERPC_CPU(first_cpu);
-    s->softreset_irq = cpu->env.irq_inputs[PPC6xx_INPUT_HRESET];
+    s->softreset_irq = qdev_get_gpio_in(DEVICE(cpu), PPC6xx_INPUT_HRESET);
 
     isa_register_portio_list(isa, &s->portio, 0x0, ppc_io800_port_list, s,
                              "systemio800");
@@ -277,7 +277,7 @@ static const VMStateDescription vmstate_prep_systemio = {
     .name = "prep_systemio",
     .version_id = 1,
     .minimum_version_id = 1,
-    .fields = (VMStateField[]) {
+    .fields = (const VMStateField[]) {
         VMSTATE_UINT8(sreset, PrepSystemIoState),
         VMSTATE_UINT8(system_control, PrepSystemIoState),
         VMSTATE_UINT8(iomap_type, PrepSystemIoState),

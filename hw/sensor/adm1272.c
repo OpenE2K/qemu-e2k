@@ -8,7 +8,6 @@
  */
 
 #include "qemu/osdep.h"
-#include <string.h>
 #include "hw/i2c/pmbus_device.h"
 #include "hw/irq.h"
 #include "migration/vmstate.h"
@@ -458,7 +457,7 @@ static const VMStateDescription vmstate_adm1272 = {
     .name = "ADM1272",
     .version_id = 0,
     .minimum_version_id = 0,
-    .fields = (VMStateField[]){
+    .fields = (const VMStateField[]){
         VMSTATE_PMBUS_DEVICE(parent, ADM1272State),
         VMSTATE_UINT64(ein_ext, ADM1272State),
         VMSTATE_UINT32(pin_ext, ADM1272State),

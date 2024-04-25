@@ -24,6 +24,7 @@
 #include "qemu/osdep.h"
 #include "qapi/error.h"
 #include "qemu/module.h"
+#include "qemu/error-report.h"
 #include "hw/core/cpu.h"
 #include "hw/intc/arm_gicv3_common.h"
 #include "hw/qdev-properties.h"
@@ -104,7 +105,7 @@ static const VMStateDescription vmstate_gicv3_cpu_virt = {
     .version_id = 1,
     .minimum_version_id = 1,
     .needed = virt_state_needed,
-    .fields = (VMStateField[]) {
+    .fields = (const VMStateField[]) {
         VMSTATE_UINT64_2DARRAY(ich_apr, GICv3CPUState, 3, 4),
         VMSTATE_UINT64(ich_hcr_el2, GICv3CPUState),
         VMSTATE_UINT64_ARRAY(ich_lr_el2, GICv3CPUState, GICV3_LR_MAX),
@@ -138,7 +139,7 @@ const VMStateDescription vmstate_gicv3_cpu_sre_el1 = {
     .version_id = 1,
     .minimum_version_id = 1,
     .needed = icc_sre_el1_reg_needed,
-    .fields = (VMStateField[]) {
+    .fields = (const VMStateField[]) {
         VMSTATE_UINT64(icc_sre_el1, GICv3CPUState),
         VMSTATE_END_OF_LIST()
     }
@@ -156,7 +157,7 @@ const VMStateDescription vmstate_gicv3_gicv4 = {
     .version_id = 1,
     .minimum_version_id = 1,
     .needed = gicv4_needed,
-    .fields = (VMStateField[]) {
+    .fields = (const VMStateField[]) {
         VMSTATE_UINT64(gicr_vpropbaser, GICv3CPUState),
         VMSTATE_UINT64(gicr_vpendbaser, GICv3CPUState),
         VMSTATE_END_OF_LIST()
@@ -168,7 +169,7 @@ static const VMStateDescription vmstate_gicv3_cpu = {
     .version_id = 1,
     .minimum_version_id = 1,
     .pre_load = vmstate_gicv3_cpu_pre_load,
-    .fields = (VMStateField[]) {
+    .fields = (const VMStateField[]) {
         VMSTATE_UINT32(level, GICv3CPUState),
         VMSTATE_UINT32(gicr_ctlr, GICv3CPUState),
         VMSTATE_UINT32_ARRAY(gicr_statusr, GICv3CPUState, 2),
@@ -191,7 +192,7 @@ static const VMStateDescription vmstate_gicv3_cpu = {
         VMSTATE_UINT64(icc_ctlr_el3, GICv3CPUState),
         VMSTATE_END_OF_LIST()
     },
-    .subsections = (const VMStateDescription * []) {
+    .subsections = (const VMStateDescription * const []) {
         &vmstate_gicv3_cpu_virt,
         &vmstate_gicv3_cpu_sre_el1,
         &vmstate_gicv3_gicv4,
@@ -231,7 +232,7 @@ const VMStateDescription vmstate_gicv3_gicd_no_migration_shift_bug = {
     .version_id = 1,
     .minimum_version_id = 1,
     .needed = needed_always,
-    .fields = (VMStateField[]) {
+    .fields = (const VMStateField[]) {
         VMSTATE_BOOL(gicd_no_migration_shift_bug, GICv3State),
         VMSTATE_END_OF_LIST()
     }
@@ -245,7 +246,7 @@ static const VMStateDescription vmstate_gicv3 = {
     .pre_save = gicv3_pre_save,
     .post_load = gicv3_post_load,
     .priority = MIG_PRI_GICV3,
-    .fields = (VMStateField[]) {
+    .fields = (const VMStateField[]) {
         VMSTATE_UINT32(gicd_ctlr, GICv3State),
         VMSTATE_UINT32_ARRAY(gicd_statusr, GICv3State, 2),
         VMSTATE_UINT32_ARRAY(group, GICv3State, GICV3_BMP_SIZE),
@@ -263,7 +264,7 @@ static const VMStateDescription vmstate_gicv3 = {
                                              vmstate_gicv3_cpu, GICv3CPUState),
         VMSTATE_END_OF_LIST()
     },
-    .subsections = (const VMStateDescription * []) {
+    .subsections = (const VMStateDescription * const []) {
         &vmstate_gicv3_gicd_no_migration_shift_bug,
         NULL
     }
@@ -450,9 +451,9 @@ static void arm_gicv3_finalize(Object *obj)
     g_free(s->redist_region_count);
 }
 
-static void arm_gicv3_common_reset(DeviceState *dev)
+static void arm_gicv3_common_reset_hold(Object *obj)
 {
-    GICv3State *s = ARM_GICV3_COMMON(dev);
+    GICv3State *s = ARM_GICV3_COMMON(obj);
     int i;
 
     for (i = 0; i < s->num_cpu; i++) {
@@ -578,9 +579,10 @@ static Property arm_gicv3_common_properties[] = {
 static void arm_gicv3_common_class_init(ObjectClass *klass, void *data)
 {
     DeviceClass *dc = DEVICE_CLASS(klass);
+    ResettableClass *rc = RESETTABLE_CLASS(klass);
     ARMLinuxBootIfClass *albifc = ARM_LINUX_BOOT_IF_CLASS(klass);
 
-    dc->reset = arm_gicv3_common_reset;
+    rc->phases.hold = arm_gicv3_common_reset_hold;
     dc->realize = arm_gicv3_common_realize;
     device_class_set_props(dc, arm_gicv3_common_properties);
     dc->vmsd = &vmstate_gicv3;
@@ -607,3 +609,16 @@ static void register_types(void)
 }
 
 type_init(register_types)
+
+const char *gicv3_class_name(void)
+{
+    if (kvm_irqchip_in_kernel()) {
+        return "kvm-arm-gicv3";
+    } else {
+        if (kvm_enabled()) {
+            error_report("Userspace GICv3 is not supported with KVM");
+            exit(1);
+        }
+        return "arm-gicv3";
+    }
+}

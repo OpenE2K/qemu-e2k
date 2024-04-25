@@ -40,6 +40,7 @@
 #include "hw/irq.h"
 #include "sysemu/kvm.h"
 #include "sysemu/reset.h"
+#include "target/ppc/cpu.h"
 
 void icp_pic_print_info(ICPState *icp, Monitor *mon)
 {
@@ -273,7 +274,7 @@ static const VMStateDescription vmstate_icp_server = {
     .minimum_version_id = 1,
     .pre_save = icp_pre_save,
     .post_load = icp_post_load,
-    .fields = (VMStateField[]) {
+    .fields = (const VMStateField[]) {
         /* Sanity check */
         VMSTATE_UINT32(xirr, ICPState),
         VMSTATE_UINT8(pending_priority, ICPState),
@@ -301,23 +302,25 @@ void icp_reset(ICPState *icp)
 static void icp_realize(DeviceState *dev, Error **errp)
 {
     ICPState *icp = ICP(dev);
+    PowerPCCPU *cpu;
     CPUPPCState *env;
     Error *err = NULL;
 
     assert(icp->xics);
     assert(icp->cs);
 
-    env = &POWERPC_CPU(icp->cs)->env;
+    cpu = POWERPC_CPU(icp->cs);
+    env = &cpu->env;
     switch (PPC_INPUT(env)) {
     case PPC_FLAGS_INPUT_POWER7:
-        icp->output = env->irq_inputs[POWER7_INPUT_INT];
+        icp->output = qdev_get_gpio_in(DEVICE(cpu), POWER7_INPUT_INT);
         break;
     case PPC_FLAGS_INPUT_POWER9: /* For SPAPR xics emulation */
-        icp->output = env->irq_inputs[POWER9_INPUT_INT];
+        icp->output = qdev_get_gpio_in(DEVICE(cpu), POWER9_INPUT_INT);
         break;
 
     case PPC_FLAGS_INPUT_970:
-        icp->output = env->irq_inputs[PPC970_INPUT_INT];
+        icp->output = qdev_get_gpio_in(DEVICE(cpu), PPC970_INPUT_INT);
         break;
 
     default:
@@ -333,8 +336,22 @@ static void icp_realize(DeviceState *dev, Error **errp)
             return;
         }
     }
-
-    vmstate_register(NULL, icp->cs->cpu_index, &vmstate_icp_server, icp);
+    /*
+     * The way that pre_2_10_icp is handling is really, really hacky.
+     * We used to have here this call:
+     *
+     * vmstate_register(NULL, icp->cs->cpu_index, &vmstate_icp_server, icp);
+     *
+     * But we were doing:
+     *     pre_2_10_vmstate_register_dummy_icp()
+     *     this vmstate_register()
+     *     pre_2_10_vmstate_unregister_dummy_icp()
+     *
+     * So for a short amount of time we had to vmstate entries with
+     * the same name.  This fixes it.
+     */
+    vmstate_replace_hack_for_ppc(NULL, icp->cs->cpu_index,
+                                 &vmstate_icp_server, icp);
 }
 
 static void icp_unrealize(DeviceState *dev)
@@ -562,11 +579,11 @@ static void ics_reset_irq(ICSIRQState *irq)
     irq->saved_priority = 0xff;
 }
 
-static void ics_reset(DeviceState *dev)
+static void ics_reset_hold(Object *obj)
 {
-    ICSState *ics = ICS(dev);
+    ICSState *ics = ICS(obj);
+    g_autofree uint8_t *flags = g_malloc(ics->nr_irqs);
     int i;
-    uint8_t flags[ics->nr_irqs];
 
     for (i = 0; i < ics->nr_irqs; i++) {
         flags[i] = ics->irqs[i].flags;
@@ -582,7 +599,7 @@ static void ics_reset(DeviceState *dev)
     if (kvm_irqchip_in_kernel()) {
         Error *local_err = NULL;
 
-        ics_set_kvm_state(ICS(dev), &local_err);
+        ics_set_kvm_state(ics, &local_err);
         if (local_err) {
             error_report_err(local_err);
         }
@@ -591,7 +608,7 @@ static void ics_reset(DeviceState *dev)
 
 static void ics_reset_handler(void *dev)
 {
-    ics_reset(dev);
+    device_cold_reset(dev);
 }
 
 static void ics_realize(DeviceState *dev, Error **errp)
@@ -649,7 +666,7 @@ static const VMStateDescription vmstate_ics_irq = {
     .name = "ics/irq",
     .version_id = 2,
     .minimum_version_id = 1,
-    .fields = (VMStateField[]) {
+    .fields = (const VMStateField[]) {
         VMSTATE_UINT32(server, ICSIRQState),
         VMSTATE_UINT8(priority, ICSIRQState),
         VMSTATE_UINT8(saved_priority, ICSIRQState),
@@ -665,7 +682,7 @@ static const VMStateDescription vmstate_ics = {
     .minimum_version_id = 1,
     .pre_save = ics_pre_save,
     .post_load = ics_post_load,
-    .fields = (VMStateField[]) {
+    .fields = (const VMStateField[]) {
         /* Sanity check */
         VMSTATE_UINT32_EQUAL(nr_irqs, ICSState, NULL),
 
@@ -686,16 +703,17 @@ static Property ics_properties[] = {
 static void ics_class_init(ObjectClass *klass, void *data)
 {
     DeviceClass *dc = DEVICE_CLASS(klass);
+    ResettableClass *rc = RESETTABLE_CLASS(klass);
 
     dc->realize = ics_realize;
     device_class_set_props(dc, ics_properties);
-    dc->reset = ics_reset;
     dc->vmsd = &vmstate_ics;
     /*
      * Reason: part of XICS interrupt controller, needs to be wired up,
      * e.g. by spapr_irq_init().
      */
     dc->user_creatable = false;
+    rc->phases.hold = ics_reset_hold;
 }
 
 static const TypeInfo ics_info = {

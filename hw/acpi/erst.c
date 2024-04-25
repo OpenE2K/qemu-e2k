@@ -14,7 +14,7 @@
 #include "hw/qdev-core.h"
 #include "exec/memory.h"
 #include "qom/object.h"
-#include "hw/pci/pci.h"
+#include "hw/pci/pci_device.h"
 #include "qom/object_interfaces.h"
 #include "qemu/error-report.h"
 #include "migration/vmstate.h"
@@ -440,6 +440,7 @@ static void check_erst_backend_storage(ERSTDeviceState *s, Error **errp)
         (record_size >= 4096) /* PAGE_SIZE */
         )) {
         error_setg(errp, "ERST record_size %u is invalid", record_size);
+        return;
     }
 
     /* Validity check header */
@@ -450,6 +451,7 @@ static void check_erst_backend_storage(ERSTDeviceState *s, Error **errp)
         (le16_to_cpu(header->reserved) == 0)
         )) {
         error_setg(errp, "ERST backend storage header is invalid");
+        return;
     }
 
     /* Check storage_size against record_size */
@@ -457,6 +459,7 @@ static void check_erst_backend_storage(ERSTDeviceState *s, Error **errp)
          (record_size > s->storage_size)) {
         error_setg(errp, "ACPI ERST requires storage size be multiple of "
             "record size (%uKiB)", record_size);
+        return;
     }
 
     /* Compute offset of first and last record storage slot */
@@ -632,7 +635,7 @@ static unsigned read_erst_record(ERSTDeviceState *s)
         if (record_length < UEFI_CPER_RECORD_MIN_SIZE) {
             rc = STATUS_FAILED;
         }
-        if ((s->record_offset + record_length) > exchange_length) {
+        if (record_length > exchange_length - s->record_offset) {
             rc = STATUS_FAILED;
         }
         /* If all is ok, copy the record to the exchange buffer */
@@ -681,7 +684,7 @@ static unsigned write_erst_record(ERSTDeviceState *s)
     if (record_length < UEFI_CPER_RECORD_MIN_SIZE) {
         return STATUS_FAILED;
     }
-    if ((s->record_offset + record_length) > exchange_length) {
+    if (record_length > exchange_length - s->record_offset) {
         return STATUS_FAILED;
     }
 
@@ -713,7 +716,7 @@ static unsigned write_erst_record(ERSTDeviceState *s)
     if (nvram) {
         /* Write the record into the slot */
         memcpy(nvram, exchange, record_length);
-        memset(nvram + record_length, exchange_length - record_length, 0xFF);
+        memset(nvram + record_length, 0xFF, exchange_length - record_length);
         /* If a new record, increment the record_count */
         if (!record_found) {
             uint32_t record_count;
@@ -929,7 +932,7 @@ static const VMStateDescription erst_vmstate  = {
     .version_id = 1,
     .minimum_version_id = 1,
     .post_load = erst_post_load,
-    .fields = (VMStateField[]) {
+    .fields = (const VMStateField[]) {
         VMSTATE_UINT8(operation, ERSTDeviceState),
         VMSTATE_UINT8(busy_status, ERSTDeviceState),
         VMSTATE_UINT8(command_status, ERSTDeviceState),
@@ -944,6 +947,7 @@ static const VMStateDescription erst_vmstate  = {
 
 static void erst_realizefn(PCIDevice *pci_dev, Error **errp)
 {
+    ERRP_GUARD();
     ERSTDeviceState *s = ACPIERST(pci_dev);
 
     trace_acpi_erst_realizefn_in();
@@ -961,9 +965,15 @@ static void erst_realizefn(PCIDevice *pci_dev, Error **errp)
 
     /* HostMemoryBackend size will be multiple of PAGE_SIZE */
     s->storage_size = object_property_get_int(OBJECT(s->hostmem), "size", errp);
+    if (*errp) {
+        return;
+    }
 
     /* Initialize backend storage and record_count */
     check_erst_backend_storage(s, errp);
+    if (*errp) {
+        return;
+    }
 
     /* BAR 0: Programming registers */
     memory_region_init_io(&s->iomem_mr, OBJECT(pci_dev), &erst_reg_ops, s,
@@ -974,6 +984,9 @@ static void erst_realizefn(PCIDevice *pci_dev, Error **errp)
     memory_region_init_ram(&s->exchange_mr, OBJECT(pci_dev),
                             "erst.exchange",
                             le32_to_cpu(s->header->record_size), errp);
+    if (*errp) {
+        return;
+    }
     pci_register_bar(pci_dev, 1, PCI_BASE_ADDRESS_SPACE_MEMORY,
                         &s->exchange_mr);
 

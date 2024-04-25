@@ -107,7 +107,7 @@ typedef union IplParameterBlock IplParameterBlock;
 
 int s390_ipl_set_loadparm(uint8_t *loadparm);
 void s390_ipl_update_diag308(IplParameterBlock *iplb);
-int s390_ipl_prepare_pv_header(void);
+int s390_ipl_prepare_pv_header(Error **errp);
 int s390_ipl_pv_unpack(void);
 void s390_ipl_prepare_cpu(S390CPU *cpu);
 IplParameterBlock *s390_ipl_get_iplb(void);
@@ -140,7 +140,7 @@ void s390_ipl_clear_reset_request(void);
  * have an offset of 4 + n * 8 bytes within the struct in order
  * to keep it double-word aligned.
  * The total size of the struct must never exceed 28 bytes.
- * This definition must be kept in sync with the defininition
+ * This definition must be kept in sync with the definition
  * in pc-bios/s390-ccw/iplb.h.
  */
 struct QemuIplParameters {

@@ -51,7 +51,7 @@ static const VMStateDescription vmstate_sii9022 = {
     .name = "sii9022",
     .version_id = 1,
     .minimum_version_id = 1,
-    .fields = (VMStateField[]) {
+    .fields = (const VMStateField[]) {
         VMSTATE_I2C_SLAVE(parent_obj, sii9022_state),
         VMSTATE_UINT8(ptr, sii9022_state),
         VMSTATE_BOOL(addr_byte, sii9022_state),
@@ -76,6 +76,8 @@ static int sii9022_event(I2CSlave *i2c, enum i2c_event event)
         break;
     case I2C_NACK:
         break;
+    default:
+        return -1;
     }
 
     return 0;
