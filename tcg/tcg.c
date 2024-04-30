@@ -100,6 +100,10 @@ typedef struct TCGLabelQemuLdst {
     TCGReg datahi_reg;      /* reg index for high word to be loaded or stored */
     const tcg_insn_unit *raddr;   /* addr of the next IR of qemu_ld/st IR */
     tcg_insn_unit *label_ptr[2]; /* label pointers to be updated */
+#ifdef __e2k__
+    /* A relative offset to a syllable in a bundle */
+    int8_t label_addend[1];
+#endif
     QSIMPLEQ_ENTRY(TCGLabelQemuLdst) next;
 } TCGLabelQemuLdst;
 
@@ -186,7 +190,7 @@ static int tcg_out_ldst_finalize(TCGContext *s);
 typedef struct TCGLdstHelperParam {
     TCGReg (*ra_gen)(TCGContext *s, const TCGLabelQemuLdst *l, int arg_reg);
     unsigned ntmp;
-    int tmp[3];
+    int tmp[4];
 } TCGLdstHelperParam;
 
 static void tcg_out_ld_helper_args(TCGContext *s, const TCGLabelQemuLdst *l,

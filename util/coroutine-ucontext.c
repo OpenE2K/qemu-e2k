@@ -219,8 +219,16 @@ Coroutine *qemu_coroutine_new(void)
     arg.p = co;
 
     on_new_fiber(co);
+#ifdef __e2k__
+    /* TODO: freecontext_e2k??? */
+    if (makecontext_e2k(&uc, (void (*)(void))coroutine_trampoline,
+                        2, arg.i[0], arg.i[1]) < 0) {
+        abort();
+    }
+#else
     makecontext(&uc, (void (*)(void))coroutine_trampoline,
                 2, arg.i[0], arg.i[1]);
+#endif
 
     /* swapcontext() in, siglongjmp() back out */
     if (!sigsetjmp(old_env, 0)) {

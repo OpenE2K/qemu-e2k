@@ -129,3 +129,15 @@ bool kvm_hwpoisoned_mem(void)
 {
     return false;
 }
+
+int kvm_irqchip_add_irqfd_notifier(KVMState *s, EventNotifier *n,
+                                   EventNotifier *rn, qemu_irq irq)
+{
+    return -ENOSYS;
+}
+
+int kvm_irqchip_remove_irqfd_notifier(KVMState *s, EventNotifier *n,
+                                      qemu_irq irq)
+{
+    return -ENOSYS;
+}

@@ -64,7 +64,8 @@ buffer_zero_int(const void *buf, size_t len)
     }
 }
 
-#if defined(CONFIG_AVX512F_OPT) || defined(CONFIG_AVX2_OPT) || defined(__SSE2__)
+#if defined(CONFIG_AVX512F_OPT) || defined(CONFIG_AVX2_OPT) || \
+    (defined(__SSE2__) && !defined(__e2k__))
 #include <immintrin.h>
 
 /* Note that each of these vectorized functions require len >= 64.  */
