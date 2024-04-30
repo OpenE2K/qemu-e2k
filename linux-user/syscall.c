@@ -92,6 +92,11 @@
 #define tchars host_tchars /* same as target */
 #define ltchars host_ltchars /* same as target */
 
+#ifdef __e2k__
+// __NR_openat2 definition
+#include <e2k-linux-gnu/asm/unistd.h>
+#endif
+
 #include <linux/termios.h>
 #include <linux/unistd.h>
 #include <linux/cdrom.h>

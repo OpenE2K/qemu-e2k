@@ -49,7 +49,7 @@ qapi_trace_events = []
 bsd_oses = ['gnu/kfreebsd', 'freebsd', 'netbsd', 'openbsd', 'dragonfly', 'darwin']
 supported_oses = ['windows', 'freebsd', 'netbsd', 'openbsd', 'darwin', 'sunos', 'linux']
 supported_cpus = ['ppc', 'ppc64', 's390x', 'riscv32', 'riscv64', 'x86', 'x86_64',
-  'arm', 'aarch64', 'loongarch64', 'mips', 'mips64', 'sparc64']
+  'arm', 'aarch64', 'loongarch64', 'mips', 'mips64', 'sparc64', 'e2k']
 
 cpu = host_machine.cpu_family()
 
@@ -336,6 +336,8 @@ foreach lang : all_languages
   compiler = meson.get_compiler(lang)
   if compiler.get_id() == 'gcc' and compiler.version().version_compare('>=7.4')
     # ok
+  elif compiler.get_id() == 'lcc' and compiler.version().version_compare('>=1.25')
+    # ok
   elif compiler.get_id() == 'clang' and compiler.compiles('''
       #ifdef __apple_build_version__
       # if __clang_major__ < 15 || (__clang_major__ == 15 && __clang_minor__ < 0)
@@ -348,7 +350,11 @@ foreach lang : all_languages
       #endif''')
     # ok
   else
-    error('You either need GCC v7.4 or Clang v10.0 (or XCode Clang v15.0) to compile QEMU')
+    if host_arch == 'e2k'
+      error('You need LCC v1.25 to compile QEMU')
+    else
+      error('You either need GCC v7.4 or Clang v10.0 (or XCode Clang v15.0) to compile QEMU')
+    endif
   endif
 endforeach
 
@@ -500,7 +506,11 @@ ucontext_probe = '''
   #ifdef __stub_makecontext
   #error Ignoring glibc stub makecontext which will always fail
   #endif
-  int main(void) { makecontext(0, 0, 0); return 0; }'''
+  #ifdef __e2k__
+  int main(void) { makecontext_e2k(0, 0, 0); return 0; }
+  #else
+  int main(void) { makecontext(0, 0, 0); return 0; }
+  #endif'''
 
 # On Windows the only valid backend is the Windows specific one.
 # For POSIX prefer ucontext, but it's not always possible. The fallback
@@ -512,7 +522,9 @@ else
   if host_os != 'darwin' and cc.links(ucontext_probe)
     supported_backends += ['ucontext']
   endif
-  supported_backends += ['sigaltstack']
+  if host_arch != 'e2k'
+    supported_backends += ['sigaltstack']
+  endif
 endif
 
 if coroutine_backend == 'auto'
@@ -2969,7 +2981,7 @@ if has_int128_type
   # __alignof(unsigned __int128) for the host.
   atomic_test_128 = '''
     int main(int ac, char **av) {
-      __uint128_t *p = __builtin_assume_aligned(av[ac - 1], 16);
+      __uint128_t *p = (__uint128_t *) __builtin_assume_aligned(av[ac - 1], 16);
       p[1] = __atomic_load_n(&p[0], __ATOMIC_RELAXED);
       __atomic_store_n(&p[2], p[3], __ATOMIC_RELAXED);
       __atomic_compare_exchange_n(&p[4], &p[5], p[6], 0, __ATOMIC_RELAXED, __ATOMIC_RELAXED);

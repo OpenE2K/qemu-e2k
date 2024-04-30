@@ -418,6 +418,8 @@ elif check_define __aarch64__ ; then
   cpu="aarch64"
 elif check_define __loongarch64 ; then
   cpu="loongarch64"
+elif check_define __e2k__ ; then
+  cpu="e2k"
 else
   # Using uname is really broken, but it is just a fallback for architectures
   # that are going to use TCI anyway
@@ -447,6 +449,11 @@ case "$cpu" in
     cpu=arm
     host_arch=arm
     linux_arch=arm
+    ;;
+
+  e2k)
+    host_arch=e2k
+    linux_arch=e2k
     ;;
 
   i386|i486|i586|i686)
@@ -1318,6 +1325,7 @@ fi
 : ${cross_prefix_arm="arm-linux-gnueabihf-"}
 : ${cross_prefix_armeb="$cross_prefix_arm"}
 : ${cross_prefix_hexagon="hexagon-unknown-linux-musl-"}
+: ${cross_prefix_e2k="e2k-linux-"}
 : ${cross_prefix_loongarch64="loongarch64-unknown-linux-gnu-"}
 : ${cross_prefix_hppa="hppa-linux-gnu-"}
 : ${cross_prefix_i386="i686-linux-gnu-"}
@@ -1407,6 +1415,7 @@ probe_target_compiler() {
     aarch64_be) container_hosts="x86_64 aarch64" ;;
     alpha) container_hosts=x86_64 ;;
     arm) container_hosts="x86_64 aarch64" ;;
+    e2k) container_hosts=x86_64 ;;
     hexagon) container_hosts=x86_64 ;;
     hppa) container_hosts=x86_64 ;;
     i386) container_hosts=x86_64 ;;

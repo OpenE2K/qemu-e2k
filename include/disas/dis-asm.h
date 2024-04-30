@@ -11,6 +11,9 @@
 
 #include "qemu/bswap.h"
 
+/* May be defined in ansidecl.h */
+#undef PTR
+
 typedef void *PTR;
 typedef uint64_t bfd_vma;
 typedef int64_t bfd_signed_vma;
