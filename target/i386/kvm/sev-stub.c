@@ -19,3 +19,18 @@ int sev_kvm_init(ConfidentialGuestSupport *cgs, Error **errp)
     /* If we get here, cgs must be some non-SEV thing */
     return 0;
 }
+
+uint32_t sev_get_cbit_position(void)
+{
+    g_assert_not_reached();
+}
+
+uint32_t sev_get_reduced_phys_bits(void)
+{
+    g_assert_not_reached();
+}
+
+bool sev_add_kernel_loader_hashes(SevKernelLoaderContext *ctx, Error **errp)
+{
+    g_assert_not_reached();
+}

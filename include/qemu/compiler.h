@@ -227,4 +227,9 @@
 #define SECOND_ARG(first, second, ...) second
 #define IS_EMPTY_(junk_maybecomma)     SECOND_ARG(junk_maybecomma 1, 0)
 
+/* MCST LCC tries to be like GCC, but it is not GCC */
+#if defined(__MCST__) && defined(__LCC__)
+# define MCST_LCC_SUCKS
+#endif
+
 #endif /* COMPILER_H */

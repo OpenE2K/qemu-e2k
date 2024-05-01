@@ -270,12 +270,14 @@ endif
 # Compiler flags #
 ##################
 
+mcst_lcc_sucks = false
 foreach lang : all_languages
   compiler = meson.get_compiler(lang)
   if compiler.get_id() == 'gcc' and compiler.version().version_compare('>=7.4')
     # ok
   elif compiler.get_id() == 'lcc' and compiler.version().version_compare('>=1.25')
     # ok
+    mcst_lcc_sucks = true
   elif compiler.get_id() == 'clang' and compiler.compiles('''
       #ifdef __apple_build_version__
       # if __clang_major__ < 12 || (__clang_major__ == 12 && __clang_minor__ < 0)

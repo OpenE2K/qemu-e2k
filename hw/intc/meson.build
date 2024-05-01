@@ -73,3 +73,8 @@ specific_ss.add(when: 'CONFIG_LOONGARCH_IPI', if_true: files('loongarch_ipi.c'))
 specific_ss.add(when: 'CONFIG_LOONGARCH_PCH_PIC', if_true: files('loongarch_pch_pic.c'))
 specific_ss.add(when: 'CONFIG_LOONGARCH_PCH_MSI', if_true: files('loongarch_pch_msi.c'))
 specific_ss.add(when: 'CONFIG_LOONGARCH_EXTIOI', if_true: files('loongarch_extioi.c'))
+
+if mcst_lcc_sucks
+  specific_ss.add(when: 'CONFIG_PSERIES',
+      if_true: files('xics_kvm_stub.c', 'spapr_xive_kvm_stub.c'))
+endif

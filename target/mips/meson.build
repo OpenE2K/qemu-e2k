@@ -16,7 +16,7 @@ if 'CONFIG_TCG' in config_all_accel
   subdir('tcg')
 endif
 
-mips_ss.add(when: 'CONFIG_KVM', if_true: files('kvm.c'))
+mips_ss.add(when: 'CONFIG_KVM', if_true: files('kvm.c'), if_false: files('kvm-stub.c'))
 
 target_arch += {'mips': mips_ss}
 target_system_arch += {'mips': mips_system_ss}

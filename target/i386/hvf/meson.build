@@ -11,3 +11,7 @@ i386_system_ss.add(when: [hvf, 'CONFIG_HVF'], if_true: files(
   'x86hvf.c',
   'hvf-cpu.c',
 ))
+
+if mcst_lcc_sucks
+  i386_ss.add(when: [hvf, 'CONFIG_HVF'], if_false: files('hvf-stub.c'))
+endif

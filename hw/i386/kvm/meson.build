@@ -21,3 +21,7 @@ xen_stubs_ss.add(when: 'CONFIG_XEN_EMU', if_false: files(
 ))
 
 specific_ss.add_all(when: 'CONFIG_SYSTEM_ONLY', if_true: xen_stubs_ss)
+
+if mcst_lcc_sucks
+  i386_ss.add(when: 'CONFIG_KVM', if_false: files('kvm-stub.c'))
+endif
