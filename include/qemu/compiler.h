@@ -268,4 +268,9 @@
       (expr)+0))))))
 #endif
 
+/* MCST LCC tries to be like GCC, but it is not GCC */
+#if defined(__MCST__) && defined(__LCC__)
+# define MCST_LCC_SUCKS
+#endif
+
 #endif /* COMPILER_H */

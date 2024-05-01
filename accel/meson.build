@@ -9,6 +9,8 @@ if have_system
   subdir('kvm')
   subdir('xen')
   subdir('stubs')
+elif mcst_lcc_sucks
+  subdir('stubs')
 endif
 
 # qtest

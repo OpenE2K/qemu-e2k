@@ -31,3 +31,4 @@ else
 endif
 
 specific_ss.add_all(when: ['CONFIG_XEN', xen], if_true: xen_specific_ss)
+specific_ss.add(when: ['CONFIG_XEN', xen], if_false: files('xen-stub.c'))

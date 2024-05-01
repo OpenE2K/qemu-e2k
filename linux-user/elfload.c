@@ -47,6 +47,11 @@
 #define TARGET_ARCH_HAS_SIGTRAMP_PAGE 0
 #endif
 
+/* XXX: some compilers may generate call with -O0 */
+#if defined(MCST_LCC_SUCKS) && !TARGET_ARCH_HAS_SIGTRAMP_PAGE
+void setup_sigtramp(abi_ulong tramp_page) {}
+#endif
+
 typedef struct {
     const uint8_t *image;
     const uint32_t *relocs;

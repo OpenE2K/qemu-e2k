@@ -332,12 +332,14 @@ endif
 # Compiler flags #
 ##################
 
+mcst_lcc_sucks = false
 foreach lang : all_languages
   compiler = meson.get_compiler(lang)
   if compiler.get_id() == 'gcc' and compiler.version().version_compare('>=7.4')
     # ok
   elif compiler.get_id() == 'lcc' and compiler.version().version_compare('>=1.25')
     # ok
+    mcst_lcc_sucks = true
   elif compiler.get_id() == 'clang' and compiler.compiles('''
       #ifdef __apple_build_version__
       # if __clang_major__ < 15 || (__clang_major__ == 15 && __clang_minor__ < 0)
@@ -388,6 +390,12 @@ elif host_os == 'windows'
   if compiler.get_id() == 'clang' and compiler.get_linker_id() != 'ld.lld'
     error('On windows, you need to use lld with clang - use msys2 clang64/clangarm64 env')
   endif
+endif
+
+if mcst_lcc_sucks
+  # Silence annoying warnings
+  qemu_common_flags += '-Wno-deprecated-declarations'
+  qemu_common_flags += '-Wno-type-limits'
 endif
 
 # Choose instruction set (currently x86-only)

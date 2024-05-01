@@ -1879,9 +1879,11 @@ static uint32_t do_csst(CPUS390XState *env, uint32_t r3, uint64_t a1,
                     nv = ov;
                 }
                 cpu_st16_mmu(env, a1, nv, oi16, ra);
+#if HAVE_CMPXCHG128
             } else if (HAVE_CMPXCHG128) {
                 ov = cpu_atomic_cmpxchgo_be_mmu(env, a1, cv, nv, oi16, ra);
                 cc = !int128_eq(ov, cv);
+#endif
             } else {
                 /* Note that we asserted !parallel above.  */
                 g_assert_not_reached();

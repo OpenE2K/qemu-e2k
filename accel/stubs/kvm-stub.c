@@ -12,7 +12,9 @@
 
 #include "qemu/osdep.h"
 #include "system/kvm.h"
+#if defined(CONFIG_SOFTMMU)
 #include "hw/pci/msi.h"
+#endif
 
 KVMState *kvm_state;
 bool kvm_kernel_irqchip;
@@ -61,11 +63,13 @@ void kvm_irqchip_release_virq(KVMState *s, int virq)
 {
 }
 
+#if defined(CONFIG_SOFTMMU)
 int kvm_irqchip_update_msi_route(KVMState *s, int virq, MSIMessage msg,
                                  PCIDevice *dev)
 {
     return -ENOSYS;
 }
+#endif
 
 void kvm_irqchip_commit_routes(KVMState *s)
 {
@@ -140,4 +144,19 @@ int kvm_irqchip_remove_irqfd_notifier(KVMState *s, EventNotifier *n,
                                       qemu_irq irq)
 {
     return -ENOSYS;
+}
+
+bool kvm_kernel_irqchip_allowed(void)
+{
+    g_assert_not_reached();
+}
+
+bool kvm_kernel_irqchip_required(void)
+{
+    g_assert_not_reached();
+}
+
+int kvm_create_guest_memfd(uint64_t size, uint64_t flags, Error **errp)
+{
+    g_assert_not_reached();
 }
