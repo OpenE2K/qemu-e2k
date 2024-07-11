@@ -19,7 +19,6 @@
 
 #include "qemu/osdep.h"
 #include "qemu/bitops.h"
-#include "libiberty.h"
 #include "disas/dis-asm.h"
 #include "disas/e2k.h"
 
