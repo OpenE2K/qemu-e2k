@@ -936,6 +936,9 @@ typedef struct CPUArchState {
     /* Enable tags handling.
      * Default: false */
     bool enable_tags;
+    /* Enable page cache for speculative memory accesses.
+     * Default: false */
+    bool enable_pagecache;
 
     struct e2k_def_t def;
 

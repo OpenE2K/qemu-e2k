@@ -252,6 +252,7 @@ static struct TCGCPUOps e2k_tcg_ops = {
 static Property e2k_cpu_properties[] = {
     DEFINE_PROP_BOOL("force_save_alc_dst", E2KCPU, env.force_save_alc_dst, false),
     DEFINE_PROP_BOOL("tags", E2KCPU, env.enable_tags, false),
+    DEFINE_PROP_BOOL("pagecache", E2KCPU, env.enable_pagecache, false),
     DEFINE_PROP_END_OF_LIST()
 };
 

@@ -20,15 +20,20 @@
 static bool e2k_probe_access_cached(CPUE2KState *env, target_ulong page, int flags)
 {
     int index = (page >> TARGET_PAGE_BITS) & (TARGET_PROBE_CACHE_SIZE - 1);
+    uint8_t page_flags;
 
-    if (env->probe_cache_page[index] == page) {
+    if (env->enable_pagecache && env->probe_cache_page[index] == page) {
         return (env->probe_cache_flags[index] & flags) == flags;
     }
 
-    env->probe_cache_page[index] = page;
-    env->probe_cache_flags[index] = page_get_flags(page);
+    page_flags = page_get_flags(page);
 
-    return (env->probe_cache_flags[index] & flags) == flags;
+    if (env->enable_pagecache) {
+        env->probe_cache_page[index] = page;
+        env->probe_cache_flags[index] = page_flags;
+    }
+
+    return (page_flags & flags) == flags;
 }
 
 static bool e2k_probe_access(CPUE2KState *env, target_ulong addr, int size, int flags)
