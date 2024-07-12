@@ -130,7 +130,9 @@ void cpu_loop(CPUE2KState *env)
                     }
 
                     if (ret == 0) {
-                        e2k_clear_probe_page_cache(num);
+                        if (env->enable_pagecache) {
+                            e2k_clear_probe_page_cache(num);
+                        }
                         ret = do_syscall(env, num, args[1], args[2], args[3],
                             args[4], args[5], args[6], args[7], args[8]);
                     }
