@@ -62,6 +62,7 @@ static void e2k_clear_probe_page_cache(uint32_t num)
     case TARGET_NR_remap_file_pages:
     case TARGET_NR_move_pages:
     case TARGET_NR_migrate_pages:
+    case TARGET_NR_mprotect:
         start_exclusive();
         CPU_FOREACH(other_cpu) {
             E2KCPU *cpu = E2K_CPU(other_cpu);
