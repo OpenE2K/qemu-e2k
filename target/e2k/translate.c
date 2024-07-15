@@ -5338,12 +5338,6 @@ static void gen_qpfcomb_op_i64(Alop *alop, FComb opc,
     }
 }
 
-#define icomb_opc1(instr) comb_opc1(instr, 0xf)
-#define fcomb_opc1(instr) comb_opc1(instr, 0x7)
-
-#define icomb_opc2(instr) comb_opc2(instr, 0x3, 0x3)
-#define fcomb_opc2(instr) comb_opc2(instr, 0x3, 0x1)
-
 #define IMPL_GEN_COMB(NAME, P, S, OP) \
     static void NAME(Alop *alop, int opc1, int opc2) \
     { \
