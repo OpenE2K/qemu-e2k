@@ -165,10 +165,6 @@ void e2k_proc_call(CPUE2KState *env, int base, target_ulong ret_ip,
 {
     E2KCrs crs;
 
-    if ((env->pcsp.size - env->pcsp.index) <= (sizeof(E2KCrs) * 2)) {
-        raise_exception_ra(env, E2K_EXCP_CHAIN_STACK_BOUNDS, GETPC());
-    }
-
     crs.cr0_lo = env->pregs;
     crs.cr0_hi = ret_ip & ~7;
     crs.cr1.wbs = base / 2;
@@ -218,6 +214,15 @@ static inline void do_call(CPUE2KState *env, int wbs, target_ulong ret_ip)
     e2k_proc_call(env, wbs * 2, ret_ip, false);
     reset_ctprs(env);
 }
+
+#ifdef CONFIG_USER_ONLY
+void HELPER(expand_proc_chain_stack)(CPUE2KState *env)
+{
+    if ((env->pcsp.size - env->pcsp.index) <= (sizeof(E2KCrs) * 2)) {
+        raise_exception_ra(env, E2K_EXCP_CHAIN_STACK_BOUNDS, GETPC());
+    }
+}
+#endif /* CONFIG_USER_ONLY */
 
 void HELPER(call)(CPUE2KState *env, uint64_t ctpr_raw, int call_wbs,
     target_ulong pc_next)

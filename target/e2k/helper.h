@@ -2,6 +2,9 @@
 #define vec i128
 
 DEF_HELPER_2(raise_exception, noreturn, env, int)
+#ifdef CONFIG_USER_ONLY
+DEF_HELPER_1(expand_proc_chain_stack, void, env)
+#endif
 
 DEF_HELPER_4(call, void, env, i64, int, tl)
 DEF_HELPER_4(icalld, void, env, tl, int, tl)
