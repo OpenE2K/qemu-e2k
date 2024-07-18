@@ -2875,34 +2875,7 @@ IMPL_GEN_OP_C(gen_subcd, tcg_gen_sub_i64, TCG_COND_GTU)
 IMPL_GEN_PSHIFT(gen_pslld, tcg_gen_shl_i64)
 IMPL_GEN_PSHIFT(gen_psrld, tcg_gen_shr_i64)
 
-#define gen_psrcd tcg_gen_rotr_i64
-
-static void gen_psrcw(TCGv_i64 ret, TCGv_i64 src1, TCGv_i64 src2)
-{
-    TCGv_i32 t0 = tcg_temp_new_i32();
-    TCGv_i32 t1 = tcg_temp_new_i32();
-    TCGv_i32 t2 = tcg_temp_new_i32();
-
-    tcg_gen_extr_i64_i32(t0, t1, src1);
-    tcg_gen_extrl_i64_i32(t2, src2);
-    tcg_gen_rotr_i32(t0, t0, t2);
-    tcg_gen_rotr_i32(t1, t1, t2);
-    tcg_gen_concat_i32_i64(ret, t0, t1);
-}
-
-static void gen_pmullw(TCGv_i64 ret, TCGv_i64 src1, TCGv_i64 src2)
-{
-    TCGv_i32 t0 = tcg_temp_new_i32();
-    TCGv_i32 t1 = tcg_temp_new_i32();
-    TCGv_i32 t2 = tcg_temp_new_i32();
-    TCGv_i32 t3 = tcg_temp_new_i32();
-
-    tcg_gen_extr_i64_i32(t0, t1, src1);
-    tcg_gen_extr_i64_i32(t2, t3, src2);
-    tcg_gen_mul_i32(t0, t0, t2);
-    tcg_gen_mul_i32(t1, t1, t3);
-    tcg_gen_concat_i32_i64(ret, t0, t1);
-}
+#define gen_helper_psrcd tcg_gen_rotr_i64
 
 static void gen_sm_i32(bool sm, TCGv_i32 ret, TCGv_i32 ret_tag, E2KException excp)
 {
@@ -3714,7 +3687,7 @@ IMPL_GEN_ALOPF1_QQQ(gen_qpsubh, tcg_gen_vec_sub16_i64)
 IMPL_GEN_ALOPF1_QQQ(gen_qpsubw, tcg_gen_vec_sub32_i64)
 IMPL_GEN_ALOPF1_QQQ(gen_qpsubd, tcg_gen_sub_i64)
 
-IMPL_GEN_ALOPF1_QQQ(gen_qpmullw, gen_pmullw)
+IMPL_GEN_ALOPF1_QQQ(gen_qpmullw, gen_helper_pmullw)
 
 IMPL_GEN_ALOPF1_QQQ(gen_qpaddsb,  gen_helper_paddsb)
 IMPL_GEN_ALOPF1_QQQ(gen_qpaddsh,  gen_helper_paddsh)
@@ -3786,8 +3759,8 @@ IMPL_GEN_ALOPF1_QDQ(gen_qpsrlw, gen_helper_psrlw)
 IMPL_GEN_ALOPF1_QDQ(gen_qpsrld, gen_psrld)
 IMPL_GEN_ALOPF1_QDQ(gen_qpsrah, gen_helper_psrah)
 IMPL_GEN_ALOPF1_QDQ(gen_qpsraw, gen_helper_psraw)
-IMPL_GEN_ALOPF1_QDQ(gen_qpsrcw, gen_psrcw)
-IMPL_GEN_ALOPF1_QDQ(gen_qpsrcd, gen_psrcd)
+IMPL_GEN_ALOPF1_QDQ(gen_qpsrcw, gen_helper_psrcw)
+IMPL_GEN_ALOPF1_QDQ(gen_qpsrcd, gen_helper_psrcd)
 
 static void gen_qpsrad_helper(TCGv_i64 ret, TCGv_i64 s1, TCGv_i64 s2)
 {

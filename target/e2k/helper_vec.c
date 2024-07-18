@@ -5,55 +5,94 @@
  */
 
 #include "qemu/osdep.h"
-#include "qemu/log.h"
 #include "cpu.h"
 #include "helper-tcg.h"
 #include "exec/exec-all.h"
 #include "qemu/host-utils.h"
 #include "exec/helper-proto.h"
 
-static uint8_t reverse_bits(uint8_t b)
-{
-    b = ((b & 0xf0) >> 4) | ((b & 0x0f) << 4);
-    b = ((b & 0xcc) >> 2) | ((b & 0x33) << 2);
-    b = ((b & 0xaa) >> 1) | ((b & 0x55) << 1);
-    return b;
-}
+#define glue3(x, y, z) glue(glue(x, y), z)
+#define glue4(x, y, z, w) glue(glue3(x, y, z), w)
 
 #define vec64_ub 8
 #define vec64_uh 4
 #define vec64_uw 2
 #define vec64_ud 1
-
 #define vec64_sb vec64_ub
 #define vec64_sh vec64_uh
 #define vec64_sw vec64_uw
 #define vec64_sd vec64_ud
 
-#define vec64_len(type) glue(vec64_, type)
-
 #define vec128_ub 16
 #define vec128_uh 8
 #define vec128_uw 4
 #define vec128_ud 2
-
 #define vec128_sb vec128_ub
 #define vec128_sh vec128_uh
 #define vec128_sw vec128_uw
 #define vec128_sd vec128_ud
 
-#define vec128_len(type) glue(vec128_, type)
+#define vec_count(len, type) glue4(vec, len, _, type)
 
 typedef union {
-    uint8_t ub[vec64_ub];
-    uint16_t uh[vec64_uh];
-    uint32_t uw[vec64_uw];
-    uint64_t ud[vec64_ud];
-    int8_t sb[vec64_ub];
-    int16_t sh[vec64_uh];
-    int32_t sw[vec64_uw];
-    int64_t sd[vec64_ud];
+    uint8_t     ub[vec_count(64, ub)];
+    uint16_t    uh[vec_count(64, uh)];
+    uint32_t    uw[vec_count(64, uw)];
+    uint64_t    ud[vec_count(64, ud)];
+    int8_t      sb[vec_count(64, sb)];
+    int16_t     sh[vec_count(64, sh)];
+    int32_t     sw[vec_count(64, sw)];
+    int64_t     sd[vec_count(64, sd)];
 } vec64;
+
+typedef union {
+    uint8_t     ub[vec_count(128, ub)];
+    uint16_t    uh[vec_count(128, uh)];
+    uint32_t    uw[vec_count(128, uw)];
+    uint64_t    ud[vec_count(128, ud)];
+    int8_t      sb[vec_count(128, sb)];
+    int16_t     sh[vec_count(128, sh)];
+    int32_t     sw[vec_count(128, sw)];
+    int64_t     sd[vec_count(128, sd)];
+} vec128;
+
+static inline vec64 vec64_from_raw(uint64_t raw)
+{
+    vec64 ret;
+    ret.ud[0] = raw;
+    return ret;
+}
+
+static inline uint64_t vec64_into_raw(vec64 vec)
+{
+    return vec.ud[0];
+}
+
+static inline vec128 vec128_from_raw(Int128 raw)
+{
+    vec128 ret;
+    ret.ud[0] = int128_getlo(raw);
+    ret.ud[1] = int128_gethi(raw);
+    return ret;
+}
+
+static inline Int128 vec128_into_raw(vec128 vec)
+{
+    return int128_make128(vec.ud[0], vec.ud[1]);
+}
+
+#define vec_from_raw(len, x) glue3(vec, len, _from_raw)(x)
+#define vec_into_raw(len, x) glue3(vec, len, _into_raw)(x)
+
+#define vec_zero64()  vec64_from_raw(0)
+#define vec_zero128() vec128_from_raw(int128_zero())
+#define vec_zero(len) glue(vec_zero, len)()
+
+#define vec_raw_64  uint64_t
+#define vec_raw_128 Int128
+#define vec_raw(len) glue(vec_raw_, len)
+
+#define vec(len) glue(vec, len)
 
 #define shr16(x) ((x) >> 16)
 #define shr14_add1_shr1(x) ((((x) >> 14) + 1) >> 1)
@@ -63,150 +102,138 @@ typedef union {
 #define satub(x) MIN(MAX(x,      0),   255)
 #define satuh(x) MIN(MAX(x,      0), 65535)
 
-#define add(a, b) ((a) + (b))
-#define sub(a, b) ((a) - (b))
-#define mul(a, b) ((a) * (b))
-#define div(a, b) ((a) / (b))
+#define and(a, b)   ((a) & (b))
+#define andn(a, b)  ((a) & !(b))
+#define or(a, b)    ((a) | (b))
+#define xor(a, b)   ((a) ^ (b))
+#define shl(a, b)   ((a) >> (b))
+#define shr(a, b)   ((a) << (b))
+#define add(a, b)   ((a) + (b))
+#define sub(a, b)   ((a) - (b))
+#define mul(a, b)   ((a) * (b))
+#define div(a, b)   ((a) / (b))
 
-#define GEN_HELPER_PACKED_N(name, n, code) \
-    uint64_t HELPER(name)(uint64_t src1, uint64_t src2) \
+#define GEN_HELPER_PACKED_N(name, len, n, code) \
+    vec_raw(len) HELPER(name)(vec_raw(len) src1, vec_raw(len) src2) \
     { \
-        size_t i = 0; \
-        vec64 s1 = { .ud[0] = src1 }, s2 = { .ud[0] = src2 }; \
-        vec64 dst = { .ud[0] = 0 }; \
-        for (; i < n; i++) { \
+        vec(len) dst, s1, s2; \
+        dst = vec_zero(len); \
+        s1 = vec_from_raw(len, src1); \
+        s2 = vec_from_raw(len, src2); \
+        for (int i = 0; i < n; i++) { \
             code \
         } \
-        return dst.ud[0]; \
+        return vec_into_raw(len, dst); \
     }
-#define GEN_HELPER_PACKED(name, type, code) \
-    GEN_HELPER_PACKED_N(name, vec64_len(type), code)
 
-#define GEN_HELPER_PACKED_OP(name, type, op) \
-    GEN_HELPER_PACKED_N(name, vec64_len(type), { \
+#define GEN_HELPER_PACKED(name, len, type, code) \
+    GEN_HELPER_PACKED_N(name, len, vec_count(len, type), code)
+
+#define GEN_HELPER_PACKED_OP(name, len, type, op) \
+    GEN_HELPER_PACKED_N(name, len, vec_count(len, type), { \
         dst.type[i] = op(s1.type[i], s2.type[i]); \
     })
 
-#define GEN_HELPER_PACKED_SCALAR(name, type, code) \
-    uint64_t HELPER(name)(uint64_t src1, uint64_t s2) \
-    { \
-        size_t i = 0; \
-        vec64 s1 = { .ud[0] = src1 }, dst = { .ud[0] = 0 }; \
-        for (; i < glue(vec64_, type); i++) { \
-            code \
-        } \
-        return dst.ud[0]; \
-    }
+GEN_HELPER_PACKED_OP(paddb,    64, ub, add)
+GEN_HELPER_PACKED_OP(paddh,    64, uh, add)
+GEN_HELPER_PACKED_OP(paddw,    64, uw, add)
 
-#define IMPL_QPACKED_N(name, n, code) \
-    Int128 HELPER(name)(Int128 s1_, Int128 s2_) \
-    { \
-        E2KReg dst, s1 = { .qp = s1_ }, s2 = { .qp = s2_ }; \
-        int i; \
-        \
-        for (i = 0; i < n; i++) { \
-            code \
-        } \
-        return dst.qp; \
-    }
+GEN_HELPER_PACKED_OP(psubb,    64, ub, sub)
+GEN_HELPER_PACKED_OP(psubh,    64, uh, sub)
+GEN_HELPER_PACKED_OP(psubw,    64, uw, sub)
 
-#define IMPL_QPACKED(name, type, code) \
-    IMPL_QPACKED_N(name, vec64_len(type), code)
+GEN_HELPER_PACKED_OP(pminub,   64, ub, MIN)
+GEN_HELPER_PACKED_OP(pminsb,   64, sb, MIN)
+GEN_HELPER_PACKED_OP(pminuh,   64, uh, MIN)
+GEN_HELPER_PACKED_OP(pminsh,   64, sh, MIN)
+GEN_HELPER_PACKED_OP(pminuw,   64, uw, MIN)
+GEN_HELPER_PACKED_OP(pminsw,   64, sw, MIN)
 
-#define IMPL_QPACKED_OP(name, type, op) \
-    IMPL_QPACKED_N(name, vec128_len(type), { \
-        dst.type[i] = op(s1.type[i], s2.type[i]); \
-    })
+GEN_HELPER_PACKED_OP(pmaxub,   64, ub, MAX)
+GEN_HELPER_PACKED_OP(pmaxsb,   64, sb, MAX)
+GEN_HELPER_PACKED_OP(pmaxuh,   64, uh, MAX)
+GEN_HELPER_PACKED_OP(pmaxsh,   64, sh, MAX)
+GEN_HELPER_PACKED_OP(pmaxuw,   64, uw, MAX)
+GEN_HELPER_PACKED_OP(pmaxsw,   64, sw, MAX)
 
-#define GEN_HELPER_PACKED_MINMAX(name, type, op) \
-    GEN_HELPER_PACKED_OP(glue(name, type), type, op)
-
-GEN_HELPER_PACKED_MINMAX(pmin, ub, MIN)
-GEN_HELPER_PACKED_MINMAX(pmin, sb, MIN)
-GEN_HELPER_PACKED_MINMAX(pmin, uh, MIN)
-GEN_HELPER_PACKED_MINMAX(pmin, sh, MIN)
-GEN_HELPER_PACKED_MINMAX(pmin, uw, MIN)
-GEN_HELPER_PACKED_MINMAX(pmin, sw, MIN)
-
-GEN_HELPER_PACKED_MINMAX(pmax, ub, MAX)
-GEN_HELPER_PACKED_MINMAX(pmax, sb, MAX)
-GEN_HELPER_PACKED_MINMAX(pmax, uh, MAX)
-GEN_HELPER_PACKED_MINMAX(pmax, sh, MAX)
-GEN_HELPER_PACKED_MINMAX(pmax, uw, MAX)
-GEN_HELPER_PACKED_MINMAX(pmax, sw, MAX)
-
-#define GEN_HELPER_PACKED_CMP(name, type, op) \
-    GEN_HELPER_PACKED(name, type, { \
+#define GEN_HELPER_PACKED_CMP(name, len, type, op) \
+    GEN_HELPER_PACKED(name, len, type, { \
         dst.type[i] = s1.type[i] op s2.type[i] ? -1 : 0; \
     })
 
-GEN_HELPER_PACKED_CMP(pcmpeqb, ub, ==)
-GEN_HELPER_PACKED_CMP(pcmpeqh, uh, ==)
-GEN_HELPER_PACKED_CMP(pcmpeqw, uw, ==)
-GEN_HELPER_PACKED_CMP(pcmpeqd, ud, ==)
+GEN_HELPER_PACKED_CMP(pcmpeqb, 64, ub, ==)
+GEN_HELPER_PACKED_CMP(pcmpeqh, 64, uh, ==)
+GEN_HELPER_PACKED_CMP(pcmpeqw, 64, uw, ==)
+GEN_HELPER_PACKED_CMP(pcmpeqd, 64, ud, ==)
 
-GEN_HELPER_PACKED_CMP(pcmpgtb, sb, >)
-GEN_HELPER_PACKED_CMP(pcmpgth, sh, >)
-GEN_HELPER_PACKED_CMP(pcmpgtw, sw, >)
-GEN_HELPER_PACKED_CMP(pcmpgtd, sd, >)
+GEN_HELPER_PACKED_CMP(pcmpgtb, 64, sb, >)
+GEN_HELPER_PACKED_CMP(pcmpgth, 64, sh, >)
+GEN_HELPER_PACKED_CMP(pcmpgtw, 64, sw, >)
+GEN_HELPER_PACKED_CMP(pcmpgtd, 64, sd, >)
 
-#define GEN_HELPER_PACKED_BINOP_MAP(name, type, op, cast, map) \
-    GEN_HELPER_PACKED(name, type, { \
-        dst.type[i] = map((cast) s1.type[i] op s2.type[i]); \
+#define GEN_HELPER_PACKED_OP_MAP(name, len, type, op, cast, map) \
+    GEN_HELPER_PACKED(name, len, type, { \
+        dst.type[i] = map(op((cast) s1.type[i], s2.type[i])); \
     })
 
-GEN_HELPER_PACKED_BINOP_MAP(paddsb,  sb, +, int16_t, satsb)
-GEN_HELPER_PACKED_BINOP_MAP(paddsh,  sh, +, int32_t, satsh)
-GEN_HELPER_PACKED_BINOP_MAP(paddusb, ub, +, int16_t, satub)
-GEN_HELPER_PACKED_BINOP_MAP(paddush, uh, +, int32_t, satuh)
+GEN_HELPER_PACKED_OP_MAP(paddsb,  64, sb, add, int16_t, satsb)
+GEN_HELPER_PACKED_OP_MAP(paddsh,  64, sh, add, int32_t, satsh)
+GEN_HELPER_PACKED_OP_MAP(paddusb, 64, ub, add, int16_t, satub)
+GEN_HELPER_PACKED_OP_MAP(paddush, 64, uh, add, int32_t, satuh)
 
-GEN_HELPER_PACKED_BINOP_MAP(psubsb,  sb, -, int16_t, satsb)
-GEN_HELPER_PACKED_BINOP_MAP(psubsh,  sh, -, int32_t, satsh)
-GEN_HELPER_PACKED_BINOP_MAP(psubusb, ub, -, int16_t, satub)
-GEN_HELPER_PACKED_BINOP_MAP(psubush, uh, -, int32_t, satuh)
+GEN_HELPER_PACKED_OP_MAP(psubsb,  64, sb, sub, int16_t, satsb)
+GEN_HELPER_PACKED_OP_MAP(psubsh,  64, sh, sub, int32_t, satsh)
+GEN_HELPER_PACKED_OP_MAP(psubusb, 64, ub, sub, int16_t, satub)
+GEN_HELPER_PACKED_OP_MAP(psubush, 64, uh, sub, int32_t, satuh)
 
-#define GEN_HELPER_PACKED_HORIZONTAL_OP(name, type, op, map) \
-    GEN_HELPER_PACKED_N(name, vec64_len(type) / 2, { \
+#define GEN_HELPER_PACKED_OP_HORIZONTAL(name, len, type, op, map) \
+    GEN_HELPER_PACKED_N(name, len, vec_count(len, type) / 2, { \
         int j = i * 2; \
-        dst.type[i                      ] = map(op(s1.type[j], s1.type[j + 1])); \
-        dst.type[i + vec64_len(type) / 2] = map(op(s2.type[j], s2.type[j + 1])); \
-    }) \
-    IMPL_QPACKED_N(glue(q, name), vec128_len(type) / 2, { \
-        int j = i * 2; \
-        dst.type[i                       ] = map(op(s1.type[j], s1.type[j + 1])); \
-        dst.type[i + vec128_len(type) / 2] = map(op(s2.type[j], s2.type[j + 1])); \
+        dst.type[i                           ] = map(op(s1.type[j], s1.type[j + 1])); \
+        dst.type[i + vec_count(len, type) / 2] = map(op(s2.type[j], s2.type[j + 1])); \
     })
 
-GEN_HELPER_PACKED_HORIZONTAL_OP(phaddh,  sh, add, ident)
-GEN_HELPER_PACKED_HORIZONTAL_OP(phaddw,  sw, add, ident)
-GEN_HELPER_PACKED_HORIZONTAL_OP(phaddsh, sh, add, satsh)
-GEN_HELPER_PACKED_HORIZONTAL_OP(phsubh,  sh, sub, ident)
-GEN_HELPER_PACKED_HORIZONTAL_OP(phsubw,  sw, sub, ident)
-GEN_HELPER_PACKED_HORIZONTAL_OP(phsubsh, sh, sub, satsh)
+GEN_HELPER_PACKED_OP_HORIZONTAL(phaddh,    64, sh, add, ident)
+GEN_HELPER_PACKED_OP_HORIZONTAL(phaddw,    64, sw, add, ident)
+GEN_HELPER_PACKED_OP_HORIZONTAL(phaddsh,   64, sh, add, satsh)
+GEN_HELPER_PACKED_OP_HORIZONTAL(phsubh,    64, sh, sub, ident)
+GEN_HELPER_PACKED_OP_HORIZONTAL(phsubw,    64, sw, sub, ident)
+GEN_HELPER_PACKED_OP_HORIZONTAL(phsubsh,   64, sh, sub, satsh)
 
-#define GEN_HELPER_PACKED_SCALAR_BINOP(name, type, op) \
-    GEN_HELPER_PACKED_SCALAR(name, type, { \
-        dst.type[i] = s2 < sizeof(s1.type[0]) * 8 ? s1.type[i] op s2 : 0; \
-    })
+GEN_HELPER_PACKED_OP_HORIZONTAL(qphaddh,  128, sh, add, ident)
+GEN_HELPER_PACKED_OP_HORIZONTAL(qphaddw,  128, sw, add, ident)
+GEN_HELPER_PACKED_OP_HORIZONTAL(qphaddsh, 128, sh, add, satsh)
+GEN_HELPER_PACKED_OP_HORIZONTAL(qphsubh,  128, sh, sub, ident)
+GEN_HELPER_PACKED_OP_HORIZONTAL(qphsubw,  128, sw, sub, ident)
+GEN_HELPER_PACKED_OP_HORIZONTAL(qphsubsh, 128, sh, sub, satsh)
 
-GEN_HELPER_PACKED_SCALAR_BINOP(psllh, uh, <<)
-GEN_HELPER_PACKED_SCALAR_BINOP(psllw, uw, <<)
-GEN_HELPER_PACKED_SCALAR_BINOP(pslld, ud, <<)
-GEN_HELPER_PACKED_SCALAR_BINOP(psrlh, uh, >>)
-GEN_HELPER_PACKED_SCALAR_BINOP(psrlw, uw, >>)
-GEN_HELPER_PACKED_SCALAR_BINOP(psrld, ud, >>)
+#define GEN_HELPER_PACKED_SHIFT(name, len, type, op, cast) \
+    vec_raw(len) HELPER(name)(vec_raw(len) src1, uint64_t s2) \
+    { \
+        vec(len) dst, s1; \
+        dst = vec_zero(len); \
+        s1 = vec_from_raw(len, src1); \
+        int shamt = MIN(s2, sizeof(s1.type[0]) * 8 - 1); \
+        for (int i = 0; i < vec_count(len, type); i++) { \
+            dst.type[i] = op((cast) s1.type[i], shamt); \
+        } \
+        return vec_into_raw(len, dst); \
+    }
 
-#define GEN_HELPER_PACKED_SRA(name, type, t) \
-    GEN_HELPER_PACKED_SCALAR(name, type, { \
-        int max = sizeof(s1.type[0]) * 8 - 1; \
-        dst.type[i] = (t) s1.type[i] >> (s2 < max ? s2 : max); \
-    })
+GEN_HELPER_PACKED_SHIFT(psllh,   64, uh, shl, uint16_t)
+GEN_HELPER_PACKED_SHIFT(psllw,   64, uw, shl, uint32_t)
+GEN_HELPER_PACKED_SHIFT(pslld,   64, ud, shl, uint64_t)
+GEN_HELPER_PACKED_SHIFT(psrlh,   64, uh, shr, uint16_t)
+GEN_HELPER_PACKED_SHIFT(psrlw,   64, uw, shr, uint32_t)
+GEN_HELPER_PACKED_SHIFT(psrld,   64, ud, shr, uint64_t)
 
-GEN_HELPER_PACKED_SRA(psrah, sh, int32_t)
-GEN_HELPER_PACKED_SRA(psraw, sw, int64_t)
+GEN_HELPER_PACKED_SHIFT(psrah,   64, sh, shr, int16_t)
+GEN_HELPER_PACKED_SHIFT(psraw,   64, sw, shr, int32_t)
 
-#define GEN_HELPER_PACKED_MAD(name, dst_type, t0, t1, cast, op) \
-    GEN_HELPER_PACKED(name, dst_type, { \
+GEN_HELPER_PACKED_OP(psrcw,   64, uw, ror32)
+
+#define GEN_HELPER_PACKED_MAD(name, len, dst_type, t0, t1, cast, op) \
+    GEN_HELPER_PACKED(name, len, dst_type, { \
         int j = i * 2; \
         dst.dst_type[i] = op( \
             (cast) s1.t0[j + 1] * s2.t1[j + 1] + \
@@ -214,29 +241,31 @@ GEN_HELPER_PACKED_SRA(psraw, sw, int64_t)
         ); \
     })
 
-GEN_HELPER_PACKED_MAD(pmaddh, sw, sh, sh, int32_t, ident)
-GEN_HELPER_PACKED_MAD(pmaddubsh, sh, sb, ub, int32_t, satsh)
+GEN_HELPER_PACKED_MAD(pmaddh,    64, sw, sh, sh, int32_t, ident)
+GEN_HELPER_PACKED_MAD(pmaddubsh, 64, sh, sb, ub, int32_t, satsh)
 
-GEN_HELPER_PACKED(psadbw, ub, { dst.uw[0] += abs(s1.ub[i] - s2.ub[i]); })
+GEN_HELPER_PACKED(psadbw, 64, ub, { dst.uw[0] += abs(s1.ub[i] - s2.ub[i]); })
 
-GEN_HELPER_PACKED(pavgusb, ub, { dst.ub[i] = (s1.ub[i] + s2.ub[i] + 1) >> 1; })
-GEN_HELPER_PACKED(pavgush, uh, { dst.uh[i] = (s1.uh[i] + s2.uh[i] + 1) >> 1; })
+GEN_HELPER_PACKED(pavgusb, 64, ub, { dst.ub[i] = (s1.ub[i] + s2.ub[i] + 1) >> 1; })
+GEN_HELPER_PACKED(pavgush, 64, uh, { dst.uh[i] = (s1.uh[i] + s2.uh[i] + 1) >> 1; })
 
-#define GEN_HELPER_PACKED_MULH(name, type, cast, map) \
-    GEN_HELPER_PACKED(name, type, { \
+GEN_HELPER_PACKED_OP(pmullw,  64, uw, mul)
+
+#define GEN_HELPER_PACKED_MULH(name, len, type, cast, map) \
+    GEN_HELPER_PACKED(name, len, type, { \
         dst.type[i] = map(((cast) s1.type[i]) * s2.type[i]); \
     })
 
-GEN_HELPER_PACKED_MULH(pmulhh,   sh,  int32_t, shr16)
-GEN_HELPER_PACKED_MULH(pmullh,   sh,  int32_t, and16)
-GEN_HELPER_PACKED_MULH(pmulhuh,  uh, uint32_t, shr16)
-GEN_HELPER_PACKED_MULH(pmulhrsh, sh,  int32_t, shr14_add1_shr1)
+GEN_HELPER_PACKED_MULH(pmulhh,   64, sh,  int32_t, shr16)
+GEN_HELPER_PACKED_MULH(pmullh,   64, sh,  int32_t, and16)
+GEN_HELPER_PACKED_MULH(pmulhuh,  64, uh, uint32_t, shr16)
+GEN_HELPER_PACKED_MULH(pmulhrsh, 64, sh,  int32_t, shr14_add1_shr1)
 
-GEN_HELPER_PACKED(pmulubhh, uh, { \
+GEN_HELPER_PACKED(pmulubhh, 64, uh, { \
     dst.uh[i] = ((int16_t) s1.ub[i] * s2.sh[i] + 0x80) >> 8; \
 })
 
-GEN_HELPER_PACKED(mpsadbh, uh, { \
+GEN_HELPER_PACKED(mpsadbh, 64, uh, { \
     dst.uh[i] = abs((int16_t) s1.ub[i    ] - s2.ub[0]) \
               + abs((int16_t) s1.ub[i + 1] - s2.ub[1]) \
               + abs((int16_t) s1.ub[i + 2] - s2.ub[2]) \
@@ -245,58 +274,57 @@ GEN_HELPER_PACKED(mpsadbh, uh, { \
 
 #define mul_sign(a, b) ((b) < 0 ? -(a) : ((b) > 0 ? (a) : 0))
 
-GEN_HELPER_PACKED_OP(psignb, sb, mul_sign)
-GEN_HELPER_PACKED_OP(psignh, sh, mul_sign)
-GEN_HELPER_PACKED_OP(psignw, sw, mul_sign)
+GEN_HELPER_PACKED_OP(psignb, 64, sb, mul_sign)
+GEN_HELPER_PACKED_OP(psignh, 64, sh, mul_sign)
+GEN_HELPER_PACKED_OP(psignw, 64, sw, mul_sign)
 
-#define MOVMASK(mask_type, type) { \
-    dst.mask_type[0] |= (s1.type[i] < 0) << (i + glue(vec64_, type)); \
-    dst.mask_type[0] |= (s2.type[i] < 0) << (i                     ); \
+#define MOVMASK(len, mask_type, type) { \
+    dst.mask_type[0] |= (s1.type[i] < 0) << (i + vec_count(len, type)); \
+    dst.mask_type[0] |= (s2.type[i] < 0) << (i                       ); \
 }
 
-GEN_HELPER_PACKED(pmovmskb,  sb, MOVMASK(uh, sb))
-GEN_HELPER_PACKED(pmovmskps, sw, MOVMASK(ub, sw))
-GEN_HELPER_PACKED(pmovmskpd, sd, MOVMASK(ub, sd))
+GEN_HELPER_PACKED(pmovmskb,  64, sb, MOVMASK(64, uh, sb))
+GEN_HELPER_PACKED(pmovmskps, 64, sw, MOVMASK(64, ub, sw))
+GEN_HELPER_PACKED(pmovmskpd, 64, sd, MOVMASK(64, ub, sd))
 
-#define PACK(dst_type, type, op) { \
-    dst.dst_type[i + glue(vec64_, type)] = op(s1.type[i]); \
-    dst.dst_type[i                     ] = op(s2.type[i]); \
+#define PACK(len, dst_type, type, op) { \
+    dst.dst_type[i + vec_count(64, type)] = op(s1.type[i]); \
+    dst.dst_type[i                      ] = op(s2.type[i]); \
 }
 
-GEN_HELPER_PACKED(packsshb, sh, PACK(sb, sh, satsb))
-GEN_HELPER_PACKED(packushb, uh, PACK(ub, sh, satub))
-GEN_HELPER_PACKED(packsswh, sw, PACK(sh, sw, satsh))
-GEN_HELPER_PACKED(packuswh, sw, PACK(uh, sw, satuh))
+GEN_HELPER_PACKED(packsshb, 64, sh, PACK(64, sb, sh, satsb))
+GEN_HELPER_PACKED(packushb, 64, uh, PACK(64, ub, sh, satub))
+GEN_HELPER_PACKED(packsswh, 64, sw, PACK(64, sh, sw, satsh))
+GEN_HELPER_PACKED(packuswh, 64, sw, PACK(64, uh, sw, satuh))
 
-#define GEN_HELPER_PACKED_UNPACK(name, type, offset) \
-    GEN_HELPER_PACKED(name, type, { \
+#define GEN_HELPER_PACKED_UNPACK(name, len, type, offset) \
+    GEN_HELPER_PACKED(name, len, type, { \
         int j = offset + i / 2; \
         dst.type[i] = i & 1 ? s1.type[j] : s2.type[j]; \
     })
 
-GEN_HELPER_PACKED_UNPACK(punpcklbh, ub, 0)
-GEN_HELPER_PACKED_UNPACK(punpcklhw, uh, 0)
-GEN_HELPER_PACKED_UNPACK(punpcklwd, uw, 0)
-GEN_HELPER_PACKED_UNPACK(punpckhbh, ub, 4)
-GEN_HELPER_PACKED_UNPACK(punpckhhw, uh, 2)
-GEN_HELPER_PACKED_UNPACK(punpckhwd, uw, 1)
+GEN_HELPER_PACKED_UNPACK(punpcklbh, 64, ub, 0)
+GEN_HELPER_PACKED_UNPACK(punpcklhw, 64, uh, 0)
+GEN_HELPER_PACKED_UNPACK(punpcklwd, 64, uw, 0)
+GEN_HELPER_PACKED_UNPACK(punpckhbh, 64, ub, 4)
+GEN_HELPER_PACKED_UNPACK(punpckhhw, 64, uh, 2)
+GEN_HELPER_PACKED_UNPACK(punpckhwd, 64, uw, 1)
 
-uint64_t HELPER(pshufb)(uint64_t src1, uint64_t src2, uint64_t src3)
+vec_raw(64) HELPER(pshufb)(vec_raw(64) src1, vec_raw(64) src2, vec_raw(64) src3)
 {
-    vec64 ret, s1, s2, s3;
-    int i;
+    vec(64) dst, s1, s2, s3;
 
-    s1.ud[0] = src1;
-    s2.ud[0] = src2;
-    s3.ud[0] = src3;
+    s1 = vec_from_raw(64, src1);
+    s2 = vec_from_raw(64, src2);
+    s3 = vec_from_raw(64, src3);
 
-    for (i = 0; i < 8; i++) {
+    for (int i = 0; i < vec_count(64, ub); i++) {
         uint8_t desc = s3.ub[i];
         int index = desc & 7;
         uint8_t byte = desc & 8 ? s1.ub[index] : s2.ub[index];
 
         byte = desc & 0x10 ? ~byte : byte;
-        byte = desc & 0x20 ? reverse_bits(byte) : byte;
+        byte = desc & 0x20 ? revbit8(byte) : byte;
         byte = desc & 0x40 ? (byte & 0x80 ? 0xff : 0) : byte;
 
         if (desc & 0x80) {
@@ -308,160 +336,154 @@ uint64_t HELPER(pshufb)(uint64_t src1, uint64_t src2, uint64_t src3)
             }
         }
 
-        ret.ub[i] = byte;
+        dst.ub[i] = byte;
     }
 
-    return ret.ud[0];
+    return vec_into_raw(64, dst);
 }
 
-uint64_t HELPER(pmerge)(uint64_t src1, uint64_t src2, uint64_t src3)
+vec_raw(64) HELPER(pmerge)(vec_raw(64) src1, vec_raw(64) src2, vec_raw(64) src3)
 {
-    vec64 r, s1, s2, s3;
-    int i;
+    vec(64) dst, s1, s2, s3;
 
-    s1.ud[0] = src1;
-    s2.ud[0] = src2;
-    s3.ud[0] = src3;
+    s1 = vec_from_raw(64, src1);
+    s2 = vec_from_raw(64, src2);
+    s3 = vec_from_raw(64, src3);
 
-    for (i = 0; i < 8; i++) {
-        r.ub[i] = s3.sb[i] < 0 ? s2.ub[i] : s1.ub[i];
+    for (int i = 0; i < vec_count(64, ub); i++) {
+        dst.ub[i] = s3.sb[i] < 0 ? s2.ub[i] : s1.ub[i];
     }
 
-    return r.ud[0];
+    return vec_into_raw(64, dst);
 }
 
-uint64_t HELPER(pshufh)(uint64_t src1, uint32_t imm8)
+vec_raw(64) HELPER(pshufh)(vec_raw(64) src1, uint32_t imm8)
 {
-    int i;
-    vec64 s1 = { .ud[0] = src1 }, dst;
-    for (i = 0; i < vec64_uh; i++) {
+    vec(64) dst, s1 = vec_from_raw(64, src1);
+    for (int i = 0; i < vec_count(64, uh); i++) {
         int j = (imm8 >> (i * 2)) & 0x3;
         dst.uh[i] = s1.uh[j];
     }
-    return dst.ud[0];
+    return vec_into_raw(64, dst);
 }
 
-uint64_t HELPER(pshufw)(uint64_t src1, uint64_t src2, uint32_t imm8)
+vec_raw(64) HELPER(pshufw)(vec_raw(64) src1, vec_raw(64) src2, uint32_t imm8)
 {
-    int i;
-    vec64 s1 = { .ud[0] = src1 }, s2 = { .ud[0] = src2 }, dst;
-    for (i = 0; i < vec64_uw; i++) {
+    vec(64) dst, s1, s2;
+
+    s1 = vec_from_raw(64, src1);
+    s2 = vec_from_raw(64, src2);
+
+    for (int i = 0; i < vec_count(64, uw); i++) {
         int sel = (imm8 >> (i * 2)) & 0x3;
         int j = sel & 1;
         dst.uw[i] = sel > 1 ? s1.uw[j] : s2.uw[j];
     }
-    return dst.ud[0];
+
+    return vec_into_raw(64, dst);
 }
 
-uint64_t HELPER(phminposuh)(uint64_t src1, uint64_t src2)
-{
-    int i;
-    vec64 s1 = { .ud[0] = src1 }, s2 = { .ud[0] = src2 }, dst = { .ud[0] = 0 };
-    dst.uh[0] = s1.uh[0];
-    for (i = 0; i < 4; i++) {
-        if (s1.uh[i] < dst.uh[0]) {
-            dst.uh[0] = s1.uh[i];
-            dst.uh[1] = i;
-        }
+#define GEN_HELPER_PHMINPOS(name, len, type) \
+    uint64_t HELPER(name)(vec_raw(len) src1, vec_raw(len) src2) \
+    { \
+        vec(len) s1, s2; \
+        uint64_t v, p; \
+        s1 = vec_from_raw(len, src1); \
+        s2 = vec_from_raw(len, src2); \
+        v = s1.type[0]; \
+        p = 0; \
+        for (int i = 1; i < vec_count(len, type); i++) { \
+            if (s1.type[i] < v) { \
+                v = s1.type[i]; \
+                p = i; \
+            } \
+        } \
+        for (int i = 0; i < vec_count(len, type); i++) { \
+            if (s2.type[i] < v) { \
+                v = s2.type[i]; \
+                p = i + vec_count(len, type); \
+            } \
+        } \
+        return (p << (sizeof(s1.type[0]) * 8)) | v; \
     }
-    for (i = 0; i < 4; i++) {
-        if (s2.uh[i] < dst.uh[0]) {
-            dst.uh[0] = s2.uh[i];
-            dst.uh[1] = 4 + i;
-        }
-    }
-    return dst.ud[0];
-}
 
-Int128 HELPER(qpmpsadbh)(Int128 s1_, uint32_t s2)
+GEN_HELPER_PHMINPOS(phminposuh,   64, uh)
+GEN_HELPER_PHMINPOS(qphminposuh, 128, uh)
+
+vec_raw(128) HELPER(qpmpsadbh)(vec_raw(128) src1, uint32_t s2)
 {
-    E2KReg dst, s1 = { .qp = s1_ };
+    vec(128) dst, s1 = vec_from_raw(128, src1);
     dst.ud[0] = helper_mpsadbh(s1.ud[0], s2);
     dst.ud[1] = helper_mpsadbh(s1.ud[1], s2);
-    return dst.qp;
+    return vec_into_raw(128, dst);
 }
 
-Int128 HELPER(qpmulubhh)(uint64_t s1, Int128 s2_)
+vec_raw(128) HELPER(qpmulubhh)(uint64_t s1, vec_raw(128) src2)
 {
-    E2KReg dst, s2 = { .qp = s2_ };
+    vec(128) dst, s2 = vec_from_raw(128, src2);
     dst.ud[0] = helper_pmulubhh(s1      , s2.ud[0]);
     dst.ud[1] = helper_pmulubhh(s1 >> 32, s2.ud[1]);
-    return dst.qp;
+    return vec_into_raw(128, dst);
 }
 
-uint64_t HELPER(qphminposuh)(Int128 s1_, Int128 s2_)
+uint32_t HELPER(qpsgn2mskb)(vec_raw(128) src2)
 {
-    E2KReg s1 = { .qp = s1_ }, s2 = { .qp = s2_ };
-    int i;
-    uint16_t v = s1.uh[0];
-    uint16_t p = 0;
+    vec(128) s2 = vec_from_raw(128, src2);
+    uint32_t ret = 0;
 
-    for (i = 0; i < 8; i++) {
-        if (s1.uh[i] < v) {
-            v = s1.uh[i];
-            p = i;
-        }
+    for (int i = 0; i < vec_count(128, sb); i++) {
+        ret |= s2.sb[i] < 0 ? 1 << i : 0;
     }
-    for (i = 0; i < 8; i++) {
-        if (s2.uh[i] < v) {
-            v = s2.uh[i];
-            p = 8 + i;
-        }
-    }
-    return ((uint64_t) p << 16) | v;
+
+    return ret;
 }
 
-uint32_t HELPER(qpsgn2mskb)(Int128 s2_)
+vec_raw(128) HELPER(qpmsk2sgnb)(vec_raw(128) src1, uint32_t s2)
 {
-    E2KReg s2 = { .qp = s2_ };
-    uint32_t r = 0;
-    int i;
+    vec(128) dst, s1 = vec_from_raw(128, src1);
 
-    for (i = 0; i < 16; i++) {
-        r |= s2.sb[i] < 0 ? 1 << i : 0;
-    }
-
-    return r;
-}
-
-Int128 HELPER(qpmsk2sgnb)(Int128 s1_, uint32_t s2)
-{
-    E2KReg dst, s1 = { .qp = s1_ };
-    int i;
-
-    for (i = 0; i < 16; i++) {
+    for (int i = 0; i < vec_count(128, ub); i++) {
         dst.ub[i] = s2 & (1 << i) ? s1.ub[i] | 0x80 : s1.ub[i] & 0x7f;
     }
 
-    return dst.qp;
+    return vec_into_raw(128, dst);
 }
 
-Int128 HELPER(qppermb)(Int128 s1_, Int128 s2_, Int128 s3_)
+vec_raw(128) HELPER(qppermb)(vec_raw(128) src1, vec_raw(128) src2, vec_raw(128) src3)
 {
-    E2KReg dst, s1 = { .qp = s1_ }, s2 = { .qp = s2_ }, s3 = { .qp = s3_ };
-    int i;
+    vec(128) dst, s1, s2, s3;
 
-    for (i = 0; i < 16; i++) {
+    s1 = vec_from_raw(128, src1);
+    s2 = vec_from_raw(128, src2);
+    s3 = vec_from_raw(128, src3);
+
+    for (int i = 0; i < vec_count(128, ub); i++) {
         uint8_t sel = s3.ub[i];
         int index = sel & 0x0f;
         uint8_t byte = sel & 0x10 ? s1.ub[index] : s2.ub[index];
 
         byte = sel & 0x20 ? ~byte : byte;
-        byte = sel & 0x40 ? reverse_bits(byte) : byte;
+        byte = sel & 0x40 ? revbit8(byte) : byte;
         byte = sel & 0x80 ? (byte & 0x80 ? 0xff : 0) : byte;
 
         dst.ub[i] = byte;
     }
 
-    return dst.qp;
+    return vec_into_raw(128, dst);
 }
 
-Int128 HELPER(qpshufb)(Int128 s1_, Int128 s2_, Int128 s3_)
+vec_raw(128) HELPER(qpshufb)(vec_raw(128) src1, vec_raw(128) src2, vec_raw(128) src3)
 {
-    E2KReg dst, s1 = { .qp = s1_ }, s2 = { .qp = s2_ }, s3 = { .qp = s3_ };
-    dst.ud[0] = helper_pshufb(s2.ud[1], s2.ud[0], s3.ud[0]);
-    dst.ud[1] = helper_pshufb(s1.ud[1], s1.ud[0], s3.ud[1]);
-    return dst.qp;
+    vec(128) ret, s1, s2, s3;
+
+    s1 = vec_from_raw(128, src1);
+    s2 = vec_from_raw(128, src2);
+    s3 = vec_from_raw(128, src3);
+
+    ret.ud[0] = helper_pshufb(s2.ud[1], s2.ud[0], s3.ud[0]);
+    ret.ud[1] = helper_pshufb(s1.ud[1], s1.ud[0], s3.ud[1]);
+
+    return vec_into_raw(128, ret);
 }
 
 static uint64_t get_value_from_truth_table(bool x, bool y, bool z, uint32_t truth_table)
@@ -470,12 +492,11 @@ static uint64_t get_value_from_truth_table(bool x, bool y, bool z, uint32_t trut
     return (truth_table >> pos) & 1ULL;
 }
 
-uint64_t HELPER(plog)(uint32_t opc, uint64_t src1, uint64_t src2, uint64_t src3)
+vec_raw(64) HELPER(plog)(uint32_t opc, vec_raw(64) src1, vec_raw(64) src2, vec_raw(64) src3)
 {
-    int i;
     uint64_t ret = 0;
 
-    for (i = 0; i < 64; i++) {
+    for (int i = 0; i < 64; i++) {
         uint32_t x = extract64(src1, i, 1);
         uint32_t y = extract64(src2, i, 1);
         uint32_t z = extract64(src3, i, 1);
@@ -488,148 +509,104 @@ uint64_t HELPER(plog)(uint32_t opc, uint64_t src1, uint64_t src2, uint64_t src3)
     return ret;
 }
 
-#define GEN_ENV_HELPER_PACKED_N(name, n, code) \
-    uint64_t HELPER(name)(CPUE2KState *env, uint64_t src1, uint64_t src2) \
+#define GEN_ENV_HELPER_PACKED_N(name, len, n, code) \
+    vec_raw(len) HELPER(name)(CPUE2KState *env, vec_raw(len) src1, vec_raw(len) src2) \
     { \
-        size_t i = 0; \
-        vec64 s1 = { .ud[0] = src1 }, s2 = { .ud[0] = src2 }; \
-        vec64 dst = { .ud[0] = 0 }; \
-        for (; i < n; i++) { \
+        vec(len) dst, s1, s2; \
+        s1 = vec_from_raw(len, src1); \
+        s2 = vec_from_raw(len, src2); \
+        dst = vec_zero(len); \
+        for (int i = 0; i < n; i++) { \
             code \
         } \
-        return dst.ud[0]; \
+        return vec_into_raw(len, dst); \
     }
 
-#define GEN_ENV_HELPER_PACKED(name, type, code) \
-    GEN_ENV_HELPER_PACKED_N(name, vec64_len(type), code)
+#define GEN_ENV_HELPER_PACKED(name, len, type, code) \
+    GEN_ENV_HELPER_PACKED_N(name, len, vec_count(len, type), code)
 
-#define GEN_ENV_HELPER_PACKED_OP(name, type, op) \
-    GEN_ENV_HELPER_PACKED_N(name, vec64_len(type), { \
+#define GEN_ENV_HELPER_PACKED_OP(name, len, type, op) \
+    GEN_ENV_HELPER_PACKED_N(name, len, vec_count(len, type), { \
         dst.type[i] = op(env, s1.type[i], s2.type[i]); \
     })
 
-#define GEN_ENV_HELPER_PACKED_HORIZONTAL_OP(name, type, op, map) \
-    GEN_ENV_HELPER_PACKED_N(name, vec64_len(type) / 2, { \
+GEN_ENV_HELPER_PACKED_OP(pfadds,      64, uw, helper_fadds)
+GEN_ENV_HELPER_PACKED_OP(pfsubs,      64, uw, helper_fsubs)
+GEN_ENV_HELPER_PACKED_OP(pfmuls,      64, uw, helper_fmuls)
+GEN_ENV_HELPER_PACKED_OP(pfmaxs,      64, uw, helper_fmaxs)
+GEN_ENV_HELPER_PACKED_OP(pfmins,      64, uw, helper_fmins)
+
+GEN_ENV_HELPER_PACKED_OP(pfcmpeqs,    64, uw, helper_fcmpeqs)
+GEN_ENV_HELPER_PACKED_OP(pfcmplts,    64, uw, helper_fcmplts)
+GEN_ENV_HELPER_PACKED_OP(pfcmples,    64, uw, helper_fcmples)
+GEN_ENV_HELPER_PACKED_OP(pfcmpuods,   64, uw, helper_fcmpuods)
+GEN_ENV_HELPER_PACKED_OP(pfcmpneqs,   64, uw, helper_fcmpneqs)
+GEN_ENV_HELPER_PACKED_OP(pfcmpnlts,   64, uw, helper_fcmpnlts)
+GEN_ENV_HELPER_PACKED_OP(pfcmpnles,   64, uw, helper_fcmpnles)
+GEN_ENV_HELPER_PACKED_OP(pfcmpods,    64, uw, helper_fcmpods)
+
+#define GEN_ENV_HELPER_PACKED_OP_HORIZONTAL(name, len, type, op, map) \
+    GEN_ENV_HELPER_PACKED_N(name, len, vec_count(len, type) / 2, { \
         int j = i * 2; \
-        dst.type[i                      ] = map(op(env, s1.type[j], s1.type[j + 1])); \
-        dst.type[i + vec64_len(type) / 2] = map(op(env, s2.type[j], s2.type[j + 1])); \
+        dst.type[i                                ] = map(op(env, s1.type[j], s1.type[j + 1])); \
+        dst.type[i + vec_count(len, type) / 2] = map(op(env, s2.type[j], s2.type[j + 1])); \
     })
 
-#define IMPL_QPACKED_ENV_N(name, n, code) \
-    Int128 HELPER(name)(CPUE2KState *env, Int128 s1_, Int128 s2_) \
-    { \
-        E2KReg dst, s1 = { .qp = s1_ }, s2 = { .qp = s2_ }; \
-        int i; \
-        \
-        for (i = 0; i < n; i++) { \
-            code \
+GEN_ENV_HELPER_PACKED_OP_HORIZONTAL(pfhadds,    64, uw, helper_fadds, ident)
+GEN_ENV_HELPER_PACKED_OP_HORIZONTAL(pfhsubs,    64, uw, helper_fsubs, ident)
+GEN_ENV_HELPER_PACKED_OP_HORIZONTAL(qpfhadds,  128, uw, helper_fadds, ident)
+GEN_ENV_HELPER_PACKED_OP_HORIZONTAL(qpfhsubs,  128, uw, helper_fsubs, ident)
+
+#define GEN_ENV_HELPER_PACKED_OP_ALT(name, len, type, op1, op2) \
+    GEN_ENV_HELPER_PACKED(name, len, type, { \
+        if (i & 1) { \
+            dst.type[i] = op2(env, s1.type[i], s2.type[i]); \
+        } else { \
+            dst.type[i] = op1(env, s1.type[i], s2.type[i]); \
         } \
-        return dst.qp; \
-    }
-
-#define IMPL_QPACKED_ENV(name, type, code) \
-    IMPL_QPACKED_ENV_N(name, vec128_len(type), code)
-
-#define IMPL_QPACKED_ENV_OP(name, type, op) \
-    IMPL_QPACKED_ENV_N(name, vec128_len(type), { \
-        dst.type[i] = op(env, s1.type[i], s2.type[i]); \
     })
 
-#define IMPL_QPACKED_ENV_HOP(name, type, op, map) \
-    IMPL_QPACKED_ENV_N(name, vec128_len(type) / 2, { \
-        int j = i * 2; \
-        dst.type[i                       ] = map(op(env, s1.type[j], s1.type[j + 1])); \
-        dst.type[i + vec128_len(type) / 2] = map(op(env, s2.type[j], s2.type[j + 1])); \
-    })
+GEN_ENV_HELPER_PACKED_OP_ALT(pfaddsubs, 64, uw, helper_fsubs, helper_fadds)
 
-GEN_ENV_HELPER_PACKED_OP(pfadds, uw, helper_fadds)
-GEN_ENV_HELPER_PACKED_OP(pfsubs, uw, helper_fsubs)
-GEN_ENV_HELPER_PACKED_OP(pfmuls, uw, helper_fmuls)
-GEN_ENV_HELPER_PACKED_OP(pfmaxs, uw, helper_fmaxs)
-GEN_ENV_HELPER_PACKED_OP(pfmins, uw, helper_fmins)
-GEN_ENV_HELPER_PACKED_HORIZONTAL_OP(pfhadds, uw, helper_fadds, ident)
-GEN_ENV_HELPER_PACKED_HORIZONTAL_OP(pfhsubs, uw, helper_fsubs, ident)
-IMPL_QPACKED_ENV_HOP(qpfhadds, uw, helper_fadds, ident)
-IMPL_QPACKED_ENV_HOP(qpfhsubs, uw, helper_fsubs, ident)
-
-GEN_ENV_HELPER_PACKED_OP(pfcmpeqs,  uw, helper_fcmpeqs)
-GEN_ENV_HELPER_PACKED_OP(pfcmplts,  uw, helper_fcmplts)
-GEN_ENV_HELPER_PACKED_OP(pfcmples,  uw, helper_fcmples)
-GEN_ENV_HELPER_PACKED_OP(pfcmpuods, uw, helper_fcmpuods)
-GEN_ENV_HELPER_PACKED_OP(pfcmpneqs, uw, helper_fcmpneqs)
-GEN_ENV_HELPER_PACKED_OP(pfcmpnlts, uw, helper_fcmpnlts)
-GEN_ENV_HELPER_PACKED_OP(pfcmpnles, uw, helper_fcmpnles)
-GEN_ENV_HELPER_PACKED_OP(pfcmpods,  uw, helper_fcmpods)
-
-GEN_ENV_HELPER_PACKED(pfaddsubs, uw, { \
-    if (i & 1) { \
-        dst.uw[i] = helper_fadds(env, s1.uw[i], s2.uw[i]); \
-    } else { \
-        dst.uw[i] = helper_fsubs(env, s1.uw[i], s2.uw[i]); \
-    } \
-})
-
-#define GEN_ENV_HELPER_PACKED_UNARY_N(name, n, code) \
-    uint64_t HELPER(name)(CPUE2KState *env, uint64_t src2) \
+#define GEN_ENV_HELPER_PACKED_CONVERT(name, len_from, len_to, from, to, op) \
+    vec_raw(len_to) HELPER(name)(CPUE2KState *env, vec_raw(len_from) src2) \
     { \
-        size_t i = 0; \
-        vec64 s2 = { .ud[0] = src2 }; \
-        vec64 dst = { .ud[0] = 0 }; \
-        for (; i < n; i++) { \
-            code \
+        vec(len_to) dst = vec_zero(len_to); \
+        vec(len_from) s2 = vec_from_raw(len_from, src2); \
+        \
+        for (int i = 0; i < vec_count(len_from, from); ++i) { \
+            dst.to[i] = op(env, s2.from[i]); \
         } \
-        return dst.ud[0]; \
+        return vec_into_raw(len_to, dst); \
     }
-#define GEN_ENV_HELPER_PACKED_UNARY(name, type, code) \
-    GEN_ENV_HELPER_PACKED_UNARY_N(name, vec64_len(type), code)
-#define GEN_ENV_HELPER_PACKED_UNARY_OP(name, type, op) \
-    GEN_ENV_HELPER_PACKED_UNARY_N(name, vec64_len(type), { \
-        dst.type[i] = op(env, s2.type[i]); \
-    })
 
-#define GEN_ENV_HELPER_PACKED_OP_CVT(name, type, op) \
-    GEN_ENV_HELPER_PACKED_N(name, vec64_len(type), { \
-        dst.type[i] = op(env, s1.uw[0], s2.type[i]); \
-    })
+GEN_ENV_HELPER_PACKED_CONVERT(pistofs,    64, 64, uw, uw, helper_istofs)
+GEN_ENV_HELPER_PACKED_CONVERT(pfstois,    64, 64, uw, uw, helper_fstois)
+GEN_ENV_HELPER_PACKED_CONVERT(pfstoistr,  64, 64, uw, uw, helper_fstoistr)
 
-GEN_ENV_HELPER_PACKED_OP_CVT(pfstoifs, uw, helper_fstoifs)
-GEN_ENV_HELPER_PACKED_UNARY_OP(pistofs, uw, helper_istofs)
-GEN_ENV_HELPER_PACKED_UNARY_OP(pfstois, uw, helper_fstois)
-GEN_ENV_HELPER_PACKED_UNARY_OP(pfstoistr, uw, helper_fstoistr)
+GEN_ENV_HELPER_PACKED_CONVERT(qpfstoid,   64, 128, uw, ud, helper_fstoid)
+GEN_ENV_HELPER_PACKED_CONVERT(qpfstoidtr, 64, 128, uw, ud, helper_fstoidtr)
+GEN_ENV_HELPER_PACKED_CONVERT(qpistofd,   64, 128, uw, ud, helper_istofd)
+GEN_ENV_HELPER_PACKED_CONVERT(qpfstofd,   64, 128, uw, ud, helper_fstofd)
 
-#define IMPL_QPACKED_ENV_CVT_EXT(name, op) \
-    Int128 HELPER(name)(CPUE2KState *env, uint64_t src2) \
+GEN_ENV_HELPER_PACKED_CONVERT(qpfdtois,   128, 64, ud, uw, helper_fdtois)
+GEN_ENV_HELPER_PACKED_CONVERT(qpfdtoistr, 128, 64, ud, uw, helper_fdtoistr)
+GEN_ENV_HELPER_PACKED_CONVERT(qpidtofs,   128, 64, ud, uw, helper_idtofs)
+GEN_ENV_HELPER_PACKED_CONVERT(qpfdtofs,   128, 64, ud, uw, helper_fdtofs)
+
+#define GEN_ENV_HELPER_PACKED_CONVERT2(name, len_from, len_to, from, to, op) \
+    vec_raw(len_to) HELPER(name)(CPUE2KState *env, uint64_t src1, vec_raw(len_from) src2) \
     { \
-        E2KReg dst; \
-        vec64 s2 = { .ud[0] = src2 }; \
+        vec(len_to) dst = vec_zero(len_to); \
+        vec(len_from) s2 = vec_from_raw(len_from, src2); \
         \
-        dst.ud[0] = op(env, s2.uw[0]); \
-        dst.ud[1] = op(env, s2.uw[1]); \
-        \
-        return dst.qp; \
+        for (int i = 0; i < vec_count(len_from, from); ++i) { \
+            dst.to[i] = op(env, src1, s2.from[i]); \
+        } \
+        return vec_into_raw(len_to, dst); \
     }
 
-IMPL_QPACKED_ENV_CVT_EXT(qpfstoid,   helper_fstoid)
-IMPL_QPACKED_ENV_CVT_EXT(qpfstoidtr, helper_fstoidtr)
-IMPL_QPACKED_ENV_CVT_EXT(qpistofd,   helper_istofd)
-IMPL_QPACKED_ENV_CVT_EXT(qpfstofd,   helper_fstofd)
-
-#define IMPL_QPACKED_ENV_CVT_TRUNC(name, op) \
-    uint64_t HELPER(name)(CPUE2KState *env, Int128 s2_) \
-    { \
-        E2KReg s2 = { .qp = s2_ }; \
-        vec64 r; \
-        \
-        r.uw[0] = op(env, s2.ud[0]); \
-        r.uw[1] = op(env, s2.ud[1]); \
-        \
-        return r.ud[0]; \
-    }
-
-IMPL_QPACKED_ENV_CVT_TRUNC(qpfdtois,   helper_fdtois)
-IMPL_QPACKED_ENV_CVT_TRUNC(qpfdtoistr, helper_fdtoistr)
-IMPL_QPACKED_ENV_CVT_TRUNC(qpidtofs,   helper_idtofs)
-IMPL_QPACKED_ENV_CVT_TRUNC(qpfdtofs,   helper_fdtofs)
+GEN_ENV_HELPER_PACKED_CONVERT2(pfstoifs,    64, 64, uw, uw, helper_fstoifs)
 
 static uint32_t mask4(uint8_t bitmask)
 {

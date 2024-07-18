@@ -38,9 +38,9 @@ TRANSM(stgdmqp,             0, 0, 5, 0, 0, 5, P,S,S,0, alf3_mas, gen_addr_src1_i
 //strqp,               0, 0, 5, 0, 0, 5, P,D,D,0, alf3_mas
 TRANSA(puttagqp,            5, 5, 0, 5, 5, 0, P,P,S,0, alf1,  OP_PUTTAGQP, gen_puttagqp);
 
-TRANSW(pmullw,              0, 5, 0, 0, 5, 0, D,D,D,0, alf1,  _, gen_pmullw);
-TRANSW(psrcw,               5, 5, 0, 5, 5, 0, D,D,D,0, alf1,  _, gen_psrcd);
-TRANSW(psrcd,               5, 5, 0, 5, 5, 0, D,D,D,0, alf1,  _, gen_psrcw);
+TRANSW(pmullw,              0, 5, 0, 0, 5, 0, D,D,D,0, alf1,  _, gen_helper_pmullw);
+TRANSW(psrcw,               5, 5, 0, 5, 5, 0, D,D,D,0, alf1,  _, gen_helper_psrcw);
+TRANSW(psrcd,               5, 5, 0, 5, 5, 0, D,D,D,0, alf1,  _, gen_helper_psrcd);
 
 TRANSW(addcd,               0, 5, 0, 0, 5, 0, D,D,D,S, alf21, _, gen_addcd);
 TRANSW(addcd_c,             0, 5, 0, 0, 5, 0, D,D,D,S, alf21, _, gen_addcd_c);
