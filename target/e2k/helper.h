@@ -56,12 +56,10 @@ DEF_HELPER_FLAGS_2(psubw,  TCG_CALL_NO_RWG_SE, i64, i64, i64)
 DEF_HELPER_FLAGS_2(qpaddb, TCG_CALL_NO_RWG_SE, vec, vec, vec)
 DEF_HELPER_FLAGS_2(qpaddh, TCG_CALL_NO_RWG_SE, vec, vec, vec)
 DEF_HELPER_FLAGS_2(qpaddw, TCG_CALL_NO_RWG_SE, vec, vec, vec)
-DEF_HELPER_FLAGS_2(qpaddd, TCG_CALL_NO_RWG_SE, vec, vec, vec)
 
 DEF_HELPER_FLAGS_2(qpsubb, TCG_CALL_NO_RWG_SE, vec, vec, vec)
 DEF_HELPER_FLAGS_2(qpsubh, TCG_CALL_NO_RWG_SE, vec, vec, vec)
 DEF_HELPER_FLAGS_2(qpsubw, TCG_CALL_NO_RWG_SE, vec, vec, vec)
-DEF_HELPER_FLAGS_2(qpsubd, TCG_CALL_NO_RWG_SE, vec, vec, vec)
 
 /* Packed Min/Max */
 DEF_HELPER_FLAGS_2(pminub, TCG_CALL_NO_RWG_SE, i64, i64, i64)

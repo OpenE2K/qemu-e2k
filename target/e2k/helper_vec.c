@@ -159,12 +159,10 @@ GEN_HELPER_PACKED_OP(psubw,    64, uw, sub)
 GEN_HELPER_PACKED_OP(qpaddb,  128, ub, add)
 GEN_HELPER_PACKED_OP(qpaddh,  128, uh, add)
 GEN_HELPER_PACKED_OP(qpaddw,  128, uw, add)
-GEN_HELPER_PACKED_OP(qpaddd,  128, ud, add)
 
 GEN_HELPER_PACKED_OP(qpsubb,  128, ub, sub)
 GEN_HELPER_PACKED_OP(qpsubh,  128, uh, sub)
 GEN_HELPER_PACKED_OP(qpsubw,  128, uw, sub)
-GEN_HELPER_PACKED_OP(qpsubd,  128, ud, sub)
 
 GEN_HELPER_PACKED_OP(pminub,   64, ub, MIN)
 GEN_HELPER_PACKED_OP(pminsb,   64, sb, MIN)

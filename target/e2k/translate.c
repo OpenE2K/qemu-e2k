@@ -3653,6 +3653,9 @@ IMPL_GEN_ALOPF1_QQQ(gen_qpandn, gen_andn_i64)
 IMPL_GEN_ALOPF1_QQQ(gen_qpor,   tcg_gen_or_i64)
 IMPL_GEN_ALOPF1_QQQ(gen_qpxor,  tcg_gen_xor_i64)
 
+IMPL_GEN_ALOPF1_QQQ(gen_qpaddd, tcg_gen_add_i64)
+IMPL_GEN_ALOPF1_QQQ(gen_qpsubd, tcg_gen_sub_i64)
+
 static void gen_plog(TCGv_i64 ret, uint32_t table, TCGv_i64 s1,
     TCGv_i64 s2, TCGv_i64 s3)
 {

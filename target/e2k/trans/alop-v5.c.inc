@@ -101,7 +101,7 @@ TRANSW(qpaddsh,             5, 0, 0, 5, 0, 0, P,P,P,0, alf1,  _, gen_helper_qpad
 TRANSW(qpaddusb,            5, 0, 0, 5, 0, 0, P,P,P,0, alf1,  _, gen_helper_qpaddusb);
 TRANSW(qpaddush,            5, 0, 0, 5, 0, 0, P,P,P,0, alf1,  _, gen_helper_qpaddush);
 TRANSW(qpaddw,              5, 0, 0, 5, 0, 0, P,P,P,0, alf1,  _, gen_helper_qpaddw);
-TRANSW(qpaddd,              5, 0, 0, 5, 0, 0, P,P,P,0, alf1,  _, gen_helper_qpaddd);
+TRANSW(qpaddd,              5, 0, 0, 5, 0, 0, P,P,P,0, alf1,  _, gen_qpaddd);
 TRANSW(qpsubb,              5, 0, 0, 5, 0, 0, P,P,P,0, alf1,  _, gen_helper_qpsubb);
 TRANSW(qpsubh,              5, 0, 0, 5, 0, 0, P,P,P,0, alf1,  _, gen_helper_qpsubh);
 TRANSW(qpsubsb,             5, 0, 0, 5, 0, 0, P,P,P,0, alf1,  _, gen_helper_qpsubsb);
@@ -109,7 +109,7 @@ TRANSW(qpsubsh,             5, 0, 0, 5, 0, 0, P,P,P,0, alf1,  _, gen_helper_qpsu
 TRANSW(qpsubusb,            5, 0, 0, 5, 0, 0, P,P,P,0, alf1,  _, gen_helper_qpsubusb);
 TRANSW(qpsubush,            5, 0, 0, 5, 0, 0, P,P,P,0, alf1,  _, gen_helper_qpsubush);
 TRANSW(qpsubw,              5, 0, 0, 5, 0, 0, P,P,P,0, alf1,  _, gen_helper_qpsubw);
-TRANSW(qpsubd,              5, 0, 0, 5, 0, 0, P,P,P,0, alf1,  _, gen_helper_qpsubd);
+TRANSW(qpsubd,              5, 0, 0, 5, 0, 0, P,P,P,0, alf1,  _, gen_qpsubd);
 TRANSW(qpcmpeqb,            5, 0, 0, 5, 0, 0, P,P,P,0, alf1,  _, gen_helper_qpcmpeqb);
 TRANSW(qpmulhh,             0, 5, 0, 0, 5, 0, P,P,P,0, alf1,  _, gen_helper_qpmulhh);
 TRANSW(qpcmpeqh,            5, 0, 0, 5, 0, 0, P,P,P,0, alf1,  _, gen_helper_qpcmpeqh);
