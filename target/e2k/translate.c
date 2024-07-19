@@ -3640,14 +3640,12 @@ static void gen_qpswitchw(TCGv_i128 ret, TCGv_i128 src2)
         TCGv_i64 t1 = tcg_temp_new_i64(); \
         TCGv_i64 t2 = tcg_temp_new_i64(); \
         TCGv_i64 t3 = tcg_temp_new_i64(); \
-        TCGv_i64 t4 = tcg_temp_new_i64(); \
-        TCGv_i64 t5 = tcg_temp_new_i64(); \
         \
         gen_qpunpackdl(t0, t1, s1); \
         gen_qpunpackdl(t2, t3, s2); \
-        op(t4, t0, t2); \
-        op(t5, t1, t3); \
-        gen_qppackdl(ret, t4, t5); \
+        op(t0, t0, t2); \
+        op(t1, t1, t3); \
+        gen_qppackdl(ret, t0, t1); \
     }
 
 IMPL_GEN_ALOPF1_QQQ(gen_qpand,  tcg_gen_and_i64)
@@ -3655,249 +3653,16 @@ IMPL_GEN_ALOPF1_QQQ(gen_qpandn, gen_andn_i64)
 IMPL_GEN_ALOPF1_QQQ(gen_qpor,   tcg_gen_or_i64)
 IMPL_GEN_ALOPF1_QQQ(gen_qpxor,  tcg_gen_xor_i64)
 
-IMPL_GEN_ALOPF1_QQQ(gen_qpmaxsb, gen_helper_pmaxsb)
-IMPL_GEN_ALOPF1_QQQ(gen_qpmaxsh, gen_helper_pmaxsh)
-IMPL_GEN_ALOPF1_QQQ(gen_qpmaxsw, gen_helper_pmaxsw)
-IMPL_GEN_ALOPF1_QQQ(gen_qpmaxub, gen_helper_pmaxub)
-IMPL_GEN_ALOPF1_QQQ(gen_qpmaxuh, gen_helper_pmaxuh)
-IMPL_GEN_ALOPF1_QQQ(gen_qpmaxuw, gen_helper_pmaxuw)
-IMPL_GEN_ALOPF1_QQQ(gen_qpminsb, gen_helper_pminsb)
-IMPL_GEN_ALOPF1_QQQ(gen_qpminsh, gen_helper_pminsh)
-IMPL_GEN_ALOPF1_QQQ(gen_qpminsw, gen_helper_pminsw)
-IMPL_GEN_ALOPF1_QQQ(gen_qpminub, gen_helper_pminub)
-IMPL_GEN_ALOPF1_QQQ(gen_qpminuh, gen_helper_pminuh)
-IMPL_GEN_ALOPF1_QQQ(gen_qpminuw, gen_helper_pminuw)
-
-IMPL_GEN_ALOPF1_QQQ(gen_qpcmpeqb, gen_helper_pcmpeqb)
-IMPL_GEN_ALOPF1_QQQ(gen_qpcmpeqd, gen_helper_pcmpeqd)
-IMPL_GEN_ALOPF1_QQQ(gen_qpcmpeqh, gen_helper_pcmpeqh)
-IMPL_GEN_ALOPF1_QQQ(gen_qpcmpeqw, gen_helper_pcmpeqw)
-IMPL_GEN_ALOPF1_QQQ(gen_qpcmpgtb, gen_helper_pcmpgtb)
-IMPL_GEN_ALOPF1_QQQ(gen_qpcmpgtd, gen_helper_pcmpgtd)
-IMPL_GEN_ALOPF1_QQQ(gen_qpcmpgth, gen_helper_pcmpgth)
-IMPL_GEN_ALOPF1_QQQ(gen_qpcmpgtw, gen_helper_pcmpgtw)
-
-IMPL_GEN_ALOPF1_QQQ(gen_qpaddb, tcg_gen_vec_add8_i64)
-IMPL_GEN_ALOPF1_QQQ(gen_qpaddh, tcg_gen_vec_add16_i64)
-IMPL_GEN_ALOPF1_QQQ(gen_qpaddw, tcg_gen_vec_add32_i64)
-IMPL_GEN_ALOPF1_QQQ(gen_qpaddd, tcg_gen_add_i64)
-
-IMPL_GEN_ALOPF1_QQQ(gen_qpsubb, tcg_gen_vec_sub8_i64)
-IMPL_GEN_ALOPF1_QQQ(gen_qpsubh, tcg_gen_vec_sub16_i64)
-IMPL_GEN_ALOPF1_QQQ(gen_qpsubw, tcg_gen_vec_sub32_i64)
-IMPL_GEN_ALOPF1_QQQ(gen_qpsubd, tcg_gen_sub_i64)
-
-IMPL_GEN_ALOPF1_QQQ(gen_qpmullw, gen_helper_pmullw)
-
-IMPL_GEN_ALOPF1_QQQ(gen_qpaddsb,  gen_helper_paddsb)
-IMPL_GEN_ALOPF1_QQQ(gen_qpaddsh,  gen_helper_paddsh)
-IMPL_GEN_ALOPF1_QQQ(gen_qpaddusb, gen_helper_paddusb)
-IMPL_GEN_ALOPF1_QQQ(gen_qpaddush, gen_helper_paddush)
-IMPL_GEN_ALOPF1_QQQ(gen_qpsubsb,  gen_helper_psubsb)
-IMPL_GEN_ALOPF1_QQQ(gen_qpsubsh,  gen_helper_psubsh)
-IMPL_GEN_ALOPF1_QQQ(gen_qpsubusb, gen_helper_psubusb)
-IMPL_GEN_ALOPF1_QQQ(gen_qpsubush, gen_helper_psubush)
-
-IMPL_GEN_ALOPF1_QQQ(gen_qpavgusb, gen_helper_pavgusb)
-IMPL_GEN_ALOPF1_QQQ(gen_qpavgush, gen_helper_pavgush)
-
-IMPL_GEN_ALOPF1_QQQ(gen_qpmulhh,    gen_helper_pmulhh)
-IMPL_GEN_ALOPF1_QQQ(gen_qpmulhrsh,  gen_helper_pmulhrsh)
-IMPL_GEN_ALOPF1_QQQ(gen_qpmulhuh,   gen_helper_pmulhuh)
-IMPL_GEN_ALOPF1_QQQ(gen_qpmullh,    gen_helper_pmullh)
-IMPL_GEN_ALOPF1_QQQ(gen_qpsignb,    gen_helper_psignb)
-IMPL_GEN_ALOPF1_QQQ(gen_qpsignh,    gen_helper_psignh)
-IMPL_GEN_ALOPF1_QQQ(gen_qpsignw,    gen_helper_psignw)
-IMPL_GEN_ALOPF1_QQQ(gen_qpmaddh,    gen_helper_pmaddh)
-IMPL_GEN_ALOPF1_QQQ(gen_qpmaddubsh, gen_helper_pmaddubsh)
-IMPL_GEN_ALOPF1_QQQ(gen_qpsadbw,    gen_helper_psadbw)
-
-#define IMPL_GEN_ALOPF1_ALT_QQQ(name, op) \
-    static void name(TCGv_i128 ret, TCGv_i128 s1, TCGv_i128 s2) \
-    { \
-        TCGv_i64 t0 = tcg_temp_new_i64(); \
-        TCGv_i64 t1 = tcg_temp_new_i64(); \
-        TCGv_i64 t2 = tcg_temp_new_i64(); \
-        TCGv_i64 t3 = tcg_temp_new_i64(); \
-        TCGv_i64 t4 = tcg_temp_new_i64(); \
-        TCGv_i64 t5 = tcg_temp_new_i64(); \
-        \
-        gen_qpunpackdl(t0, t1, s1); \
-        gen_qpunpackdl(t2, t3, s2); \
-        op(t4, t0, t1); \
-        op(t5, t2, t3); \
-        gen_qppackdl(ret, t4, t5); \
-    }
-
-IMPL_GEN_ALOPF1_ALT_QQQ(gen_qpacksshb, gen_helper_packsshb)
-IMPL_GEN_ALOPF1_ALT_QQQ(gen_qpacksswh, gen_helper_packsswh)
-IMPL_GEN_ALOPF1_ALT_QQQ(gen_qpackushb, gen_helper_packushb)
-IMPL_GEN_ALOPF1_ALT_QQQ(gen_qpackuswh, gen_helper_packuswh)
-
-IMPL_GEN_ALOPF1_ALT_QQQ(gen_qpackhbss, gen_helper_packsshb)
-IMPL_GEN_ALOPF1_ALT_QQQ(gen_qpackwhss, gen_helper_packsswh)
-IMPL_GEN_ALOPF1_ALT_QQQ(gen_qpackhbus, gen_helper_packushb)
-IMPL_GEN_ALOPF1_ALT_QQQ(gen_qpackwhus, gen_helper_packuswh)
-
-#define IMPL_GEN_ALOPF1_QDQ(name, op) \
-    static void name(TCGv_i128 ret, TCGv_i128 s1, TCGv_i64 s2) \
-    { \
-        TCGv_i64 t0 = tcg_temp_new_i64(); \
-        TCGv_i64 t1 = tcg_temp_new_i64(); \
-        \
-        gen_qpunpackdl(t0, t1, s1); \
-        op(t0, t0, s2); \
-        op(t1, t1, s2); \
-        gen_qppackdl(ret, t0, t1); \
-    }
-
-IMPL_GEN_ALOPF1_QDQ(gen_qpsllh, gen_helper_psllh)
-IMPL_GEN_ALOPF1_QDQ(gen_qpsllw, gen_helper_psllw)
-IMPL_GEN_ALOPF1_QDQ(gen_qpslld, gen_pslld)
-IMPL_GEN_ALOPF1_QDQ(gen_qpsrlh, gen_helper_psrlh)
-IMPL_GEN_ALOPF1_QDQ(gen_qpsrlw, gen_helper_psrlw)
-IMPL_GEN_ALOPF1_QDQ(gen_qpsrld, gen_psrld)
-IMPL_GEN_ALOPF1_QDQ(gen_qpsrah, gen_helper_psrah)
-IMPL_GEN_ALOPF1_QDQ(gen_qpsraw, gen_helper_psraw)
-IMPL_GEN_ALOPF1_QDQ(gen_qpsrcw, gen_helper_psrcw)
-IMPL_GEN_ALOPF1_QDQ(gen_qpsrcd, gen_helper_psrcd)
-
-static void gen_qpsrad_helper(TCGv_i64 ret, TCGv_i64 s1, TCGv_i64 s2)
-{
-    TCGv_i64 t0 = tcg_constant_i64(63);
-    TCGv_i64 t1 = tcg_temp_new_i64();
-
-    tcg_gen_movcond_i64(TCG_COND_LTU, t1, s2, t0, s2, t0);
-    tcg_gen_sar_i64(ret, s1, t1);
-}
-
-IMPL_GEN_ALOPF1_QDQ(gen_qpsrad, gen_qpsrad_helper)
-
-#define IMPL_GEN_ALOPF21_QQQQ(name, op) \
-    static void name(TCGv_i128 ret, TCGv_i128 s1, TCGv_i128 s2, TCGv_i128 s3) \
-    { \
-        TCGv_i64 t0 = tcg_temp_new_i64(); \
-        TCGv_i64 t1 = tcg_temp_new_i64(); \
-        TCGv_i64 t2 = tcg_temp_new_i64(); \
-        TCGv_i64 t3 = tcg_temp_new_i64(); \
-        TCGv_i64 t4 = tcg_temp_new_i64(); \
-        TCGv_i64 t5 = tcg_temp_new_i64(); \
-        \
-        gen_qpunpackdl(t0, t1, s1); \
-        gen_qpunpackdl(t2, t3, s2); \
-        gen_qpunpackdl(t4, t5, s3); \
-        op(t0, t0, t2, t4); \
-        op(t1, t1, t3, t5); \
-        gen_qppackdl(ret, t0, t1); \
-    }
-
-IMPL_GEN_ALOPF21_QQQQ(gen_qpmerge,  gen_helper_pmerge)
-
-#define IMPL_GEN_ALOPF1_ENV_QQQ_2(name, op1, op2) \
-    static void name(TCGv_i128 ret, TCGv_env env, TCGv_i128 s1, TCGv_i128 s2) \
-    { \
-        TCGv_i64 t0 = tcg_temp_new_i64(); \
-        TCGv_i64 t1 = tcg_temp_new_i64(); \
-        TCGv_i64 t2 = tcg_temp_new_i64(); \
-        TCGv_i64 t3 = tcg_temp_new_i64(); \
-        \
-        gen_qpunpackdl(t0, t1, s1); \
-        gen_qpunpackdl(t2, t3, s2); \
-        op1(t0, env, t0, t2); \
-        op2(t1, env, t1, t3); \
-        gen_qppackdl(ret, t0, t1); \
-    }
-
-#define IMPL_GEN_ALOPF1_ENV_QQQ(name, op) \
-    IMPL_GEN_ALOPF1_ENV_QQQ_2(name, op, op)
-
-IMPL_GEN_ALOPF1_ENV_QQQ(gen_qpfadds, gen_helper_pfadds)
-IMPL_GEN_ALOPF1_ENV_QQQ(gen_qpfaddd, gen_helper_faddd)
-IMPL_GEN_ALOPF1_ENV_QQQ(gen_qpfsubs, gen_helper_pfsubs)
-IMPL_GEN_ALOPF1_ENV_QQQ(gen_qpfsubd, gen_helper_fsubd)
-IMPL_GEN_ALOPF1_ENV_QQQ(gen_qpfmuls, gen_helper_pfmuls)
-IMPL_GEN_ALOPF1_ENV_QQQ(gen_qpfmuld, gen_helper_fmuld)
-IMPL_GEN_ALOPF1_ENV_QQQ(gen_qpfaddsubs, gen_helper_pfaddsubs)
-IMPL_GEN_ALOPF1_ENV_QQQ_2(gen_qpfaddsubd, gen_helper_faddd, gen_helper_fsubd)
-IMPL_GEN_ALOPF1_ENV_QQQ(gen_qpfmins, gen_helper_pfmins)
-IMPL_GEN_ALOPF1_ENV_QQQ(gen_qpfmind, gen_helper_fmind)
-IMPL_GEN_ALOPF1_ENV_QQQ(gen_qpfmaxs, gen_helper_pfmaxs)
-IMPL_GEN_ALOPF1_ENV_QQQ(gen_qpfmaxd, gen_helper_fmaxd)
-
-IMPL_GEN_ALOPF1_ENV_QQQ(gen_qpfcmpeqs,  gen_helper_pfcmpeqs)
-IMPL_GEN_ALOPF1_ENV_QQQ(gen_qpfcmplts,  gen_helper_pfcmplts)
-IMPL_GEN_ALOPF1_ENV_QQQ(gen_qpfcmples,  gen_helper_pfcmples)
-IMPL_GEN_ALOPF1_ENV_QQQ(gen_qpfcmpuods, gen_helper_pfcmpuods)
-IMPL_GEN_ALOPF1_ENV_QQQ(gen_qpfcmpneqs, gen_helper_pfcmpneqs)
-IMPL_GEN_ALOPF1_ENV_QQQ(gen_qpfcmpnlts, gen_helper_pfcmpnlts)
-IMPL_GEN_ALOPF1_ENV_QQQ(gen_qpfcmpnles, gen_helper_pfcmpnles)
-IMPL_GEN_ALOPF1_ENV_QQQ(gen_qpfcmpods,  gen_helper_pfcmpods)
-IMPL_GEN_ALOPF1_ENV_QQQ(gen_qpfcmpeqd,  gen_helper_fcmpeqd)
-IMPL_GEN_ALOPF1_ENV_QQQ(gen_qpfcmpltd,  gen_helper_fcmpltd)
-IMPL_GEN_ALOPF1_ENV_QQQ(gen_qpfcmpled,  gen_helper_fcmpled)
-IMPL_GEN_ALOPF1_ENV_QQQ(gen_qpfcmpuodd, gen_helper_fcmpuodd)
-IMPL_GEN_ALOPF1_ENV_QQQ(gen_qpfcmpneqd, gen_helper_fcmpneqd)
-IMPL_GEN_ALOPF1_ENV_QQQ(gen_qpfcmpnltd, gen_helper_fcmpnltd)
-IMPL_GEN_ALOPF1_ENV_QQQ(gen_qpfcmpnled, gen_helper_fcmpnled)
-IMPL_GEN_ALOPF1_ENV_QQQ(gen_qpfcmpodd,  gen_helper_fcmpodd)
-
-#define IMPL_GEN_ALOPF1_ENV_DQQ(name, op) \
-    static void name(TCGv_i128 ret, TCGv_env env, TCGv_i64 s1, TCGv_i128 s2) \
-    { \
-        TCGv_i64 t0 = tcg_temp_new_i64(); \
-        TCGv_i64 t1 = tcg_temp_new_i64(); \
-        \
-        gen_qpunpackdl(t0, t1, s2); \
-        op(t0, env, s1, t0); \
-        op(t1, env, s1, t1); \
-        gen_qppackdl(ret, t0, t1); \
-    }
-
-IMPL_GEN_ALOPF1_ENV_DQQ(gen_qpfstoifs, gen_helper_pfstoifs)
-IMPL_GEN_ALOPF1_ENV_DQQ(gen_qpfdtoifd, gen_helper_fdtoifd)
-
-#define IMPL_GEN_ALOPF2_ENV_QQ(name, op) \
-    static void name(TCGv_i128 ret, TCGv_env env, TCGv_i128 s2) \
-    { \
-        TCGv_i64 t0 = tcg_temp_new_i64(); \
-        TCGv_i64 t1 = tcg_temp_new_i64(); \
-        \
-        gen_qpunpackdl(t0, t1, s2); \
-        op(t0, env, t0); \
-        op(t1, env, t1); \
-        gen_qppackdl(ret, t0, t1); \
-    }
-
-IMPL_GEN_ALOPF2_ENV_QQ(gen_qpfstois,   gen_helper_pfstois)
-IMPL_GEN_ALOPF2_ENV_QQ(gen_qpfstoistr, gen_helper_pfstoistr)
-IMPL_GEN_ALOPF2_ENV_QQ(gen_qpistofs,   gen_helper_pistofs)
-IMPL_GEN_ALOPF2_ENV_QQ(gen_qpfdtoid,   gen_helper_fdtoid)
-IMPL_GEN_ALOPF2_ENV_QQ(gen_qpfdtoidtr, gen_helper_fdtoidtr)
-IMPL_GEN_ALOPF2_ENV_QQ(gen_qpidtofd,   gen_helper_idtofd)
-
 static void gen_plog(TCGv_i64 ret, uint32_t table, TCGv_i64 s1,
     TCGv_i64 s2, TCGv_i64 s3)
 {
-    TCGv_i32 t0 = tcg_constant_i32(table);
-    gen_helper_plog(ret, t0, s1, s2, s3);
+    gen_helper_plog(ret, s1, s2, s3, tcg_constant_i32(table));
 }
 
-static void gen_qplog(TCGv_i128 ret, uint32_t opc, TCGv_i128 s1,
+static void gen_qplog(TCGv_i128 ret, uint32_t table, TCGv_i128 s1,
     TCGv_i128 s2, TCGv_i128 s3)
 {
-    TCGv_i64 t0 = tcg_temp_new_i64();
-    TCGv_i64 t1 = tcg_temp_new_i64();
-    TCGv_i64 t2 = tcg_temp_new_i64();
-    TCGv_i64 t3 = tcg_temp_new_i64();
-    TCGv_i64 t4 = tcg_temp_new_i64();
-    TCGv_i64 t5 = tcg_temp_new_i64();
-
-    gen_qpunpackdl(t0, t1, s1);
-    gen_qpunpackdl(t2, t3, s2);
-    gen_qpunpackdl(t4, t5, s3);
-    gen_plog(t0, opc, t0, t2, t4);
-    gen_plog(t1, opc, t1, t3, t5);
-    gen_qppackdl(ret, t0, t1);
+    gen_helper_qplog(ret, s1, s2, s3, tcg_constant_i32(table));
 }
 
 #define IMPL_GEN_ALOPF7_QQB(name, op1, op2) \
@@ -5287,13 +5052,13 @@ static void gen_qpfcomb_op_i32(Alop *alop, FComb opc,
     TCGv_i128 ret, TCGv_i128 arg1, TCGv_i128 arg2)
 {
     switch (opc) {
-    case FCOMB_ADD: gen_qpfadds(ret, tcg_env, arg1, arg2); break;
-    case FCOMB_SUB: gen_qpfsubs(ret, tcg_env, arg1, arg2); break;
+    case FCOMB_ADD: gen_helper_qpfadds(ret, tcg_env, arg1, arg2); break;
+    case FCOMB_SUB: gen_helper_qpfsubs(ret, tcg_env, arg1, arg2); break;
     case FCOMB_HADD: gen_helper_qpfhadds(ret, tcg_env, arg1, arg2); break;
     case FCOMB_HSUB: gen_helper_qpfhsubs(ret, tcg_env, arg1, arg2); break;
-    case FCOMB_MUL: gen_qpfmuls(ret, tcg_env, arg1, arg2); break;
-    case FCOMB_RSUB: gen_qpfsubs(ret, tcg_env, arg2, arg1); break;
-    case FCOMB_ADDSUB: gen_qpfaddsubs(ret, tcg_env, arg1, arg2); break;
+    case FCOMB_MUL: gen_helper_qpfmuls(ret, tcg_env, arg1, arg2); break;
+    case FCOMB_RSUB: gen_helper_qpfsubs(ret, tcg_env, arg2, arg1); break;
+    case FCOMB_ADDSUB: gen_helper_qpfaddsubs(ret, tcg_env, arg1, arg2); break;
     default: gen_tr_excp_illopc(alop->ctx); break;
     }
 }
@@ -5302,11 +5067,11 @@ static void gen_qpfcomb_op_i64(Alop *alop, FComb opc,
     TCGv_i128 ret, TCGv_i128 arg1, TCGv_i128 arg2)
 {
     switch (opc) {
-    case FCOMB_ADD: gen_qpfaddd(ret, tcg_env, arg1, arg2); break;
-    case FCOMB_SUB: gen_qpfsubd(ret, tcg_env, arg1, arg2); break;
-    case FCOMB_MUL: gen_qpfmuld(ret, tcg_env, arg1, arg2); break;
-    case FCOMB_RSUB: gen_qpfsubd(ret, tcg_env, arg2, arg1); break;
-    case FCOMB_ADDSUB: gen_qpfaddsubd(ret, tcg_env, arg1, arg2); break;
+    case FCOMB_ADD: gen_helper_qpfaddd(ret, tcg_env, arg1, arg2); break;
+    case FCOMB_SUB: gen_helper_qpfsubd(ret, tcg_env, arg1, arg2); break;
+    case FCOMB_MUL: gen_helper_qpfmuld(ret, tcg_env, arg1, arg2); break;
+    case FCOMB_RSUB: gen_helper_qpfsubd(ret, tcg_env, arg2, arg1); break;
+    case FCOMB_ADDSUB: gen_helper_qpfaddsubd(ret, tcg_env, arg1, arg2); break;
     default: gen_tr_excp_illopc(alop->ctx); break;
     }
 }

@@ -11,7 +11,7 @@ TRANSD(ibranchd,            6, 0, 0, 0, 0, 0, D,0,D,0, alf2, gen_ibranchd);
 TRANSD(icalld,              6, 0, 0, 0, 0, 0, D,0,D,0, alf2_icalld, gen_icalld);
 TRANSD(pmrgp,               6, 6, 0, 6, 6, 0, D,D,D,0, alf1, gen_merged);
 TRANSD(qpmrgp,              6, 6, 0, 6, 6, 0, P,P,P,0, alf1, gen_qpmrgp);
-TRANSW(qpsrad,              6, 6, 0, 6, 6, 0, P,P,D,0, alf1, _, gen_qpsrad);
+TRANSW(qpsrad,              6, 6, 0, 6, 6, 0, P,P,D,0, alf1, _, gen_helper_qpsrad);
 TRANSW(pcmpeqbop,           6, 0, 0, 6, 0, 0, D,D,D,0, alf7, _, gen_pcmpeqbop);
 TRANSW(pcmpeqhop,           6, 0, 0, 6, 0, 0, D,D,D,0, alf7, _, gen_pcmpeqhop);
 TRANSW(pcmpeqwop,           6, 0, 0, 6, 0, 0, D,D,D,0, alf7, _, gen_pcmpeqwop);

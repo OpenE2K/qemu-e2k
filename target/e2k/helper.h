@@ -53,6 +53,16 @@ DEF_HELPER_FLAGS_2(psubb,  TCG_CALL_NO_RWG_SE, i64, i64, i64)
 DEF_HELPER_FLAGS_2(psubh,  TCG_CALL_NO_RWG_SE, i64, i64, i64)
 DEF_HELPER_FLAGS_2(psubw,  TCG_CALL_NO_RWG_SE, i64, i64, i64)
 
+DEF_HELPER_FLAGS_2(qpaddb, TCG_CALL_NO_RWG_SE, vec, vec, vec)
+DEF_HELPER_FLAGS_2(qpaddh, TCG_CALL_NO_RWG_SE, vec, vec, vec)
+DEF_HELPER_FLAGS_2(qpaddw, TCG_CALL_NO_RWG_SE, vec, vec, vec)
+DEF_HELPER_FLAGS_2(qpaddd, TCG_CALL_NO_RWG_SE, vec, vec, vec)
+
+DEF_HELPER_FLAGS_2(qpsubb, TCG_CALL_NO_RWG_SE, vec, vec, vec)
+DEF_HELPER_FLAGS_2(qpsubh, TCG_CALL_NO_RWG_SE, vec, vec, vec)
+DEF_HELPER_FLAGS_2(qpsubw, TCG_CALL_NO_RWG_SE, vec, vec, vec)
+DEF_HELPER_FLAGS_2(qpsubd, TCG_CALL_NO_RWG_SE, vec, vec, vec)
+
 /* Packed Min/Max */
 DEF_HELPER_FLAGS_2(pminub, TCG_CALL_NO_RWG_SE, i64, i64, i64)
 DEF_HELPER_FLAGS_2(pminsb, TCG_CALL_NO_RWG_SE, i64, i64, i64)
@@ -67,6 +77,19 @@ DEF_HELPER_FLAGS_2(pmaxsh, TCG_CALL_NO_RWG_SE, i64, i64, i64)
 DEF_HELPER_FLAGS_2(pmaxuw, TCG_CALL_NO_RWG_SE, i64, i64, i64)
 DEF_HELPER_FLAGS_2(pmaxsw, TCG_CALL_NO_RWG_SE, i64, i64, i64)
 
+DEF_HELPER_FLAGS_2(qpminub, TCG_CALL_NO_RWG_SE, vec, vec, vec)
+DEF_HELPER_FLAGS_2(qpminsb, TCG_CALL_NO_RWG_SE, vec, vec, vec)
+DEF_HELPER_FLAGS_2(qpminuh, TCG_CALL_NO_RWG_SE, vec, vec, vec)
+DEF_HELPER_FLAGS_2(qpminsh, TCG_CALL_NO_RWG_SE, vec, vec, vec)
+DEF_HELPER_FLAGS_2(qpminuw, TCG_CALL_NO_RWG_SE, vec, vec, vec)
+DEF_HELPER_FLAGS_2(qpminsw, TCG_CALL_NO_RWG_SE, vec, vec, vec)
+DEF_HELPER_FLAGS_2(qpmaxub, TCG_CALL_NO_RWG_SE, vec, vec, vec)
+DEF_HELPER_FLAGS_2(qpmaxsb, TCG_CALL_NO_RWG_SE, vec, vec, vec)
+DEF_HELPER_FLAGS_2(qpmaxuh, TCG_CALL_NO_RWG_SE, vec, vec, vec)
+DEF_HELPER_FLAGS_2(qpmaxsh, TCG_CALL_NO_RWG_SE, vec, vec, vec)
+DEF_HELPER_FLAGS_2(qpmaxuw, TCG_CALL_NO_RWG_SE, vec, vec, vec)
+DEF_HELPER_FLAGS_2(qpmaxsw, TCG_CALL_NO_RWG_SE, vec, vec, vec)
+
 /* Packed Cmp */
 DEF_HELPER_FLAGS_2(pcmpeqb, TCG_CALL_NO_RWG_SE, i64, i64, i64)
 DEF_HELPER_FLAGS_2(pcmpeqh, TCG_CALL_NO_RWG_SE, i64, i64, i64)
@@ -76,6 +99,15 @@ DEF_HELPER_FLAGS_2(pcmpgtb, TCG_CALL_NO_RWG_SE, i64, i64, i64)
 DEF_HELPER_FLAGS_2(pcmpgth, TCG_CALL_NO_RWG_SE, i64, i64, i64)
 DEF_HELPER_FLAGS_2(pcmpgtw, TCG_CALL_NO_RWG_SE, i64, i64, i64)
 DEF_HELPER_FLAGS_2(pcmpgtd, TCG_CALL_NO_RWG_SE, i64, i64, i64)
+
+DEF_HELPER_FLAGS_2(qpcmpeqb, TCG_CALL_NO_RWG_SE, vec, vec, vec)
+DEF_HELPER_FLAGS_2(qpcmpeqh, TCG_CALL_NO_RWG_SE, vec, vec, vec)
+DEF_HELPER_FLAGS_2(qpcmpeqw, TCG_CALL_NO_RWG_SE, vec, vec, vec)
+DEF_HELPER_FLAGS_2(qpcmpeqd, TCG_CALL_NO_RWG_SE, vec, vec, vec)
+DEF_HELPER_FLAGS_2(qpcmpgtb, TCG_CALL_NO_RWG_SE, vec, vec, vec)
+DEF_HELPER_FLAGS_2(qpcmpgth, TCG_CALL_NO_RWG_SE, vec, vec, vec)
+DEF_HELPER_FLAGS_2(qpcmpgtw, TCG_CALL_NO_RWG_SE, vec, vec, vec)
+DEF_HELPER_FLAGS_2(qpcmpgtd, TCG_CALL_NO_RWG_SE, vec, vec, vec)
 
 /* Pached Horizontal Add */
 DEF_HELPER_FLAGS_2(phaddh,  TCG_CALL_NO_RWG_SE, i64, i64, i64)
@@ -101,11 +133,21 @@ DEF_HELPER_FLAGS_2(paddsh,  TCG_CALL_NO_RWG_SE, i64, i64, i64)
 DEF_HELPER_FLAGS_2(paddusb, TCG_CALL_NO_RWG_SE, i64, i64, i64)
 DEF_HELPER_FLAGS_2(paddush, TCG_CALL_NO_RWG_SE, i64, i64, i64)
 
+DEF_HELPER_FLAGS_2(qpaddsb,  TCG_CALL_NO_RWG_SE, vec, vec, vec)
+DEF_HELPER_FLAGS_2(qpaddsh,  TCG_CALL_NO_RWG_SE, vec, vec, vec)
+DEF_HELPER_FLAGS_2(qpaddusb, TCG_CALL_NO_RWG_SE, vec, vec, vec)
+DEF_HELPER_FLAGS_2(qpaddush, TCG_CALL_NO_RWG_SE, vec, vec, vec)
+
 /* Packed Sub using saturation */
 DEF_HELPER_FLAGS_2(psubsb,  TCG_CALL_NO_RWG_SE, i64, i64, i64)
 DEF_HELPER_FLAGS_2(psubsh,  TCG_CALL_NO_RWG_SE, i64, i64, i64)
 DEF_HELPER_FLAGS_2(psubusb, TCG_CALL_NO_RWG_SE, i64, i64, i64)
 DEF_HELPER_FLAGS_2(psubush, TCG_CALL_NO_RWG_SE, i64, i64, i64)
+
+DEF_HELPER_FLAGS_2(qpsubsb,  TCG_CALL_NO_RWG_SE, vec, vec, vec)
+DEF_HELPER_FLAGS_2(qpsubsh,  TCG_CALL_NO_RWG_SE, vec, vec, vec)
+DEF_HELPER_FLAGS_2(qpsubusb, TCG_CALL_NO_RWG_SE, vec, vec, vec)
+DEF_HELPER_FLAGS_2(qpsubush, TCG_CALL_NO_RWG_SE, vec, vec, vec)
 
 /* Packed shifts */
 DEF_HELPER_FLAGS_2(psllh, TCG_CALL_NO_RWG_SE, i64, i64, i64)
@@ -115,12 +157,26 @@ DEF_HELPER_FLAGS_2(psrlh, TCG_CALL_NO_RWG_SE, i64, i64, i64)
 DEF_HELPER_FLAGS_2(psrlw, TCG_CALL_NO_RWG_SE, i64, i64, i64)
 DEF_HELPER_FLAGS_2(psrld, TCG_CALL_NO_RWG_SE, i64, i64, i64)
 
+DEF_HELPER_FLAGS_2(qpsllh, TCG_CALL_NO_RWG_SE, vec, vec, i64)
+DEF_HELPER_FLAGS_2(qpsllw, TCG_CALL_NO_RWG_SE, vec, vec, i64)
+DEF_HELPER_FLAGS_2(qpslld, TCG_CALL_NO_RWG_SE, vec, vec, i64)
+DEF_HELPER_FLAGS_2(qpsrlh, TCG_CALL_NO_RWG_SE, vec, vec, i64)
+DEF_HELPER_FLAGS_2(qpsrlw, TCG_CALL_NO_RWG_SE, vec, vec, i64)
+DEF_HELPER_FLAGS_2(qpsrld, TCG_CALL_NO_RWG_SE, vec, vec, i64)
+
 /* Packed shifts with sign */
 DEF_HELPER_FLAGS_2(psrah, TCG_CALL_NO_RWG_SE, i64, i64, i64)
 DEF_HELPER_FLAGS_2(psraw, TCG_CALL_NO_RWG_SE, i64, i64, i64)
 
+DEF_HELPER_FLAGS_2(qpsrah, TCG_CALL_NO_RWG_SE, vec, vec, i64)
+DEF_HELPER_FLAGS_2(qpsraw, TCG_CALL_NO_RWG_SE, vec, vec, i64)
+DEF_HELPER_FLAGS_2(qpsrad, TCG_CALL_NO_RWG_SE, vec, vec, i64)
+
 /* Packed rotates */
 DEF_HELPER_FLAGS_2(psrcw, TCG_CALL_NO_RWG_SE, i64, i64, i64)
+
+DEF_HELPER_FLAGS_2(qpsrcw, TCG_CALL_NO_RWG_SE, vec, vec, i64)
+DEF_HELPER_FLAGS_2(qpsrcd, TCG_CALL_NO_RWG_SE, vec, vec, i64)
 
 /* Packed Mul */
 DEF_HELPER_FLAGS_2(pmaddh,    TCG_CALL_NO_RWG_SE, i64, i64, i64)
@@ -132,10 +188,22 @@ DEF_HELPER_FLAGS_2(pmulhuh,   TCG_CALL_NO_RWG_SE, i64, i64, i64)
 DEF_HELPER_FLAGS_2(pmulubhh,  TCG_CALL_NO_RWG_SE, i64, i64, i64)
 DEF_HELPER_FLAGS_2(pmulhrsh,  TCG_CALL_NO_RWG_SE, i64, i64, i64)
 
+DEF_HELPER_FLAGS_2(qpmaddh,    TCG_CALL_NO_RWG_SE, vec, vec, vec)
+DEF_HELPER_FLAGS_2(qpmaddubsh, TCG_CALL_NO_RWG_SE, vec, vec, vec)
+DEF_HELPER_FLAGS_2(qpmulhh,    TCG_CALL_NO_RWG_SE, vec, vec, vec)
+DEF_HELPER_FLAGS_2(qpmullh,    TCG_CALL_NO_RWG_SE, vec, vec, vec)
+DEF_HELPER_FLAGS_2(qpmullw,    TCG_CALL_NO_RWG_SE, vec, vec, vec)
+DEF_HELPER_FLAGS_2(qpmulhuh,   TCG_CALL_NO_RWG_SE, vec, vec, vec)
+DEF_HELPER_FLAGS_2(qpmulhrsh,  TCG_CALL_NO_RWG_SE, vec, vec, vec)
+
 /* Packed Sign Mul */
 DEF_HELPER_FLAGS_2(psignb, TCG_CALL_NO_RWG_SE, i64, i64, i64)
 DEF_HELPER_FLAGS_2(psignh, TCG_CALL_NO_RWG_SE, i64, i64, i64)
 DEF_HELPER_FLAGS_2(psignw, TCG_CALL_NO_RWG_SE, i64, i64, i64)
+
+DEF_HELPER_FLAGS_2(qpsignb, TCG_CALL_NO_RWG_SE, vec, vec, vec)
+DEF_HELPER_FLAGS_2(qpsignh, TCG_CALL_NO_RWG_SE, vec, vec, vec)
+DEF_HELPER_FLAGS_2(qpsignw, TCG_CALL_NO_RWG_SE, vec, vec, vec)
 
 /* Packed Move Mask */
 DEF_HELPER_FLAGS_2(pmovmskb,  TCG_CALL_NO_RWG_SE, i64, i64, i64)
@@ -147,6 +215,11 @@ DEF_HELPER_FLAGS_2(packsshb, TCG_CALL_NO_RWG_SE, i64, i64, i64)
 DEF_HELPER_FLAGS_2(packushb, TCG_CALL_NO_RWG_SE, i64, i64, i64)
 DEF_HELPER_FLAGS_2(packsswh, TCG_CALL_NO_RWG_SE, i64, i64, i64)
 DEF_HELPER_FLAGS_2(packuswh, TCG_CALL_NO_RWG_SE, i64, i64, i64)
+
+DEF_HELPER_FLAGS_2(qpacksshb, TCG_CALL_NO_RWG_SE, vec, vec, vec)
+DEF_HELPER_FLAGS_2(qpackushb, TCG_CALL_NO_RWG_SE, vec, vec, vec)
+DEF_HELPER_FLAGS_2(qpacksswh, TCG_CALL_NO_RWG_SE, vec, vec, vec)
+DEF_HELPER_FLAGS_2(qpackuswh, TCG_CALL_NO_RWG_SE, vec, vec, vec)
 
 /* Packed unpacks */
 DEF_HELPER_FLAGS_2(punpcklbh, TCG_CALL_NO_RWG_SE, i64, i64, i64)
@@ -162,21 +235,27 @@ DEF_HELPER_FLAGS_3(pmerge, TCG_CALL_NO_RWG_SE, i64, i64, i64, i64)
 DEF_HELPER_FLAGS_2(pshufh, TCG_CALL_NO_RWG_SE, i64, i64, i32)
 DEF_HELPER_FLAGS_3(pshufw, TCG_CALL_NO_RWG_SE, i64, i64, i64, i32)
 
+DEF_HELPER_FLAGS_3(qpmerge, TCG_CALL_NO_RWG_SE, vec, vec, vec, vec)
+
 /* Packed uncategorized */
 DEF_HELPER_FLAGS_2(psadbw,     TCG_CALL_NO_RWG_SE, i64, i64, i64)
 DEF_HELPER_FLAGS_2(pavgusb,    TCG_CALL_NO_RWG_SE, i64, i64, i64)
 DEF_HELPER_FLAGS_2(pavgush,    TCG_CALL_NO_RWG_SE, i64, i64, i64)
 DEF_HELPER_FLAGS_2(phminposuh, TCG_CALL_NO_RWG_SE, i64, i64, i64)
 DEF_HELPER_FLAGS_2(mpsadbh,    TCG_CALL_NO_RWG_SE, i64, i64, i64)
-DEF_HELPER_FLAGS_4(plog,       TCG_CALL_NO_RWG_SE, i64, i32, i64, i64, i64)
+DEF_HELPER_FLAGS_4(plog,       TCG_CALL_NO_RWG_SE, i64, i64, i64, i64, i32)
 
-DEF_HELPER_FLAGS_2(qpmpsadbh,   TCG_CALL_NO_RWG,    vec, vec, i32)
-DEF_HELPER_FLAGS_2(qpmulubhh,   TCG_CALL_NO_RWG,    vec, i64, vec)
+DEF_HELPER_FLAGS_2(qpsadbw,     TCG_CALL_NO_RWG_SE, vec, vec, vec)
+DEF_HELPER_FLAGS_2(qpavgusb,    TCG_CALL_NO_RWG_SE, vec, vec, vec)
+DEF_HELPER_FLAGS_2(qpavgush,    TCG_CALL_NO_RWG_SE, vec, vec, vec)
+DEF_HELPER_FLAGS_2(qpmpsadbh,   TCG_CALL_NO_RWG_SE, vec, vec, i32)
+DEF_HELPER_FLAGS_2(qpmulubhh,   TCG_CALL_NO_RWG_SE, vec, i64, vec)
 DEF_HELPER_FLAGS_2(qphminposuh, TCG_CALL_NO_RWG_SE, i64, vec, vec)
 DEF_HELPER_FLAGS_1(qpsgn2mskb,  TCG_CALL_NO_RWG_SE, i32, vec)
-DEF_HELPER_FLAGS_2(qpmsk2sgnb,  TCG_CALL_NO_RWG,    vec, vec, i32)
-DEF_HELPER_FLAGS_3(qppermb,     TCG_CALL_NO_RWG,    vec, vec, vec, vec)
-DEF_HELPER_FLAGS_3(qpshufb,     TCG_CALL_NO_RWG,    vec, vec, vec, vec)
+DEF_HELPER_FLAGS_2(qpmsk2sgnb,  TCG_CALL_NO_RWG_SE, vec, vec, i32)
+DEF_HELPER_FLAGS_3(qppermb,     TCG_CALL_NO_RWG_SE, vec, vec, vec, vec)
+DEF_HELPER_FLAGS_3(qpshufb,     TCG_CALL_NO_RWG_SE, vec, vec, vec, vec)
+DEF_HELPER_FLAGS_4(qplog,       TCG_CALL_NO_RWG_SE, vec, vec, vec, vec, i32)
 
 /* Float 32/64 Ops */
 DEF_HELPER_FLAGS_3(fadds,     TCG_CALL_NO_RWG, i32, env, i32, i32)
@@ -209,13 +288,35 @@ DEF_HELPER_FLAGS_3(pfmins,    TCG_CALL_NO_RWG, i64, env, i64, i64)
 DEF_HELPER_FLAGS_3(pfhadds,   TCG_CALL_NO_RWG, i64, env, i64, i64)
 DEF_HELPER_FLAGS_3(pfhsubs,   TCG_CALL_NO_RWG, i64, env, i64, i64)
 DEF_HELPER_FLAGS_3(pfaddsubs, TCG_CALL_NO_RWG, i64, env, i64, i64)
+
+DEF_HELPER_FLAGS_3(qpfadds,   TCG_CALL_NO_RWG, vec, env, vec, vec)
+DEF_HELPER_FLAGS_3(qpfaddd,   TCG_CALL_NO_RWG, vec, env, vec, vec)
+DEF_HELPER_FLAGS_3(qpfsubs,   TCG_CALL_NO_RWG, vec, env, vec, vec)
+DEF_HELPER_FLAGS_3(qpfsubd,   TCG_CALL_NO_RWG, vec, env, vec, vec)
+DEF_HELPER_FLAGS_3(qpfmuls,   TCG_CALL_NO_RWG, vec, env, vec, vec)
+DEF_HELPER_FLAGS_3(qpfmuld,   TCG_CALL_NO_RWG, vec, env, vec, vec)
+DEF_HELPER_FLAGS_3(qpfmaxs,   TCG_CALL_NO_RWG, vec, env, vec, vec)
+DEF_HELPER_FLAGS_3(qpfmaxd,   TCG_CALL_NO_RWG, vec, env, vec, vec)
+DEF_HELPER_FLAGS_3(qpfmins,   TCG_CALL_NO_RWG, vec, env, vec, vec)
+DEF_HELPER_FLAGS_3(qpfmind,   TCG_CALL_NO_RWG, vec, env, vec, vec)
 DEF_HELPER_FLAGS_3(qpfhadds,  TCG_CALL_NO_RWG, vec, env, vec, vec)
 DEF_HELPER_FLAGS_3(qpfhsubs,  TCG_CALL_NO_RWG, vec, env, vec, vec)
+DEF_HELPER_FLAGS_3(qpfaddsubs, TCG_CALL_NO_RWG, vec, env, vec, vec)
+DEF_HELPER_FLAGS_3(qpfaddsubd, TCG_CALL_NO_RWG, vec, env, vec, vec)
 
-DEF_HELPER_FLAGS_3(pfstoifs,  TCG_CALL_NO_RWG, i64, env, i64, i64)
-DEF_HELPER_FLAGS_2(pistofs,   TCG_CALL_NO_RWG, i64, env, i64)
-DEF_HELPER_FLAGS_2(pfstois,   TCG_CALL_NO_RWG, i64, env, i64)
-DEF_HELPER_FLAGS_2(pfstoistr, TCG_CALL_NO_RWG, i64, env, i64)
+DEF_HELPER_FLAGS_3(pfstoifs,   TCG_CALL_NO_RWG, i64, env, i64, i64)
+DEF_HELPER_FLAGS_2(pistofs,    TCG_CALL_NO_RWG, i64, env, i64)
+DEF_HELPER_FLAGS_2(pfstois,    TCG_CALL_NO_RWG, i64, env, i64)
+DEF_HELPER_FLAGS_2(pfstoistr,  TCG_CALL_NO_RWG, i64, env, i64)
+
+DEF_HELPER_FLAGS_3(qpfstoifs,  TCG_CALL_NO_RWG, vec, env, i64, vec)
+DEF_HELPER_FLAGS_3(qpfdtoifd,  TCG_CALL_NO_RWG, vec, env, i64, vec)
+DEF_HELPER_FLAGS_2(qpistofs,   TCG_CALL_NO_RWG, vec, env, vec)
+DEF_HELPER_FLAGS_2(qpfstois,   TCG_CALL_NO_RWG, vec, env, vec)
+DEF_HELPER_FLAGS_2(qpfstoistr, TCG_CALL_NO_RWG, vec, env, vec)
+DEF_HELPER_FLAGS_2(qpidtofd,   TCG_CALL_NO_RWG, vec, env, vec)
+DEF_HELPER_FLAGS_2(qpfdtoid,   TCG_CALL_NO_RWG, vec, env, vec)
+DEF_HELPER_FLAGS_2(qpfdtoidtr, TCG_CALL_NO_RWG, vec, env, vec)
 
 DEF_HELPER_FLAGS_2(qpfstoid,   TCG_CALL_NO_RWG, vec, env, i64)
 DEF_HELPER_FLAGS_2(qpfstoidtr, TCG_CALL_NO_RWG, vec, env, i64)
@@ -235,6 +336,24 @@ DEF_HELPER_FLAGS_3(pfcmpneqs, TCG_CALL_NO_RWG, i64, env, i64, i64)
 DEF_HELPER_FLAGS_3(pfcmpnlts, TCG_CALL_NO_RWG, i64, env, i64, i64)
 DEF_HELPER_FLAGS_3(pfcmpnles, TCG_CALL_NO_RWG, i64, env, i64, i64)
 DEF_HELPER_FLAGS_3(pfcmpods,  TCG_CALL_NO_RWG, i64, env, i64, i64)
+
+DEF_HELPER_FLAGS_3(qpfcmpeqs,  TCG_CALL_NO_RWG, vec, env, vec, vec)
+DEF_HELPER_FLAGS_3(qpfcmplts,  TCG_CALL_NO_RWG, vec, env, vec, vec)
+DEF_HELPER_FLAGS_3(qpfcmples,  TCG_CALL_NO_RWG, vec, env, vec, vec)
+DEF_HELPER_FLAGS_3(qpfcmpuods, TCG_CALL_NO_RWG, vec, env, vec, vec)
+DEF_HELPER_FLAGS_3(qpfcmpneqs, TCG_CALL_NO_RWG, vec, env, vec, vec)
+DEF_HELPER_FLAGS_3(qpfcmpnlts, TCG_CALL_NO_RWG, vec, env, vec, vec)
+DEF_HELPER_FLAGS_3(qpfcmpnles, TCG_CALL_NO_RWG, vec, env, vec, vec)
+DEF_HELPER_FLAGS_3(qpfcmpods,  TCG_CALL_NO_RWG, vec, env, vec, vec)
+
+DEF_HELPER_FLAGS_3(qpfcmpeqd,  TCG_CALL_NO_RWG, vec, env, vec, vec)
+DEF_HELPER_FLAGS_3(qpfcmpltd,  TCG_CALL_NO_RWG, vec, env, vec, vec)
+DEF_HELPER_FLAGS_3(qpfcmpled,  TCG_CALL_NO_RWG, vec, env, vec, vec)
+DEF_HELPER_FLAGS_3(qpfcmpuodd, TCG_CALL_NO_RWG, vec, env, vec, vec)
+DEF_HELPER_FLAGS_3(qpfcmpneqd, TCG_CALL_NO_RWG, vec, env, vec, vec)
+DEF_HELPER_FLAGS_3(qpfcmpnltd, TCG_CALL_NO_RWG, vec, env, vec, vec)
+DEF_HELPER_FLAGS_3(qpfcmpnled, TCG_CALL_NO_RWG, vec, env, vec, vec)
+DEF_HELPER_FLAGS_3(qpfcmpodd,  TCG_CALL_NO_RWG, vec, env, vec, vec)
 
 /* FMA */
 DEF_HELPER_FLAGS_4(fmas,      TCG_CALL_NO_RWG, i32, env, i32, i32, i32)

@@ -24,10 +24,10 @@
 //qps2mh,              7, 7, 0, 7, 7, 0, S,P,P,0, alf11
 //qps2mw,              7, 7, 0, 7, 7, 0, S,P,P,0, alf11
 //qps2md,              7, 7, 0, 7, 7, 0, S,P,P,0, alf11
-TRANSW(qpackhbss,           7, 7, 0, 7, 7, 0, P,P,P,0, alf1, _, gen_qpackhbss);
-TRANSW(qpackhbus,           7, 7, 0, 7, 7, 0, P,P,P,0, alf1, _, gen_qpackhbus);
-TRANSW(qpackwhss,           7, 7, 0, 7, 7, 0, P,P,P,0, alf1, _, gen_qpackwhss);
-TRANSW(qpackwhus,           7, 7, 0, 7, 7, 0, P,P,P,0, alf1, _, gen_qpackwhus);
+TRANSW(qpackhbss,           7, 7, 0, 7, 7, 0, P,P,P,0, alf1, _, gen_helper_qpacksshb);
+TRANSW(qpackhbus,           7, 7, 0, 7, 7, 0, P,P,P,0, alf1, _, gen_helper_qpackushb);
+TRANSW(qpackwhss,           7, 7, 0, 7, 7, 0, P,P,P,0, alf1, _, gen_helper_qpacksswh);
+TRANSW(qpackwhus,           7, 7, 0, 7, 7, 0, P,P,P,0, alf1, _, gen_helper_qpackuswh);
 //qpfstobf,            7, 7, 0, 7, 7, 0, P,P,P,0, alf11
 //qpidotsbwss,         7, 7, 0, 7, 7, 0, P,P,P,P, alf21
 //qpidotsbwus,         7, 7, 0, 7, 7, 0, P,P,P,P, alf21
