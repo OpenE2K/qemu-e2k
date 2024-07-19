@@ -3665,6 +3665,54 @@ static void gen_qplog(TCGv_i128 ret, uint32_t table, TCGv_i128 s1,
     gen_helper_qplog(ret, s1, s2, s3, tcg_constant_i32(table));
 }
 
+#define IMPL_GEN_PLOG(name, op) \
+    static void name(TCGv_i64 ret, TCGv_i64 s1, TCGv_i64 s2, TCGv_i64 s3) \
+    { \
+        TCGv_i64 t0 = tcg_temp_new_i64(); \
+        op(t0, s1, s2); \
+        op(ret, t0, s3); \
+    }
+
+IMPL_GEN_PLOG(gen_plog_and, tcg_gen_and_i64)
+IMPL_GEN_PLOG(gen_plog_xor, tcg_gen_xor_i64)
+IMPL_GEN_PLOG(gen_plog_or,  tcg_gen_or_i64)
+
+#if 0
+static void gen_plog_mgr(TCGv_i64 ret, TCGv_i64 s1, TCGv_i64 s2, TCGv_i64 s3)
+{
+    TCGv_i64 t0 = tcg_temp_new_i64();
+    TCGv_i64 t1 = tcg_temp_new_i64();
+
+    tcg_gen_and_i64(t0, s1, s2);
+    tcg_gen_and_i64(t1, s1, s3);
+    tcg_gen_or_i64(t0, t0, t1);
+    tcg_gen_and_i64(t1, s2, s3);
+    tcg_gen_or_i64(ret, t0, t1);
+}
+#endif
+
+#define IMPL_GEN_ALOPF1_QQQQ(name, op) \
+    static void name(TCGv_i128 ret, TCGv_i128 s1, TCGv_i128 s2, TCGv_i128 s3) \
+    { \
+        TCGv_i64 t0 = tcg_temp_new_i64(); \
+        TCGv_i64 t1 = tcg_temp_new_i64(); \
+        TCGv_i64 t2 = tcg_temp_new_i64(); \
+        TCGv_i64 t3 = tcg_temp_new_i64(); \
+        TCGv_i64 t4 = tcg_temp_new_i64(); \
+        TCGv_i64 t5 = tcg_temp_new_i64(); \
+        \
+        gen_qpunpackdl(t0, t1, s1); \
+        gen_qpunpackdl(t2, t3, s2); \
+        gen_qpunpackdl(t4, t5, s3); \
+        op(t0, t0, t2, t4); \
+        op(t1, t1, t3, t5); \
+        gen_qppackdl(ret, t0, t1); \
+    }
+
+IMPL_GEN_ALOPF1_QQQQ(gen_qplog_and,  gen_plog_and)
+IMPL_GEN_ALOPF1_QQQQ(gen_qplog_xor,  gen_plog_xor)
+IMPL_GEN_ALOPF1_QQQQ(gen_qplog_or,   gen_plog_or)
+
 #define IMPL_GEN_ALOPF7_QQB(name, op1, op2) \
     static void name(TCGv_i64 ret, TCGv_i128 s1, TCGv_i128 s2) \
     { \

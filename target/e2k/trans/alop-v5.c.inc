@@ -175,17 +175,18 @@ TRANSW(qpfhadds,            5, 5, 5, 5, 5, 5, P,P,P,0, alf1,  _env_, gen_helper_
 TRANSW(qpfhsubs,            5, 5, 5, 5, 5, 5, P,P,P,0, alf1,  _env_, gen_helper_qpfhsubs);
 TRANSW(qpfaddsubs,          5, 5, 5, 5, 5, 5, P,P,P,0, alf1,  _env_, gen_helper_qpfaddsubs);
 TRANSW(qpfaddsubd,          5, 5, 5, 5, 5, 5, P,P,P,0, alf1,  _env_, gen_helper_qpfaddsubd);
-//plog_and,            5, 5, 0, 5, 5, 0, D,D,D,D, alf21, AF_ALIAS
-//plog_xor,            5, 5, 0, 5, 5, 0, D,D,D,D, alf21, AF_ALIAS
+TRANSW(plog_and,            5, 5, 0, 5, 5, 0, D,D,D,D, alf21, _, gen_plog_and)
+TRANSW(plog_xor,            5, 5, 0, 5, 5, 0, D,D,D,D, alf21, _, gen_plog_xor)
 //plog_sel3,           5, 5, 0, 5, 5, 0, D,D,D,D, alf21, AF_ALIAS
 //plog_mjr,            5, 5, 0, 5, 5, 0, D,D,D,D, alf21, AF_ALIAS
-//plog_or,             5, 5, 0, 5, 5, 0, D,D,D,D, alf21, AF_ALIAS
+TRANSW(plog_or,             5, 5, 0, 5, 5, 0, D,D,D,D, alf21, _, gen_plog_or)
 TRANSW(plog,                5, 5, 0, 5, 5, 0, D,D,D,D, alf21_log, _, gen_plog);
-//qplog_and,           5, 5, 7, 5, 5, 7, P,P,P,P, alf21_lt3, AF_ALIAS
-//qplog_xor,           5, 5, 7, 5, 5, 7, P,P,P,P, alf21_lt3, AF_ALIAS
+// TODO: implement alf21_lt3 for v7
+TRANSW(qplog_and,           5, 5, 7, 5, 5, 7, P,P,P,P, alf21, _, gen_qplog_and);
+TRANSW(qplog_xor,           5, 5, 7, 5, 5, 7, P,P,P,P, alf21, _, gen_qplog_xor);
 //qplog_sel3,          5, 5, 7, 5, 5, 7, P,P,P,P, alf21_lt3, AF_ALIAS
 //qplog_mjr,           5, 5, 7, 5, 5, 7, P,P,P,P, alf21_lt3, AF_ALIAS
-//qplog_or,            5, 5, 7, 5, 5, 7, P,P,P,P, alf21_lt3, AF_ALIAS
+TRANSW(qplog_or,            5, 5, 7, 5, 5, 7, P,P,P,P, alf21, _, gen_qplog_or);
 TRANSW(qplog,               5, 5, 7, 5, 5, 7, P,P,P,P, alf21_log, _, gen_qplog);
 TRANSW(qppermb,             5, 5, 0, 5, 5, 0, P,P,P,P, alf21, _, gen_helper_qppermb);
 TRANSW(qpshufb,             5, 5, 0, 5, 5, 0, P,P,P,P, alf21, _, gen_helper_qpshufb);
