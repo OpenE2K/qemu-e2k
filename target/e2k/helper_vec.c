@@ -690,14 +690,14 @@ GEN_ENV_HELPER_PACKED_OP(qpfcmpnlts, 128, uw, helper_fcmpnlts)
 GEN_ENV_HELPER_PACKED_OP(qpfcmpnles, 128, uw, helper_fcmpnles)
 GEN_ENV_HELPER_PACKED_OP(qpfcmpods,  128, uw, helper_fcmpods)
 
-GEN_ENV_HELPER_PACKED_OP(qpfcmpeqd,  128, uw, helper_fcmpeqd)
-GEN_ENV_HELPER_PACKED_OP(qpfcmpltd,  128, uw, helper_fcmpltd)
-GEN_ENV_HELPER_PACKED_OP(qpfcmpled,  128, uw, helper_fcmpled)
-GEN_ENV_HELPER_PACKED_OP(qpfcmpuodd, 128, uw, helper_fcmpuodd)
-GEN_ENV_HELPER_PACKED_OP(qpfcmpneqd, 128, uw, helper_fcmpneqd)
-GEN_ENV_HELPER_PACKED_OP(qpfcmpnltd, 128, uw, helper_fcmpnltd)
-GEN_ENV_HELPER_PACKED_OP(qpfcmpnled, 128, uw, helper_fcmpnled)
-GEN_ENV_HELPER_PACKED_OP(qpfcmpodd,  128, uw, helper_fcmpodd)
+GEN_ENV_HELPER_PACKED_OP(qpfcmpeqd,  128, ud, helper_fcmpeqd)
+GEN_ENV_HELPER_PACKED_OP(qpfcmpltd,  128, ud, helper_fcmpltd)
+GEN_ENV_HELPER_PACKED_OP(qpfcmpled,  128, ud, helper_fcmpled)
+GEN_ENV_HELPER_PACKED_OP(qpfcmpuodd, 128, ud, helper_fcmpuodd)
+GEN_ENV_HELPER_PACKED_OP(qpfcmpneqd, 128, ud, helper_fcmpneqd)
+GEN_ENV_HELPER_PACKED_OP(qpfcmpnltd, 128, ud, helper_fcmpnltd)
+GEN_ENV_HELPER_PACKED_OP(qpfcmpnled, 128, ud, helper_fcmpnled)
+GEN_ENV_HELPER_PACKED_OP(qpfcmpodd,  128, ud, helper_fcmpodd)
 
 #define GEN_ENV_HELPER_PACKED_OP_HORIZONTAL(name, len, type, op, map) \
     GEN_ENV_HELPER_PACKED_N(name, len, vec_count(len, type) / 2, { \
