@@ -51,6 +51,7 @@ typedef struct {
     void *unsafe_stack;
     size_t unsafe_stack_size;
 #endif
+    ucontext_t uc;
     sigjmp_buf env;
 
 #ifdef CONFIG_TSAN
@@ -180,7 +181,7 @@ static void coroutine_trampoline(int i0, int i1)
 Coroutine *qemu_coroutine_new(void)
 {
     CoroutineUContext *co;
-    ucontext_t old_uc, uc;
+    ucontext_t old_uc;
     sigjmp_buf old_env;
     union cc_arg arg = {0};
     void *fake_stack_save = NULL;
@@ -193,11 +194,11 @@ Coroutine *qemu_coroutine_new(void)
      * everything else.
      */
 
-    if (getcontext(&uc) == -1) {
+    co = g_malloc0(sizeof(*co));
+    if (getcontext(&co->uc) == -1) {
+        g_free(co);
         abort();
     }
-
-    co = g_malloc0(sizeof(*co));
     co->stack_size = COROUTINE_STACK_SIZE;
     co->stack = qemu_alloc_stack(&co->stack_size);
 #ifdef CONFIG_SAFESTACK
@@ -206,10 +207,10 @@ Coroutine *qemu_coroutine_new(void)
 #endif
     co->base.entry_arg = &old_env; /* stash away our jmp_buf */
 
-    uc.uc_link = &old_uc;
-    uc.uc_stack.ss_sp = co->stack;
-    uc.uc_stack.ss_size = co->stack_size;
-    uc.uc_stack.ss_flags = 0;
+    co->uc.uc_link = &old_uc;
+    co->uc.uc_stack.ss_sp = co->stack;
+    co->uc.uc_stack.ss_size = co->stack_size;
+    co->uc.uc_stack.ss_flags = 0;
 
 #ifdef CONFIG_VALGRIND_H
     co->valgrind_stack_id =
@@ -220,13 +221,12 @@ Coroutine *qemu_coroutine_new(void)
 
     on_new_fiber(co);
 #ifdef __e2k__
-    /* TODO: freecontext_e2k??? */
-    if (makecontext_e2k(&uc, (void (*)(void))coroutine_trampoline,
+    if (makecontext_e2k(&co->uc, (void (*)(void))coroutine_trampoline,
                         2, arg.i[0], arg.i[1]) < 0) {
         abort();
     }
 #else
-    makecontext(&uc, (void (*)(void))coroutine_trampoline,
+    makecontext(&co->uc, (void (*)(void))coroutine_trampoline,
                 2, arg.i[0], arg.i[1]);
 #endif
 
@@ -251,7 +251,7 @@ Coroutine *qemu_coroutine_new(void)
         __safestack_unsafe_stack_ptr = usp;
 #endif
 
-        swapcontext(&old_uc, &uc);
+        swapcontext(&old_uc, &co->uc);
     }
 
     finish_switch_fiber(fake_stack_save);
@@ -303,6 +303,9 @@ void qemu_coroutine_delete(Coroutine *co_)
     qemu_free_stack(co->stack, co->stack_size);
 #ifdef CONFIG_SAFESTACK
     qemu_free_stack(co->unsafe_stack, co->unsafe_stack_size);
+#endif
+#ifdef __e2k__
+    freecontext_e2k(&co->uc);
 #endif
     g_free(co);
 }
