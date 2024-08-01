@@ -1143,14 +1143,19 @@ static void tcg_out_setcond_int(TCGContext *s, TCGType type, TCGCond cond, TCGRe
 {
     Bundle bundle;
     bool invert;
+    uint8_t result = UIMM4(1);
 
     e2k_out_start(&bundle);
     invert = e2k_out_setcond(&bundle, 0, type, cond, PREG_TMP0, src1, src2, c_src2);
     e2k_out_end(s, &bundle);
 
     e2k_out_start(&bundle);
-    e2k_out_alf(&bundle, 0, ALC_MERGED, GPR(ret), UIMM5(0), UIMM4(1), 0);
-    e2k_out_mrgc(&bundle, 0, PREG_TMP0, invert ^ neg);
+    if (neg) {
+        e2k_out_lit(&bundle, 0, -1);
+        result = 0;
+    }
+    e2k_out_alf(&bundle, 0, ALC_MERGED, GPR(ret), UIMM5(0), result, 0);
+    e2k_out_mrgc(&bundle, 0, PREG_TMP0, invert);
     e2k_out_end(s, &bundle);
 }
 
