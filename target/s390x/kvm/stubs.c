@@ -5,7 +5,6 @@
 #include "qemu/osdep.h"
 
 #include "kvm_s390x.h"
-#include "target/s390x/kvm/pv.h"
 
 int kvm_s390_get_protected_dump(void)
 {

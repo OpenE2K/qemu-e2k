@@ -44,7 +44,7 @@
 
 /* XXX: some compilers may generate call with -O0 */
 #if defined(MCST_LCC_SUCKS) && !TARGET_ARCH_HAS_SIGTRAMP_PAGE
-void setup_sigtramp(abi_ulong) {}
+void setup_sigtramp(abi_ulong tramp_page) {}
 #endif
 
 typedef struct {
