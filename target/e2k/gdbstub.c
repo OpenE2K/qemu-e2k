@@ -270,6 +270,14 @@ int e2k_cpu_gdb_read_register(CPUState *cs, GByteArray *mem_buf, int n)
         return gdb_get_reg32(mem_buf, 0); // unk
     }
 
+    if (n == 574) {
+        return gdb_get_reg64(mem_buf, 0); // unk
+    }
+
+    if (n == 575) {
+        return gdb_get_reg64(mem_buf, 0); // unk
+    }
+
     fprintf(stderr, "%s: unknown register %d\n", __FUNCTION__, n);
 
     return 0;
