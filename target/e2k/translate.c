@@ -2123,11 +2123,11 @@ static void gen_cond_i32(DisasContext *ctx, TCGv_i32 ret, uint8_t psrc)
     }
 }
 
-static inline void scan_needed_lp(DisasContext *ctx, int need[7])
+static inline bool scan_needed_lp(DisasContext *ctx, int need[7])
 {
     const UnpackedBundle *bundle = &ctx->bundle;
     bool once_more = true;
-    unsigned int i;
+    unsigned int i, cascade = 0;
 
     for (i = 0; i < 3; i++) {
         if (bundle->pls_present[i] && GET_BIT(bundle->pls[i], 5)) {
@@ -2161,6 +2161,35 @@ static inline void scan_needed_lp(DisasContext *ctx, int need[7])
             p0 = extract32(bundle->pls[i], 10, 3);
             p1 = extract32(bundle->pls[i], 6, 3);
 
+            // Check operands:
+            // {C/M}LP0 0, 1             => 4
+            // {C/M}LP1 0, 1, 2, 3, 4    => 5
+            // {C/M}LP2 0, 1, 2, 3, 4, 5 => 6
+            switch (i) {
+            case 0:
+                if (p0 >= 2 || p1 >= 2) {
+                    return false;
+                }
+                break;
+            case 1:
+                if (p0 >= 5 || p1 >= 5) {
+                    return false;
+                }
+                if (p0 == 4 || p1 == 4) {
+                    cascade = 1;
+                }
+                break;
+            case 2:
+                if (p0 >= 6 || p1 >= 6) {
+                    return false;
+                }
+                // maximal cascading is 2
+                if (cascade && (p0 == 5 || p1 == 5)) {
+                    return false;
+                }
+                break;
+            }
+
             if (p0 < 7 && need[p0] == 0) {
                 need[p0] = 1;
 
@@ -2180,6 +2209,8 @@ static inline void scan_needed_lp(DisasContext *ctx, int need[7])
             need[4 + i] = 2;
         }
     }
+
+    return true;
 }
 
 static void gen_plu(DisasContext *ctx)
@@ -2188,7 +2219,10 @@ static void gen_plu(DisasContext *ctx)
     int i, need[7] = { 0 };
     TCGv_i32 *lp = ctx->lp;
 
-    scan_needed_lp(ctx, need);
+    if (!scan_needed_lp(ctx, need)) {
+        gen_tr_excp_illopc(ctx);
+        return;
+    }
 
     for (i = 0; i < 7; i++) {
         if (need[i]) {
@@ -2222,12 +2256,6 @@ static void gen_plu(DisasContext *ctx)
             TCGv_i32 p1 = tcg_temp_new_i32();
             int vdst = extract32(clp, 5, 1);
             int pdst = extract32(clp, 0, 5);
-
-            // TODO: check clp arg
-            // {C/M}LP0 0, 1             => 4
-            // {C/M}LP1 0, 1, 2, 3, 4    => 5
-            // {C/M}LP2 0, 1, 2, 3, 4, 5 => 6
-            // maximal cascading is 2
 
             if (vdst && !is_preg_saved(ctx, pdst)
 #ifndef FORCE_SAVE_PLU_PREG
