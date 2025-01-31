@@ -5494,6 +5494,11 @@ static void gen_alop(Alop *alop)
         TCGv_i64 ctpr = cpu_ctprs[GET_CTPR(alop->result.dst) - 1];
         TCGv_i64 ctpr_tag = tcg_temp_new_i64();
 
+        if (preg || pcnt) {
+            /* Conditional write to ctpr is not allowed. */
+            gen_tr_excp_illopc(ctx);
+        }
+
         switch (alop->result.t.kind) {
         case TAGGED_D:
             break;
