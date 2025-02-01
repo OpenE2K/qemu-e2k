@@ -162,6 +162,8 @@ struct CPUClass {
     vaddr (*get_pc)(CPUState *cpu);
     int (*gdb_read_register)(CPUState *cpu, GByteArray *buf, int reg);
     int (*gdb_write_register)(CPUState *cpu, uint8_t *buf, int reg);
+    void (*gdb_rw_tags)(CPUState *cpu, vaddr addr,
+                        uint8_t *buf, int len, bool is_write);
     vaddr (*gdb_adjust_breakpoint)(CPUState *cpu, vaddr addr);
 
     const char *gdb_core_xml_file;

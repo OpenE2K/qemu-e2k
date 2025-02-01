@@ -1,0 +1,72 @@
+/*
+ * E2K ISA version 6 translation
+ *
+ * SPDX-License-Identifier: GPL-2.0-only
+ */
+
+//vfbgv,               0, 6, 0, 0, 6, 0, S,S,S,0, alf1
+//modbgv,              0, 6, 0, 0, 6, 0, S,0,S,0, alf2
+//mkfsw,               0, 6, 0, 0, 6, 0, D,S,S,0, alf1
+TRANSD(ibranchd,            6, 0, 0, 0, 0, 0, D,0,D,0, alf2, gen_ibranchd);
+TRANSD(icalld,              6, 0, 0, 0, 0, 0, D,0,D,0, alf2_icalld, gen_icalld);
+TRANSD(pmrgp,               6, 6, 0, 6, 6, 0, D,D,D,0, alf1, gen_merged);
+TRANSD(qpmrgp,              6, 6, 0, 6, 6, 0, P,P,P,0, alf1, gen_qpmrgp);
+TRANSW(qpsrad,              6, 6, 0, 6, 6, 0, P,P,D,0, alf1, _, gen_helper_qpsrad);
+TRANSW(pcmpeqbop,           6, 0, 0, 6, 0, 0, D,D,D,0, alf7, _, gen_pcmpeqbop);
+TRANSW(pcmpeqhop,           6, 0, 0, 6, 0, 0, D,D,D,0, alf7, _, gen_pcmpeqhop);
+TRANSW(pcmpeqwop,           6, 0, 0, 6, 0, 0, D,D,D,0, alf7, _, gen_pcmpeqwop);
+TRANSW(pcmpeqdop,           6, 0, 0, 6, 0, 0, D,D,D,0, alf7, _, gen_pcmpeqdop);
+TRANSW(pcmpgtbop,           6, 0, 0, 6, 0, 0, D,D,D,0, alf7, _, gen_pcmpgtbop);
+TRANSW(pcmpgthop,           6, 0, 0, 6, 0, 0, D,D,D,0, alf7, _, gen_pcmpgthop);
+TRANSW(pcmpgtwop,           6, 0, 0, 6, 0, 0, D,D,D,0, alf7, _, gen_pcmpgtwop);
+TRANSW(pcmpgtdop,           6, 0, 0, 6, 0, 0, D,D,D,0, alf7, _, gen_pcmpgtdop);
+TRANSW(pcmpeqbap,           6, 0, 0, 6, 0, 0, D,D,D,0, alf7, _, gen_pcmpeqbap);
+TRANSW(pcmpeqhap,           6, 0, 0, 6, 0, 0, D,D,D,0, alf7, _, gen_pcmpeqhap);
+TRANSW(pcmpeqwap,           6, 0, 0, 6, 0, 0, D,D,D,0, alf7, _, gen_pcmpeqwap);
+TRANSW(pcmpeqdap,           6, 0, 0, 6, 0, 0, D,D,D,0, alf7, _, gen_pcmpeqdap);
+TRANSW(pcmpgtbap,           6, 0, 0, 6, 0, 0, D,D,D,0, alf7, _, gen_pcmpgtbap);
+TRANSW(pcmpgthap,           6, 0, 0, 6, 0, 0, D,D,D,0, alf7, _, gen_pcmpgthap);
+TRANSW(pcmpgtwap,           6, 0, 0, 6, 0, 0, D,D,D,0, alf7, _, gen_pcmpgtwap);
+TRANSW(pcmpgtdap,           6, 0, 0, 6, 0, 0, D,D,D,0, alf7, _, gen_pcmpgtdap);
+TRANSW(qpcmpeqbop,          6, 0, 0, 6, 0, 0, D,P,P,0, alf7, _, gen_qpcmpeqbop);
+TRANSW(qpcmpeqhop,          6, 0, 0, 6, 0, 0, D,P,P,0, alf7, _, gen_qpcmpeqhop);
+TRANSW(qpcmpeqwop,          6, 0, 0, 6, 0, 0, D,P,P,0, alf7, _, gen_qpcmpeqwop);
+TRANSW(qpcmpeqdop,          6, 0, 0, 6, 0, 0, D,P,P,0, alf7, _, gen_qpcmpeqdop);
+TRANSW(qpcmpgtbop,          6, 0, 0, 6, 0, 0, D,P,P,0, alf7, _, gen_qpcmpgtbop);
+TRANSW(qpcmpgthop,          6, 0, 0, 6, 0, 0, D,P,P,0, alf7, _, gen_qpcmpgthop);
+TRANSW(qpcmpgtwop,          6, 0, 0, 6, 0, 0, D,P,P,0, alf7, _, gen_qpcmpgtwop);
+TRANSW(qpcmpgtdop,          6, 0, 0, 6, 0, 0, D,P,P,0, alf7, _, gen_qpcmpgtdop);
+TRANSW(qpcmpeqbap,          6, 0, 0, 6, 0, 0, D,P,P,0, alf7, _, gen_qpcmpeqbap);
+TRANSW(qpcmpeqhap,          6, 0, 0, 6, 0, 0, D,P,P,0, alf7, _, gen_qpcmpeqhap);
+TRANSW(qpcmpeqwap,          6, 0, 0, 6, 0, 0, D,P,P,0, alf7, _, gen_qpcmpeqwap);
+TRANSW(qpcmpeqdap,          6, 0, 0, 6, 0, 0, D,P,P,0, alf7, _, gen_qpcmpeqdap);
+TRANSW(qpcmpgtbap,          6, 0, 0, 6, 0, 0, D,P,P,0, alf7, _, gen_qpcmpgtbap);
+TRANSW(qpcmpgthap,          6, 0, 0, 6, 0, 0, D,P,P,0, alf7, _, gen_qpcmpgthap);
+TRANSW(qpcmpgtwap,          6, 0, 0, 6, 0, 0, D,P,P,0, alf7, _, gen_qpcmpgtwap);
+TRANSW(qpcmpgtdap,          6, 0, 0, 6, 0, 0, D,P,P,0, alf7, _, gen_qpcmpgtdap);
+TRANSW(qpcext_0x00,         6, 6, 0, 6, 6, 0, P,0,D,0, alf2, _, gen_qpcext_0x00);
+TRANSW(qpcext_0x7f,         6, 6, 0, 6, 6, 0, P,0,D,0, alf2, _, gen_qpcext_0x7f);
+TRANSW(qpcext_0x80,         6, 6, 0, 6, 6, 0, P,0,D,0, alf2, _, gen_qpcext_0x80);
+TRANSW(qpcext_0xff,         6, 6, 0, 6, 6, 0, P,0,D,0, alf2, _, gen_qpcext_0xff);
+TRANSW(fmas,                6, 6, 6, 6, 6, 6, S,S,S,S, alf21, _env_, gen_helper_fmas);
+TRANSW(fmad,                6, 6, 6, 6, 6, 6, D,D,D,D, alf21, _env_, gen_helper_fmad);
+TRANSW(fmss,                6, 6, 6, 6, 6, 6, S,S,S,S, alf21, _env_, gen_helper_fmss);
+TRANSW(fmsd,                6, 6, 6, 6, 6, 6, D,D,D,D, alf21, _env_, gen_helper_fmsd);
+TRANSW(fnmas,               6, 6, 6, 6, 6, 6, S,S,S,S, alf21, _env_, gen_helper_fnmas);
+TRANSW(fnmad,               6, 6, 6, 6, 6, 6, D,D,D,D, alf21, _env_, gen_helper_fnmad);
+TRANSW(fnmss,               6, 6, 6, 6, 6, 6, S,S,S,S, alf21, _env_, gen_helper_fnmss);
+TRANSW(fnmsd,               6, 6, 6, 6, 6, 6, D,D,D,D, alf21, _env_, gen_helper_fnmsd);
+TRANSW(qpfmas,              6, 6, 6, 6, 6, 6, P,P,P,P, alf21, _env_, gen_helper_qpfmas);
+TRANSW(qpfmad,              6, 6, 6, 6, 6, 6, P,P,P,P, alf21, _env_, gen_helper_qpfmad);
+TRANSW(qpfmss,              6, 6, 6, 6, 6, 6, P,P,P,P, alf21, _env_, gen_helper_qpfmss);
+TRANSW(qpfmsd,              6, 6, 6, 6, 6, 6, P,P,P,P, alf21, _env_, gen_helper_qpfmsd);
+TRANSW(qpfnmas,             6, 6, 6, 6, 6, 6, P,P,P,P, alf21, _env_, gen_helper_qpfnmas);
+TRANSW(qpfnmad,             6, 6, 6, 6, 6, 6, P,P,P,P, alf21, _env_, gen_helper_qpfnmad);
+TRANSW(qpfnmss,             6, 6, 6, 6, 6, 6, P,P,P,P, alf21, _env_, gen_helper_qpfnmss);
+TRANSW(qpfnmsd,             6, 6, 6, 6, 6, 6, P,P,P,P, alf21, _env_, gen_helper_qpfnmsd);
+TRANSW(qpfmass,             6, 6, 6, 6, 6, 6, P,P,P,P, alf21, _env_, gen_helper_qpfmass);
+TRANSW(qpfmasd,             6, 6, 6, 6, 6, 6, P,P,P,P, alf21, _env_, gen_helper_qpfmasd);
+TRANSW(qpfmsas,             6, 6, 6, 6, 6, 6, P,P,P,P, alf21, _env_, gen_helper_qpfmsas);
+TRANSW(qpfmsad,             6, 6, 6, 6, 6, 6, P,P,P,P, alf21, _env_, gen_helper_qpfmsad);
+TRANSW(clmull,              6, 6, 0, 6, 6, 0, D,D,D,0, alf1,  _,     gen_helper_clmull);
+TRANSW(clmulh,              6, 6, 0, 6, 6, 0, D,D,D,0, alf1,  _,     gen_helper_clmulh);

@@ -1547,6 +1547,22 @@ UNUSED static struct enums itimer_types[] = {
     ENUM_END,
 };
 
+#ifdef TARGET_E2K
+UNUSED static struct enums access_hw_stacks_reqs[] = {
+    ENUM_GENERIC(READ_CHAIN_STACK),
+    ENUM_GENERIC(READ_PROCEDURE_STACK),
+    ENUM_GENERIC(WRITE_PROCEDURE_STACK),
+    ENUM_GENERIC(GET_CHAIN_STACK_OFFSET),
+    ENUM_GENERIC(GET_CHAIN_STACK_SIZE),
+    ENUM_GENERIC(GET_PROCEDURE_STACK_SIZE),
+    ENUM_GENERIC(READ_CHAIN_STACK_EX),
+    ENUM_GENERIC(READ_PROCEDURE_STACK_EX),
+    ENUM_GENERIC(WRITE_PROCEDURE_STACK_EX),
+    ENUM_GENERIC(WRITE_CHAIN_STACK_EX),
+    ENUM_END,
+};
+#endif
+
 /*
  * print_xxx utility functions.  These are used to print syscall
  * parameters in certain format.  All of these have parameter
@@ -4312,6 +4328,22 @@ print_ioctl(CPUArchState *cpu_env, const struct syscallname *name,
             }
         }
     }
+    print_syscall_epilogue(name);
+}
+#endif
+
+#ifdef TARGET_NR_access_hw_stacks
+static void
+print_access_hw_stacks(CPUArchState *cpu_env, const struct syscallname *name,
+                       abi_long arg0, abi_long arg1, abi_long arg2,
+                       abi_long arg3, abi_long arg4, abi_long arg5)
+{
+    print_syscall_prologue(name);
+    print_enums(access_hw_stacks_reqs, arg0, 0);
+    print_pointer(arg1, 0);
+    print_pointer(arg2, 0);
+    print_raw_param("%d", arg3, 0);
+    print_pointer(arg4, 1);
     print_syscall_epilogue(name);
 }
 #endif

@@ -233,6 +233,14 @@ enum bfd_architecture
 #define bfd_mach_avrxmega6  106
 #define bfd_mach_avrxmega7  107
   bfd_arch_microblaze, /* Xilinx MicroBlaze.  */
+  bfd_arch_e2k,        /* MCST E2K. */
+#define bfd_mach_e2k_v1        1
+#define bfd_mach_e2k_v2        2
+#define bfd_mach_e2k_v3        3
+#define bfd_mach_e2k_v4        4
+#define bfd_mach_e2k_v5        5
+#define bfd_mach_e2k_v6        6
+#define bfd_mach_e2k_v7        7
   bfd_arch_moxie,      /* The Moxie core.  */
   bfd_arch_ia64,      /* HP/Intel ia64 */
 #define bfd_mach_ia64_elf64    64
@@ -404,6 +412,14 @@ typedef struct disassemble_info {
   int cap_mode;
   int cap_insn_unit;
   int cap_insn_split;
+  
+  /* If non-zero then try not disassemble beyond this address, even if
+     there are values left in the buffer.  This address is the address
+     of the nearest symbol forwards from the start of the disassembly,
+     and it is assumed that it lies on the boundary between instructions.
+     If an instruction spans this address then this is an error in the
+     file being disassembled.  */
+  bfd_vma stop_vma;
 
 } disassemble_info;
 
@@ -453,6 +469,7 @@ int print_insn_riscv128         (bfd_vma, disassemble_info*);
 int print_insn_rx(bfd_vma, disassemble_info *);
 int print_insn_hexagon(bfd_vma, disassemble_info *);
 int print_insn_loongarch(bfd_vma, disassemble_info *);
+int print_insn_e2k              (bfd_vma, disassemble_info*);
 
 #ifdef CONFIG_CAPSTONE
 bool cap_disas_target(disassemble_info *info, uint64_t pc, size_t size);

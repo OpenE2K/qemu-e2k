@@ -1,6 +1,7 @@
 source alpha/Kconfig
 source arm/Kconfig
 source avr/Kconfig
+source e2k/Kconfig
 source hppa/Kconfig
 source i386/Kconfig
 source loongarch/Kconfig

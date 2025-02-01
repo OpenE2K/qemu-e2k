@@ -1,0 +1,53 @@
+<feature name="org.mcst.gdb.e2k-dam.linux">
+
+  <!-- DAM  -->
+  <struct id="dam_bits" size="8">
+    <field name="word" start="3" end="11"/>
+    <field name="page" start="12" end="39"/>
+    <field name="mask" start="40" end="47"/>
+    <field name="dst" start="48" end="55"/>
+    <field name="val_second" start="56" end="56"/>
+    <field name="qword" start="57" end="57"/>
+    <field name="val" start="58" end="58"/>
+  </struct>
+
+  <union id="dam">
+    <field name="dword" type="uint64"/>
+    <field name="" type="dam_bits"/>
+  </union>
+
+  <!-- 729 - 760  -->
+  <reg name="dam_0" bitsize="64" type="dam"/>
+  <reg name="dam_1" bitsize="64" type="dam"/>
+  <reg name="dam_2" bitsize="64" type="dam"/>
+  <reg name="dam_3" bitsize="64" type="dam"/>
+  <reg name="dam_4" bitsize="64" type="dam"/>
+  <reg name="dam_5" bitsize="64" type="dam"/>
+  <reg name="dam_6" bitsize="64" type="dam"/>
+  <reg name="dam_7" bitsize="64" type="dam"/>
+  <reg name="dam_8" bitsize="64" type="dam"/>
+  <reg name="dam_9" bitsize="64" type="dam"/>
+  <reg name="dam_10" bitsize="64" type="dam"/>
+  <reg name="dam_11" bitsize="64" type="dam"/>
+  <reg name="dam_12" bitsize="64" type="dam"/>
+  <reg name="dam_13" bitsize="64" type="dam"/>
+  <reg name="dam_14" bitsize="64" type="dam"/>
+  <reg name="dam_15" bitsize="64" type="dam"/>
+  <reg name="dam_16" bitsize="64" type="dam"/>
+  <reg name="dam_17" bitsize="64" type="dam"/>
+  <reg name="dam_18" bitsize="64" type="dam"/>
+  <reg name="dam_19" bitsize="64" type="dam"/>
+  <reg name="dam_20" bitsize="64" type="dam"/>
+  <reg name="dam_21" bitsize="64" type="dam"/>
+  <reg name="dam_22" bitsize="64" type="dam"/>
+  <reg name="dam_23" bitsize="64" type="dam"/>
+  <reg name="dam_24" bitsize="64" type="dam"/>
+  <reg name="dam_25" bitsize="64" type="dam"/>
+  <reg name="dam_26" bitsize="64" type="dam"/>
+  <reg name="dam_27" bitsize="64" type="dam"/>
+  <reg name="dam_28" bitsize="64" type="dam"/>
+  <reg name="dam_29" bitsize="64" type="dam"/>
+  <reg name="dam_30" bitsize="64" type="dam"/>
+  <reg name="dam_31" bitsize="64" type="dam"/>
+
+</feature>

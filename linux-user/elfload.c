@@ -2017,6 +2017,41 @@ static inline void init_thread(struct target_pt_regs *regs,
 
 #endif /* TARGET_HEXAGON */
 
+#ifdef TARGET_E2K
+
+#define elf_check_arch(x) ((x) == EM_MCST_ELBRUS || (x) == EM_E2K_OLD)
+#define ELF_START_MMAP          0x80000000
+#define ELF_CLASS               ELFCLASS64
+#define ELF_ARCH                EM_MCST_ELBRUS
+#define ELF_EXEC_PAGESIZE       4096
+#define ELF_NREG 256
+typedef target_elf_greg_t target_elf_gregset_t[ELF_NREG];
+#define USE_ELF_CORE_DUMP
+
+static inline void init_thread(struct target_pt_regs *regs, struct image_info *infop)
+{
+    abi_ulong start_stack = infop->start_stack & ~0xf;
+
+    regs->ip = infop->entry;
+
+    // FIXME: set real start stack address
+    regs->sbr = infop->arg_strings & ~0xf;
+    regs->usd_lo = (0x1800UL << 48) | start_stack;
+    regs->usd_hi = (regs->sbr - start_stack) << 32;
+
+    e2k_psp_new(&regs->pcsp, E2K_DEFAULT_PCS_SIZE, e2k_mmap(E2K_DEFAULT_PCS_SIZE), 0);
+    e2k_psp_new(&regs->psp, E2K_DEFAULT_PS_SIZE, e2k_mmap(E2K_DEFAULT_PS_SIZE),
+                e2k_mmap(E2K_DEFAULT_PS_SIZE / 8));
+}
+
+static void elf_core_copy_regs(target_elf_gregset_t *regs, const CPUE2KState *env)
+{
+    /* TODO */
+    qemu_log_mask(LOG_UNIMP, "elf_core_copy_regs: not implemented\n");
+}
+
+#endif /* TARGET_E2K */
+
 #ifndef ELF_BASE_PLATFORM
 #define ELF_BASE_PLATFORM (NULL)
 #endif

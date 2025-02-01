@@ -587,6 +587,31 @@ static abi_long mmap_end(abi_ulong start, abi_ulong last,
     return start;
 }
 
+#ifdef TARGET_E2K
+abi_ulong e2k_mmap(abi_ulong size)
+{
+    abi_ulong addr;
+    abi_ulong guard = TARGET_PAGE_SIZE;
+
+    if (size < TARGET_PAGE_SIZE) {
+        size = TARGET_PAGE_SIZE;
+    }
+    if (guard < qemu_real_host_page_size()) {
+        guard = qemu_real_host_page_size();
+    }
+
+    addr = target_mmap(0, size + guard, PROT_READ | PROT_WRITE,
+        MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    if (addr == -1) {
+        perror("mmap e2k stack");
+        exit(-1);
+    }
+
+    target_mprotect(addr + size, guard, PROT_NONE);
+    return addr;
+}
+#endif
+
 /*
  * Special case host page size == target page size,
  * where there are no edge conditions.

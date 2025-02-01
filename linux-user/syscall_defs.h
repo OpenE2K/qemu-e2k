@@ -74,7 +74,8 @@
     || defined(TARGET_M68K)                                             \
     || defined(TARGET_S390X) || defined(TARGET_OPENRISC)                \
     || defined(TARGET_RISCV)                                            \
-    || defined(TARGET_XTENSA) || defined(TARGET_LOONGARCH64)
+    || defined(TARGET_XTENSA) || defined(TARGET_LOONGARCH64)            \
+    || defined(TARGET_E2K)
 
 #define TARGET_IOC_SIZEBITS     14
 #define TARGET_IOC_DIRBITS      2
@@ -1442,6 +1443,57 @@ struct target_stat64 {
     abi_uint        __unused2;
 };
 
+#elif defined(TARGET_E2K)
+#define TARGET_STAT_HAVE_NSEC
+struct target_stat {
+    abi_uint        st_dev;
+    abi_ulong       st_ino;
+    abi_uint        st_mode;
+    abi_uint        st_nlink;
+    abi_uint        st_uid;
+    abi_uint        st_gid;
+    abi_uint        st_rdev;
+    abi_long        st_size;
+    abi_long        st_blksize;
+    abi_long        st_blocks;
+    abi_long        target_st_atime;
+    abi_ulong       target_st_atime_nsec;
+    abi_long        target_st_mtime;
+    abi_ulong       target_st_mtime_nsec;
+    abi_long        target_st_ctime;
+    abi_ulong       target_st_ctime_nsec;
+};
+
+#define TARGET_HAS_STRUCT_STAT64
+struct target_stat64 {
+    abi_ullong      st_dev;
+    abi_ullong      st_ino;
+    abi_uint        st_mode;
+    abi_uint        st_nlink;
+    abi_uint        st_uid;
+    abi_uint        st_gid;
+    abi_ullong      st_rdev;
+    abi_ullong      st_size;
+    abi_uint        st_blksize;
+    abi_uint        __unused1;
+    abi_ullong      st_blocks;
+#if 0
+    abi_int         target_st_atime;
+    abi_uint        target_st_atime_nsec;
+    abi_int         target_st_mtime;
+    abi_uint        target_st_mtime_nsec;
+    abi_int         target_st_ctime;
+    abi_uint        target_st_ctime_nsec;
+#else
+    abi_long        target_st_atime;
+    abi_ulong       target_st_atime_nsec;
+    abi_long        target_st_mtime;
+    abi_ulong       target_st_mtime_nsec;
+    abi_long        target_st_ctime;
+    abi_ulong       target_st_ctime_nsec;
+#endif
+};
+
 #elif defined(TARGET_PPC)
 
 #define TARGET_STAT_HAVE_NSEC
@@ -2208,6 +2260,36 @@ struct target_statfs64 {
     abi_int  f_frsize;
     abi_int  f_flags;
     abi_int  f_spare[4];
+};
+#elif defined(TARGET_E2K)
+struct target_statfs {
+    abi_long        f_type;
+    abi_long        f_bsize;
+    abi_ulong       f_blocks;
+    abi_ulong       f_bfree;
+    abi_ulong       f_bavail;
+    abi_ulong       f_files;
+    abi_ulong       f_ffree;
+    target_fsid_t   f_fsid;
+    abi_long        f_namelen;
+    abi_long        f_frsize;
+    abi_long        f_flags;
+    abi_long        f_spare[4];
+};
+
+struct target_statfs64 {
+    abi_long        f_type;
+    abi_long        f_bsize;
+    abi_ullong      f_blocks;
+    abi_ullong      f_bfree;
+    abi_ullong      f_bavail;
+    abi_ullong      f_files;
+    abi_ullong      f_ffree;
+    target_fsid_t   f_fsid;
+    abi_long        f_namelen;
+    abi_long        f_frsize;
+    abi_long        f_flags;
+    abi_long        f_spare[4];
 };
 #else
 struct target_statfs {
