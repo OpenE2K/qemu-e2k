@@ -90,7 +90,7 @@
 #define gen_tag1s(r, a) gen_tag1_i32(r.tag, a.tag)
 #define gen_tag1(s, r, a) glue(gen_tag1, s)(r, a)
 
-#define gen_al_result(R, instr, r) glue(gen_al_result_, R)(instr, r)
+#define gen_al_result(size, alop, r) glue(gen_al_result_, size)(alop, alop->als.dst, r)
 
 #define gen_extrl_i32 tcg_gen_mov_i32
 #define gen_extrl_i64 tcg_gen_extrl_i64_i32
@@ -2546,10 +2546,8 @@ static inline void gen_alop_tag_check(Alop *alop, TCGv_i32 tag)
     }
 }
 
-static void gen_al_result_q(Alop *alop, Tagged_i128 arg)
+static void gen_al_result_q(Alop *alop, uint8_t dst, Tagged_i128 arg)
 {
-    uint8_t dst = alop->als.dst;
-
     alop->result.kind = ALOP_RESULT_NONE;
     alop->result.t.kind = TAGGED_Q;
     alop->result.t.t128 = arg;
@@ -2564,10 +2562,8 @@ static void gen_al_result_q(Alop *alop, Tagged_i128 arg)
     }
 }
 
-static void gen_al_result_x(Alop *alop, Tagged_i128 arg)
+static void gen_al_result_x(Alop *alop, uint8_t dst, Tagged_i128 arg)
 {
-    uint8_t dst = alop->als.dst;
-
     alop->result.kind = ALOP_RESULT_NONE;
     alop->result.t.kind = TAGGED_X;
     alop->result.t.t128 = arg;
@@ -2582,10 +2578,8 @@ static void gen_al_result_x(Alop *alop, Tagged_i128 arg)
     }
 }
 
-static void gen_al_result_d(Alop *alop, Tagged_i64 arg)
+static void gen_al_result_d(Alop *alop, uint8_t dst, Tagged_i64 arg)
 {
-    uint8_t dst = alop->als.dst;
-
     alop->result.kind = ALOP_RESULT_NONE;
     alop->result.t.kind = TAGGED_D;
     alop->result.t.t64 = arg;
@@ -2613,10 +2607,8 @@ static void gen_al_result_d(Alop *alop, Tagged_i64 arg)
     }
 }
 
-static void gen_al_result_s(Alop *alop, Tagged_i32 arg)
+static void gen_al_result_s(Alop *alop, uint8_t dst, Tagged_i32 arg)
 {
-    uint8_t dst = alop->als.dst;
-
     alop->result.kind = ALOP_RESULT_NONE;
     alop->result.t.kind = TAGGED_S;
     alop->result.t.t32 = arg;
@@ -3283,7 +3275,7 @@ static void gen_insfd(Alop *alop)
 
     gen_insfd_tag(r.tag, b.val, a.tag, c.tag);
     gen_tag2_i64(r.tag, b.tag, r.tag);
-    gen_al_result_d(alop, r);
+    gen_al_result(d, alop, r);
 }
 
 static void gen_insfs(TCGv_i32 ret, TCGv_i32 src1,
@@ -3348,7 +3340,7 @@ static void gen_rrd(Alop *alop)
     gen_save_cpu_state(alop->ctx);
     gen_helper_state_reg_get(r.val, tcg_env, t0);
     tcg_gen_movi_i32(r.tag, 0);
-    gen_al_result_d(alop, r);
+    gen_al_result(d, alop, r);
 }
 
 static void gen_rrs(Alop *alop)
@@ -3361,7 +3353,7 @@ static void gen_rrs(Alop *alop)
     gen_helper_state_reg_get(t1, tcg_env, t0);
     tcg_gen_movi_i32(r.tag, 0);
     tcg_gen_extrl_i64_i32(r.val, t1);
-    gen_al_result_s(alop, r);
+    gen_al_result(s, alop, r);
 }
 
 static inline void gen_state_reg_write(Alop *alop, TCGv_i64 value)
@@ -4006,7 +3998,7 @@ static void gen_ld_raw_i64(Alop *alop, TCGv_i32 tag, TCGv addr,
         tcg_gen_mov_i64(cpu_last_val0, r.val);
     }
 
-    gen_al_result_d(alop, r);
+    gen_al_result(d, alop, r);
 }
 
 static void gen_ld_raw_i128(Alop *alop, TCGv_i32 tag, TCGv addr,
@@ -4047,7 +4039,7 @@ static void gen_ld_raw_i128(Alop *alop, TCGv_i32 tag, TCGv addr,
         tcg_gen_mov_i64(cpu_last_val1, t1);
     }
 
-    gen_al_result_q(alop, r);
+    gen_al_result(q, alop, r);
 }
 
 static void gen_atomic_cmpxchg_mlock_i128(Alop *alop, TCGv_i128 val,
