@@ -24,7 +24,11 @@
 //#define FORCE_SAVE_PLU_PREG
 //#define FORCE_SAVE_ALC_PREG
 
-#define DST_IS_EMPTY(i) ((i) == 0xdf)
+#define DST_EMPTY_LO 0xde
+#define DST_EMPTY_HI 0xdf
+#define DST_EMPTY DST_EMPTY_HI
+
+#define DST_IS_EMPTY(i) ((i) == DST_EMPTY_HI || (i) == DST_EMPTY_LO)
 #define IS_BASED(i) (((i) & 0x80) == 0)
 #define IS_REGULAR(i) (((i) & 0xc0) == 0x80)
 #define IS_IMM5(i) (((i) & 0xe0) == 0xc0)
@@ -3416,7 +3420,7 @@ static void gen_getpl(Alop *alop)
     // TODO: CUD
     gen_tag1_i64(r.tag, b.tag);
     tcg_gen_extu_i32_i64(r.val, b.val);
-    gen_al_result_d(alop, r);
+    gen_al_result(d, alop, r);
 #else /* !TARGET_E2K32 */
     // TODO: getpl 64-bit
     e2k_todo_illop(alop->ctx, "getpl");
@@ -4088,6 +4092,7 @@ static void gen_atomic_cmpxchg_mlock_i32(Alop *alop, TCGv_i32 value, TCGv addr,
     { \
         TCGLabel *l0 = NULL; \
         tagged(S) s4 = gen_tagged_src4(S, alop); \
+        TCGv_i32 tag = tcg_temp_new_i32(); \
         \
         if (alop->als.sm) { \
             TCGv_i32 t0 = tcg_temp_new_i32(); \
@@ -4109,6 +4114,11 @@ static void gen_atomic_cmpxchg_mlock_i32(Alop *alop, TCGv_i32 value, TCGv addr,
         } else { \
             st2(s4.val, addr, alop->ctx->mmuidx, memop); \
         } \
+        \
+        /* FIXME: generate empty result for tag check. */ \
+        gen_tag1_i128(tag, s4.tag); \
+        s4.tag = tag; \
+        glue(gen_al_result_, S)(alop, DST_EMPTY, s4); \
         \
         if (l0) { \
             gen_set_label(l0); \
@@ -4368,6 +4378,7 @@ static void gen_staaqp(Alop *alop)
         MemOp memop = memop_from_mas(MO_UO, mas);
         TCGLabel *l0 = NULL;
         TCGv t0 = tcg_temp_new();
+        TCGv_i32 tag = tcg_temp_new_i32();
 
         if (mod != 0) {
             e2k_todo(ctx, "staaqp mod=%#x is not implemented", mod);
@@ -4383,6 +4394,11 @@ static void gen_staaqp(Alop *alop)
         }
 
         tcg_gen_qemu_st_i128(s4.val, t0, alop->ctx->mmuidx, memop);
+
+        // FIXME: generate empty result for tag check.
+        gen_tag1_i128(tag, s4.tag);
+        s4.tag = tag;
+        gen_al_result_q(alop, DST_EMPTY, s4);
 
         if (l0) {
             gen_set_label(l0);
@@ -4445,6 +4461,7 @@ static void gen_staaq(Alop *alop)
         MemOp memop = memop_from_mas(MO_UQ, mas);
         TCGLabel *l0 = NULL;
         TCGv t0 = tcg_temp_new();
+        TCGv_i32 tag = tcg_temp_new_i32();
 
         if (mod != 0) {
             e2k_todo(ctx, "staaq mod=%#x is not implemented", mod);
@@ -4461,6 +4478,11 @@ static void gen_staaq(Alop *alop)
         }
 
         tcg_gen_qemu_st_i128(s4.val, t0, ctx->mmuidx, memop);
+
+        // FIXME: generate empty result for tag check.
+        gen_tag1_i128(tag, s4.tag);
+        s4.tag = tag;
+        gen_al_result_q(alop, DST_EMPTY, s4);
 
         if (l0) {
             gen_set_label(l0);
@@ -4489,6 +4511,7 @@ static void gen_staad(Alop *alop)
         MemOp memop = memop_from_mas(MO_UQ, mas);
         TCGLabel *l0 = NULL;
         TCGv t0 = tcg_temp_new();
+        TCGv_i32 tag = tcg_temp_new_i32();
 
         if (mod != 0) {
             e2k_todo(ctx, "staad mod=%#x is not implemented", mod);
@@ -4505,6 +4528,11 @@ static void gen_staad(Alop *alop)
         }
 
         tcg_gen_qemu_st_i64(s4.val, t0, ctx->mmuidx, memop);
+
+        // FIXME: generate empty result for tag check.
+        gen_tag1_i128(tag, s4.tag);
+        s4.tag = tag;
+        gen_al_result_d(alop, DST_EMPTY, s4);
 
         if (l0) {
             gen_set_label(l0);
@@ -4536,6 +4564,7 @@ static void gen_staaw_(Alop *alop, MemOp memop)
         int mod = mas & 0x7;
         TCGLabel *l0 = gen_new_label();
         TCGv t0 = tcg_temp_new();
+        TCGv_i32 tag = tcg_temp_new_i32();
 
         if (mod != 0) {
             char c;
@@ -4560,6 +4589,12 @@ static void gen_staaw_(Alop *alop, MemOp memop)
 
         memop = memop_from_mas(memop, mas);
         tcg_gen_qemu_st_i32(s4.val, t0, ctx->mmuidx, memop);
+
+        // FIXME: generate empty result for tag check.
+        gen_tag1_i128(tag, s4.tag);
+        s4.tag = tag;
+        gen_al_result_s(alop, DST_EMPTY, s4);
+
         gen_set_label(l0);
     }
 }
