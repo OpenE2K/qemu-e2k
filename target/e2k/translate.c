@@ -5517,8 +5517,12 @@ static void gen_alop(Alop *alop)
         gen_set_reg(ctx, &alop->result.t, alop->result.dst);
         break;
     case ALOP_RESULT_CTPR: {
-        TCGv_i64 ctpr = cpu_ctprs[GET_CTPR(alop->result.dst) - 1];
+        int index = GET_CTPR(alop->result.dst);
+        TCGv_i64 ctpr = cpu_ctprs[index - 1];
         TCGv_i64 ctpr_tag = tcg_temp_new_i64();
+
+        // Always invalidate DisasContext ctprs because the value is unknown at translation time.
+        ctx->ctpr[index] = 0;
 
         if (preg || pcnt) {
             /* Conditional write to ctpr is not allowed. */
