@@ -7200,9 +7200,10 @@ static abi_long copy_procedure_stack(CPUE2KState *env, abi_ulong dst,
         memset(to_tag, 0, size / 8);
     }
 
-    /* v5+ has different stack layout and we need to shuffle registers
+    /* FIXME: Not used anymore? Keep it for some time.
+     * v5+ has different stack layout and we need to shuffle registers
      * for backward compatibility. */
-    if (env->def.isa >= 5) {
+    if (false && env->def.isa >= 5) {
         int i, j;
         bool to_ps = dst >= env->psp.base
             && dst < (env->psp.base + env->psp.size);
