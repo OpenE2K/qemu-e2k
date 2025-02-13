@@ -10,13 +10,13 @@
 abi_long e2k_copy_from_user_crs(E2KCrs *crs, abi_ulong target_crs_addr);
 abi_long e2k_copy_to_user_crs(abi_ulong target_crs_addr, E2KCrs *crs);
 
-static void e2k_copy_parent_crs(CPUE2KState *env, abi_ulong dst, abi_ulong src, target_ulong newsp)
+static int e2k_copy_parent_crs(CPUE2KState *env, abi_ulong dst, abi_ulong src, target_ulong newsp)
 {
     E2KCrs crs;
     if (e2k_copy_from_user_crs(&crs, src)) {
         qemu_log("qemu-e2k internal error: failed to read parent frame\n");
         env->ip = 0;
-        return;
+        return -1;
     }
     if (newsp) {
         crs.cr1.ussz = 0;
@@ -24,8 +24,9 @@ static void e2k_copy_parent_crs(CPUE2KState *env, abi_ulong dst, abi_ulong src, 
     if (e2k_copy_to_user_crs(dst, &crs)) {
         qemu_log("qemu-e2k internal error: failed to write parent frame\n");
         env->ip = 0;
-        return;
+        return -1;
     }
+    return crs.cr1.wbs;
 }
 
 static inline void cpu_clone_regs_child(CPUE2KState *env, target_ulong newsp,
@@ -33,7 +34,6 @@ static inline void cpu_clone_regs_child(CPUE2KState *env, target_ulong newsp,
 {
     E2KPsp pcs = { 0 };
     E2KPsp ps = { 0 };
-    E2KCrs crs = { 0 };
     uint64_t *ps_old, *ps_new;
     size_t frame_size;
     target_ulong pcsp = env->pcsp.base + env->pcsp.index;
@@ -44,10 +44,6 @@ static inline void cpu_clone_regs_child(CPUE2KState *env, target_ulong newsp,
         env->usd.base = env->sbr = newsp & ~0xf;
         env->usd.read = 1;
         env->usd.write = 1;
-
-        if ((flags & CLONE_VM) == 0) {
-            e2k_copy_parent_crs(env, pcsp, pcsp, newsp);
-        }
     }
 
     if (flags & CLONE_VM) {
@@ -61,9 +57,12 @@ static inline void cpu_clone_regs_child(CPUE2KState *env, target_ulong newsp,
         // TODO: set a chain info to return to kernel
 
         pcs.index += sizeof(E2KCrs);
-        e2k_copy_parent_crs(env, pcsp, pcs.base + pcs.index, newsp);
+        frame_size = e2k_copy_parent_crs(env, pcs.base + pcs.index, pcsp, newsp);
+        if (frame_size == -1) {
+            return;
+        }
 
-        frame_size = crs.cr1.wbs * 32;
+        frame_size *= 32;
         ps_base -= frame_size;
         ps.index += frame_size;
         ps_old = lock_user(VERIFY_READ, ps_base, frame_size, 1);
@@ -87,6 +86,8 @@ static inline void cpu_clone_regs_child(CPUE2KState *env, target_ulong newsp,
         if (env->enable_tags) {
             env->wtag[0] = 0;
         }
+    } else {
+        e2k_copy_parent_crs(env, pcsp, pcsp, newsp);
     }
 }
 
