@@ -10,25 +10,47 @@
 abi_long e2k_copy_from_user_crs(E2KCrs *crs, abi_ulong target_crs_addr);
 abi_long e2k_copy_to_user_crs(abi_ulong target_crs_addr, E2KCrs *crs);
 
+static void e2k_copy_parent_crs(CPUE2KState *env, abi_ulong dst, abi_ulong src, target_ulong newsp)
+{
+    E2KCrs crs;
+    if (e2k_copy_from_user_crs(&crs, src)) {
+        qemu_log("qemu-e2k internal error: failed to read parent frame\n");
+        env->ip = 0;
+        return;
+    }
+    if (newsp) {
+        crs.cr1.ussz = 0;
+    }
+    if (e2k_copy_to_user_crs(dst, &crs)) {
+        qemu_log("qemu-e2k internal error: failed to write parent frame\n");
+        env->ip = 0;
+        return;
+    }
+}
+
 static inline void cpu_clone_regs_child(CPUE2KState *env, target_ulong newsp,
                                         unsigned flags)
 {
+    E2KPsp pcs = { 0 };
+    E2KPsp ps = { 0 };
+    E2KCrs crs = { 0 };
+    uint64_t *ps_old, *ps_new;
+    size_t frame_size;
+    target_ulong pcsp = env->pcsp.base + env->pcsp.index;
+    target_ulong ps_base = env->psp.base + env->psp.index;
+
     if (newsp) {
-        // FIXME: what size must be?
-        env->usd.size = 0x20000;
+        env->usd.size = 0;
         env->usd.base = env->sbr = newsp & ~0xf;
         env->usd.read = 1;
         env->usd.write = 1;
+
+        if ((flags & CLONE_VM) == 0) {
+            e2k_copy_parent_crs(env, pcsp, pcsp, newsp);
+        }
     }
 
     if (flags & CLONE_VM) {
-        E2KPsp pcs = { 0 };
-        E2KPsp ps = { 0 };
-        E2KCrs crs = { 0 };
-        uint64_t *ps_old, *ps_new;
-        size_t frame_size;
-        target_ulong pcsp = env->pcsp.base + env->pcsp.index;
-        target_ulong ps_base = env->psp.base + env->psp.index;
         int i;
 
         e2k_psp_new(&pcs, E2K_DEFAULT_PCS_SIZE, e2k_mmap(E2K_DEFAULT_PCS_SIZE), 0);
@@ -39,13 +61,7 @@ static inline void cpu_clone_regs_child(CPUE2KState *env, target_ulong newsp,
         // TODO: set a chain info to return to kernel
 
         pcs.index += sizeof(E2KCrs);
-        if (e2k_copy_from_user_crs(&crs, pcsp)
-            || e2k_copy_to_user_crs(pcs.base + pcs.index, &crs))
-        {
-            qemu_log("qemu-e2k internal error: failed to copy parent frame\n");
-            env->ip = 0;
-            return;
-        }
+        e2k_copy_parent_crs(env, pcsp, pcs.base + pcs.index, newsp);
 
         frame_size = crs.cr1.wbs * 32;
         ps_base -= frame_size;
