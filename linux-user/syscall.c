@@ -7230,17 +7230,38 @@ exit:
     return ret;
 }
 
-static abi_long do_e2k_access_hw_stacks(CPUState *cpu, abi_ulong arg2,
-    abi_ulong arg3, abi_ulong arg4, abi_ulong arg5, abi_ulong arg6)
+static abi_long do_e2k_access_hw_stacks(CPUState *cpu, abi_ulong mode,
+    abi_ulong frame_addr, abi_ulong buf_addr, abi_ulong buf_size,
+    abi_ulong size_addr)
 {
     E2KCPU *e2k_cpu = E2K_CPU(cpu);
     CPUE2KState *env = &e2k_cpu->env;
-    abi_ulong mode = arg2;
-    abi_ulong frame_addr = arg3; // __user (abi_ullong *)
-    abi_ulong buf_addr = arg4; // __user (char *)
-    abi_ulong buf_size = arg5;
-    abi_ulong size_addr = arg6; // __user (void *)
+    abi_ullong pcs_used_top, ps_used_top, frame = 0, frame_tag;
+    abi_ulong size;
     int ret = 0;
+
+    switch (mode) {
+    case READ_CHAIN_STACK:
+    case READ_CHAIN_STACK_EX:
+    case WRITE_CHAIN_STACK_EX:
+    case READ_PROCEDURE_STACK:
+    case READ_PROCEDURE_STACK_EX:
+    case WRITE_PROCEDURE_STACK_EX:
+        if (!QEMU_IS_ALIGNED(frame_addr, sizeof(uint64_t))) {
+            return -TARGET_EFAULT;
+        }
+        /* fall through */
+    case GET_CHAIN_STACK_OFFSET:
+        ret = get_user(frame, frame_addr, abi_ullong);
+        if (ret) {
+            return ret;
+        }
+        break;
+    }
+    frame_tag = frame / 8;
+
+    pcs_used_top = env->pcsp.base + env->pcsp.index;
+    ps_used_top = env->psp.base + env->psp.index;
 
     switch (mode) {
     case GET_PROCEDURE_STACK_SIZE:
@@ -7250,147 +7271,71 @@ static abi_long do_e2k_access_hw_stacks(CPUState *cpu, abi_ulong arg2,
         ret = put_user(env->pcsp.index + sizeof(E2KCrs), size_addr, target_ulong);
         break;
     case GET_CHAIN_STACK_OFFSET:
-    {
-        abi_ullong frame, pcs_top;
-
-        ret = get_user(frame, frame_addr, abi_ullong);
-        if (ret) {
-            return ret;
-        }
-        pcs_top = env->pcsp.base + env->pcsp.size;
-        if (env->pcsp.base > frame || pcs_top <= frame) {
+        if (env->pcsp.base > frame || env->pcsp.base + env->pcsp.size <= frame) {
             return -TARGET_ESRCH;
         }
         ret = put_user(frame - env->pcsp.base, size_addr, target_ulong);
         break;
-    }
     case READ_CHAIN_STACK:
-    {
-        abi_ullong frame, pcs_used_top;
-        abi_ulong used_size;
-
-        if (frame_addr & 7) {
-            return -TARGET_EFAULT;
-        }
-        ret = get_user(frame, frame_addr, abi_ullong);
-        if (ret) {
-            return ret;
-        }
-        pcs_used_top = env->pcsp.base + env->pcsp.index;
         if (frame < env->pcsp.base || frame > pcs_used_top) {
             return -TARGET_EINVAL;
         }
-        used_size = frame - env->pcsp.base;
+        size = frame - env->pcsp.base;
         if (size_addr) {
-            ret = put_user(used_size, size_addr, target_ulong);
+            ret = put_user(size, size_addr, target_ulong);
             if (ret) {
                 return ret;
             }
         }
-        if (used_size > buf_size) {
+        if (size > buf_size) {
             return -TARGET_ENOMEM;
         }
-        ret = copy_current_chain_stack(buf_addr, env->pcsp.base,
-            used_size);
+        ret = copy_current_chain_stack(buf_addr, env->pcsp.base, size);
         break;
-    }
     case READ_CHAIN_STACK_EX:
     case WRITE_CHAIN_STACK_EX:
-    {
-        abi_ullong frame;
-        abi_ulong dst, src;
-
-        if (frame_addr & 7) {
-            return -TARGET_EFAULT;
-        }
-        ret = get_user(frame, frame_addr, abi_ullong);
-        if (ret) {
-            return ret;
-        }
         if ((env->pcsp.index + sizeof(E2KCrs)) < (frame + buf_size)) {
-            return -TARGET_EFAULT;
+            return -TARGET_EINVAL;
         }
+        frame += env->pcsp.base;
         if (mode == READ_CHAIN_STACK_EX) {
-            dst = buf_addr;
-            src = env->pcsp.base + frame;
+            ret = copy_current_chain_stack(buf_addr, frame, buf_size);
         } else {
-            dst = env->pcsp.base + frame;
-            src = buf_addr;
+            ret = copy_current_chain_stack(frame, buf_addr, buf_size);
         }
-        ret = copy_current_chain_stack(dst, src, buf_size);
         break;
-    }
     case READ_PROCEDURE_STACK:
-    case WRITE_PROCEDURE_STACK:
-    {
-        abi_ullong frame, ps_used_top;
-        abi_ulong used_size, dst, dst_tag, src;
-
-        if (mode == READ_PROCEDURE_STACK) {
-            if (frame_addr & 7) {
-                return -TARGET_EFAULT;
-            }
-            ret = get_user(frame, frame_addr, abi_ullong);
-            if (ret) {
-                return ret;
-            }
-            ps_used_top = env->psp.base + env->psp.index;
-            if (frame < env->psp.base || frame > ps_used_top) {
-                return -TARGET_EINVAL;
-            }
-            used_size = frame - env->psp.base;
-        } else {
-            used_size = env->psp.index;
+        if (frame < env->psp.base || frame > ps_used_top) {
+            return -TARGET_EINVAL;
         }
+        size = frame - env->psp.base;
         if (size_addr) {
-            ret = put_user(used_size, size_addr, target_ulong);
+            ret = put_user(size, size_addr, target_ulong);
             if (ret) {
                 return ret;
             }
         }
-        if (used_size > buf_size) {
+        if (size > buf_size) {
             return -TARGET_ENOMEM;
         }
-        if (mode == READ_PROCEDURE_STACK) {
-            dst = buf_addr;
-            dst_tag = 0;
-            src = env->psp.base;
-        } else {
-            dst = env->psp.base;
-            dst_tag = env->psp.base_tag;
-            src = buf_addr;
-        }
-        ret = copy_procedure_stack(env, dst, dst_tag, src, used_size);
+        ret = copy_procedure_stack(env, buf_addr, 0, env->psp.base, size);
         break;
-    }
     case READ_PROCEDURE_STACK_EX:
-    case WRITE_PROCEDURE_STACK_EX:
-    {
-        abi_ullong offset;
-        abi_ulong dst, dst_tag, src;
-
-        if (frame_addr & 7) {
-            return -TARGET_EFAULT;
+        if (env->psp.index < (frame + buf_size)) {
+            return -TARGET_EINVAL;
         }
-        ret = get_user(offset, frame_addr, abi_ullong);
-        if (ret) {
-            return ret;
-        }
-        if (env->psp.index < (offset + buf_size)) {
-            return -TARGET_EFAULT;
-        }
-        if (mode == READ_PROCEDURE_STACK_EX) {
-            dst = buf_addr;
-            dst_tag = 0;
-            src = env->psp.base + offset;
-        } else {
-            dst = env->psp.base + offset;
-            dst_tag = env->psp.base_tag + offset / 8;
-            src = buf_addr;
-        }
-        ret = copy_procedure_stack(env, dst, dst_tag, src, buf_size);
+        frame += env->psp.base;
+        ret = copy_procedure_stack(env, buf_addr, 0, frame, buf_size);
         break;
-    }
+    case WRITE_PROCEDURE_STACK:
+    case WRITE_PROCEDURE_STACK_EX:
+        if (env->psp.index < (frame + buf_size)) {
+            return -TARGET_EINVAL;
+        }
+        frame += env->psp.base;
+        frame_tag += env->psp.base_tag;
+        ret = copy_procedure_stack(env, frame, frame_tag, buf_addr, buf_size);
+        break;
     default:
         return -TARGET_ENOSYS;
     }
