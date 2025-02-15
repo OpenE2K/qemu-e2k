@@ -7323,21 +7323,25 @@ static abi_long do_e2k_access_hw_stacks(CPUState *cpu, abi_ulong arg2,
     case READ_PROCEDURE_STACK:
     case WRITE_PROCEDURE_STACK:
     {
-        abi_ullong offset, ps_used_top;
+        abi_ullong frame, ps_used_top;
         abi_ulong used_size, dst, dst_tag, src;
 
-        if (frame_addr & 7) {
-            return -TARGET_EFAULT;
+        if (mode == READ_PROCEDURE_STACK) {
+            if (frame_addr & 7) {
+                return -TARGET_EFAULT;
+            }
+            ret = get_user(frame, frame_addr, abi_ullong);
+            if (ret) {
+                return ret;
+            }
+            ps_used_top = env->psp.base + env->psp.index;
+            if (frame < env->psp.base || frame > ps_used_top) {
+                return -TARGET_EINVAL;
+            }
+            used_size = frame - env->psp.base;
+        } else {
+            used_size = env->psp.index;
         }
-        ret = get_user(offset, frame_addr, abi_ullong);
-        if (ret) {
-            return ret;
-        }
-        ps_used_top = env->psp.base + env->psp.index;
-        if (offset < env->psp.base || offset > ps_used_top) {
-            return -TARGET_EINVAL;
-        }
-        used_size = offset - env->psp.base;
         if (size_addr) {
             ret = put_user(used_size, size_addr, target_ulong);
             if (ret) {
