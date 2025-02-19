@@ -8,10 +8,8 @@
 #define TARGET_E2K_CPU_PARAM_H
 
 #ifdef TARGET_E2K32
-# define TARGET_LONG_BITS 32
 # define TARGET_VIRT_ADDR_SPACE_BITS 32
 #else
-# define TARGET_LONG_BITS 64
 # define TARGET_VIRT_ADDR_SPACE_BITS 48
 #endif
 #define TARGET_PAGE_BITS 12 /* 4k */

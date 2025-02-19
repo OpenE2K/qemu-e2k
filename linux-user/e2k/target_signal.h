@@ -5,6 +5,8 @@
 #ifndef LINUX_USER_E2K_TARGET_SIGNAL_H
 #define LINUX_USER_E2K_TARGET_SIGNAL_H
 
+#define TARGET_SA_RESTORER      0x04000000
+
 /*
  * sigaltstack controls
  */

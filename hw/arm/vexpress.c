@@ -42,7 +42,7 @@
 #include "hw/cpu/a15mpcore.h"
 #include "hw/i2c/arm_sbcon_i2c.h"
 #include "hw/sd/sd.h"
-#include "qapi/qmp/qlist.h"
+#include "qobject/qlist.h"
 #include "qom/object.h"
 #include "audio/audio.h"
 #include "target/arm/cpu-qom.h"
@@ -803,6 +803,7 @@ static void vexpress_a9_class_init(ObjectClass *oc, void *data)
 
     mc->desc = "ARM Versatile Express for Cortex-A9";
     mc->valid_cpu_types = valid_cpu_types;
+    mc->auto_create_sdcard = true;
 
     vmc->daughterboard = &a9_daughterboard;
 }
@@ -818,6 +819,7 @@ static void vexpress_a15_class_init(ObjectClass *oc, void *data)
 
     mc->desc = "ARM Versatile Express for Cortex-A15";
     mc->valid_cpu_types = valid_cpu_types;
+    mc->auto_create_sdcard = true;
 
     vmc->daughterboard = &a15_daughterboard;
 
