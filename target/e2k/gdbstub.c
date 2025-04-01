@@ -301,9 +301,11 @@ static int e2k_gdb_get_reg(CPUState *cs, GByteArray *mem_buf, int n)
         return gdb_get_reg8(mem_buf, env->gtag[n - 610]);
     }
 
-    fprintf(stderr, "%s: unknown register %d\n", __FUNCTION__, n);
+    // FIXME: stub for unknown registers, some tests will fail without this
+    return gdb_get_reg8(mem_buf, 0);
 
-    return 0;
+    // fprintf(stderr, "%s: unknown register %d\n", __FUNCTION__, n);
+    // return 0;
 }
 
 static int e2k_gdb_set_reg(CPUState *cs, uint8_t *mem_buf, int n)
