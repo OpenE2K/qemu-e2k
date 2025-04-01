@@ -1317,6 +1317,7 @@ fi
 : ${cross_prefix_alpha="alpha-linux-gnu-"}
 : ${cross_prefix_arm="arm-linux-gnueabihf-"}
 : ${cross_prefix_armeb="$cross_prefix_arm"}
+: ${cross_prefix_e2k="e2k-linux-"}
 : ${cross_prefix_hexagon="hexagon-unknown-linux-musl-"}
 : ${cross_prefix_loongarch64="loongarch64-unknown-linux-gnu-"}
 : ${cross_prefix_hppa="hppa-linux-gnu-"}
@@ -1342,6 +1343,7 @@ fi
 : ${cross_cc_cflags_aarch64_be="-mbig-endian"}
 : ${cross_cc_armeb="$cross_cc_arm"}
 : ${cross_cc_cflags_armeb="-mbig-endian"}
+: ${cross_cc_cflags_e2k="-m64"}
 : ${cross_cc_hexagon="hexagon-unknown-linux-musl-clang"}
 : ${cross_cc_cflags_hexagon="-mv73 -O2 -static"}
 : ${cross_cc_cflags_i386="-m32"}
@@ -1353,8 +1355,6 @@ fi
 : ${cross_cc_sparc="$cross_cc_sparc64"}
 : ${cross_cc_cflags_sparc="-m32 -mcpu=supersparc"}
 : ${cross_cc_cflags_x86_64="-m64 -mcx16"}
-: ${cross_cc_e2k="e2k-linux-as"} # C compiler isn't public yet
-: ${cross_cc_e2k_ignore_checks="yes"}
 
 compute_target_variable() {
   eval "$2="
