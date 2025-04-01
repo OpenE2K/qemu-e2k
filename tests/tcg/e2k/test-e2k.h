@@ -125,4 +125,13 @@ static int total_fails = 0;
 })
 #endif /* CHECKS */
 
+#define CHECK1_32(EXEC, INSN, S2, EXPECT) \
+    CHECK1(EXEC, INSN, S2, (uint32_t) (EXPECT))
+
+#define CHECK2_32(EXEC, INSN, S1, S2, EXPECT) \
+    CHECK2(EXEC, INSN, S1, S2, (uint32_t) (EXPECT))
+
+#define CHECK3_32(EXEC, INSN, S1, S2, S3, EXPECT) \
+    CHECK3(EXEC, INSN, S1, S2, S3, (uint32_t) (EXPECT))
+
 #endif /* TESTS_TCG_E2K_E2K_H */
