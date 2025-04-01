@@ -5,6 +5,9 @@
 #include <stdint.h>
 #include <inttypes.h>
 
+static int total_fails = 0;
+#define is_failed() (total_fails > 0)
+
 #define EXEC1(INSN, S2, C2) ({ \
     uint64_t res = 0; \
     asm(#INSN " %[src2], %[dst]" \
@@ -53,22 +56,73 @@
 #define DUMP1(EXEC, INSN, S2) ({ \
     uint64_t res = 0; \
     res = EXEC(INSN, S2); \
-    fprintf(stderr, INSN_FMT RES_FMT SRC_FMT "\n", \
+    printf(INSN_FMT RES_FMT SRC_FMT "\n", \
         #INSN, RES(res), SRC(S2)); \
+    res; \
 })
 
 #define DUMP2(EXEC, INSN, S1, S2) ({ \
     uint64_t res = 0; \
     res = EXEC(INSN, S1, S2); \
-    fprintf(stderr, INSN_FMT RES_FMT SRC_FMT SRC_FMT "\n", \
+    printf(INSN_FMT RES_FMT SRC_FMT SRC_FMT "\n", \
         #INSN, RES(res), SRC(S1), SRC(S2)); \
+    res; \
 })
 
 #define DUMP3(EXEC, INSN, S1, S2, S3) ({ \
     uint64_t res = 0; \
     res = EXEC(INSN, S1, S2, S3); \
-    fprintf(stderr, INSN_FMT RES_FMT SRC_FMT SRC_FMT SRC_FMT "\n", \
+    printf(INSN_FMT RES_FMT SRC_FMT SRC_FMT SRC_FMT "\n", \
         #INSN, RES(res), SRC(S1), SRC(S2), SRC(S3)); \
+    res; \
 })
+
+#ifdef NO_CHECKS
+#define CHECK1(EXEC, INSN, S2, EXPECT) \
+    DUMP1(EXEC, INSN, S2)
+#define CHECK2(EXEC, INSN, S1, S2, EXPECT) \
+    DUMP2(EXEC, INSN, S1, S2)
+#define CHECK3(EXEC, INSN, S1, S2, S3, EXPECT) \
+    DUMP3(EXEC, INSN, S1, S2, S3)
+#else /* CHECKS */
+#define CHECK1(EXEC, INSN, S2, EXPECT) ({ \
+    uint64_t res = DUMP1(EXEC, INSN, S2); \
+    if (res != EXPECT) { \
+        total_fails += 1; \
+        fprintf(stderr, "Failed at %s:%d\n" \
+            "  " INSN_FMT RES_FMT SRC_FMT "\n" \
+            "  " INSN_FMT SRC_FMT "\n", \
+            __FILE__, __LINE__, \
+            #INSN, RES(res), SRC(S2), \
+            "expected", SRC(EXPECT)); \
+    } \
+})
+
+#define CHECK2(EXEC, INSN, S1, S2, EXPECT) ({ \
+    uint64_t res = DUMP2(EXEC, INSN, S1, S2); \
+    if (res != EXPECT) { \
+        total_fails += 1; \
+        fprintf(stderr, "Failed at %s:%d\n" \
+            "  " INSN_FMT RES_FMT SRC_FMT SRC_FMT "\n" \
+            "  " INSN_FMT SRC_FMT "\n", \
+            __FILE__, __LINE__, \
+            #INSN, RES(res), SRC(S1), SRC(S2), \
+            "expected", SRC(EXPECT)); \
+    } \
+})
+
+#define CHECK3(EXEC, INSN, S1, S2, S3, EXPECT) ({ \
+    uint64_t res = DUMP3(EXEC, INSN, S1, S2, S3); \
+    if (res != EXPECT) { \
+        total_fails += 1; \
+        fprintf(stderr, "Failed at %s:%d\n" \
+            "  " INSN_FMT RES_FMT SRC_FMT SRC_FMT SRC_FMT "\n" \
+            "  " INSN_FMT SRC_FMT "\n", \
+            __FILE__, __LINE__, \
+            #INSN, RES(res), SRC(S1), SRC(S2), SRC(S3), \
+            "expected", SRC(EXPECT)); \
+    } \
+})
+#endif /* CHECKS */
 
 #endif /* TESTS_TCG_E2K_E2K_H */
