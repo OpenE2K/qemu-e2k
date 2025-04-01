@@ -1,5 +1,6 @@
+#include "macros.inc"
+
 .global _start
-.include "macros.inc"
 
 _start:
 {
@@ -20,4 +21,4 @@ _start:
     assert cmpesb, %r3, 0x4, %r0
     assert cmpesb, %r4, 0x1, %r0
 
-.include "macros_end.inc"
+#include "macros_end.inc"
