@@ -23,6 +23,10 @@ void report_fail2(const char *file, int line, const char *insn,
         int chan, uint64_t res, uint64_t expect,
         uint64_t src1, uint64_t src2);
 
+void report_fail2_merge(const char *file, int line, const char *insn,
+        int chan, uint64_t res, uint64_t expect,
+        uint64_t src1, uint64_t src2, int pred);
+
 void report_fail3(const char *file, int line, const char *insn,
         int chan, uint64_t res, uint64_t expect,
         uint64_t src1, uint64_t src2, uint64_t src3);
@@ -49,6 +53,18 @@ static int total_fails = 0;
     res; \
 })
 
+#define EXEC2_MERGE(INSN, CHAN, S1, S2, PRED, C1, C2) ({ \
+    uint64_t res = 0; \
+    asm("cmpedb 1, " #PRED ", %%pred0\n\t" \
+        #INSN "," #CHAN " %[src1], %[src2], %[dst], %%pred0" \
+        : [dst]"+r"(res) \
+        : [src1] #C1 ((uint64_t) S1), \
+          [src2] #C2 ((uint64_t) S2) \
+        : "pred0" \
+    ); \
+    res; \
+})
+
 #define EXEC3(INSN, CHAN, S1, S2, S3, C1, C2, C3) ({ \
     uint64_t res = 0; \
     asm(#INSN "," #CHAN " %[src1], %[src2], %[src3], %[dst]" \
@@ -65,6 +81,7 @@ static int total_fails = 0;
 #define EXEC_XX(INSN, CHAN, S1, S2) EXEC2(INSN, CHAN, S1, S2, rI, ri)
 #define EXEC_RR(INSN, CHAN, S1, S2) EXEC2(INSN, CHAN, S1, S2, r, r)
 #define EXEC_IR(INSN, CHAN, S1, S2) EXEC2(INSN, CHAN, S1, S2, I, r)
+#define EXEC_MERGE_XX(INSN, CHAN, S1, S2, PRED) EXEC2_MERGE(INSN, CHAN, S1, S2, PRED, rI, ri)
 #define EXEC_XXX(INSN, CHAN, S1, S2, S3) EXEC3(INSN, CHAN, S1, S2, S3, rI, ri, r)
 #define EXEC_RRR(INSN, CHAN, S1, S2, S3) EXEC3(INSN, CHAN, S1, S2, S3, r, r, r)
 
@@ -92,6 +109,8 @@ static int total_fails = 0;
     fprintf(FILE, "  %d " INSN_FMT RES_FMT, CHAN, #INSN, RES(X))
 #define DUMP_SRC(FILE, X) \
     fprintf(FILE, SRC_FMT, SRC(X))
+#define DUMP_PRED(FILE, X) \
+    fprintf(FILE, " %d", (int) (X))
 #define DUMP_END(FILE) \
     fprintf(FILE, "\n")
 
@@ -112,6 +131,16 @@ static int total_fails = 0;
     res; \
 })
 
+#define DUMP2_MERGE(EXEC, INSN, CHAN, S1, S2, PRED) ({ \
+    uint64_t res = EXEC(INSN, CHAN, S1, S2, PRED); \
+    DUMP_RES(stdout, INSN, CHAN, res); \
+    DUMP_SRC(stdout, S1); \
+    DUMP_SRC(stdout, S2); \
+    DUMP_PRED(stdout, PRED); \
+    DUMP_END(stdout); \
+    res; \
+})
+
 #define DUMP3(EXEC, INSN, CHAN, S1, S2, S3) ({ \
     uint64_t res = EXEC(INSN, CHAN, S1, S2, S3); \
     DUMP_RES(stdout, INSN, CHAN, res); \
@@ -122,41 +151,53 @@ static int total_fails = 0;
     res; \
 })
 
-#ifdef NO_CHECKS
-#define CHECK1(EXEC, INSN, CHAN, S2, EXPECT) \
-    DUMP1(EXEC, INSN, S2)
-#define CHECK2(EXEC, INSN, CHAN, S1, S2, EXPECT) \
-    DUMP2(EXEC, INSN, S1, S2)
-#define CHECK3(EXEC, INSN, CHAN, S1, S2, S3, EXPECT) \
-    DUMP3(EXEC, INSN, S1, S2, S3)
-#else /* CHECKS */
 void report_fail1(const char *file, int line, const char *insn,
         int chan, uint64_t res, uint64_t expect,
         uint64_t src2)
 {
+#ifndef NO_CHECKS
     total_fails += 1;
     DUMP_FAILED_START(file, line);
     DUMP_RES(stderr, insn, chan, res);
     DUMP_SRC(stderr, src2);
     DUMP_FAILED_END(expect);
+#endif
 }
 
 void report_fail2(const char *file, int line, const char *insn,
         int chan, uint64_t res, uint64_t expect,
         uint64_t src1, uint64_t src2)
 {
+#ifndef NO_CHECKS
     total_fails += 1;
     DUMP_FAILED_START(file, line);
     DUMP_RES(stderr, insn, chan, res);
     DUMP_SRC(stderr, src1);
     DUMP_SRC(stderr, src2);
     DUMP_FAILED_END(expect);
+#endif
+}
+
+void report_fail2_merge(const char *file, int line, const char *insn,
+        int chan, uint64_t res, uint64_t expect,
+        uint64_t src1, uint64_t src2, int pred)
+{
+#ifndef NO_CHECKS
+    total_fails += 1;
+    DUMP_FAILED_START(file, line);
+    DUMP_RES(stderr, insn, chan, res);
+    DUMP_SRC(stderr, src1);
+    DUMP_SRC(stderr, src2);
+    DUMP_PRED(stderr, pred);
+    DUMP_FAILED_END(expect);
+#endif
 }
 
 void report_fail3(const char *file, int line, const char *insn,
         int chan, uint64_t res, uint64_t expect,
         uint64_t src1, uint64_t src2, uint64_t src3)
 {
+#ifndef NO_CHECKS
     total_fails += 1;
     DUMP_FAILED_START(file, line);
     DUMP_RES(stderr, insn, chan, res);
@@ -164,6 +205,7 @@ void report_fail3(const char *file, int line, const char *insn,
     DUMP_SRC(stderr, src2);
     DUMP_SRC(stderr, src3);
     DUMP_FAILED_END(expect);
+#endif
 }
 
 #define CHECK1(EXEC, INSN, CHAN, S2, EXPECT) ({ \
@@ -178,13 +220,18 @@ void report_fail3(const char *file, int line, const char *insn,
         report_fail2(__FILE__, __LINE__, #INSN, CHAN, res, EXPECT, S1, S2); \
 })
 
+#define CHECK2_MERGE(EXEC, INSN, CHAN, S1, S2, PRED, EXPECT) ({ \
+    uint64_t res = DUMP2_MERGE(EXEC, INSN, CHAN, S1, S2, PRED); \
+    if (res != EXPECT) \
+        report_fail2_merge(__FILE__, __LINE__, #INSN, CHAN, res, EXPECT, S1, S2, PRED); \
+})
+
 #define CHECK3(EXEC, INSN, CHAN, S1, S2, S3, EXPECT) ({ \
     uint64_t res = DUMP3(EXEC, INSN, CHAN, S1, S2, S3); \
     if (res != EXPECT) \
         report_fail3(__FILE__, __LINE__, #INSN, CHAN, res, EXPECT, S1, S2, S3); \
     } \
 })
-#endif /* CHECKS */
 
 #define CHECK1_32(EXEC, INSN, CHAN, S2, EXPECT) \
     CHECK1(EXEC, INSN, CHAN, S2, (uint32_t) (EXPECT))

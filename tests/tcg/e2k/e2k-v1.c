@@ -546,6 +546,28 @@ static void test_sxt(void) {
     TEST_SXT(EXEC_IR, 5);
 }
 
+#define TEST_MERGE(INSN, CHAN, TYPE) \
+    CHECK2_MERGE(EXEC_MERGE_XX, INSN, CHAN, -1, -2, 0, (TYPE) -1); \
+    CHECK2_MERGE(EXEC_MERGE_XX, INSN, CHAN, -1, -2, 1, (TYPE) -2)
+
+static void test_merge(void) {
+    GROUP("merges");
+    TEST_MERGE(merges, 0, uint32_t);
+    TEST_MERGE(merges, 1, uint32_t);
+    TEST_MERGE(merges, 2, uint32_t);
+    TEST_MERGE(merges, 3, uint32_t);
+    TEST_MERGE(merges, 4, uint32_t);
+    TEST_MERGE(merges, 5, uint32_t);
+
+    GROUP("merged");
+    TEST_MERGE(merged, 0, uint64_t);
+    TEST_MERGE(merged, 1, uint64_t);
+    TEST_MERGE(merged, 2, uint64_t);
+    TEST_MERGE(merged, 3, uint64_t);
+    TEST_MERGE(merged, 4, uint64_t);
+    TEST_MERGE(merged, 5, uint64_t);
+}
+
 int main(int argc, char *argv[]) {
     TEST2_ALL(EXEC_RR, ands);
     TEST2_ALL(EXEC_RR, andns);
@@ -566,6 +588,21 @@ int main(int argc, char *argv[]) {
     TEST2_ALL(EXEC_RR, subd);
 
     test_sxt();
+    test_merge();
+
+    // TODO: scls
+    // TODO: scld
+    // TODO: scrs
+    // TODO: scrd
+    // TODO: shls
+    // TODO: shld
+    // TODO: shrs
+    // TODO: shrd
+    // TODO: sars
+    // TODO: sard
+
+    // TODO: getfs
+    // TODO: getfd
 
     return is_failed();
 }
