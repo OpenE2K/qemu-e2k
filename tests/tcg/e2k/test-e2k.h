@@ -11,7 +11,7 @@ static int total_fails = 0;
 #define EXEC1(INSN, S2, C2) ({ \
     uint64_t res = 0; \
     asm(#INSN " %[src2], %[dst]" \
-        : [dst]"=r"(res) \
+        : [dst]"+r"(res) \
         : [src2] #C2 ((uint64_t) S2) \
     ); \
     res; \
@@ -20,7 +20,7 @@ static int total_fails = 0;
 #define EXEC2(INSN, S1, S2, C1, C2) ({ \
     uint64_t res = 0; \
     asm(#INSN " %[src1], %[src2], %[dst]" \
-        : [dst]"=r"(res) \
+        : [dst]"+r"(res) \
         : [src1] #C1 ((uint64_t) S1), \
           [src2] #C2 ((uint64_t) S2) \
     ); \
@@ -30,7 +30,7 @@ static int total_fails = 0;
 #define EXEC3(INSN, S1, S2, S3, C1, C2, C3) ({ \
     uint64_t res = 0; \
     asm(#INSN " %[src1], %[src2], %[src3], %[dst]" \
-        : [dst]"=r"(res) \
+        : [dst]"+r"(res) \
         : [src1] #C1 ((uint64_t) S1), \
           [src2] #C2 ((uint64_t) S2), \
           [src3] #C3 ((uint64_t) S3) \
@@ -54,24 +54,21 @@ static int total_fails = 0;
 #define SRC AS_U64
 
 #define DUMP1(EXEC, INSN, S2) ({ \
-    uint64_t res = 0; \
-    res = EXEC(INSN, S2); \
+    uint64_t res = EXEC(INSN, S2); \
     printf(INSN_FMT RES_FMT SRC_FMT "\n", \
         #INSN, RES(res), SRC(S2)); \
     res; \
 })
 
 #define DUMP2(EXEC, INSN, S1, S2) ({ \
-    uint64_t res = 0; \
-    res = EXEC(INSN, S1, S2); \
+    uint64_t res = EXEC(INSN, S1, S2); \
     printf(INSN_FMT RES_FMT SRC_FMT SRC_FMT "\n", \
         #INSN, RES(res), SRC(S1), SRC(S2)); \
     res; \
 })
 
 #define DUMP3(EXEC, INSN, S1, S2, S3) ({ \
-    uint64_t res = 0; \
-    res = EXEC(INSN, S1, S2, S3); \
+    uint64_t res = EXEC(INSN, S1, S2, S3); \
     printf(INSN_FMT RES_FMT SRC_FMT SRC_FMT SRC_FMT "\n", \
         #INSN, RES(res), SRC(S1), SRC(S2), SRC(S3)); \
     res; \
