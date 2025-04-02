@@ -7,6 +7,26 @@
 
 #define glue(a, b) a ## b
 
+#define ARRAY_SIZE(X) (sizeof(X) / sizeof(X[0]))
+
+struct e2k_test_data {
+    uint64_t src1;
+    uint64_t src2;
+    uint64_t src3;
+};
+
+void report_fail1(const char *file, int line, const char *insn,
+        int chan, uint64_t res, uint64_t expect,
+        uint64_t src2);
+
+void report_fail2(const char *file, int line, const char *insn,
+        int chan, uint64_t res, uint64_t expect,
+        uint64_t src1, uint64_t src2);
+
+void report_fail3(const char *file, int line, const char *insn,
+        int chan, uint64_t res, uint64_t expect,
+        uint64_t src1, uint64_t src2, uint64_t src3);
+
 static int total_fails = 0;
 #define is_failed() (total_fails > 0)
 
@@ -44,6 +64,7 @@ static int total_fails = 0;
 #define EXEC_R(INSN, CHAN, S2) EXEC1(INSN, CHAN, S2, r)
 #define EXEC_XX(INSN, CHAN, S1, S2) EXEC2(INSN, CHAN, S1, S2, rI, ri)
 #define EXEC_RR(INSN, CHAN, S1, S2) EXEC2(INSN, CHAN, S1, S2, r, r)
+#define EXEC_IR(INSN, CHAN, S1, S2) EXEC2(INSN, CHAN, S1, S2, I, r)
 #define EXEC_XXX(INSN, CHAN, S1, S2, S3) EXEC3(INSN, CHAN, S1, S2, S3, rI, ri, r)
 #define EXEC_RRR(INSN, CHAN, S1, S2, S3) EXEC3(INSN, CHAN, S1, S2, S3, r, r, r)
 
@@ -61,8 +82,8 @@ static int total_fails = 0;
 #define RES AS_U64
 #define SRC AS_U64
 
-#define DUMP_FAILED_START() \
-    fprintf(stderr, "Failed at %s:%d\n", __FILE__, __LINE__)
+#define DUMP_FAILED_START(FILE, LINE) \
+    fprintf(stderr, "Failed at %s:%d\n", FILE, LINE)
 
 #define DUMP_FAILED_END(EXPECT) \
     fprintf(stderr, "\n    " INSN_FMT SRC_FMT "\n", "expected", SRC(EXPECT))
@@ -109,39 +130,58 @@ static int total_fails = 0;
 #define CHECK3(EXEC, INSN, CHAN, S1, S2, S3, EXPECT) \
     DUMP3(EXEC, INSN, S1, S2, S3)
 #else /* CHECKS */
+void report_fail1(const char *file, int line, const char *insn,
+        int chan, uint64_t res, uint64_t expect,
+        uint64_t src2)
+{
+    total_fails += 1;
+    DUMP_FAILED_START(file, line);
+    DUMP_RES(stderr, insn, chan, res);
+    DUMP_SRC(stderr, src2);
+    DUMP_FAILED_END(expect);
+}
+
+void report_fail2(const char *file, int line, const char *insn,
+        int chan, uint64_t res, uint64_t expect,
+        uint64_t src1, uint64_t src2)
+{
+    total_fails += 1;
+    DUMP_FAILED_START(file, line);
+    DUMP_RES(stderr, insn, chan, res);
+    DUMP_SRC(stderr, src1);
+    DUMP_SRC(stderr, src2);
+    DUMP_FAILED_END(expect);
+}
+
+void report_fail3(const char *file, int line, const char *insn,
+        int chan, uint64_t res, uint64_t expect,
+        uint64_t src1, uint64_t src2, uint64_t src3)
+{
+    total_fails += 1;
+    DUMP_FAILED_START(file, line);
+    DUMP_RES(stderr, insn, chan, res);
+    DUMP_SRC(stderr, src1);
+    DUMP_SRC(stderr, src2);
+    DUMP_SRC(stderr, src3);
+    DUMP_FAILED_END(expect);
+}
+
 #define CHECK1(EXEC, INSN, CHAN, S2, EXPECT) ({ \
     uint64_t res = DUMP1(EXEC, INSN, CHAN, S2); \
-    if (res != EXPECT) { \
-        total_fails += 1; \
-        DUMP_FAILED_START(); \
-        DUMP_RES(stderr, INSN, CHAN, res); \
-        DUMP_SRC(stderr, S2); \
-        DUMP_FAILED_END(EXPECT); \
-    } \
+    if (res != EXPECT) \
+        report_fail1(__FILE__, __LINE__, #INSN, CHAN, res, EXPECT, S1); \
 })
 
 #define CHECK2(EXEC, INSN, CHAN, S1, S2, EXPECT) ({ \
     uint64_t res = DUMP2(EXEC, INSN, CHAN, S1, S2); \
-    if (res != EXPECT) { \
-        total_fails += 1; \
-        DUMP_FAILED_START(); \
-        DUMP_RES(stderr, INSN, CHAN, res); \
-        DUMP_SRC(stderr, S1); \
-        DUMP_SRC(stderr, S2); \
-        DUMP_FAILED_END(EXPECT); \
-    } \
+    if (res != EXPECT) \
+        report_fail2(__FILE__, __LINE__, #INSN, CHAN, res, EXPECT, S1, S2); \
 })
 
 #define CHECK3(EXEC, INSN, CHAN, S1, S2, S3, EXPECT) ({ \
     uint64_t res = DUMP3(EXEC, INSN, CHAN, S1, S2, S3); \
-    if (res != EXPECT) { \
-        total_fails += 1; \
-        DUMP_FAILED_START(); \
-        DUMP_RES(stderr, INSN, CHAN, res); \
-        DUMP_SRC(stderr, S1); \
-        DUMP_SRC(stderr, S2); \
-        DUMP_SRC(stderr, S3); \
-        DUMP_FAILED_END(EXPECT); \
+    if (res != EXPECT) \
+        report_fail3(__FILE__, __LINE__, #INSN, CHAN, res, EXPECT, S1, S2, S3); \
     } \
 })
 #endif /* CHECKS */
