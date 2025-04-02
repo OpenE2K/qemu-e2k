@@ -1,6 +1,20 @@
 #include "test-e2k.h"
 #include <stdint.h>
 
+#define CHECK2_ALL(EXEC, INSN, S1, S2, EXPECT) \
+    CHECK2(EXEC, INSN, 0, S1, S2, EXPECT); \
+    CHECK2(EXEC, INSN, 1, S1, S2, EXPECT); \
+    CHECK2(EXEC, INSN, 2, S1, S2, EXPECT); \
+    CHECK2(EXEC, INSN, 3, S1, S2, EXPECT); \
+    CHECK2(EXEC, INSN, 4, S1, S2, EXPECT); \
+    CHECK2(EXEC, INSN, 5, S1, S2, EXPECT)
+
+#define TEST2_DEFAULT_DATA(CHANNELS, EXEC, INSN) \
+    GROUP(#INSN); \
+    for (int i = 0; i < ARRAY_SIZE(test_data); ++i) { \
+        CHANNELS(EXEC, INSN, test_data[i].src1, test_data[i].src2, glue(INSN, _expect)[i]); \
+    }
+
 static struct e2k_test_data test_data[] = {
     { 0x0000000012345678, 0x000000000812fada, 0 },
     { 0x0000000000012341, 0x0000000000012341, 0 },
@@ -494,20 +508,6 @@ static uint64_t subd_expect[] = {
     0xbbbbbbbb80000002,
 };
 
-#define TEST2(EXEC, INSN, CHAN, DATA, EXPECT) \
-    CHECK2(EXEC_RR, INSN, CHAN, (DATA)->src1, (DATA)->src2, EXPECT)
-
-#define TEST2_ALL(EXEC, INSN) \
-    GROUP(#INSN); \
-    for (int i = 0; i < ARRAY_SIZE(test_data); ++i) { \
-        TEST2(EXEC, INSN, 0, &test_data[i], glue(INSN, _expect)[i]); \
-        TEST2(EXEC, INSN, 1, &test_data[i], glue(INSN, _expect)[i]); \
-        TEST2(EXEC, INSN, 2, &test_data[i], glue(INSN, _expect)[i]); \
-        TEST2(EXEC, INSN, 3, &test_data[i], glue(INSN, _expect)[i]); \
-        TEST2(EXEC, INSN, 4, &test_data[i], glue(INSN, _expect)[i]); \
-        TEST2(EXEC, INSN, 5, &test_data[i], glue(INSN, _expect)[i]); \
-    }
-
 #define TEST_SXT(EXEC, CHAN) \
     CHECK2(EXEC, sxt, CHAN, 0, 0x7fff7f7f, 0x000000000000007f); \
     CHECK2(EXEC, sxt, CHAN, 1, 0x7fff7f7f, 0x0000000000007f7f); \
@@ -568,38 +568,96 @@ static void test_merge(void) {
     TEST_MERGE(merged, 5, uint64_t);
 }
 
-int main(int argc, char *argv[]) {
-    TEST2_ALL(EXEC_RR, ands);
-    TEST2_ALL(EXEC_RR, andns);
-    TEST2_ALL(EXEC_RR, ors);
-    TEST2_ALL(EXEC_RR, orns);
-    TEST2_ALL(EXEC_RR, xors);
-    TEST2_ALL(EXEC_RR, xorns);
-    TEST2_ALL(EXEC_RR, adds);
-    TEST2_ALL(EXEC_RR, subs);
+static void test_shift(void) {
+    GROUP("shls");
+    CHECK2_ALL(EXEC_RR, shls, 1,  0, 1);
+    CHECK2_ALL(EXEC_RR, shls, 1,  1, 2);
+    CHECK2_ALL(EXEC_RR, shls, 1,  2, 4);
+    CHECK2_ALL(EXEC_RR, shls, 1, 32, 1);
 
-    TEST2_ALL(EXEC_RR, andd);
-    TEST2_ALL(EXEC_RR, andnd);
-    TEST2_ALL(EXEC_RR, ord);
-    TEST2_ALL(EXEC_RR, ornd);
-    TEST2_ALL(EXEC_RR, xord);
-    TEST2_ALL(EXEC_RR, xornd);
-    TEST2_ALL(EXEC_RR, addd);
-    TEST2_ALL(EXEC_RR, subd);
+    GROUP("shrs");
+    CHECK2_ALL(EXEC_RR, shrs, 8,  0, 8);
+    CHECK2_ALL(EXEC_RR, shrs, 8,  1, 4);
+    CHECK2_ALL(EXEC_RR, shrs, 8,  2, 2);
+    CHECK2_ALL(EXEC_RR, shrs, 8, 32, 8);
+
+    GROUP("sars");
+    CHECK2_ALL(EXEC_RR, sars, 0x80000000,  0, 0x80000000);
+    CHECK2_ALL(EXEC_RR, sars, 0x80000000,  1, 0xc0000000);
+    CHECK2_ALL(EXEC_RR, sars, 0x80000000,  2, 0xe0000000);
+    CHECK2_ALL(EXEC_RR, sars, 0x80000000, 31, 0xffffffff);
+    CHECK2_ALL(EXEC_RR, sars, 0x80000000, 32, 0x80000000);
+
+    GROUP("scls");
+    CHECK2_ALL(EXEC_RR, scls, 0x80000001,  0, 0x80000001);
+    CHECK2_ALL(EXEC_RR, scls, 0x80000001,  1, 0x00000003);
+    CHECK2_ALL(EXEC_RR, scls, 0x80000001,  2, 0x00000006);
+    CHECK2_ALL(EXEC_RR, scls, 0x80000001, 31, 0xc0000000);
+    CHECK2_ALL(EXEC_RR, scls, 0x80000001, 32, 0x80000001);
+
+    GROUP("scrs");
+    CHECK2_ALL(EXEC_RR, scrs, 0x80000001,  0, 0x80000001);
+    CHECK2_ALL(EXEC_RR, scrs, 0x80000001,  1, 0xc0000000);
+    CHECK2_ALL(EXEC_RR, scrs, 0x80000001,  2, 0x60000000);
+    CHECK2_ALL(EXEC_RR, scrs, 0x80000001, 31, 0x00000003);
+    CHECK2_ALL(EXEC_RR, scrs, 0x80000001, 32, 0x80000001);
+
+    GROUP("shld");
+    CHECK2_ALL(EXEC_RR, shld, 1,  0, 1);
+    CHECK2_ALL(EXEC_RR, shld, 1,  1, 2);
+    CHECK2_ALL(EXEC_RR, shld, 1,  2, 4);
+    CHECK2_ALL(EXEC_RR, shld, 1, 64, 1);
+
+    GROUP("shrd");
+    CHECK2_ALL(EXEC_RR, shrd, 8,  0, 8);
+    CHECK2_ALL(EXEC_RR, shrd, 8,  1, 4);
+    CHECK2_ALL(EXEC_RR, shrd, 8,  2, 2);
+    CHECK2_ALL(EXEC_RR, shrd, 8, 64, 8);
+
+    GROUP("sard");
+    CHECK2_ALL(EXEC_RR, sard, 0x8000000000000000,  0, 0x8000000000000000);
+    CHECK2_ALL(EXEC_RR, sard, 0x8000000000000000,  1, 0xc000000000000000);
+    CHECK2_ALL(EXEC_RR, sard, 0x8000000000000000,  2, 0xe000000000000000);
+    CHECK2_ALL(EXEC_RR, sard, 0x8000000000000000, 63, 0xffffffffffffffff);
+    CHECK2_ALL(EXEC_RR, sard, 0x8000000000000000, 64, 0x8000000000000000);
+
+    GROUP("scld");
+    CHECK2_ALL(EXEC_RR, scld, 0x8000000000000001,  0, 0x8000000000000001);
+    CHECK2_ALL(EXEC_RR, scld, 0x8000000000000001,  1, 0x0000000000000003);
+    CHECK2_ALL(EXEC_RR, scld, 0x8000000000000001,  2, 0x0000000000000006);
+    CHECK2_ALL(EXEC_RR, scld, 0x8000000000000001, 63, 0xc000000000000000);
+    CHECK2_ALL(EXEC_RR, scld, 0x8000000000000001, 64, 0x8000000000000001);
+
+    GROUP("scrd");
+    CHECK2_ALL(EXEC_RR, scrd, 0x8000000000000001,  0, 0x8000000000000001);
+    CHECK2_ALL(EXEC_RR, scrd, 0x8000000000000001,  1, 0xc000000000000000);
+    CHECK2_ALL(EXEC_RR, scrd, 0x8000000000000001,  2, 0x6000000000000000);
+    CHECK2_ALL(EXEC_RR, scrd, 0x8000000000000001, 63, 0x0000000000000003);
+    CHECK2_ALL(EXEC_RR, scrd, 0x8000000000000001, 64, 0x8000000000000001);
+}
+
+int main(int argc, char *argv[]) {
+    TEST2_DEFAULT_DATA(CHECK2_ALL, EXEC_RR, ands);
+    TEST2_DEFAULT_DATA(CHECK2_ALL, EXEC_RR, andns);
+    TEST2_DEFAULT_DATA(CHECK2_ALL, EXEC_RR, ors);
+    TEST2_DEFAULT_DATA(CHECK2_ALL, EXEC_RR, orns);
+    TEST2_DEFAULT_DATA(CHECK2_ALL, EXEC_RR, xors);
+    TEST2_DEFAULT_DATA(CHECK2_ALL, EXEC_RR, xorns);
+    TEST2_DEFAULT_DATA(CHECK2_ALL, EXEC_RR, adds);
+    TEST2_DEFAULT_DATA(CHECK2_ALL, EXEC_RR, subs);
+
+    TEST2_DEFAULT_DATA(CHECK2_ALL, EXEC_RR, andd);
+    TEST2_DEFAULT_DATA(CHECK2_ALL, EXEC_RR, andnd);
+    TEST2_DEFAULT_DATA(CHECK2_ALL, EXEC_RR, ord);
+    TEST2_DEFAULT_DATA(CHECK2_ALL, EXEC_RR, ornd);
+    TEST2_DEFAULT_DATA(CHECK2_ALL, EXEC_RR, xord);
+    TEST2_DEFAULT_DATA(CHECK2_ALL, EXEC_RR, xornd);
+    TEST2_DEFAULT_DATA(CHECK2_ALL, EXEC_RR, addd);
+    TEST2_DEFAULT_DATA(CHECK2_ALL, EXEC_RR, subd);
 
     test_sxt();
     test_merge();
-
-    // TODO: scls
-    // TODO: scld
-    // TODO: scrs
-    // TODO: scrd
-    // TODO: shls
-    // TODO: shld
-    // TODO: shrs
-    // TODO: shrd
-    // TODO: sars
-    // TODO: sard
+    test_shift();
 
     // TODO: getfs
     // TODO: getfd
