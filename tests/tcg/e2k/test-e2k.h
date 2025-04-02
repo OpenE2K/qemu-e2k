@@ -9,6 +9,9 @@
 
 #define ARRAY_SIZE(X) (sizeof(X) / sizeof(X[0]))
 
+// Selector for getf{s,d}.
+#define FIELD(O, L, S, B) ((O) | ((L) << 6) | ((S) << 12) | ((B) << 13))
+
 struct e2k_test_data {
     uint64_t src1;
     uint64_t src2;
@@ -81,6 +84,7 @@ static int total_fails = 0;
 #define EXEC_XX(INSN, CHAN, S1, S2) EXEC2(INSN, CHAN, S1, S2, rI, ri)
 #define EXEC_RR(INSN, CHAN, S1, S2) EXEC2(INSN, CHAN, S1, S2, r, r)
 #define EXEC_IR(INSN, CHAN, S1, S2) EXEC2(INSN, CHAN, S1, S2, I, r)
+#define EXEC_RI(INSN, CHAN, S1, S2) EXEC2(INSN, CHAN, S1, S2, r, i)
 #define EXEC_MERGE_XX(INSN, CHAN, S1, S2, PRED) EXEC2_MERGE(INSN, CHAN, S1, S2, PRED, rI, ri)
 #define EXEC_XXX(INSN, CHAN, S1, S2, S3) EXEC3(INSN, CHAN, S1, S2, S3, rI, ri, r)
 #define EXEC_RRR(INSN, CHAN, S1, S2, S3) EXEC3(INSN, CHAN, S1, S2, S3, r, r, r)

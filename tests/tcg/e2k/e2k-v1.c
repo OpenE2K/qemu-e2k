@@ -636,6 +636,39 @@ static void test_shift(void) {
     CHECK2_ALL(EXEC_RR, scrd, 0x8000000000000001, 64, 0x8000000000000001);
 }
 
+static void test_getfs(void) {
+#undef INSN64
+#undef INSN
+#define INSN getfs
+
+#undef EXEC
+#define EXEC EXEC_RR
+GROUP("getfs reg, reg");
+#include "test-getf.inc"
+
+#undef EXEC
+#define EXEC EXEC_RI
+GROUP("getfs reg, imm");
+#include "test-getf.inc"
+}
+
+static void test_getfd(void) {
+#undef INSN64
+#undef INSN
+#define INSN64
+#define INSN getfd
+
+#undef EXEC
+#define EXEC EXEC_RR
+GROUP("getfd reg, reg");
+#include "test-getf.inc"
+
+#undef EXEC
+#define EXEC EXEC_RI
+GROUP("getfd reg, imm");
+#include "test-getf.inc"
+}
+
 int main(int argc, char *argv[]) {
     TEST2_DEFAULT_DATA(CHECK2_ALL, EXEC_RR, ands);
     TEST2_DEFAULT_DATA(CHECK2_ALL, EXEC_RR, andns);
@@ -658,9 +691,8 @@ int main(int argc, char *argv[]) {
     test_sxt();
     test_merge();
     test_shift();
-
-    // TODO: getfs
-    // TODO: getfd
+    test_getfs();
+    test_getfd();
 
     return is_failed();
 }
