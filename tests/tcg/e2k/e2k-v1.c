@@ -508,42 +508,32 @@ static uint64_t subd_expect[] = {
     0xbbbbbbbb80000002,
 };
 
-#define TEST_SXT(EXEC, CHAN) \
-    CHECK2(EXEC, sxt, CHAN, 0, 0x7fff7f7f, 0x000000000000007f); \
-    CHECK2(EXEC, sxt, CHAN, 1, 0x7fff7f7f, 0x0000000000007f7f); \
-    CHECK2(EXEC, sxt, CHAN, 2, 0x7fff7f7f, 0x000000007fff7f7f); \
-    CHECK2(EXEC, sxt, CHAN, 3, 0x7fff7f7f, 0x000000007fff7f7f); \
-    CHECK2(EXEC, sxt, CHAN, 4, 0x7fff7f7f, 0x000000000000007f); \
-    CHECK2(EXEC, sxt, CHAN, 5, 0x7fff7f7f, 0x0000000000007f7f); \
-    CHECK2(EXEC, sxt, CHAN, 6, 0x7fff7f7f, 0x000000007fff7f7f); \
-    CHECK2(EXEC, sxt, CHAN, 7, 0x7fff7f7f, 0x000000007fff7f7f); \
-    CHECK2(EXEC, sxt, CHAN, 0, 0x80008080, 0xffffffffffffff80); \
-    CHECK2(EXEC, sxt, CHAN, 1, 0x80008080, 0xffffffffffff8080); \
-    CHECK2(EXEC, sxt, CHAN, 2, 0x80008080, 0xffffffff80008080); \
-    CHECK2(EXEC, sxt, CHAN, 3, 0x80008080, 0xffffffff80008080); \
-    CHECK2(EXEC, sxt, CHAN, 4, 0x80008080, 0x0000000000000080); \
-    CHECK2(EXEC, sxt, CHAN, 5, 0x80008080, 0x0000000000008080); \
-    CHECK2(EXEC, sxt, CHAN, 6, 0x80008080, 0x0000000080008080); \
-    CHECK2(EXEC, sxt, CHAN, 7, 0x80008080, 0x0000000080008080)
+#define TEST_SXT(EXEC) \
+    CHECK2_ALL(EXEC, sxt, 0, 0x7fff7f7f, 0x000000000000007f); \
+    CHECK2_ALL(EXEC, sxt, 1, 0x7fff7f7f, 0x0000000000007f7f); \
+    CHECK2_ALL(EXEC, sxt, 2, 0x7fff7f7f, 0x000000007fff7f7f); \
+    CHECK2_ALL(EXEC, sxt, 3, 0x7fff7f7f, 0x000000007fff7f7f); \
+    CHECK2_ALL(EXEC, sxt, 4, 0x7fff7f7f, 0x000000000000007f); \
+    CHECK2_ALL(EXEC, sxt, 5, 0x7fff7f7f, 0x0000000000007f7f); \
+    CHECK2_ALL(EXEC, sxt, 6, 0x7fff7f7f, 0x000000007fff7f7f); \
+    CHECK2_ALL(EXEC, sxt, 7, 0x7fff7f7f, 0x000000007fff7f7f); \
+    CHECK2_ALL(EXEC, sxt, 0, 0x80008080, 0xffffffffffffff80); \
+    CHECK2_ALL(EXEC, sxt, 1, 0x80008080, 0xffffffffffff8080); \
+    CHECK2_ALL(EXEC, sxt, 2, 0x80008080, 0xffffffff80008080); \
+    CHECK2_ALL(EXEC, sxt, 3, 0x80008080, 0xffffffff80008080); \
+    CHECK2_ALL(EXEC, sxt, 4, 0x80008080, 0x0000000000000080); \
+    CHECK2_ALL(EXEC, sxt, 5, 0x80008080, 0x0000000000008080); \
+    CHECK2_ALL(EXEC, sxt, 6, 0x80008080, 0x0000000080008080); \
+    CHECK2_ALL(EXEC, sxt, 7, 0x80008080, 0x0000000080008080)
 
 static void test_sxt(void) {
     // implemented in a helper
     GROUP("sxt reg");
-    TEST_SXT(EXEC_RR, 0);
-    TEST_SXT(EXEC_RR, 1);
-    TEST_SXT(EXEC_RR, 2);
-    TEST_SXT(EXEC_RR, 3);
-    TEST_SXT(EXEC_RR, 4);
-    TEST_SXT(EXEC_RR, 5);
+    TEST_SXT(EXEC_RR);
 
     // specialized for imm
     GROUP("sxt imm");
-    TEST_SXT(EXEC_IR, 0);
-    TEST_SXT(EXEC_IR, 1);
-    TEST_SXT(EXEC_IR, 2);
-    TEST_SXT(EXEC_IR, 3);
-    TEST_SXT(EXEC_IR, 4);
-    TEST_SXT(EXEC_IR, 5);
+    TEST_SXT(EXEC_IR);
 }
 
 #define TEST_MERGE(INSN, CHAN, TYPE) \
