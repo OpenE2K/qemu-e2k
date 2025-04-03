@@ -21,6 +21,7 @@
         CHANNELS(EXEC, INSN, test_data[i].src1, test_data[i].src2, glue(INSN, _expect)[i]); \
     }
 
+#define TEST_DATA_N ARRAY_SIZE(test_data)
 static struct e2k_test_data test_data[] = {
     { 0x0000000012345678, 0x000000000812fada, 0 },
     { 0x0000000000012341, 0x0000000000012341, 0 },
@@ -50,468 +51,151 @@ static struct e2k_test_data test_data[] = {
     { 0xaaaaaaaa80000000, 0xeeeeeeeefffffffe, 0 },
 };
 
-static uint32_t ands_expect[] = {
-    0x00105258,
-    0x00012341,
-    0x00000001,
-    0x00000000,
-    0xffffffff,
-    0x00000001,
-    0x00000002,
-    0x00000000,
-    0x00000001,
-    0xffffffff,
-    0x00000000,
-    0x00000000,
-    0x00000000,
-    0x00105258,
-    0x00012341,
-    0x00000001,
-    0x00000000,
-    0xffffffff,
-    0x00000001,
-    0x00000002,
-    0x00000000,
-    0x00000001,
-    0x7fffffff,
-    0x80000000,
-    0x00000000,
-    0x80000000,
+#define EXPECT_DATA(INSN, TYPE, COUNT) \
+    static TYPE glue(INSN, _expect)[COUNT] =
+
+EXPECT_DATA(ands, uint32_t, TEST_DATA_N) {
+    0x00105258, 0x00012341, 0x00000001, 0x00000000, 0xffffffff, 0x00000001,
+    0x00000002, 0x00000000, 0x00000001, 0xffffffff, 0x00000000, 0x00000000,
+    0x00000000, 0x00105258, 0x00012341, 0x00000001, 0x00000000, 0xffffffff,
+    0x00000001, 0x00000002, 0x00000000, 0x00000001, 0x7fffffff, 0x80000000,
+    0x00000000, 0x80000000,
 };
 
-static uint32_t andns_expect[] = {
-    0x12240420,
-    0x00000000,
-    0x00012340,
-    0xffffffff,
-    0x00000000,
-    0xfffffffe,
-    0xfffffffd,
-    0xffffffff,
-    0xfffffffe,
-    0x00000000,
-    0x00000000,
-    0x00000000,
-    0x00000000,
-    0x12240420,
-    0x00000000,
-    0x00012340,
-    0xffffffff,
-    0x00000000,
-    0xfffffffe,
-    0xfffffffd,
-    0x7fffffff,
-    0x7ffffffe,
-    0x00000000,
-    0x00000000,
-    0x80000000,
-    0x00000000,
+EXPECT_DATA(andns, uint32_t, TEST_DATA_N) {
+    0x12240420, 0x00000000, 0x00012340, 0xffffffff, 0x00000000, 0xfffffffe,
+    0xfffffffd, 0xffffffff, 0xfffffffe, 0x00000000, 0x00000000, 0x00000000,
+    0x00000000, 0x12240420, 0x00000000, 0x00012340, 0xffffffff, 0x00000000,
+    0xfffffffe, 0xfffffffd, 0x7fffffff, 0x7ffffffe, 0x00000000, 0x00000000,
+    0x80000000, 0x00000000,
 };
 
-static uint32_t ors_expect[] = {
-    0x1a36fefa,
-    0x00012341,
-    0xffffffff,
-    0xffffffff,
-    0xffffffff,
-    0xffffffff,
-    0xffffffff,
-    0xffffffff,
-    0xffffffff,
-    0xffffffff,
-    0xffffffff,
-    0x00000001,
-    0xfffffffe,
-    0x1a36fefa,
-    0x00012341,
-    0xffffffff,
-    0xffffffff,
-    0xffffffff,
-    0xffffffff,
-    0xffffffff,
-    0x7fffffff,
-    0x7fffffff,
-    0xffffffff,
-    0xffffffff,
-    0x80000001,
-    0xfffffffe,
+EXPECT_DATA(ors, uint32_t, TEST_DATA_N) {
+    0x1a36fefa, 0x00012341, 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff,
+    0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0x00000001,
+    0xfffffffe, 0x1a36fefa, 0x00012341, 0xffffffff, 0xffffffff, 0xffffffff,
+    0xffffffff, 0xffffffff, 0x7fffffff, 0x7fffffff, 0xffffffff, 0xffffffff,
+    0x80000001, 0xfffffffe,
 };
 
-static uint32_t orns_expect[] = {
-    0xf7fd577d,
-    0xffffffff,
-    0x00012341,
-    0xffffffff,
-    0xffffffff,
-    0xffffffff,
-    0xffffffff,
-    0xffffffff,
-    0xffffffff,
-    0xffffffff,
-    0x00000000,
-    0xfffffffe,
-    0x00000001,
-    0xf7fd577d,
-    0xffffffff,
-    0x00012341,
-    0xffffffff,
-    0xffffffff,
-    0xffffffff,
-    0xffffffff,
-    0xffffffff,
-    0xffffffff,
-    0x7fffffff,
-    0x80000000,
-    0xfffffffe,
-    0x80000001,
+EXPECT_DATA(orns, uint32_t, TEST_DATA_N) {
+    0xf7fd577d, 0xffffffff, 0x00012341, 0xffffffff, 0xffffffff, 0xffffffff,
+    0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0x00000000, 0xfffffffe,
+    0x00000001, 0xf7fd577d, 0xffffffff, 0x00012341, 0xffffffff, 0xffffffff,
+    0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0x7fffffff, 0x80000000,
+    0xfffffffe, 0x80000001,
 };
 
-static uint32_t xors_expect[] = {
-    0x1a26aca2,
-    0x00000000,
-    0xfffffffe,
-    0xffffffff,
-    0x00000000,
-    0xfffffffe,
-    0xfffffffd,
-    0xffffffff,
-    0xfffffffe,
-    0x00000000,
-    0xffffffff,
-    0x00000001,
-    0xfffffffe,
-    0x1a26aca2,
-    0x00000000,
-    0xfffffffe,
-    0xffffffff,
-    0x00000000,
-    0xfffffffe,
-    0xfffffffd,
-    0x7fffffff,
-    0x7ffffffe,
-    0x80000000,
-    0x7fffffff,
-    0x80000001,
-    0x7ffffffe,
+EXPECT_DATA(xors, uint32_t, TEST_DATA_N) {
+    0x1a26aca2, 0x00000000, 0xfffffffe, 0xffffffff, 0x00000000, 0xfffffffe,
+    0xfffffffd, 0xffffffff, 0xfffffffe, 0x00000000, 0xffffffff, 0x00000001,
+    0xfffffffe, 0x1a26aca2, 0x00000000, 0xfffffffe, 0xffffffff, 0x00000000,
+    0xfffffffe, 0xfffffffd, 0x7fffffff, 0x7ffffffe, 0x80000000, 0x7fffffff,
+    0x80000001, 0x7ffffffe,
 };
 
-static uint32_t xorns_expect[] = {
-    0xe5d9535d,
-    0xffffffff,
-    0x00000001,
-    0x00000000,
-    0xffffffff,
-    0x00000001,
-    0x00000002,
-    0x00000000,
-    0x00000001,
-    0xffffffff,
-    0x00000000,
-    0xfffffffe,
-    0x00000001,
-    0xe5d9535d,
-    0xffffffff,
-    0x00000001,
-    0x00000000,
-    0xffffffff,
-    0x00000001,
-    0x00000002,
-    0x80000000,
-    0x80000001,
-    0x7fffffff,
-    0x80000000,
-    0x7ffffffe,
-    0x80000001,
+EXPECT_DATA(xorns, uint32_t, TEST_DATA_N) {
+    0xe5d9535d, 0xffffffff, 0x00000001, 0x00000000, 0xffffffff, 0x00000001,
+    0x00000002, 0x00000000, 0x00000001, 0xffffffff, 0x00000000, 0xfffffffe,
+    0x00000001, 0xe5d9535d, 0xffffffff, 0x00000001, 0x00000000, 0xffffffff,
+    0x00000001, 0x00000002, 0x80000000, 0x80000001, 0x7fffffff, 0x80000000,
+    0x7ffffffe, 0x80000001,
 };
 
-static uint32_t adds_expect[] = {
-    0x1a475152,
-    0x00024682,
-    0x00000000,
-    0xffffffff,
-    0xfffffffe,
-    0x00000000,
-    0x00000001,
-    0xffffffff,
-    0x00000000,
-    0xfffffffe,
-    0xffffffff,
-    0x00000001,
-    0xfffffffe,
-    0x1a475152,
-    0x00024682,
-    0x00000000,
-    0xffffffff,
-    0xfffffffe,
-    0x00000000,
-    0x00000001,
-    0x7fffffff,
-    0x80000000,
-    0x7ffffffe,
-    0x7fffffff,
-    0x80000001,
-    0x7ffffffe,
+EXPECT_DATA(adds, uint32_t, TEST_DATA_N) {
+    0x1a475152, 0x00024682, 0x00000000, 0xffffffff, 0xfffffffe, 0x00000000,
+    0x00000001, 0xffffffff, 0x00000000, 0xfffffffe, 0xffffffff, 0x00000001,
+    0xfffffffe, 0x1a475152, 0x00024682, 0x00000000, 0xffffffff, 0xfffffffe,
+    0x00000000, 0x00000001, 0x7fffffff, 0x80000000, 0x7ffffffe, 0x7fffffff,
+    0x80000001, 0x7ffffffe,
 };
 
-static uint32_t subs_expect[] = {
-    0x0a215b9e,
-    0x00000000,
-    0x00024682,
-    0xffffffff,
-    0x00000000,
-    0xfffffffe,
-    0xfffffffd,
-    0xffffffff,
-    0xfffffffe,
-    0x00000000,
-    0x00000001,
-    0xffffffff,
-    0x00000002,
-    0x0a215b9e,
-    0x00000000,
-    0x00024682,
-    0xffffffff,
-    0x00000000,
-    0xfffffffe,
-    0xfffffffd,
-    0x7fffffff,
-    0x7ffffffe,
-    0x80000000,
-    0x80000001,
-    0x7fffffff,
-    0x80000002,
+EXPECT_DATA(subs, uint32_t, TEST_DATA_N) {
+    0x0a215b9e, 0x00000000, 0x00024682, 0xffffffff, 0x00000000, 0xfffffffe,
+    0xfffffffd, 0xffffffff, 0xfffffffe, 0x00000000, 0x00000001, 0xffffffff,
+    0x00000002, 0x0a215b9e, 0x00000000, 0x00024682, 0xffffffff, 0x00000000,
+    0xfffffffe, 0xfffffffd, 0x7fffffff, 0x7ffffffe, 0x80000000, 0x80000001,
+    0x7fffffff, 0x80000002,
 };
 
-static uint64_t andd_expect[] = {
-    0x0000000000105258,
-    0x0000000000012341,
-    0x0000000000000001,
-    0x0000000000000000,
-    0xffffffffffffffff,
-    0x0000000000000001,
-    0x0000000000000002,
-    0x0000000000000000,
-    0x0000000000000001,
-    0x7fffffffffffffff,
-    0x8000000000000000,
-    0x0000000000000000,
-    0x8000000000000000,
-    0xaaaaaaaa00105258,
-    0xaaaaaaaa00012341,
-    0xaaaaaaaa00000001,
-    0xaaaaaaaa00000000,
-    0xaaaaaaaaffffffff,
-    0xaaaaaaaa00000001,
-    0xaaaaaaaa00000002,
-    0xaaaaaaaa00000000,
-    0xaaaaaaaa00000001,
-    0xaaaaaaaa7fffffff,
-    0xaaaaaaaa80000000,
-    0xaaaaaaaa00000000,
-    0xaaaaaaaa80000000,
+EXPECT_DATA(andd, uint64_t, TEST_DATA_N) {
+    0x0000000000105258, 0x0000000000012341, 0x0000000000000001, 0x0000000000000000,
+    0xffffffffffffffff, 0x0000000000000001, 0x0000000000000002, 0x0000000000000000,
+    0x0000000000000001, 0x7fffffffffffffff, 0x8000000000000000, 0x0000000000000000,
+    0x8000000000000000, 0xaaaaaaaa00105258, 0xaaaaaaaa00012341, 0xaaaaaaaa00000001,
+    0xaaaaaaaa00000000, 0xaaaaaaaaffffffff, 0xaaaaaaaa00000001, 0xaaaaaaaa00000002,
+    0xaaaaaaaa00000000, 0xaaaaaaaa00000001, 0xaaaaaaaa7fffffff, 0xaaaaaaaa80000000,
+    0xaaaaaaaa00000000, 0xaaaaaaaa80000000,
 };
 
-static uint64_t andnd_expect[] = {
-    0x0000000012240420,
-    0x0000000000000000,
-    0x0000000000012340,
-    0xffffffffffffffff,
-    0x0000000000000000,
-    0xfffffffffffffffe,
-    0xfffffffffffffffd,
-    0x7fffffffffffffff,
-    0x7ffffffffffffffe,
-    0x0000000000000000,
-    0x0000000000000000,
-    0x8000000000000000,
-    0x0000000000000000,
-    0x0000000012240420,
-    0x0000000000000000,
-    0x0000000000012340,
-    0x00000000ffffffff,
-    0x0000000000000000,
-    0x00000000fffffffe,
-    0x00000000fffffffd,
-    0x000000007fffffff,
-    0x000000007ffffffe,
-    0x0000000000000000,
-    0x0000000000000000,
-    0x0000000080000000,
-    0x0000000000000000,
+EXPECT_DATA(andnd, uint64_t, TEST_DATA_N) {
+    0x0000000012240420, 0x0000000000000000, 0x0000000000012340, 0xffffffffffffffff,
+    0x0000000000000000, 0xfffffffffffffffe, 0xfffffffffffffffd, 0x7fffffffffffffff,
+    0x7ffffffffffffffe, 0x0000000000000000, 0x0000000000000000, 0x8000000000000000,
+    0x0000000000000000, 0x0000000012240420, 0x0000000000000000, 0x0000000000012340,
+    0x00000000ffffffff, 0x0000000000000000, 0x00000000fffffffe, 0x00000000fffffffd,
+    0x000000007fffffff, 0x000000007ffffffe, 0x0000000000000000, 0x0000000000000000,
+    0x0000000080000000, 0x0000000000000000,
 };
 
-static uint64_t ord_expect[] = {
-    0x000000001a36fefa,
-    0x0000000000012341,
-    0xffffffffffffffff,
-    0xffffffffffffffff,
-    0xffffffffffffffff,
-    0xffffffffffffffff,
-    0xffffffffffffffff,
-    0x7fffffffffffffff,
-    0x7fffffffffffffff,
-    0xffffffffffffffff,
-    0xffffffffffffffff,
-    0x8000000000000001,
-    0xfffffffffffffffe,
-    0xeeeeeeee1a36fefa,
-    0xeeeeeeee00012341,
-    0xeeeeeeeeffffffff,
-    0xeeeeeeeeffffffff,
-    0xeeeeeeeeffffffff,
-    0xeeeeeeeeffffffff,
-    0xeeeeeeeeffffffff,
-    0xeeeeeeee7fffffff,
-    0xeeeeeeee7fffffff,
-    0xeeeeeeeeffffffff,
-    0xeeeeeeeeffffffff,
-    0xeeeeeeee80000001,
-    0xeeeeeeeefffffffe,
+EXPECT_DATA(ord, uint64_t, TEST_DATA_N) {
+    0x000000001a36fefa, 0x0000000000012341, 0xffffffffffffffff, 0xffffffffffffffff,
+    0xffffffffffffffff, 0xffffffffffffffff, 0xffffffffffffffff, 0x7fffffffffffffff,
+    0x7fffffffffffffff, 0xffffffffffffffff, 0xffffffffffffffff, 0x8000000000000001,
+    0xfffffffffffffffe, 0xeeeeeeee1a36fefa, 0xeeeeeeee00012341, 0xeeeeeeeeffffffff,
+    0xeeeeeeeeffffffff, 0xeeeeeeeeffffffff, 0xeeeeeeeeffffffff, 0xeeeeeeeeffffffff,
+    0xeeeeeeee7fffffff, 0xeeeeeeee7fffffff, 0xeeeeeeeeffffffff, 0xeeeeeeeeffffffff,
+    0xeeeeeeee80000001, 0xeeeeeeeefffffffe,
 };
 
-static uint64_t ornd_expect[] = {
-    0xfffffffff7fd577d,
-    0xffffffffffffffff,
-    0x0000000000012341,
-    0xffffffffffffffff,
-    0xffffffffffffffff,
-    0xffffffffffffffff,
-    0xffffffffffffffff,
-    0xffffffffffffffff,
-    0xffffffffffffffff,
-    0x7fffffffffffffff,
-    0x8000000000000000,
-    0xfffffffffffffffe,
-    0x8000000000000001,
-    0xbbbbbbbbf7fd577d,
-    0xbbbbbbbbffffffff,
-    0xbbbbbbbb00012341,
-    0xbbbbbbbbffffffff,
-    0xbbbbbbbbffffffff,
-    0xbbbbbbbbffffffff,
-    0xbbbbbbbbffffffff,
-    0xbbbbbbbbffffffff,
-    0xbbbbbbbbffffffff,
-    0xbbbbbbbb7fffffff,
-    0xbbbbbbbb80000000,
-    0xbbbbbbbbfffffffe,
-    0xbbbbbbbb80000001,
+EXPECT_DATA(ornd, uint64_t, TEST_DATA_N) {
+    0xfffffffff7fd577d, 0xffffffffffffffff, 0x0000000000012341, 0xffffffffffffffff,
+    0xffffffffffffffff, 0xffffffffffffffff, 0xffffffffffffffff, 0xffffffffffffffff,
+    0xffffffffffffffff, 0x7fffffffffffffff, 0x8000000000000000, 0xfffffffffffffffe,
+    0x8000000000000001, 0xbbbbbbbbf7fd577d, 0xbbbbbbbbffffffff, 0xbbbbbbbb00012341,
+    0xbbbbbbbbffffffff, 0xbbbbbbbbffffffff, 0xbbbbbbbbffffffff, 0xbbbbbbbbffffffff,
+    0xbbbbbbbbffffffff, 0xbbbbbbbbffffffff, 0xbbbbbbbb7fffffff, 0xbbbbbbbb80000000,
+    0xbbbbbbbbfffffffe, 0xbbbbbbbb80000001,
 };
 
-static uint64_t xord_expect[] = {
-    0x000000001a26aca2,
-    0x0000000000000000,
-    0xfffffffffffffffe,
-    0xffffffffffffffff,
-    0x0000000000000000,
-    0xfffffffffffffffe,
-    0xfffffffffffffffd,
-    0x7fffffffffffffff,
-    0x7ffffffffffffffe,
-    0x8000000000000000,
-    0x7fffffffffffffff,
-    0x8000000000000001,
-    0x7ffffffffffffffe,
-    0x444444441a26aca2,
-    0x4444444400000000,
-    0x44444444fffffffe,
-    0x44444444ffffffff,
-    0x4444444400000000,
-    0x44444444fffffffe,
-    0x44444444fffffffd,
-    0x444444447fffffff,
-    0x444444447ffffffe,
-    0x4444444480000000,
-    0x444444447fffffff,
-    0x4444444480000001,
-    0x444444447ffffffe,
+EXPECT_DATA(xord, uint64_t, TEST_DATA_N) {
+    0x000000001a26aca2, 0x0000000000000000, 0xfffffffffffffffe, 0xffffffffffffffff,
+    0x0000000000000000, 0xfffffffffffffffe, 0xfffffffffffffffd, 0x7fffffffffffffff,
+    0x7ffffffffffffffe, 0x8000000000000000, 0x7fffffffffffffff, 0x8000000000000001,
+    0x7ffffffffffffffe, 0x444444441a26aca2, 0x4444444400000000, 0x44444444fffffffe,
+    0x44444444ffffffff, 0x4444444400000000, 0x44444444fffffffe, 0x44444444fffffffd,
+    0x444444447fffffff, 0x444444447ffffffe, 0x4444444480000000, 0x444444447fffffff,
+    0x4444444480000001, 0x444444447ffffffe,
 };
 
-static uint64_t xornd_expect[] = {
-    0xffffffffe5d9535d,
-    0xffffffffffffffff,
-    0x0000000000000001,
-    0x0000000000000000,
-    0xffffffffffffffff,
-    0x0000000000000001,
-    0x0000000000000002,
-    0x8000000000000000,
-    0x8000000000000001,
-    0x7fffffffffffffff,
-    0x8000000000000000,
-    0x7ffffffffffffffe,
-    0x8000000000000001,
-    0xbbbbbbbbe5d9535d,
-    0xbbbbbbbbffffffff,
-    0xbbbbbbbb00000001,
-    0xbbbbbbbb00000000,
-    0xbbbbbbbbffffffff,
-    0xbbbbbbbb00000001,
-    0xbbbbbbbb00000002,
-    0xbbbbbbbb80000000,
-    0xbbbbbbbb80000001,
-    0xbbbbbbbb7fffffff,
-    0xbbbbbbbb80000000,
-    0xbbbbbbbb7ffffffe,
-    0xbbbbbbbb80000001,
+EXPECT_DATA(xornd, uint64_t, TEST_DATA_N) {
+    0xffffffffe5d9535d, 0xffffffffffffffff, 0x0000000000000001, 0x0000000000000000,
+    0xffffffffffffffff, 0x0000000000000001, 0x0000000000000002, 0x8000000000000000,
+    0x8000000000000001, 0x7fffffffffffffff, 0x8000000000000000, 0x7ffffffffffffffe,
+    0x8000000000000001, 0xbbbbbbbbe5d9535d, 0xbbbbbbbbffffffff, 0xbbbbbbbb00000001,
+    0xbbbbbbbb00000000, 0xbbbbbbbbffffffff, 0xbbbbbbbb00000001, 0xbbbbbbbb00000002,
+    0xbbbbbbbb80000000, 0xbbbbbbbb80000001, 0xbbbbbbbb7fffffff, 0xbbbbbbbb80000000,
+    0xbbbbbbbb7ffffffe, 0xbbbbbbbb80000001,
 };
 
-static uint64_t addd_expect[] = {
-    0x000000001a475152,
-    0x0000000000024682,
-    0x0000000000000000,
-    0xffffffffffffffff,
-    0xfffffffffffffffe,
-    0x0000000000000000,
-    0x0000000000000001,
-    0x7fffffffffffffff,
-    0x8000000000000000,
-    0x7ffffffffffffffe,
-    0x7fffffffffffffff,
-    0x8000000000000001,
-    0x7ffffffffffffffe,
-    0x999999981a475152,
-    0x9999999800024682,
-    0x9999999900000000,
-    0x99999998ffffffff,
-    0x99999999fffffffe,
-    0x9999999900000000,
-    0x9999999900000001,
-    0x999999987fffffff,
-    0x9999999880000000,
-    0x999999997ffffffe,
-    0x999999997fffffff,
-    0x9999999880000001,
-    0x999999997ffffffe,
+EXPECT_DATA(addd, uint64_t, TEST_DATA_N) {
+    0x000000001a475152, 0x0000000000024682, 0x0000000000000000, 0xffffffffffffffff,
+    0xfffffffffffffffe, 0x0000000000000000, 0x0000000000000001, 0x7fffffffffffffff,
+    0x8000000000000000, 0x7ffffffffffffffe, 0x7fffffffffffffff, 0x8000000000000001,
+    0x7ffffffffffffffe, 0x999999981a475152, 0x9999999800024682, 0x9999999900000000,
+    0x99999998ffffffff, 0x99999999fffffffe, 0x9999999900000000, 0x9999999900000001,
+    0x999999987fffffff, 0x9999999880000000, 0x999999997ffffffe, 0x999999997fffffff,
+    0x9999999880000001, 0x999999997ffffffe,
 };
 
-static uint64_t subd_expect[] = {
-    0x000000000a215b9e,
-    0x0000000000000000,
-    0x0000000000024682,
-    0xffffffffffffffff,
-    0x0000000000000000,
-    0xfffffffffffffffe,
-    0xfffffffffffffffd,
-    0x7fffffffffffffff,
-    0x7ffffffffffffffe,
-    0x8000000000000000,
-    0x8000000000000001,
-    0x7fffffffffffffff,
-    0x8000000000000002,
-    0xbbbbbbbc0a215b9e,
-    0xbbbbbbbc00000000,
-    0xbbbbbbbb00024682,
-    0xbbbbbbbcffffffff,
-    0xbbbbbbbc00000000,
-    0xbbbbbbbcfffffffe,
-    0xbbbbbbbcfffffffd,
-    0xbbbbbbbc7fffffff,
-    0xbbbbbbbc7ffffffe,
-    0xbbbbbbbb80000000,
-    0xbbbbbbbb80000001,
-    0xbbbbbbbc7fffffff,
-    0xbbbbbbbb80000002,
+EXPECT_DATA(subd, uint64_t, TEST_DATA_N) {
+    0x000000000a215b9e, 0x0000000000000000, 0x0000000000024682, 0xffffffffffffffff,
+    0x0000000000000000, 0xfffffffffffffffe, 0xfffffffffffffffd, 0x7fffffffffffffff,
+    0x7ffffffffffffffe, 0x8000000000000000, 0x8000000000000001, 0x7fffffffffffffff,
+    0x8000000000000002, 0xbbbbbbbc0a215b9e, 0xbbbbbbbc00000000, 0xbbbbbbbb00024682,
+    0xbbbbbbbcffffffff, 0xbbbbbbbc00000000, 0xbbbbbbbcfffffffe, 0xbbbbbbbcfffffffd,
+    0xbbbbbbbc7fffffff, 0xbbbbbbbc7ffffffe, 0xbbbbbbbb80000000, 0xbbbbbbbb80000001,
+    0xbbbbbbbc7fffffff, 0xbbbbbbbb80000002,
 };
 
 #define TEST_SXT(EXEC) \
@@ -666,6 +350,7 @@ GROUP("getfd reg, imm");
 }
 
 static void test_cmpb(void) {
+#define CMP_TEST_DATA_N ARRAY_SIZE(cmp_test_data)
     static struct e2k_test_data cmp_test_data[] = {
         { 0x0000000000000000, 0x0000000000000000 },
         { 0x0000000000000000, 0x0000000000000001 },
@@ -779,7 +464,7 @@ static void test_cmpb(void) {
     };
 
     // 32-bit
-    static bool cmposb_expect[] = {
+    EXPECT_DATA(cmposb, bool, CMP_TEST_DATA_N) {
         0, 0, 0, 1, 0, 0, 0, 0, 0, 0,
         0, 0, 0, 1, 0, 0, 0, 0, 0, 0,
         0, 0, 0, 1, 1, 1, 1, 0, 1, 1,
@@ -792,7 +477,7 @@ static void test_cmpb(void) {
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     };
 
-    static bool cmpbsb_expect[] = {
+    EXPECT_DATA(cmpbsb, bool, CMP_TEST_DATA_N) {
         0, 1, 1, 1, 1, 1, 1, 0, 1, 1,
         0, 0, 1, 1, 1, 1, 1, 0, 1, 1,
         0, 0, 0, 1, 1, 1, 1, 0, 1, 1,
@@ -805,7 +490,7 @@ static void test_cmpb(void) {
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     };
 
-    static bool cmpesb_expect[] = {
+    EXPECT_DATA(cmpesb, bool, CMP_TEST_DATA_N) {
         1, 0, 0, 0, 0, 0, 0, 1, 0, 0,
         0, 1, 0, 0, 0, 0, 0, 0, 0, 0,
         0, 0, 1, 0, 0, 0, 0, 0, 0, 0,
@@ -818,7 +503,7 @@ static void test_cmpb(void) {
         0, 0, 0, 0, 0, 1, 1, 0, 0, 1,
     };
 
-    static bool cmpbesb_expect[] = {
+    EXPECT_DATA(cmpbesb, bool, CMP_TEST_DATA_N) {
         1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
         0, 1, 1, 1, 1, 1, 1, 0, 1, 1,
         0, 0, 1, 1, 1, 1, 1, 0, 1, 1,
@@ -831,7 +516,7 @@ static void test_cmpb(void) {
         0, 0, 0, 0, 0, 1, 1, 0, 0, 1,
     };
 
-    static bool cmpssb_expect[] = {
+    EXPECT_DATA(cmpssb, bool, CMP_TEST_DATA_N) {
         0, 1, 1, 1, 0, 0, 0, 0, 0, 0,
         0, 0, 1, 1, 0, 0, 0, 0, 0, 0,
         0, 0, 0, 1, 1, 1, 1, 0, 1, 1,
@@ -844,7 +529,7 @@ static void test_cmpb(void) {
         1, 1, 1, 0, 0, 0, 0, 1, 0, 0,
     };
 
-    static bool cmppsb_expect[] = {
+    EXPECT_DATA(cmppsb, bool, CMP_TEST_DATA_N) {
         1, 1, 0, 1, 1, 0, 0, 1, 1, 0,
         0, 1, 0, 0, 1, 0, 0, 0, 1, 0,
         1, 0, 1, 1, 0, 1, 1, 1, 0, 1,
@@ -857,7 +542,7 @@ static void test_cmpb(void) {
         1, 0, 1, 1, 0, 1, 1, 1, 0, 1,
     };
 
-    static bool cmplsb_expect[] = {
+    EXPECT_DATA(cmplsb, bool, CMP_TEST_DATA_N) {
         0, 1, 1, 0, 0, 0, 0, 0, 0, 0,
         0, 0, 1, 0, 0, 0, 0, 0, 0, 0,
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -870,7 +555,7 @@ static void test_cmpb(void) {
         1, 1, 1, 0, 0, 0, 0, 1, 0, 0,
     };
 
-    static bool cmplesb_expect[] = {
+    EXPECT_DATA(cmplesb, bool, CMP_TEST_DATA_N) {
         1, 1, 1, 0, 0, 0, 0, 1, 0, 0,
         0, 1, 1, 0, 0, 0, 0, 0, 0, 0,
         0, 0, 1, 0, 0, 0, 0, 0, 0, 0,
@@ -884,7 +569,7 @@ static void test_cmpb(void) {
     };
 
     // 64-bit
-    static bool cmpodb_expect[] = {
+    EXPECT_DATA(cmpodb, bool, CMP_TEST_DATA_N) {
         0, 0, 0, 0, 0, 0, 0, 1, 0, 0,
         0, 0, 0, 0, 0, 0, 0, 1, 0, 0,
         0, 0, 0, 0, 0, 0, 0, 1, 0, 0,
@@ -897,7 +582,7 @@ static void test_cmpb(void) {
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     };
 
-    static bool cmpbdb_expect[] = {
+    EXPECT_DATA(cmpbdb, bool, CMP_TEST_DATA_N) {
         0, 1, 1, 1, 1, 1, 1, 1, 1, 1,
         0, 0, 1, 1, 1, 1, 1, 1, 1, 1,
         0, 0, 0, 1, 1, 1, 1, 1, 1, 1,
@@ -910,7 +595,7 @@ static void test_cmpb(void) {
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     };
 
-    static bool cmpedb_expect[] = {
+    EXPECT_DATA(cmpedb, bool, CMP_TEST_DATA_N) {
         1, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         0, 1, 0, 0, 0, 0, 0, 0, 0, 0,
         0, 0, 1, 0, 0, 0, 0, 0, 0, 0,
@@ -923,7 +608,7 @@ static void test_cmpb(void) {
         0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
     };
 
-    static bool cmpbedb_expect[] = {
+    EXPECT_DATA(cmpbedb, bool, CMP_TEST_DATA_N) {
         1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
         0, 1, 1, 1, 1, 1, 1, 1, 1, 1,
         0, 0, 1, 1, 1, 1, 1, 1, 1, 1,
@@ -936,7 +621,7 @@ static void test_cmpb(void) {
         0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
     };
 
-    static bool cmpsdb_expect[] = {
+    EXPECT_DATA(cmpsdb, bool, CMP_TEST_DATA_N) {
         0, 1, 1, 1, 1, 1, 1, 1, 0, 0,
         0, 0, 1, 1, 1, 1, 1, 1, 0, 0,
         0, 0, 0, 1, 1, 1, 1, 1, 0, 0,
@@ -949,7 +634,7 @@ static void test_cmpb(void) {
         1, 1, 1, 1, 1, 1, 1, 0, 0, 0,
     };
 
-    static bool cmppdb_expect[] = {
+    EXPECT_DATA(cmppdb, bool, CMP_TEST_DATA_N) {
         1, 1, 0, 1, 1, 0, 0, 1, 1, 0,
         0, 1, 0, 0, 1, 0, 0, 0, 1, 0,
         1, 0, 1, 1, 0, 1, 1, 1, 0, 1,
@@ -962,7 +647,7 @@ static void test_cmpb(void) {
         1, 0, 1, 1, 0, 1, 1, 1, 0, 1,
     };
 
-    static bool cmpldb_expect[] = {
+    EXPECT_DATA(cmpldb, bool, CMP_TEST_DATA_N) {
         0, 1, 1, 1, 1, 1, 1, 0, 0, 0,
         0, 0, 1, 1, 1, 1, 1, 0, 0, 0,
         0, 0, 0, 1, 1, 1, 1, 0, 0, 0,
@@ -975,7 +660,7 @@ static void test_cmpb(void) {
         1, 1, 1, 1, 1, 1, 1, 0, 0, 0,
     };
 
-    static bool cmpledb_expect[] = {
+    EXPECT_DATA(cmpledb, bool, CMP_TEST_DATA_N) {
         1, 1, 1, 1, 1, 1, 1, 0, 0, 0,
         0, 1, 1, 1, 1, 1, 1, 0, 0, 0,
         0, 0, 1, 1, 1, 1, 1, 0, 0, 0,
