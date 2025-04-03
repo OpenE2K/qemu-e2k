@@ -18,6 +18,9 @@ $(E2K_TESTS_ASM): LDFLAGS += -nostdlib
 E2K_SRCS = $(notdir $(wildcard $(E2K_SRC_PATH)/*.c))
 E2K_TESTS = $(E2K_SRCS:.c=)
 
+# set light optimization level to reduce binary size
+e2k-v1: CFLAGS += -O1
+
 E2K_ALL_TESTS := $(E2K_TESTS_ASM) $(E2K_TESTS)
 TESTS = $(MULTIARCH_TESTS) $(E2K_ALL_TESTS)
 
