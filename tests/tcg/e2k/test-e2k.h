@@ -250,4 +250,52 @@ void report_fail3(const char *file, int line, const char *insn,
 #define CHECK3_32(EXEC, INSN, CHAN, S1, S2, S3, EXPECT) \
     CHECK3(EXEC, INSN, CHAN, S1, S2, S3, (uint32_t) (EXPECT))
 
+#define CHECK2_ALL(EXEC, INSN, S1, S2, EXPECT) \
+    CHECK2(EXEC, INSN, 0, S1, S2, EXPECT); \
+    CHECK2(EXEC, INSN, 1, S1, S2, EXPECT); \
+    CHECK2(EXEC, INSN, 2, S1, S2, EXPECT); \
+    CHECK2(EXEC, INSN, 3, S1, S2, EXPECT); \
+    CHECK2(EXEC, INSN, 4, S1, S2, EXPECT); \
+    CHECK2(EXEC, INSN, 5, S1, S2, EXPECT)
+
+#define CHECK2_0134(EXEC, INSN, S1, S2, EXPECT) \
+    CHECK2(EXEC, INSN, 0, S1, S2, EXPECT); \
+    CHECK2(EXEC, INSN, 1, S1, S2, EXPECT); \
+    CHECK2(EXEC, INSN, 3, S1, S2, EXPECT); \
+    CHECK2(EXEC, INSN, 4, S1, S2, EXPECT)
+
+#define CHECK2_0235(EXEC, INSN, S1, S2, EXPECT) \
+    CHECK2(EXEC, INSN, 0, S1, S2, EXPECT); \
+    CHECK2(EXEC, INSN, 2, S1, S2, EXPECT); \
+    CHECK2(EXEC, INSN, 3, S1, S2, EXPECT); \
+    CHECK2(EXEC, INSN, 5, S1, S2, EXPECT)
+
+#define CHECK2_25(EXEC, INSN, S1, S2, EXPECT) \
+    CHECK2(EXEC, INSN, 2, S1, S2, EXPECT); \
+    CHECK2(EXEC, INSN, 5, S1, S2, EXPECT)
+
+#define CHECK2_5(EXEC, INSN, S1, S2, EXPECT) \
+    CHECK2(EXEC, INSN, 5, S1, S2, EXPECT)
+
+#define TEST1_DATA(CHECK, EXEC, INSN, DATA, EXPECT) \
+    GROUP(#INSN); \
+    for (int i = 0; i < ARRAY_SIZE(DATA); ++i) { \
+        CHECK(EXEC, INSN, DATA[i].src1, EXPECT[i]); \
+    }
+
+#define TEST2_DATA(CHECK, EXEC, INSN, DATA, EXPECT) \
+    GROUP(#INSN); \
+    for (int i = 0; i < ARRAY_SIZE(DATA); ++i) { \
+        CHECK(EXEC, INSN, DATA[i].src1, DATA[i].src2, EXPECT[i]); \
+    }
+
+#define TEST3_DATA(CHECK, EXEC, INSN, DATA, EXPECT) \
+    GROUP(#INSN); \
+    for (int i = 0; i < ARRAY_SIZE(DATA); ++i) { \
+        CHECK(EXEC, INSN, DATA[i].src1, DATA[i].src2, DATA[i].src3, EXPECT[i]); \
+    }
+
+#define EXPECT_DATA(INSN, TYPE, COUNT) \
+    static TYPE glue(INSN, _expect)[COUNT] =
+
 #endif /* TESTS_TCG_E2K_E2K_H */
