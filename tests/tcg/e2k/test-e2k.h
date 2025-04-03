@@ -123,7 +123,7 @@ static int total_fails = 0;
     fprintf(stderr, "\n    " INSN_FMT SRC_FMT "\n", "expected", SRC(EXPECT))
 
 #define DUMP_RES(FILE, INSN, CHAN, X) \
-    fprintf(FILE, "  %d " INSN_FMT RES_FMT, CHAN, #INSN, RES(X))
+    fprintf(FILE, "  %d " INSN_FMT RES_FMT, CHAN, INSN, RES(X))
 #define DUMP_SRC(FILE, X) \
     fprintf(FILE, SRC_FMT, SRC(X))
 #define DUMP_PRED(FILE, X) \
