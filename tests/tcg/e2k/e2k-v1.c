@@ -1,5 +1,5 @@
 #include "test-e2k.h"
-#include <stdint.h>
+#include <stdbool.h>
 
 #define CHECK2_ALL(EXEC, INSN, S1, S2, EXPECT) \
     CHECK2(EXEC, INSN, 0, S1, S2, EXPECT); \
@@ -8,6 +8,12 @@
     CHECK2(EXEC, INSN, 3, S1, S2, EXPECT); \
     CHECK2(EXEC, INSN, 4, S1, S2, EXPECT); \
     CHECK2(EXEC, INSN, 5, S1, S2, EXPECT)
+
+#define CHECK2_0134(EXEC, INSN, S1, S2, EXPECT) \
+    CHECK2(EXEC, INSN, 0, S1, S2, EXPECT); \
+    CHECK2(EXEC, INSN, 1, S1, S2, EXPECT); \
+    CHECK2(EXEC, INSN, 3, S1, S2, EXPECT); \
+    CHECK2(EXEC, INSN, 4, S1, S2, EXPECT)
 
 #define TEST2_DEFAULT_DATA(CHANNELS, EXEC, INSN) \
     GROUP(#INSN); \
@@ -659,6 +665,354 @@ GROUP("getfd reg, imm");
 #include "test-getf.inc"
 }
 
+static void test_cmpb(void) {
+    static struct e2k_test_data cmp_test_data[] = {
+        { 0x0000000000000000, 0x0000000000000000 },
+        { 0x0000000000000000, 0x0000000000000001 },
+        { 0x0000000000000000, 0x000000007fffffff },
+        { 0x0000000000000000, 0x0000000080000000 },
+        { 0x0000000000000000, 0x00000000deadbeef },
+        { 0x0000000000000000, 0x00000000ffffffff },
+        { 0x0000000000000000, 0x7fffffffffffffff },
+        { 0x0000000000000000, 0x8000000000000000 },
+        { 0x0000000000000000, 0xdeadbeefdeadbeef },
+        { 0x0000000000000000, 0xffffffffffffffff },
+
+        { 0x0000000000000001, 0x0000000000000000 },
+        { 0x0000000000000001, 0x0000000000000001 },
+        { 0x0000000000000001, 0x000000007fffffff },
+        { 0x0000000000000001, 0x0000000080000000 },
+        { 0x0000000000000001, 0x00000000deadbeef },
+        { 0x0000000000000001, 0x00000000ffffffff },
+        { 0x0000000000000001, 0x7fffffffffffffff },
+        { 0x0000000000000001, 0x8000000000000000 },
+        { 0x0000000000000001, 0xdeadbeefdeadbeef },
+        { 0x0000000000000001, 0xffffffffffffffff },
+
+        { 0x000000007fffffff, 0x0000000000000000 },
+        { 0x000000007fffffff, 0x0000000000000001 },
+        { 0x000000007fffffff, 0x000000007fffffff },
+        { 0x000000007fffffff, 0x0000000080000000 },
+        { 0x000000007fffffff, 0x00000000deadbeef },
+        { 0x000000007fffffff, 0x00000000ffffffff },
+        { 0x000000007fffffff, 0x7fffffffffffffff },
+        { 0x000000007fffffff, 0x8000000000000000 },
+        { 0x000000007fffffff, 0xdeadbeefdeadbeef },
+        { 0x000000007fffffff, 0xffffffffffffffff },
+
+        { 0x0000000080000000, 0x0000000000000000 },
+        { 0x0000000080000000, 0x0000000000000001 },
+        { 0x0000000080000000, 0x000000007fffffff },
+        { 0x0000000080000000, 0x0000000080000000 },
+        { 0x0000000080000000, 0x00000000deadbeef },
+        { 0x0000000080000000, 0x00000000ffffffff },
+        { 0x0000000080000000, 0x7fffffffffffffff },
+        { 0x0000000080000000, 0x8000000000000000 },
+        { 0x0000000080000000, 0xdeadbeefdeadbeef },
+        { 0x0000000080000000, 0xffffffffffffffff },
+
+        { 0x00000000deadbeef, 0x0000000000000000 },
+        { 0x00000000deadbeef, 0x0000000000000001 },
+        { 0x00000000deadbeef, 0x000000007fffffff },
+        { 0x00000000deadbeef, 0x0000000080000000 },
+        { 0x00000000deadbeef, 0x00000000deadbeef },
+        { 0x00000000deadbeef, 0x00000000ffffffff },
+        { 0x00000000deadbeef, 0x7fffffffffffffff },
+        { 0x00000000deadbeef, 0x8000000000000000 },
+        { 0x00000000deadbeef, 0xdeadbeefdeadbeef },
+        { 0x00000000deadbeef, 0xffffffffffffffff },
+
+        { 0x00000000ffffffff, 0x0000000000000000 },
+        { 0x00000000ffffffff, 0x0000000000000001 },
+        { 0x00000000ffffffff, 0x000000007fffffff },
+        { 0x00000000ffffffff, 0x0000000080000000 },
+        { 0x00000000ffffffff, 0x00000000deadbeef },
+        { 0x00000000ffffffff, 0x00000000ffffffff },
+        { 0x00000000ffffffff, 0x7fffffffffffffff },
+        { 0x00000000ffffffff, 0x8000000000000000 },
+        { 0x00000000ffffffff, 0xdeadbeefdeadbeef },
+        { 0x00000000ffffffff, 0xffffffffffffffff },
+
+        { 0x7fffffffffffffff, 0x0000000000000000 },
+        { 0x7fffffffffffffff, 0x0000000000000001 },
+        { 0x7fffffffffffffff, 0x000000007fffffff },
+        { 0x7fffffffffffffff, 0x0000000080000000 },
+        { 0x7fffffffffffffff, 0x00000000deadbeef },
+        { 0x7fffffffffffffff, 0x00000000ffffffff },
+        { 0x7fffffffffffffff, 0x7fffffffffffffff },
+        { 0x7fffffffffffffff, 0x8000000000000000 },
+        { 0x7fffffffffffffff, 0xdeadbeefdeadbeef },
+        { 0x7fffffffffffffff, 0xffffffffffffffff },
+
+        { 0x8000000000000000, 0x0000000000000000 },
+        { 0x8000000000000000, 0x0000000000000001 },
+        { 0x8000000000000000, 0x000000007fffffff },
+        { 0x8000000000000000, 0x0000000080000000 },
+        { 0x8000000000000000, 0x00000000deadbeef },
+        { 0x8000000000000000, 0x00000000ffffffff },
+        { 0x8000000000000000, 0x7fffffffffffffff },
+        { 0x8000000000000000, 0x8000000000000000 },
+        { 0x8000000000000000, 0xdeadbeefdeadbeef },
+        { 0x8000000000000000, 0xffffffffffffffff },
+
+        { 0xdeadbeefdeadbeef, 0x0000000000000000 },
+        { 0xdeadbeefdeadbeef, 0x0000000000000001 },
+        { 0xdeadbeefdeadbeef, 0x000000007fffffff },
+        { 0xdeadbeefdeadbeef, 0x0000000080000000 },
+        { 0xdeadbeefdeadbeef, 0x00000000deadbeef },
+        { 0xdeadbeefdeadbeef, 0x00000000ffffffff },
+        { 0xdeadbeefdeadbeef, 0x7fffffffffffffff },
+        { 0xdeadbeefdeadbeef, 0x8000000000000000 },
+        { 0xdeadbeefdeadbeef, 0xdeadbeefdeadbeef },
+        { 0xdeadbeefdeadbeef, 0xffffffffffffffff },
+
+        { 0xffffffffffffffff, 0x0000000000000000 },
+        { 0xffffffffffffffff, 0x0000000000000001 },
+        { 0xffffffffffffffff, 0x000000007fffffff },
+        { 0xffffffffffffffff, 0x0000000080000000 },
+        { 0xffffffffffffffff, 0x00000000deadbeef },
+        { 0xffffffffffffffff, 0x00000000ffffffff },
+        { 0xffffffffffffffff, 0x7fffffffffffffff },
+        { 0xffffffffffffffff, 0x8000000000000000 },
+        { 0xffffffffffffffff, 0xdeadbeefdeadbeef },
+        { 0xffffffffffffffff, 0xffffffffffffffff },
+    };
+
+    // 32-bit
+    static bool cmposb_expect[] = {
+        0, 0, 0, 1, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 1, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 1, 1, 1, 1, 0, 1, 1,
+        0, 1, 1, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 1, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 1, 0, 0, 0, 0, 0, 0,
+        0, 0, 1, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    };
+
+    static bool cmpbsb_expect[] = {
+        0, 1, 1, 1, 1, 1, 1, 0, 1, 1,
+        0, 0, 1, 1, 1, 1, 1, 0, 1, 1,
+        0, 0, 0, 1, 1, 1, 1, 0, 1, 1,
+        0, 0, 0, 0, 1, 1, 1, 0, 1, 1,
+        0, 0, 0, 0, 0, 1, 1, 0, 0, 1,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 1, 1, 1, 1, 1, 1, 0, 1, 1,
+        0, 0, 0, 0, 0, 1, 1, 0, 0, 1,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    };
+
+    static bool cmpesb_expect[] = {
+        1, 0, 0, 0, 0, 0, 0, 1, 0, 0,
+        0, 1, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 1, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 1, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 1, 0, 0, 0, 1, 0,
+        0, 0, 0, 0, 0, 1, 1, 0, 0, 1,
+        0, 0, 0, 0, 0, 1, 1, 0, 0, 1,
+        1, 0, 0, 0, 0, 0, 0, 1, 0, 0,
+        0, 0, 0, 0, 1, 0, 0, 0, 1, 0,
+        0, 0, 0, 0, 0, 1, 1, 0, 0, 1,
+    };
+
+    static bool cmpbesb_expect[] = {
+        1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+        0, 1, 1, 1, 1, 1, 1, 0, 1, 1,
+        0, 0, 1, 1, 1, 1, 1, 0, 1, 1,
+        0, 0, 0, 1, 1, 1, 1, 0, 1, 1,
+        0, 0, 0, 0, 1, 1, 1, 0, 1, 1,
+        0, 0, 0, 0, 0, 1, 1, 0, 0, 1,
+        0, 0, 0, 0, 0, 1, 1, 0, 0, 1,
+        1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+        0, 0, 0, 0, 1, 1, 1, 0, 1, 1,
+        0, 0, 0, 0, 0, 1, 1, 0, 0, 1,
+    };
+
+    static bool cmpssb_expect[] = {
+        0, 1, 1, 1, 0, 0, 0, 0, 0, 0,
+        0, 0, 1, 1, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 1, 1, 1, 1, 0, 1, 1,
+        1, 0, 0, 0, 1, 1, 1, 1, 1, 1,
+        1, 1, 0, 0, 0, 1, 1, 1, 0, 1,
+        1, 1, 1, 0, 0, 0, 0, 1, 0, 0,
+        1, 1, 1, 0, 0, 0, 0, 1, 0, 0,
+        0, 1, 1, 1, 0, 0, 0, 0, 0, 0,
+        1, 1, 0, 0, 0, 1, 1, 1, 0, 1,
+        1, 1, 1, 0, 0, 0, 0, 1, 0, 0,
+    };
+
+    static bool cmppsb_expect[] = {
+        1, 1, 0, 1, 1, 0, 0, 1, 1, 0,
+        0, 1, 0, 0, 1, 0, 0, 0, 1, 0,
+        1, 0, 1, 1, 0, 1, 1, 1, 0, 1,
+        1, 1, 0, 1, 1, 0, 0, 1, 1, 0,
+        0, 1, 1, 0, 1, 1, 1, 0, 1, 1,
+        1, 0, 1, 1, 0, 1, 1, 1, 0, 1,
+        1, 0, 1, 1, 0, 1, 1, 1, 0, 1,
+        1, 1, 0, 1, 1, 0, 0, 1, 1, 0,
+        0, 1, 1, 0, 1, 1, 1, 0, 1, 1,
+        1, 0, 1, 1, 0, 1, 1, 1, 0, 1,
+    };
+
+    static bool cmplsb_expect[] = {
+        0, 1, 1, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 1, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        1, 1, 1, 0, 1, 1, 1, 1, 1, 1,
+        1, 1, 1, 0, 0, 1, 1, 1, 0, 1,
+        1, 1, 1, 0, 0, 0, 0, 1, 0, 0,
+        1, 1, 1, 0, 0, 0, 0, 1, 0, 0,
+        0, 1, 1, 0, 0, 0, 0, 0, 0, 0,
+        1, 1, 1, 0, 0, 1, 1, 1, 0, 1,
+        1, 1, 1, 0, 0, 0, 0, 1, 0, 0,
+    };
+
+    static bool cmplesb_expect[] = {
+        1, 1, 1, 0, 0, 0, 0, 1, 0, 0,
+        0, 1, 1, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 1, 0, 0, 0, 0, 0, 0, 0,
+        1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+        1, 1, 1, 0, 1, 1, 1, 1, 1, 1,
+        1, 1, 1, 0, 0, 1, 1, 1, 0, 1,
+        1, 1, 1, 0, 0, 1, 1, 1, 0, 1,
+        1, 1, 1, 0, 0, 0, 0, 1, 0, 0,
+        1, 1, 1, 0, 1, 1, 1, 1, 1, 1,
+        1, 1, 1, 0, 0, 1, 1, 1, 0, 1,
+    };
+
+    // 64-bit
+    static bool cmpodb_expect[] = {
+        0, 0, 0, 0, 0, 0, 0, 1, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 1, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 1, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 1, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 1, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 1, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 1, 1, 1,
+        0, 1, 1, 1, 1, 1, 1, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 1, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    };
+
+    static bool cmpbdb_expect[] = {
+        0, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+        0, 0, 1, 1, 1, 1, 1, 1, 1, 1,
+        0, 0, 0, 1, 1, 1, 1, 1, 1, 1,
+        0, 0, 0, 0, 1, 1, 1, 1, 1, 1,
+        0, 0, 0, 0, 0, 1, 1, 1, 1, 1,
+        0, 0, 0, 0, 0, 0, 1, 1, 1, 1,
+        0, 0, 0, 0, 0, 0, 0, 1, 1, 1,
+        0, 0, 0, 0, 0, 0, 0, 0, 1, 1,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    };
+
+    static bool cmpedb_expect[] = {
+        1, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 1, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 1, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 1, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 1, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 1, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 1, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 1, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 1, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
+    };
+
+    static bool cmpbedb_expect[] = {
+        1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+        0, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+        0, 0, 1, 1, 1, 1, 1, 1, 1, 1,
+        0, 0, 0, 1, 1, 1, 1, 1, 1, 1,
+        0, 0, 0, 0, 1, 1, 1, 1, 1, 1,
+        0, 0, 0, 0, 0, 1, 1, 1, 1, 1,
+        0, 0, 0, 0, 0, 0, 1, 1, 1, 1,
+        0, 0, 0, 0, 0, 0, 0, 1, 1, 1,
+        0, 0, 0, 0, 0, 0, 0, 0, 1, 1,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
+    };
+
+    static bool cmpsdb_expect[] = {
+        0, 1, 1, 1, 1, 1, 1, 1, 0, 0,
+        0, 0, 1, 1, 1, 1, 1, 1, 0, 0,
+        0, 0, 0, 1, 1, 1, 1, 1, 0, 0,
+        0, 0, 0, 0, 1, 1, 1, 1, 0, 0,
+        0, 0, 0, 0, 0, 1, 1, 1, 0, 0,
+        0, 0, 0, 0, 0, 0, 1, 1, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 1, 1, 1,
+        1, 0, 0, 0, 0, 0, 0, 0, 1, 1,
+        1, 1, 1, 1, 1, 1, 0, 0, 0, 1,
+        1, 1, 1, 1, 1, 1, 1, 0, 0, 0,
+    };
+
+    static bool cmppdb_expect[] = {
+        1, 1, 0, 1, 1, 0, 0, 1, 1, 0,
+        0, 1, 0, 0, 1, 0, 0, 0, 1, 0,
+        1, 0, 1, 1, 0, 1, 1, 1, 0, 1,
+        1, 1, 0, 1, 1, 0, 0, 1, 1, 0,
+        0, 1, 1, 0, 1, 1, 1, 0, 1, 1,
+        1, 0, 1, 1, 0, 1, 1, 1, 0, 1,
+        1, 0, 1, 1, 0, 1, 1, 1, 0, 1,
+        1, 1, 0, 1, 1, 0, 0, 1, 1, 0,
+        0, 1, 1, 0, 1, 1, 1, 0, 1, 1,
+        1, 0, 1, 1, 0, 1, 1, 1, 0, 1,
+    };
+
+    static bool cmpldb_expect[] = {
+        0, 1, 1, 1, 1, 1, 1, 0, 0, 0,
+        0, 0, 1, 1, 1, 1, 1, 0, 0, 0,
+        0, 0, 0, 1, 1, 1, 1, 0, 0, 0,
+        0, 0, 0, 0, 1, 1, 1, 0, 0, 0,
+        0, 0, 0, 0, 0, 1, 1, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 1, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        1, 1, 1, 1, 1, 1, 1, 0, 1, 1,
+        1, 1, 1, 1, 1, 1, 1, 0, 0, 1,
+        1, 1, 1, 1, 1, 1, 1, 0, 0, 0,
+    };
+
+    static bool cmpledb_expect[] = {
+        1, 1, 1, 1, 1, 1, 1, 0, 0, 0,
+        0, 1, 1, 1, 1, 1, 1, 0, 0, 0,
+        0, 0, 1, 1, 1, 1, 1, 0, 0, 0,
+        0, 0, 0, 1, 1, 1, 1, 0, 0, 0,
+        0, 0, 0, 0, 1, 1, 1, 0, 0, 0,
+        0, 0, 0, 0, 0, 1, 1, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 1, 0, 0, 0,
+        1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+        1, 1, 1, 1, 1, 1, 1, 0, 1, 1,
+        1, 1, 1, 1, 1, 1, 1, 0, 0, 1,
+    };
+
+#define TEST_CMP(INSN) \
+    for (int i = 0; i < ARRAY_SIZE(cmp_test_data); ++i) { \
+        const struct e2k_test_data *data = &cmp_test_data[i]; \
+        CHECK2_0134(EXEC_CMP_XX, INSN, data->src1, data->src2, glue(INSN, _expect)[i]); \
+    }
+
+    TEST_CMP(cmposb);
+    TEST_CMP(cmpbsb);
+    TEST_CMP(cmpesb);
+    TEST_CMP(cmpbesb);
+    TEST_CMP(cmpssb);
+    TEST_CMP(cmppsb);
+    TEST_CMP(cmplsb);
+    TEST_CMP(cmplesb);
+
+    TEST_CMP(cmpodb);
+    TEST_CMP(cmpbdb);
+    TEST_CMP(cmpedb);
+    TEST_CMP(cmpbedb);
+    TEST_CMP(cmpsdb);
+    TEST_CMP(cmppdb);
+    TEST_CMP(cmpldb);
+    TEST_CMP(cmpledb);
+}
+
 int main(int argc, char *argv[]) {
     TEST2_DEFAULT_DATA(CHECK2_ALL, EXEC_RR, ands);
     TEST2_DEFAULT_DATA(CHECK2_ALL, EXEC_RR, andns);
@@ -683,6 +1037,7 @@ int main(int argc, char *argv[]) {
     test_shift();
     test_getfs();
     test_getfd();
+    test_cmpb();
 
     return is_failed();
 }

@@ -56,6 +56,18 @@ static int total_fails = 0;
     res; \
 })
 
+#define EXEC2_CMP(INSN, CHAN, S1, S2, C1, C2) ({ \
+    uint64_t res = 0; \
+    asm(#INSN "," #CHAN " %[src1], %[src2], %%pred0\n\t" \
+        "merged 0, 1, %[dst], %%pred0" \
+        : [dst]"+r"(res) \
+        : [src1] #C1 ((uint64_t) S1), \
+          [src2] #C2 ((uint64_t) S2) \
+        : "pred0" \
+    ); \
+    res; \
+})
+
 #define EXEC2_MERGE(INSN, CHAN, S1, S2, PRED, C1, C2) ({ \
     uint64_t res = 0; \
     asm("cmpedb 1, " #PRED ", %%pred0\n\t" \
@@ -85,6 +97,7 @@ static int total_fails = 0;
 #define EXEC_RR(INSN, CHAN, S1, S2) EXEC2(INSN, CHAN, S1, S2, r, r)
 #define EXEC_IR(INSN, CHAN, S1, S2) EXEC2(INSN, CHAN, S1, S2, I, r)
 #define EXEC_RI(INSN, CHAN, S1, S2) EXEC2(INSN, CHAN, S1, S2, r, i)
+#define EXEC_CMP_XX(INSN, CHAN, S1, S2) EXEC2_CMP(INSN, CHAN, S1, S2, rI, ri)
 #define EXEC_MERGE_XX(INSN, CHAN, S1, S2, PRED) EXEC2_MERGE(INSN, CHAN, S1, S2, PRED, rI, ri)
 #define EXEC_XXX(INSN, CHAN, S1, S2, S3) EXEC3(INSN, CHAN, S1, S2, S3, rI, ri, r)
 #define EXEC_RRR(INSN, CHAN, S1, S2, S3) EXEC3(INSN, CHAN, S1, S2, S3, r, r, r)
