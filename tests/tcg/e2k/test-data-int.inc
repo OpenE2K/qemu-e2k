@@ -24,3 +24,5 @@
 { 0xaaaaaaaa80000000, 0xeeeeeeeeffffffff, 0 },
 { 0xaaaaaaaa80000000, 0xeeeeeeee00000001, 0 },
 { 0xaaaaaaaa80000000, 0xeeeeeeeefffffffe, 0 },
+{ 0x123456789abcdef0, 0x123456789abcdef0, 0 },
+{ 0x123456789abcdef0, 0xfedcba9876543210, 0 },
