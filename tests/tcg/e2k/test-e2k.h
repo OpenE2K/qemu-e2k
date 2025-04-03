@@ -133,38 +133,29 @@ static int total_fails = 0;
 
 #define DUMP1(EXEC, INSN, CHAN, S2) ({ \
     uint64_t res = EXEC(INSN, CHAN, S2); \
-    DUMP_RES(stdout, INSN, CHAN, res); \
-    DUMP_SRC(stdout, S2); \
-    DUMP_END(stdout); \
+    printf("  %d " INSN_FMT RES_FMT SRC_FMT "\n", \
+           CHAN, #INSN, RES(res), SRC(S2)); \
     res; \
 })
 
 #define DUMP2(EXEC, INSN, CHAN, S1, S2) ({ \
     uint64_t res = EXEC(INSN, CHAN, S1, S2); \
-    DUMP_RES(stdout, INSN, CHAN, res); \
-    DUMP_SRC(stdout, S1); \
-    DUMP_SRC(stdout, S2); \
-    DUMP_END(stdout); \
+    printf("  %d " INSN_FMT RES_FMT SRC_FMT SRC_FMT "\n", \
+           CHAN, #INSN, RES(res), SRC(S1), SRC(S2)); \
     res; \
 })
 
 #define DUMP2_MERGE(EXEC, INSN, CHAN, S1, S2, PRED) ({ \
     uint64_t res = EXEC(INSN, CHAN, S1, S2, PRED); \
-    DUMP_RES(stdout, INSN, CHAN, res); \
-    DUMP_SRC(stdout, S1); \
-    DUMP_SRC(stdout, S2); \
-    DUMP_PRED(stdout, PRED); \
-    DUMP_END(stdout); \
+    printf("  %d " INSN_FMT RES_FMT SRC_FMT SRC_FMT " %d\n", \
+           CHAN, #INSN, RES(res), SRC(S1), SRC(S2), (int) PRED); \
     res; \
 })
 
 #define DUMP3(EXEC, INSN, CHAN, S1, S2, S3) ({ \
     uint64_t res = EXEC(INSN, CHAN, S1, S2, S3); \
-    DUMP_RES(stdout, INSN, CHAN, res); \
-    DUMP_SRC(stdout, S1); \
-    DUMP_SRC(stdout, S2); \
-    DUMP_SRC(stdout, S3); \
-    DUMP_END(stdout); \
+    printf("  %d " INSN_FMT RES_FMT SRC_FMT SRC_FMT SRC_FMT "\n", \
+           CHAN, #INSN, RES(res), SRC(S1), SRC(S2), SRC(S3)); \
     res; \
 })
 
