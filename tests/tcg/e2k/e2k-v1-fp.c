@@ -194,6 +194,28 @@
 // TODO: pfsqrttd
 // TODO: frsqrts
 
+// TODO: fmul_adds
+// TODO: fmul_addd
+// TODO: fmul_subs
+// TODO: fmul_subd
+// TODO: fmul_rsubs
+// TODO: fmul_rsubd
+// TODO: pfmul_adds
+// TODO: pfmul_addd
+// TODO: pfmul_subs
+// TODO: pfmul_subd
+// TODO: pfmul_rsubs
+// TODO: pfmul_rsubd
+
+// TODO: fadd_muls
+// TODO: fadd_muld
+// TODO: fsub_muls
+// TODO: fsub_muld
+// TODO: pfadd_muls
+// TODO: pfadd_muld
+// TODO: pfsub_muls
+// TODO: pfsub_muld
+
 int main(int argc, char *argv[]) {
     return is_failed();
 }
