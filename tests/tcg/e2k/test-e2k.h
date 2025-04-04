@@ -303,22 +303,25 @@ void report_fail3(const char *file, int line, const char *insn,
 #define TEST1_DATA(CHECK, EXEC, INSN, DATA, EXPECT) \
     GROUP(#INSN); \
     for (int i = 0; i < ARRAY_SIZE(DATA); ++i) { \
-        CHECK(EXEC, INSN, DATA[i].src1, EXPECT[i]); \
+        uint64_t expect = i < ARRAY_SIZE(EXPECT) ? EXPECT[i] : 0; \
+        CHECK(EXEC, INSN, DATA[i].src1, expect); \
     }
 
 #define TEST2_DATA(CHECK, EXEC, INSN, DATA, EXPECT) \
     GROUP(#INSN); \
     for (int i = 0; i < ARRAY_SIZE(DATA); ++i) { \
-        CHECK(EXEC, INSN, DATA[i].src1, DATA[i].src2, EXPECT[i]); \
+        uint64_t expect = i < ARRAY_SIZE(EXPECT) ? EXPECT[i] : 0; \
+        CHECK(EXEC, INSN, DATA[i].src1, DATA[i].src2, expect); \
     }
 
 #define TEST3_DATA(CHECK, EXEC, INSN, DATA, EXPECT) \
     GROUP(#INSN); \
     for (int i = 0; i < ARRAY_SIZE(DATA); ++i) { \
-        CHECK(EXEC, INSN, DATA[i].src1, DATA[i].src2, DATA[i].src3, EXPECT[i]); \
+        uint64_t expect = i < ARRAY_SIZE(EXPECT) ? EXPECT[i] : 0; \
+        CHECK(EXEC, INSN, DATA[i].src1, DATA[i].src2, DATA[i].src3, expect); \
     }
 
-#define EXPECT_DATA(INSN, TYPE, COUNT) \
-    static TYPE glue(INSN, _expect)[COUNT] =
+#define EXPECT_DATA(INSN, TYPE) \
+    static TYPE glue(INSN, _expect)[] =
 
 #endif /* TESTS_TCG_E2K_E2K_H */

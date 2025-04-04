@@ -4,68 +4,67 @@
 #define TEST2_DEFAULT_DATA(CHECK, EXEC, INSN) \
     TEST2_DATA(CHECK, EXEC, INSN, test_data, glue(INSN, _expect))
 
-#define TEST_DATA_N ARRAY_SIZE(test_data)
 static struct e2k_test_data test_data[] = {
 #include "test-data-int.inc"
 };
 
-EXPECT_DATA(ands, uint32_t, TEST_DATA_N) {
+EXPECT_DATA(ands, uint32_t) {
     0x00105258, 0x00012341, 0x00000001, 0x00000000, 0xffffffff, 0x00000001,
     0x00000002, 0x00000000, 0x00000001, 0xffffffff, 0x00000000, 0x00000000,
     0x00000000, 0x00105258, 0x00012341, 0x00000001, 0x00000000, 0xffffffff,
     0x00000001, 0x00000002, 0x00000000, 0x00000001, 0x7fffffff, 0x80000000,
     0x00000000, 0x80000000, 0x9abcdef0, 0x12141210,
 };
-EXPECT_DATA(andns, uint32_t, TEST_DATA_N) {
+EXPECT_DATA(andns, uint32_t) {
     0x12240420, 0x00000000, 0x00012340, 0xffffffff, 0x00000000, 0xfffffffe,
     0xfffffffd, 0xffffffff, 0xfffffffe, 0x00000000, 0x00000000, 0x00000000,
     0x00000000, 0x12240420, 0x00000000, 0x00012340, 0xffffffff, 0x00000000,
     0xfffffffe, 0xfffffffd, 0x7fffffff, 0x7ffffffe, 0x00000000, 0x00000000,
     0x80000000, 0x00000000, 0x00000000, 0x88a8cce0
 };
-EXPECT_DATA(ors, uint32_t, TEST_DATA_N) {
+EXPECT_DATA(ors, uint32_t) {
     0x1a36fefa, 0x00012341, 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff,
     0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0x00000001,
     0xfffffffe, 0x1a36fefa, 0x00012341, 0xffffffff, 0xffffffff, 0xffffffff,
     0xffffffff, 0xffffffff, 0x7fffffff, 0x7fffffff, 0xffffffff, 0xffffffff,
     0x80000001, 0xfffffffe, 0x9abcdef0, 0xfefcfef0,
 };
-EXPECT_DATA(orns, uint32_t, TEST_DATA_N) {
+EXPECT_DATA(orns, uint32_t) {
     0xf7fd577d, 0xffffffff, 0x00012341, 0xffffffff, 0xffffffff, 0xffffffff,
     0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0x00000000, 0xfffffffe,
     0x00000001, 0xf7fd577d, 0xffffffff, 0x00012341, 0xffffffff, 0xffffffff,
     0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0x7fffffff, 0x80000000,
     0xfffffffe, 0x80000001, 0xffffffff, 0x9bbfdfff,
 };
-EXPECT_DATA(xors, uint32_t, TEST_DATA_N) {
+EXPECT_DATA(xors, uint32_t) {
     0x1a26aca2, 0x00000000, 0xfffffffe, 0xffffffff, 0x00000000, 0xfffffffe,
     0xfffffffd, 0xffffffff, 0xfffffffe, 0x00000000, 0xffffffff, 0x00000001,
     0xfffffffe, 0x1a26aca2, 0x00000000, 0xfffffffe, 0xffffffff, 0x00000000,
     0xfffffffe, 0xfffffffd, 0x7fffffff, 0x7ffffffe, 0x80000000, 0x7fffffff,
     0x80000001, 0x7ffffffe, 0x00000000, 0xece8ece0,
 };
-EXPECT_DATA(xorns, uint32_t, TEST_DATA_N) {
+EXPECT_DATA(xorns, uint32_t) {
     0xe5d9535d, 0xffffffff, 0x00000001, 0x00000000, 0xffffffff, 0x00000001,
     0x00000002, 0x00000000, 0x00000001, 0xffffffff, 0x00000000, 0xfffffffe,
     0x00000001, 0xe5d9535d, 0xffffffff, 0x00000001, 0x00000000, 0xffffffff,
     0x00000001, 0x00000002, 0x80000000, 0x80000001, 0x7fffffff, 0x80000000,
     0x7ffffffe, 0x80000001, 0xffffffff, 0x1317131f,
 };
-EXPECT_DATA(adds, uint32_t, TEST_DATA_N) {
+EXPECT_DATA(adds, uint32_t) {
     0x1a475152, 0x00024682, 0x00000000, 0xffffffff, 0xfffffffe, 0x00000000,
     0x00000001, 0xffffffff, 0x00000000, 0xfffffffe, 0xffffffff, 0x00000001,
     0xfffffffe, 0x1a475152, 0x00024682, 0x00000000, 0xffffffff, 0xfffffffe,
     0x00000000, 0x00000001, 0x7fffffff, 0x80000000, 0x7ffffffe, 0x7fffffff,
     0x80000001, 0x7ffffffe, 0x3579bde0, 0x11111100,
 };
-EXPECT_DATA(subs, uint32_t, TEST_DATA_N) {
+EXPECT_DATA(subs, uint32_t) {
     0x0a215b9e, 0x00000000, 0x00024682, 0xffffffff, 0x00000000, 0xfffffffe,
     0xfffffffd, 0xffffffff, 0xfffffffe, 0x00000000, 0x00000001, 0xffffffff,
     0x00000002, 0x0a215b9e, 0x00000000, 0x00024682, 0xffffffff, 0x00000000,
     0xfffffffe, 0xfffffffd, 0x7fffffff, 0x7ffffffe, 0x80000000, 0x80000001,
     0x7fffffff, 0x80000002, 0x00000000, 0x2468ace0,
 };
-EXPECT_DATA(andd, uint64_t, TEST_DATA_N) {
+EXPECT_DATA(andd, uint64_t) {
     0x0000000000105258, 0x0000000000012341, 0x0000000000000001, 0x0000000000000000,
     0xffffffffffffffff, 0x0000000000000001, 0x0000000000000002, 0x0000000000000000,
     0x0000000000000001, 0x7fffffffffffffff, 0x8000000000000000, 0x0000000000000000,
@@ -74,7 +73,7 @@ EXPECT_DATA(andd, uint64_t, TEST_DATA_N) {
     0xaaaaaaaa00000000, 0xaaaaaaaa00000001, 0xaaaaaaaa7fffffff, 0xaaaaaaaa80000000,
     0xaaaaaaaa00000000, 0xaaaaaaaa80000000, 0x123456789abcdef0, 0x1214121812141210,
 };
-EXPECT_DATA(andnd, uint64_t, TEST_DATA_N) {
+EXPECT_DATA(andnd, uint64_t) {
     0x0000000012240420, 0x0000000000000000, 0x0000000000012340, 0xffffffffffffffff,
     0x0000000000000000, 0xfffffffffffffffe, 0xfffffffffffffffd, 0x7fffffffffffffff,
     0x7ffffffffffffffe, 0x0000000000000000, 0x0000000000000000, 0x8000000000000000,
@@ -83,7 +82,7 @@ EXPECT_DATA(andnd, uint64_t, TEST_DATA_N) {
     0x000000007fffffff, 0x000000007ffffffe, 0x0000000000000000, 0x0000000000000000,
     0x0000000080000000, 0x0000000000000000, 0x0000000000000000, 0x0020446088a8cce0,
 };
-EXPECT_DATA(ord, uint64_t, TEST_DATA_N) {
+EXPECT_DATA(ord, uint64_t) {
     0x000000001a36fefa, 0x0000000000012341, 0xffffffffffffffff, 0xffffffffffffffff,
     0xffffffffffffffff, 0xffffffffffffffff, 0xffffffffffffffff, 0x7fffffffffffffff,
     0x7fffffffffffffff, 0xffffffffffffffff, 0xffffffffffffffff, 0x8000000000000001,
@@ -92,7 +91,7 @@ EXPECT_DATA(ord, uint64_t, TEST_DATA_N) {
     0xeeeeeeee7fffffff, 0xeeeeeeee7fffffff, 0xeeeeeeeeffffffff, 0xeeeeeeeeffffffff,
     0xeeeeeeee80000001, 0xeeeeeeeefffffffe, 0x123456789abcdef0, 0xfefcfef8fefcfef0,
 };
-EXPECT_DATA(ornd, uint64_t, TEST_DATA_N) {
+EXPECT_DATA(ornd, uint64_t) {
     0xfffffffff7fd577d, 0xffffffffffffffff, 0x0000000000012341, 0xffffffffffffffff,
     0xffffffffffffffff, 0xffffffffffffffff, 0xffffffffffffffff, 0xffffffffffffffff,
     0xffffffffffffffff, 0x7fffffffffffffff, 0x8000000000000000, 0xfffffffffffffffe,
@@ -101,7 +100,7 @@ EXPECT_DATA(ornd, uint64_t, TEST_DATA_N) {
     0xbbbbbbbbffffffff, 0xbbbbbbbbffffffff, 0xbbbbbbbb7fffffff, 0xbbbbbbbb80000000,
     0xbbbbbbbbfffffffe, 0xbbbbbbbb80000001, 0xffffffffffffffff, 0x1337577f9bbfdfff,
 };
-EXPECT_DATA(xord, uint64_t, TEST_DATA_N) {
+EXPECT_DATA(xord, uint64_t) {
     0x000000001a26aca2, 0x0000000000000000, 0xfffffffffffffffe, 0xffffffffffffffff,
     0x0000000000000000, 0xfffffffffffffffe, 0xfffffffffffffffd, 0x7fffffffffffffff,
     0x7ffffffffffffffe, 0x8000000000000000, 0x7fffffffffffffff, 0x8000000000000001,
@@ -110,7 +109,7 @@ EXPECT_DATA(xord, uint64_t, TEST_DATA_N) {
     0x444444447fffffff, 0x444444447ffffffe, 0x4444444480000000, 0x444444447fffffff,
     0x4444444480000001, 0x444444447ffffffe, 0x0000000000000000, 0xece8ece0ece8ece0,
 };
-EXPECT_DATA(xornd, uint64_t, TEST_DATA_N) {
+EXPECT_DATA(xornd, uint64_t) {
     0xffffffffe5d9535d, 0xffffffffffffffff, 0x0000000000000001, 0x0000000000000000,
     0xffffffffffffffff, 0x0000000000000001, 0x0000000000000002, 0x8000000000000000,
     0x8000000000000001, 0x7fffffffffffffff, 0x8000000000000000, 0x7ffffffffffffffe,
@@ -119,7 +118,7 @@ EXPECT_DATA(xornd, uint64_t, TEST_DATA_N) {
     0xbbbbbbbb80000000, 0xbbbbbbbb80000001, 0xbbbbbbbb7fffffff, 0xbbbbbbbb80000000,
     0xbbbbbbbb7ffffffe, 0xbbbbbbbb80000001, 0xffffffffffffffff, 0x1317131f1317131f,
 };
-EXPECT_DATA(addd, uint64_t, TEST_DATA_N) {
+EXPECT_DATA(addd, uint64_t) {
     0x000000001a475152, 0x0000000000024682, 0x0000000000000000, 0xffffffffffffffff,
     0xfffffffffffffffe, 0x0000000000000000, 0x0000000000000001, 0x7fffffffffffffff,
     0x8000000000000000, 0x7ffffffffffffffe, 0x7fffffffffffffff, 0x8000000000000001,
@@ -128,7 +127,7 @@ EXPECT_DATA(addd, uint64_t, TEST_DATA_N) {
     0x999999987fffffff, 0x9999999880000000, 0x999999997ffffffe, 0x999999997fffffff,
     0x9999999880000001, 0x999999997ffffffe, 0x2468acf13579bde0, 0x1111111111111100,
 };
-EXPECT_DATA(subd, uint64_t, TEST_DATA_N) {
+EXPECT_DATA(subd, uint64_t) {
     0x000000000a215b9e, 0x0000000000000000, 0x0000000000024682, 0xffffffffffffffff,
     0x0000000000000000, 0xfffffffffffffffe, 0xfffffffffffffffd, 0x7fffffffffffffff,
     0x7ffffffffffffffe, 0x8000000000000000, 0x8000000000000001, 0x7fffffffffffffff,
@@ -309,19 +308,15 @@ GROUP("getfd reg, imm");
 #include "test-getf.inc"
 }
 
-#define CMP_TEST_DATA_N ARRAY_SIZE(cmp_test_data)
 static struct e2k_test_data cmp_test_data[] = {
 #include "test-data-cmp.inc"
 };
 
 #define TEST_CMP(INSN) \
-    for (int i = 0; i < ARRAY_SIZE(cmp_test_data); ++i) { \
-        const struct e2k_test_data *data = &cmp_test_data[i]; \
-        CHECK2_0134(EXEC_CMP_XX, INSN, data->src1, data->src2, glue(INSN, _expect)[i]); \
-    }
+    TEST2_DATA(CHECK2_0134, EXEC_CMP_XX, INSN, cmp_test_data, glue(INSN, _expect))
 
 static void test_cmpsb(void) {
-    EXPECT_DATA(cmposb, bool, CMP_TEST_DATA_N) {
+    EXPECT_DATA(cmposb, bool) {
         0, 0, 0, 1, 0, 0, 0, 0, 0, 0,
         0, 0, 0, 1, 0, 0, 0, 0, 0, 0,
         0, 0, 0, 1, 1, 1, 1, 0, 1, 1,
@@ -333,7 +328,7 @@ static void test_cmpsb(void) {
         0, 0, 1, 0, 0, 0, 0, 0, 0, 0,
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     };
-    EXPECT_DATA(cmpbsb, bool, CMP_TEST_DATA_N) {
+    EXPECT_DATA(cmpbsb, bool) {
         0, 1, 1, 1, 1, 1, 1, 0, 1, 1,
         0, 0, 1, 1, 1, 1, 1, 0, 1, 1,
         0, 0, 0, 1, 1, 1, 1, 0, 1, 1,
@@ -345,7 +340,7 @@ static void test_cmpsb(void) {
         0, 0, 0, 0, 0, 1, 1, 0, 0, 1,
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     };
-    EXPECT_DATA(cmpesb, bool, CMP_TEST_DATA_N) {
+    EXPECT_DATA(cmpesb, bool) {
         1, 0, 0, 0, 0, 0, 0, 1, 0, 0,
         0, 1, 0, 0, 0, 0, 0, 0, 0, 0,
         0, 0, 1, 0, 0, 0, 0, 0, 0, 0,
@@ -357,7 +352,7 @@ static void test_cmpsb(void) {
         0, 0, 0, 0, 1, 0, 0, 0, 1, 0,
         0, 0, 0, 0, 0, 1, 1, 0, 0, 1,
     };
-    EXPECT_DATA(cmpbesb, bool, CMP_TEST_DATA_N) {
+    EXPECT_DATA(cmpbesb, bool) {
         1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
         0, 1, 1, 1, 1, 1, 1, 0, 1, 1,
         0, 0, 1, 1, 1, 1, 1, 0, 1, 1,
@@ -369,7 +364,7 @@ static void test_cmpsb(void) {
         0, 0, 0, 0, 1, 1, 1, 0, 1, 1,
         0, 0, 0, 0, 0, 1, 1, 0, 0, 1,
     };
-    EXPECT_DATA(cmpssb, bool, CMP_TEST_DATA_N) {
+    EXPECT_DATA(cmpssb, bool) {
         0, 1, 1, 1, 0, 0, 0, 0, 0, 0,
         0, 0, 1, 1, 0, 0, 0, 0, 0, 0,
         0, 0, 0, 1, 1, 1, 1, 0, 1, 1,
@@ -381,7 +376,7 @@ static void test_cmpsb(void) {
         1, 1, 0, 0, 0, 1, 1, 1, 0, 1,
         1, 1, 1, 0, 0, 0, 0, 1, 0, 0,
     };
-    EXPECT_DATA(cmppsb, bool, CMP_TEST_DATA_N) {
+    EXPECT_DATA(cmppsb, bool) {
         1, 1, 0, 1, 1, 0, 0, 1, 1, 0,
         0, 1, 0, 0, 1, 0, 0, 0, 1, 0,
         1, 0, 1, 1, 0, 1, 1, 1, 0, 1,
@@ -393,7 +388,7 @@ static void test_cmpsb(void) {
         0, 1, 1, 0, 1, 1, 1, 0, 1, 1,
         1, 0, 1, 1, 0, 1, 1, 1, 0, 1,
     };
-    EXPECT_DATA(cmplsb, bool, CMP_TEST_DATA_N) {
+    EXPECT_DATA(cmplsb, bool) {
         0, 1, 1, 0, 0, 0, 0, 0, 0, 0,
         0, 0, 1, 0, 0, 0, 0, 0, 0, 0,
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -405,7 +400,7 @@ static void test_cmpsb(void) {
         1, 1, 1, 0, 0, 1, 1, 1, 0, 1,
         1, 1, 1, 0, 0, 0, 0, 1, 0, 0,
     };
-    EXPECT_DATA(cmplesb, bool, CMP_TEST_DATA_N) {
+    EXPECT_DATA(cmplesb, bool) {
         1, 1, 1, 0, 0, 0, 0, 1, 0, 0,
         0, 1, 1, 0, 0, 0, 0, 0, 0, 0,
         0, 0, 1, 0, 0, 0, 0, 0, 0, 0,
@@ -429,7 +424,7 @@ static void test_cmpsb(void) {
 }
 
 static void test_cmpdb(void) {
-    EXPECT_DATA(cmpodb, bool, CMP_TEST_DATA_N) {
+    EXPECT_DATA(cmpodb, bool) {
         0, 0, 0, 0, 0, 0, 0, 1, 0, 0,
         0, 0, 0, 0, 0, 0, 0, 1, 0, 0,
         0, 0, 0, 0, 0, 0, 0, 1, 0, 0,
@@ -441,7 +436,7 @@ static void test_cmpdb(void) {
         0, 0, 0, 0, 0, 0, 1, 0, 0, 0,
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     };
-    EXPECT_DATA(cmpbdb, bool, CMP_TEST_DATA_N) {
+    EXPECT_DATA(cmpbdb, bool) {
         0, 1, 1, 1, 1, 1, 1, 1, 1, 1,
         0, 0, 1, 1, 1, 1, 1, 1, 1, 1,
         0, 0, 0, 1, 1, 1, 1, 1, 1, 1,
@@ -453,7 +448,7 @@ static void test_cmpdb(void) {
         0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     };
-    EXPECT_DATA(cmpedb, bool, CMP_TEST_DATA_N) {
+    EXPECT_DATA(cmpedb, bool) {
         1, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         0, 1, 0, 0, 0, 0, 0, 0, 0, 0,
         0, 0, 1, 0, 0, 0, 0, 0, 0, 0,
@@ -465,7 +460,7 @@ static void test_cmpdb(void) {
         0, 0, 0, 0, 0, 0, 0, 0, 1, 0,
         0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
     };
-    EXPECT_DATA(cmpbedb, bool, CMP_TEST_DATA_N) {
+    EXPECT_DATA(cmpbedb, bool) {
         1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
         0, 1, 1, 1, 1, 1, 1, 1, 1, 1,
         0, 0, 1, 1, 1, 1, 1, 1, 1, 1,
@@ -477,7 +472,7 @@ static void test_cmpdb(void) {
         0, 0, 0, 0, 0, 0, 0, 0, 1, 1,
         0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
     };
-    EXPECT_DATA(cmpsdb, bool, CMP_TEST_DATA_N) {
+    EXPECT_DATA(cmpsdb, bool) {
         0, 1, 1, 1, 1, 1, 1, 1, 0, 0,
         0, 0, 1, 1, 1, 1, 1, 1, 0, 0,
         0, 0, 0, 1, 1, 1, 1, 1, 0, 0,
@@ -489,7 +484,7 @@ static void test_cmpdb(void) {
         1, 1, 1, 1, 1, 1, 0, 0, 0, 1,
         1, 1, 1, 1, 1, 1, 1, 0, 0, 0,
     };
-    EXPECT_DATA(cmppdb, bool, CMP_TEST_DATA_N) {
+    EXPECT_DATA(cmppdb, bool) {
         1, 1, 0, 1, 1, 0, 0, 1, 1, 0,
         0, 1, 0, 0, 1, 0, 0, 0, 1, 0,
         1, 0, 1, 1, 0, 1, 1, 1, 0, 1,
@@ -501,7 +496,7 @@ static void test_cmpdb(void) {
         0, 1, 1, 0, 1, 1, 1, 0, 1, 1,
         1, 0, 1, 1, 0, 1, 1, 1, 0, 1,
     };
-    EXPECT_DATA(cmpldb, bool, CMP_TEST_DATA_N) {
+    EXPECT_DATA(cmpldb, bool) {
         0, 1, 1, 1, 1, 1, 1, 0, 0, 0,
         0, 0, 1, 1, 1, 1, 1, 0, 0, 0,
         0, 0, 0, 1, 1, 1, 1, 0, 0, 0,
@@ -513,7 +508,7 @@ static void test_cmpdb(void) {
         1, 1, 1, 1, 1, 1, 1, 0, 0, 1,
         1, 1, 1, 1, 1, 1, 1, 0, 0, 0,
     };
-    EXPECT_DATA(cmpledb, bool, CMP_TEST_DATA_N) {
+    EXPECT_DATA(cmpledb, bool) {
         1, 1, 1, 1, 1, 1, 1, 0, 0, 0,
         0, 1, 1, 1, 1, 1, 1, 0, 0, 0,
         0, 0, 1, 1, 1, 1, 1, 0, 0, 0,
@@ -537,7 +532,7 @@ static void test_cmpdb(void) {
 }
 
 static void test_cmpandsb(void) {
-    EXPECT_DATA(cmpandesb, bool, CMP_TEST_DATA_N) {
+    EXPECT_DATA(cmpandesb, bool) {
         1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
         1, 0, 0, 1, 0, 0, 0, 1, 0, 0,
         1, 0, 0, 1, 0, 0, 0, 1, 0, 0,
@@ -549,7 +544,7 @@ static void test_cmpandsb(void) {
         1, 0, 0, 0, 0, 0, 0, 1, 0, 0,
         1, 0, 0, 0, 0, 0, 0, 1, 0, 0,
     };
-    EXPECT_DATA(cmpandssb, bool, CMP_TEST_DATA_N) {
+    EXPECT_DATA(cmpandssb, bool) {
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -561,7 +556,7 @@ static void test_cmpandsb(void) {
         0, 0, 0, 1, 1, 1, 1, 0, 1, 1,
         0, 0, 0, 1, 1, 1, 1, 0, 1, 1,
     };
-    EXPECT_DATA(cmpandpsb, bool, CMP_TEST_DATA_N) {
+    EXPECT_DATA(cmpandpsb, bool) {
         1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
         1, 0, 0, 1, 0, 0, 0, 1, 0, 0,
         1, 0, 1, 1, 0, 1, 1, 1, 0, 1,
@@ -573,7 +568,7 @@ static void test_cmpandsb(void) {
         1, 0, 0, 1, 0, 0, 0, 1, 0, 0,
         1, 0, 1, 1, 0, 1, 1, 1, 0, 1,
     };
-    EXPECT_DATA(cmpandlesb, bool, CMP_TEST_DATA_N) {
+    EXPECT_DATA(cmpandlesb, bool) {
         1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
         1, 0, 0, 1, 0, 0, 0, 1, 0, 0,
         1, 0, 0, 1, 0, 0, 0, 1, 0, 0,
@@ -593,7 +588,7 @@ static void test_cmpandsb(void) {
 }
 
 static void test_cmpanddb(void) {
-    EXPECT_DATA(cmpandedb, bool, CMP_TEST_DATA_N) {
+    EXPECT_DATA(cmpandedb, bool) {
         1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
         1, 0, 0, 1, 0, 0, 0, 1, 0, 0,
         1, 0, 0, 1, 0, 0, 0, 1, 0, 0,
@@ -605,7 +600,7 @@ static void test_cmpanddb(void) {
         1, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         1, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     };
-    EXPECT_DATA(cmpandsdb, bool, CMP_TEST_DATA_N) {
+    EXPECT_DATA(cmpandsdb, bool) {
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -617,7 +612,7 @@ static void test_cmpanddb(void) {
         0, 0, 0, 0, 0, 0, 0, 1, 1, 1,
         0, 0, 0, 0, 0, 0, 0, 1, 1, 1,
     };
-    EXPECT_DATA(cmpandpdb, bool, CMP_TEST_DATA_N) {
+    EXPECT_DATA(cmpandpdb, bool) {
         1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
         1, 0, 0, 1, 0, 0, 0, 1, 0, 0,
         1, 0, 1, 1, 0, 1, 1, 1, 0, 1,
@@ -629,7 +624,7 @@ static void test_cmpanddb(void) {
         1, 0, 0, 1, 0, 0, 0, 1, 0, 0,
         1, 0, 1, 1, 0, 1, 1, 1, 0, 1,
     };
-    EXPECT_DATA(cmpandledb, bool, CMP_TEST_DATA_N) {
+    EXPECT_DATA(cmpandledb, bool) {
         1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
         1, 0, 0, 1, 0, 0, 0, 1, 0, 0,
         1, 0, 0, 1, 0, 0, 0, 1, 0, 0,
