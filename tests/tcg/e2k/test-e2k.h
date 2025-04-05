@@ -2,6 +2,7 @@
 #define TESTS_TCG_E2K_E2K_H
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <stdint.h>
 #include <inttypes.h>
 
@@ -303,25 +304,45 @@ void report_fail3(const char *file, int line, const char *insn,
     CHECK3(EXEC, INSN, 1, S1, S2, S3, EXPECT); \
     CHECK3(EXEC, INSN, 4, S1, S2, S3, EXPECT)
 
-#define TEST1_DATA(CHECK, EXEC, INSN, DATA, EXPECT) \
+#define TEST1_DATA(CHECK, EXEC, INSN, SRC2, EXPECT) \
     GROUP(#INSN); \
-    for (int i = 0; i < ARRAY_SIZE(DATA); ++i) { \
+    for (int i = 0; i < ARRAY_SIZE(SRC2); ++i) { \
         uint64_t expect = i < ARRAY_SIZE(EXPECT) ? EXPECT[i] : 0; \
-        CHECK(EXEC, INSN, DATA[i].src1, expect); \
+        CHECK(EXEC, INSN, SRC2[i], expect); \
     }
 
-#define TEST2_DATA(CHECK, EXEC, INSN, DATA, EXPECT) \
+#define TEST2_DATA(CHECK, EXEC, INSN, SRC1, SRC2, EXPECT) \
     GROUP(#INSN); \
-    for (int i = 0; i < ARRAY_SIZE(DATA); ++i) { \
+    if (ARRAY_SIZE(SRC1) != ARRAY_SIZE(SRC2)) { \
+        fprintf(stderr, "%s:%d test data must be equal size: %d, %d", \
+                __FILE__, __LINE__, (int) ARRAY_SIZE(SRC1), (int) ARRAY_SIZE(SRC2)); \
+        abort(); \
+    } \
+    for (int i = 0; i < ARRAY_SIZE(SRC1); ++i) { \
         uint64_t expect = i < ARRAY_SIZE(EXPECT) ? EXPECT[i] : 0; \
-        CHECK(EXEC, INSN, DATA[i].src1, DATA[i].src2, expect); \
+        CHECK(EXEC, INSN, SRC1[i], SRC2[i], expect); \
     }
 
-#define TEST3_DATA(CHECK, EXEC, INSN, DATA, EXPECT) \
+#define TEST2_DATA_CARTESIAN(CHECK, EXEC, INSN, SRC1, SRC2, EXPECT) \
     GROUP(#INSN); \
-    for (int i = 0; i < ARRAY_SIZE(DATA); ++i) { \
+    for (int i = 0, k = 0; i < ARRAY_SIZE(SRC1); ++i) { \
+        for (int j = 0; j < ARRAY_SIZE(SRC2); ++j, ++k) { \
+            uint64_t expect = k < ARRAY_SIZE(EXPECT) ? EXPECT[k] : 0; \
+            CHECK(EXEC, INSN, SRC1[i], SRC2[j], expect); \
+        } \
+    }
+
+#define TEST3_DATA(CHECK, EXEC, INSN, SRC1, SRC2, SRC3, EXPECT) \
+    GROUP(#INSN); \
+    if (ARRAY_SIZE(SRC1) != ARRAY_SIZE(SRC2) || ARRAY_SIZE(SRC1) != ARRAY_SIZE(SRC3)) { \
+        fprintf(stderr, "%s:%d test data must be equal size: %d, %d, %d", \
+                __FILE__, __LINE__, (int) ARRAY_SIZE(SRC1), (int) ARRAY_SIZE(SRC2), \
+                (int) ARRAY_SIZE(SRC3)); \
+        abort(); \
+    } \
+    for (int i = 0; i < ARRAY_SIZE(SRC1); ++i) { \
         uint64_t expect = i < ARRAY_SIZE(EXPECT) ? EXPECT[i] : 0; \
-        CHECK(EXEC, INSN, DATA[i].src1, DATA[i].src2, DATA[i].src3, expect); \
+        CHECK(EXEC, INSN, SRC1[i], SRC2[i], SRC3[i], expect); \
     }
 
 #define EXPECT_DATA(INSN, TYPE) \

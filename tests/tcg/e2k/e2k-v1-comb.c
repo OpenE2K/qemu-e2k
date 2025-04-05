@@ -1,12 +1,38 @@
 #include <stdbool.h>
 #include "test-e2k.h"
 
-#define TEST3_DEFAULT_DATA(CHECK, EXEC, INSN) \
-    TEST3_DATA(CHECK, EXEC, INSN, test_data, glue(INSN, _expect))
-
-static struct e2k_test_data test_data[] = {
-#include "test-data-int.inc"
+static uint64_t basic_src1[] = {
+    0x0000000012345678, 0x0000000000012341, 0x0000000000012341, 0xffffffffffffffff,
+    0xffffffffffffffff, 0xffffffffffffffff, 0xffffffffffffffff, 0x7fffffffffffffff,
+    0x7fffffffffffffff, 0x7fffffffffffffff, 0x8000000000000000, 0x8000000000000000,
+    0x8000000000000000, 0xaaaaaaaa12345678, 0xaaaaaaaa00012341, 0xaaaaaaaa00012341,
+    0xaaaaaaaaffffffff, 0xaaaaaaaaffffffff, 0xaaaaaaaaffffffff, 0xaaaaaaaaffffffff,
+    0xaaaaaaaa7fffffff, 0xaaaaaaaa7fffffff, 0xaaaaaaaa7fffffff, 0xaaaaaaaa80000000,
+    0xaaaaaaaa80000000, 0xaaaaaaaa80000000, 0x123456789abcdef0, 0x123456789abcdef0,
 };
+
+static uint64_t basic_src2[] = {
+    0x000000000812fada, 0x0000000000012341, 0xfffffffffffedcbf, 0x0000000000000000,
+    0xffffffffffffffff, 0x0000000000000001, 0x0000000000000002, 0x0000000000000000,
+    0x0000000000000001, 0xffffffffffffffff, 0xffffffffffffffff, 0x0000000000000001,
+    0xfffffffffffffffe, 0xeeeeeeee0812fada, 0xeeeeeeee00012341, 0xeeeeeeeefffedcbf,
+    0xeeeeeeee00000000, 0xeeeeeeeeffffffff, 0xeeeeeeee00000001, 0xeeeeeeee00000002,
+    0xeeeeeeee00000000, 0xeeeeeeee00000001, 0xeeeeeeeeffffffff, 0xeeeeeeeeffffffff,
+    0xeeeeeeee00000001, 0xeeeeeeeefffffffe, 0x123456789abcdef0, 0xfedcba9876543210,
+};
+
+static uint64_t basic_src3[] = {
+    0x123456789abcdef0, 0xfffffffffffedcbf, 0x0000000000012341, 0x0000000000000000,
+    0x0000000000000002, 0x0000000000000001, 0xffffffffffffffff, 0x0000000000000001,
+    0x0000000000000000, 0xffffffffffffffff, 0xfffffffffffffffe, 0xffffffffffffffff,
+    0x0000000000000001, 0xeeeeeeee00012341, 0xeeeeeeee0812fada, 0xeeeeeeeefffedcbf,
+    0x0000000000000000, 0xeeeeeeee00000002, 0xeeeeeeee00000001, 0xeeeeeeeeffffffff,
+    0xeeeeeeee00000001, 0xeeeeeeee00000000, 0xeeeeeeeeffffffff, 0xeeeeeeeefffffffe,
+    0xeeeeeeeeffffffff, 0xeeeeeeee00000001, 0xfedcba9876543210, 0x123456789abcdef0,
+};
+
+#define TEST3_DEFAULT_DATA(CHECK, EXEC, INSN) \
+    TEST3_DATA(CHECK, EXEC, INSN, basic_src1, basic_src2, basic_src3, glue(INSN, _expect))
 
 EXPECT_DATA(and_ands, uint32_t) {
     0x00105250, 0x00000001, 0x00000001, 0x00000000, 0x00000002, 0x00000001,

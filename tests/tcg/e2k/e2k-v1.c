@@ -1,12 +1,28 @@
 #include <stdbool.h>
 #include "test-e2k.h"
 
-#define TEST2_DEFAULT_DATA(CHECK, EXEC, INSN) \
-    TEST2_DATA(CHECK, EXEC, INSN, test_data, glue(INSN, _expect))
-
-static struct e2k_test_data test_data[] = {
-#include "test-data-int.inc"
+static uint64_t basic_src1[] = {
+    0x0000000012345678, 0x0000000000012341, 0x0000000000012341, 0xffffffffffffffff,
+    0xffffffffffffffff, 0xffffffffffffffff, 0xffffffffffffffff, 0x7fffffffffffffff,
+    0x7fffffffffffffff, 0x7fffffffffffffff, 0x8000000000000000, 0x8000000000000000,
+    0x8000000000000000, 0xaaaaaaaa12345678, 0xaaaaaaaa00012341, 0xaaaaaaaa00012341,
+    0xaaaaaaaaffffffff, 0xaaaaaaaaffffffff, 0xaaaaaaaaffffffff, 0xaaaaaaaaffffffff,
+    0xaaaaaaaa7fffffff, 0xaaaaaaaa7fffffff, 0xaaaaaaaa7fffffff, 0xaaaaaaaa80000000,
+    0xaaaaaaaa80000000, 0xaaaaaaaa80000000, 0x123456789abcdef0, 0x123456789abcdef0,
 };
+
+static uint64_t basic_src2[] = {
+    0x000000000812fada, 0x0000000000012341, 0xfffffffffffedcbf, 0x0000000000000000,
+    0xffffffffffffffff, 0x0000000000000001, 0x0000000000000002, 0x0000000000000000,
+    0x0000000000000001, 0xffffffffffffffff, 0xffffffffffffffff, 0x0000000000000001,
+    0xfffffffffffffffe, 0xeeeeeeee0812fada, 0xeeeeeeee00012341, 0xeeeeeeeefffedcbf,
+    0xeeeeeeee00000000, 0xeeeeeeeeffffffff, 0xeeeeeeee00000001, 0xeeeeeeee00000002,
+    0xeeeeeeee00000000, 0xeeeeeeee00000001, 0xeeeeeeeeffffffff, 0xeeeeeeeeffffffff,
+    0xeeeeeeee00000001, 0xeeeeeeeefffffffe, 0x123456789abcdef0, 0xfedcba9876543210,
+};
+
+#define TEST2_DEFAULT_DATA(CHECK, EXEC, INSN) \
+    TEST2_DATA(CHECK, EXEC, INSN, basic_src1, basic_src2, glue(INSN, _expect))
 
 EXPECT_DATA(ands, uint32_t) {
     0x00105258, 0x00012341, 0x00000001, 0x00000000, 0xffffffff, 0x00000001,
@@ -308,12 +324,14 @@ GROUP("getfd reg, imm");
 #include "test-getf.inc"
 }
 
-static struct e2k_test_data cmp_test_data[] = {
-#include "test-data-cmp.inc"
+static uint64_t cmp_data[] = {
+    0x0000000000000000, 0x0000000000000001, 0x000000007fffffff, 0x0000000080000000,
+    0x00000000deadbeef, 0x00000000ffffffff, 0x7fffffffffffffff, 0x8000000000000000,
+    0xdeadbeefdeadbeef, 0xffffffffffffffff,
 };
 
 #define TEST_CMP(INSN) \
-    TEST2_DATA(CHECK2_0134, EXEC_CMP_XX, INSN, cmp_test_data, glue(INSN, _expect))
+    TEST2_DATA_CARTESIAN(CHECK2_0134, EXEC_CMP_XX, INSN, cmp_data, cmp_data, glue(INSN, _expect))
 
 EXPECT_DATA(cmposb, bool) {
     0, 0, 0, 1, 0, 0, 0, 0, 0, 0,
