@@ -220,7 +220,7 @@ void report_fail3(const char *file, int line, const char *insn,
 #define CHECK1(EXEC, INSN, CHAN, S2, EXPECT) ({ \
     uint64_t res = DUMP1(EXEC, INSN, CHAN, S2); \
     if (res != EXPECT) \
-        report_fail1(__FILE__, __LINE__, #INSN, CHAN, res, EXPECT, S1); \
+        report_fail1(__FILE__, __LINE__, #INSN, CHAN, res, EXPECT, S2); \
 })
 
 #define CHECK2(EXEC, INSN, CHAN, S1, S2, EXPECT) ({ \
@@ -249,6 +249,16 @@ void report_fail3(const char *file, int line, const char *insn,
 
 #define CHECK3_32(EXEC, INSN, CHAN, S1, S2, S3, EXPECT) \
     CHECK3(EXEC, INSN, CHAN, S1, S2, S3, (uint32_t) (EXPECT))
+
+#define CHECK1_0134(EXEC, INSN, S2, EXPECT) \
+    CHECK1(EXEC, INSN, 0, S2, EXPECT); \
+    CHECK1(EXEC, INSN, 1, S2, EXPECT); \
+    CHECK1(EXEC, INSN, 3, S2, EXPECT); \
+    CHECK1(EXEC, INSN, 4, S2, EXPECT)
+
+#define CHECK1_14(EXEC, INSN, S2, EXPECT) \
+    CHECK1(EXEC, INSN, 1, S2, EXPECT); \
+    CHECK1(EXEC, INSN, 4, S2, EXPECT)
 
 #define CHECK2_ALL(EXEC, INSN, S1, S2, EXPECT) \
     CHECK2(EXEC, INSN, 0, S1, S2, EXPECT); \
