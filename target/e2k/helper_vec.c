@@ -106,8 +106,9 @@ static inline Int128 vec128_into_raw(vec128 vec)
 #define andn(a, b)  ((a) & !(b))
 #define or(a, b)    ((a) | (b))
 #define xor(a, b)   ((a) ^ (b))
-#define shl(a, b)   ((a) << (b))
-#define shr(a, b)   ((a) >> (b))
+#define shl(a, b)   ((b) < sizeof(a) * 8 ? (a) << (b) : 0)
+#define shr(a, b)   ((b) < sizeof(a) * 8 ? (a) >> (b) : 0)
+#define sar(a, b)   ((a) >> MIN(b, sizeof(a) * 8 - 1))
 #define add(a, b)   ((a) + (b))
 #define sub(a, b)   ((a) - (b))
 #define mul(a, b)   ((a) * (b))
@@ -269,9 +270,8 @@ GEN_HELPER_PACKED_OP_HORIZONTAL(qphsubsh, 128, sh, sub, satsh)
         vec(len) dst, s1; \
         dst = vec_zero(len); \
         s1 = vec_from_raw(len, src1); \
-        int shamt = MIN(s2, sizeof(s1.type[0]) * 8 - 1); \
         for (int i = 0; i < vec_count(len, type); i++) { \
-            dst.type[i] = op(s1.type[i], shamt); \
+            dst.type[i] = op(s1.type[i], s2); \
         } \
         return vec_into_raw(len, dst); \
     }
@@ -282,8 +282,8 @@ GEN_HELPER_PACKED_SHIFT(pslld,   64, ud, shl)
 GEN_HELPER_PACKED_SHIFT(psrlh,   64, uh, shr)
 GEN_HELPER_PACKED_SHIFT(psrlw,   64, uw, shr)
 GEN_HELPER_PACKED_SHIFT(psrld,   64, ud, shr)
-GEN_HELPER_PACKED_SHIFT(psrah,   64, sh, shr)
-GEN_HELPER_PACKED_SHIFT(psraw,   64, sw, shr)
+GEN_HELPER_PACKED_SHIFT(psrah,   64, sh, sar)
+GEN_HELPER_PACKED_SHIFT(psraw,   64, sw, sar)
 GEN_HELPER_PACKED_SHIFT(psrcw,   64, uw, ror32)
 
 GEN_HELPER_PACKED_SHIFT(qpsllh, 128, uh, shl)
@@ -292,9 +292,9 @@ GEN_HELPER_PACKED_SHIFT(qpslld, 128, ud, shl)
 GEN_HELPER_PACKED_SHIFT(qpsrlh, 128, uh, shr)
 GEN_HELPER_PACKED_SHIFT(qpsrlw, 128, uw, shr)
 GEN_HELPER_PACKED_SHIFT(qpsrld, 128, ud, shr)
-GEN_HELPER_PACKED_SHIFT(qpsrah, 128, sh, shr)
-GEN_HELPER_PACKED_SHIFT(qpsraw, 128, sw, shr)
-GEN_HELPER_PACKED_SHIFT(qpsrad, 128, sd, shr)
+GEN_HELPER_PACKED_SHIFT(qpsrah, 128, sh, sar)
+GEN_HELPER_PACKED_SHIFT(qpsraw, 128, sw, sar)
+GEN_HELPER_PACKED_SHIFT(qpsrad, 128, sd, sar)
 GEN_HELPER_PACKED_SHIFT(qpsrcw, 128, uw, ror32)
 GEN_HELPER_PACKED_SHIFT(qpsrcd, 128, ud, ror64)
 

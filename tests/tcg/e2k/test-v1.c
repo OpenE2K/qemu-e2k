@@ -64,6 +64,7 @@ static uint64_t shift_src1[] = {
     0x0000000080000001, 0x00000000ffffffff, 0xeeeeeeee00000001, 0xeeeeeeee00000008,
     0xeeeeeeee7fffffff, 0xeeeeeeee80000000, 0xeeeeeeee80000001, 0xeeeeeeeeffffffff,
     0x7fffffffffffffff, 0x8000000000000000, 0x8000000000000001, 0xffffffffffffffff,
+    0x1234567812345678, 0x8765432187654321, 0xaaaaaaaa55555555, 0xdeadbeef12345678,
 };
 
 static uint64_t shift_src2[] = {
@@ -758,24 +759,27 @@ static void test_packed(void) {
     CHECK2(EXEC_RR, 14, pmulhuh,    int_src1, int_src2);
     CHECK2(EXEC_RR, 14, psadbw,     int_src1, int_src2);
 
-    // TODO: psrlqh
-    // TODO: psrlql
-    // TODO: psllqh
-    // TODO: psllql
-    // TODO: psrlw
-    // TODO: psrlh
-    // TODO: psraw
-    // TODO: psrah
-    // TODO: psllw
-    // TODO: psllh
-    // TODO: psrld
-    // TODO: pslld
-
     // TODO: pshufw
     // TODO: pshufh
 
     // TODO: pextrh
     // TODO: pinsh
+}
+
+static void test_packed_shift(void) {
+    CHECK2_CARTESIAN(EXEC_RR, 14, psrlw, shift_src1, shift_src2);
+    CHECK2_CARTESIAN(EXEC_RR, 14, psrlh, shift_src1, shift_src2);
+    CHECK2_CARTESIAN(EXEC_RR, 14, psraw, shift_src1, shift_src2);
+    CHECK2_CARTESIAN(EXEC_RR, 14, psrah, shift_src1, shift_src2);
+    CHECK2_CARTESIAN(EXEC_RR, 14, psllw, shift_src1, shift_src2);
+    CHECK2_CARTESIAN(EXEC_RR, 14, psllh, shift_src1, shift_src2);
+    CHECK2_CARTESIAN(EXEC_RR, 14, psrld, shift_src1, shift_src2);
+    CHECK2_CARTESIAN(EXEC_RR, 14, pslld, shift_src1, shift_src2);
+
+    // TODO: psrlqh
+    // TODO: psrlql
+    // TODO: psllqh
+    // TODO: psllql
 }
 
 int main(int argc, char *argv[]) {
@@ -790,6 +794,7 @@ int main(int argc, char *argv[]) {
     test_cmpand();
     test_comb();
     test_packed();
+    test_packed_shift();
 
     // TODO: cctopo
     // TODO: cctopb
