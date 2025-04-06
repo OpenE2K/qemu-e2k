@@ -3503,11 +3503,13 @@ static void gen_fxsqrtuxx(TCGv_i128 ret, TCGv_i128 s1, TCGv_i128 s2)
 #error Not implemented
 #endif
 
+#if 0
 static inline void gen_shli2_i64(TCGv_i64 rl, TCGv_i64 rh, TCGv_i64 l,
     TCGv_i64 h, int i)
 {
     if (i == 0) {
         tcg_gen_mov_i64(rl, l);
+        tcg_gen_mov_i64(rh, h);
     } else if (i < 64) {
         TCGv_i64 t0 = tcg_temp_new_i64();
         TCGv_i64 t1 = tcg_temp_new_i64();
@@ -3529,6 +3531,7 @@ static inline void gen_shri2_i64(TCGv_i64 rl, TCGv_i64 rh, TCGv_i64 l,
 {
     if (i == 0) {
         tcg_gen_mov_i64(rl, l);
+        tcg_gen_mov_i64(rh, h);
     } else if (i < 64) {
         TCGv_i64 t0 = tcg_temp_new_i64();
         TCGv_i64 t1 = tcg_temp_new_i64();
@@ -3544,6 +3547,7 @@ static inline void gen_shri2_i64(TCGv_i64 rl, TCGv_i64 rh, TCGv_i64 l,
         tcg_gen_movi_i64(rh, 0);
     }
 }
+#endif
 
 static inline void gen_psllql(TCGv_i64 ret, TCGv_i64 src1,
     TCGv_i64 src2, int i)
@@ -3551,18 +3555,38 @@ static inline void gen_psllql(TCGv_i64 ret, TCGv_i64 src1,
     tcg_gen_shli_i64(ret, src2, i * 8);
 }
 
-static inline void gen_psllqh(TCGv_i64 ret, TCGv_i64 src1,
-    TCGv_i64 src2, int i)
-{
-    TCGv_i64 t0 = tcg_temp_new_i64();
-    gen_shli2_i64(t0, ret, src2, src1, i * 8);
+static inline void gen_psllqh(TCGv_i64 rh, TCGv_i64 h, TCGv_i64 l, int i) {
+    i *= 8;
+    if (i == 0) {
+        tcg_gen_mov_i64(rh, h);
+    } else if (i < 64) {
+        TCGv_i64 t0 = tcg_temp_new_i64();
+        TCGv_i64 t1 = tcg_temp_new_i64();
+        tcg_gen_shri_i64(t0, l, 64 - i);
+        tcg_gen_shli_i64(t1, h, i);
+        tcg_gen_or_i64(rh, t1, t0);
+    } else if (i < 128) {
+        tcg_gen_shli_i64(rh, l, i - 64);
+    } else {
+        tcg_gen_movi_i64(rh, 0);
+    }
 }
 
-static inline void gen_psrlql(TCGv_i64 ret, TCGv_i64 src1,
-    TCGv_i64 src2, int i)
-{
-    TCGv_i64 t0 = tcg_temp_new_i64();
-    gen_shri2_i64(ret, t0, src2, src1, i * 8);
+static inline void gen_psrlql(TCGv_i64 rl, TCGv_i64 h, TCGv_i64 l, int i) {
+    i *= 8;
+    if (i == 0) {
+        tcg_gen_mov_i64(rl, l);
+    } else if (i < 64) {
+        TCGv_i64 t0 = tcg_temp_new_i64();
+        TCGv_i64 t1 = tcg_temp_new_i64();
+        tcg_gen_shli_i64(t0, h, 64 - i);
+        tcg_gen_shri_i64(t1, l, i);
+        tcg_gen_or_i64(rl, t1, t0);
+    } else if (i < 128) {
+        tcg_gen_shri_i64(rl, h, i - 64);
+    } else {
+        tcg_gen_movi_i64(rl, 0);
+    }
 }
 
 static inline void gen_psrlqh(TCGv_i64 ret, TCGv_i64 src1,
