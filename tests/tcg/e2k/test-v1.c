@@ -154,7 +154,7 @@ static void test_shift(void) {
 }
 
 #define EXEC_MERGE(INSN, RES, SRC1, SRC2, SRC3, SRC4) asm( \
-    "\t\tcmpedb 1, %[src3], %%pred0\n" \
+    "\t\tcmpesb 1, %[src3], %%pred0\n" \
     "\t{\n" \
     "\t    " #INSN ",0 %[src1], %[src2], %0, %%pred0\n" \
     "\t    " #INSN ",1 %[src1], %[src2], %1, %%pred0\n" \
@@ -357,13 +357,46 @@ static void test_cmpand(void) {
       [src3]"r"(SRC3)  \
 )
 
-#define TEST_COMB(EXEC, CHAN, OP) do {\
+#define EXEC_COMB_MERGE(INSN, RES, SRC1, SRC2, SRC3, SRC4) asm( \
+    "\t\tcmpesb 1, %[src4], %%pred0\n" \
+    "\t{\n" \
+    "\t    " #INSN ",1 %[src1], %[src2], %[src3], %0, %%pred0\n" \
+    "\t    " #INSN ",4 %[src1], %[src2], %[src3], %1, %%pred0\n" \
+    "\t}" \
+    : "+r"(RES[0]), \
+      "+r"(RES[1]) \
+    : [src1]"rI"(SRC1), \
+      [src2]"ri"(SRC2), \
+      [src3]"r"(SRC3), \
+      [src4]"ri"(SRC4)  \
+    : "pred0" \
+)
+
+#define TEST3_MERGE(INSN, SRC1, SRC2, SRC3, EXPECT, GET_EXPECT) do { \
+    if (ARRAY_SIZE(SRC1) != ARRAY_SIZE(SRC2) || \
+        ARRAY_SIZE(SRC1) != ARRAY_SIZE(SRC3)) abort(); \
+    alc_test_t test = test_start(#INSN, NULL, ALC14, HAS_SRC1234); \
+    for (int i = 0, k = 0; i < ARRAY_SIZE(SRC1); ++i) { \
+        for (int j = 0; j < 2; ++j, ++k) { \
+            EXEC_COMB_MERGE(INSN, test.result, SRC1[i], SRC2[i], SRC3[i], j); \
+            uint64_t expected = GET_EXPECT(&test, EXPECT, k); \
+            test_report(&test, expected, SRC1[i], SRC2[i], SRC3[i], j); \
+        } \
+    } \
+    test_end(&test); \
+} while(0)
+
+#define CHECK3_MERGE(INSN, SRC1, SRC2, SRC3) \
+    TEST3_MERGE(INSN, SRC1, SRC2, SRC3, glue(INSN, _expect), GET_EXPECT)
+
+#define TEST_COMB(EXEC, CHAN, OP) do { \
     CHECK3(EXEC, CHAN, glue(and_,  OP), int_src1, int_src2, int_src3); \
     CHECK3(EXEC, CHAN, glue(andn_, OP), int_src1, int_src2, int_src3); \
     CHECK3(EXEC, CHAN, glue(or_,   OP), int_src1, int_src2, int_src3); \
     CHECK3(EXEC, CHAN, glue(orn_,  OP), int_src1, int_src2, int_src3); \
     CHECK3(EXEC, CHAN, glue(xor_,  OP), int_src1, int_src2, int_src3); \
     CHECK3(EXEC, CHAN, glue(xorn_, OP), int_src1, int_src2, int_src3); \
+    CHECK3_MERGE(glue(merge_, OP), int_src1, int_src2, int_src3); \
     CHECK3(EXEC, CHAN, glue(add_,  OP), int_src1, int_src2, int_src3); \
     CHECK3(EXEC, CHAN, glue(sub_,  OP), int_src1, int_src2, int_src3); \
     CHECK3(EXEC, CHAN, glue(scl_,  OP), int_src1, int_src2, int_src3); \
@@ -393,27 +426,6 @@ static void test_comb(void) {
     TEST_COMB(EXEC_RRR, 14, rsubd);
     TEST_COMB(EXEC_RRR, 14, addd);
     TEST_COMB(EXEC_RRR, 14, subd);
-
-    // TODO: e2k comb merge_*
-    //
-    // merge_ands
-    // merge_andd
-    // merge_andns
-    // merge_andnd
-    // merge_ors
-    // merge_ord
-    // merge_orns
-    // merge_ornd
-    // merge_xors
-    // merge_xord
-    // merge_xorns
-    // merge_xornd
-    // merge_rsubs
-    // merge_rsubd
-    // merge_adds
-    // merge_addd
-    // merge_subs
-    // merge_subd
 
     // TODO: e2k comb getf_*
     //
