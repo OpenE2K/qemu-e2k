@@ -515,19 +515,60 @@ static void test_packed(void) {
     // TODO: pinsh
 }
 
-#define TEST3_PSHIFT(INSN, SRC1, SRC2, SRC3, EXPECT, GET_EXPECT) do { \
+static uint64_t pshift_src1[] = {
+    0x1234567812345678, 0x123456789abcdef0, 0xfafafafafafafafa, 0xffffffffffffffff,
+};
+
+static uint64_t pshift_src2[] = {
+    0xcccccccceeeeeeee, 0x1122334455667788, 0xaabbaabbaabbaabb, 0x0000000000000000,
+};
+
+#define EXEC_RRI_14(INSN, RES, SRC1, SRC2, SRC3) asm( \
+    "\t{\n" \
+    "\t    " #INSN ",1 %[src1], %[src2], %[src3], %0\n" \
+    "\t    " #INSN ",4 %[src1], %[src2], %[src3], %1\n" \
+    "\t}" \
+    : "+r"(RES[0]), \
+      "+r"(RES[1]) \
+    : [src1]"r"(SRC1), \
+      [src2]"r"(SRC2), \
+      [src3]"i"(SRC3) \
+    : "pred0" \
+)
+
+#define EXEC_PSHIFT_ITER(INSN, SRC1, SRC2, SRC3, K) do { \
+    EXEC_RRI_14(INSN, test.result, SRC1[i], SRC2[i], SRC3); \
+    uint64_t expected = GET_EXPECT(&test, glue(INSN, _expect), K); \
+    test_report(&test, expected, SRC1[i], SRC2[i], SRC3, 0); \
+} while(0)
+
+#define CHECK3_PSHIFT_7(INSN, SRC1, SRC2) do { \
     ASSERT_ARRAY_LEN_EQ(SRC1, SRC2); \
-    alc_test_t test = test_start(#INSN, NULL, ALC14, HAS_SRC1234); \
-    for (int i = 0; i < ARRAY_LEN(SRC1); ++i) { \
-        EXEC_COMB_MERGE(INSN, test.result, SRC1[i], SRC2[i], SRC3, j); \
-        uint64_t expected = GET_EXPECT(&test, EXPECT, i); \
-        test_report(&test, expected, SRC1[i], SRC2[i], SRC3, j); \
+    alc_test_t test = test_start(#INSN, NULL, ALC14, HAS_SRC123); \
+    for (int i = 0, k = 0; i < ARRAY_LEN(SRC1); ++i, k += 6) { \
+        EXEC_PSHIFT_ITER(INSN, SRC1, SRC2, 0, k + 0); \
+        EXEC_PSHIFT_ITER(INSN, SRC1, SRC2, 1, k + 1); \
+        EXEC_PSHIFT_ITER(INSN, SRC1, SRC2, 3, k + 2); \
+        EXEC_PSHIFT_ITER(INSN, SRC1, SRC2, 4, k + 3); \
+        EXEC_PSHIFT_ITER(INSN, SRC1, SRC2, 6, k + 4); \
+        EXEC_PSHIFT_ITER(INSN, SRC1, SRC2, 7, k + 5); \
     } \
     test_end(&test); \
 } while(0)
 
-#define CHECK3_MERGE(INSN, SRC1, SRC2, SRC3) \
-    TEST3_MERGE(INSN, SRC1, SRC2, SRC3, glue(INSN, _expect), GET_EXPECT)
+#define CHECK3_PSHIFT_15(INSN, SRC1, SRC2) do { \
+    ASSERT_ARRAY_LEN_EQ(SRC1, SRC2); \
+    alc_test_t test = test_start(#INSN, NULL, ALC14, HAS_SRC123); \
+    for (int i = 0, k = 0; i < ARRAY_LEN(SRC1); ++i, k += 6) { \
+        EXEC_PSHIFT_ITER(INSN, SRC1, SRC2,  0, k + 0); \
+        EXEC_PSHIFT_ITER(INSN, SRC1, SRC2,  1, k + 1); \
+        EXEC_PSHIFT_ITER(INSN, SRC1, SRC2,  7, k + 2); \
+        EXEC_PSHIFT_ITER(INSN, SRC1, SRC2, 12, k + 3); \
+        EXEC_PSHIFT_ITER(INSN, SRC1, SRC2, 12, k + 4); \
+        EXEC_PSHIFT_ITER(INSN, SRC1, SRC2, 15, k + 5); \
+    } \
+    test_end(&test); \
+} while(0)
 
 static void test_packed_shift(void) {
     CHECK2_CARTESIAN(EXEC_RR, 14, psrlw, shift_src1, shift_src2);
@@ -539,10 +580,11 @@ static void test_packed_shift(void) {
     CHECK2_CARTESIAN(EXEC_RR, 14, psrld, shift_src1, shift_src2);
     CHECK2_CARTESIAN(EXEC_RR, 14, pslld, shift_src1, shift_src2);
 
-    // TODO: psrlqh
-    // TODO: psrlql
-    // TODO: psllqh
-    // TODO: psllql
+    CHECK3_PSHIFT_7(psrlqh, pshift_src1, pshift_src2);
+    CHECK3_PSHIFT_7(psllql, pshift_src1, pshift_src2);
+
+    CHECK3_PSHIFT_15(psrlql, pshift_src1, pshift_src2);
+    CHECK3_PSHIFT_15(psllqh, pshift_src1, pshift_src2);
 }
 
 int main(int argc, char *argv[]) {
