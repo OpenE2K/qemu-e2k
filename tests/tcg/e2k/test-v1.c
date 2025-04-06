@@ -373,10 +373,10 @@ static void test_cmpand(void) {
 )
 
 #define TEST3_MERGE(INSN, SRC1, SRC2, SRC3, EXPECT, GET_EXPECT) do { \
-    if (ARRAY_SIZE(SRC1) != ARRAY_SIZE(SRC2) || \
-        ARRAY_SIZE(SRC1) != ARRAY_SIZE(SRC3)) abort(); \
+    ASSERT_ARRAY_LEN_EQ(SRC1, SRC2); \
+    ASSERT_ARRAY_LEN_EQ(SRC1, SRC3); \
     alc_test_t test = test_start(#INSN, NULL, ALC14, HAS_SRC1234); \
-    for (int i = 0, k = 0; i < ARRAY_SIZE(SRC1); ++i) { \
+    for (int i = 0, k = 0; i < ARRAY_LEN(SRC1); ++i) { \
         for (int j = 0; j < 2; ++j, ++k) { \
             EXEC_COMB_MERGE(INSN, test.result, SRC1[i], SRC2[i], SRC3[i], j); \
             uint64_t expected = GET_EXPECT(&test, EXPECT, k); \
@@ -389,331 +389,68 @@ static void test_cmpand(void) {
 #define CHECK3_MERGE(INSN, SRC1, SRC2, SRC3) \
     TEST3_MERGE(INSN, SRC1, SRC2, SRC3, glue(INSN, _expect), GET_EXPECT)
 
-#define TEST_COMB(EXEC, CHAN, OP) do { \
-    CHECK3(EXEC, CHAN, glue(and_,  OP), int_src1, int_src2, int_src3); \
-    CHECK3(EXEC, CHAN, glue(andn_, OP), int_src1, int_src2, int_src3); \
-    CHECK3(EXEC, CHAN, glue(or_,   OP), int_src1, int_src2, int_src3); \
-    CHECK3(EXEC, CHAN, glue(orn_,  OP), int_src1, int_src2, int_src3); \
-    CHECK3(EXEC, CHAN, glue(xor_,  OP), int_src1, int_src2, int_src3); \
-    CHECK3(EXEC, CHAN, glue(xorn_, OP), int_src1, int_src2, int_src3); \
+#define TEST_COMB(OP) do { \
+    CHECK3(EXEC_RRR, 14, glue(and_,  OP), int_src1, int_src2, int_src3); \
+    CHECK3(EXEC_RRR, 14, glue(andn_, OP), int_src1, int_src2, int_src3); \
+    CHECK3(EXEC_RRR, 14, glue(or_,   OP), int_src1, int_src2, int_src3); \
+    CHECK3(EXEC_RRR, 14, glue(orn_,  OP), int_src1, int_src2, int_src3); \
+    CHECK3(EXEC_RRR, 14, glue(xor_,  OP), int_src1, int_src2, int_src3); \
+    CHECK3(EXEC_RRR, 14, glue(xorn_, OP), int_src1, int_src2, int_src3); \
     CHECK3_MERGE(glue(merge_, OP), int_src1, int_src2, int_src3); \
-    CHECK3(EXEC, CHAN, glue(add_,  OP), int_src1, int_src2, int_src3); \
-    CHECK3(EXEC, CHAN, glue(sub_,  OP), int_src1, int_src2, int_src3); \
-    CHECK3(EXEC, CHAN, glue(scl_,  OP), int_src1, int_src2, int_src3); \
-    CHECK3(EXEC, CHAN, glue(scr_,  OP), int_src1, int_src2, int_src3); \
-    CHECK3(EXEC, CHAN, glue(shl_,  OP), int_src1, int_src2, int_src3); \
-    CHECK3(EXEC, CHAN, glue(shr_,  OP), int_src1, int_src2, int_src3); \
-    CHECK3(EXEC, CHAN, glue(sar_,  OP), int_src1, int_src2, int_src3); \
+    CHECK3(EXEC_RRR, 14, glue(add_,  OP), int_src1, int_src2, int_src3); \
+    CHECK3(EXEC_RRR, 14, glue(sub_,  OP), int_src1, int_src2, int_src3); \
+    CHECK3(EXEC_RRR, 14, glue(scl_,  OP), int_src1, int_src2, int_src3); \
+    CHECK3(EXEC_RRR, 14, glue(scr_,  OP), int_src1, int_src2, int_src3); \
+    CHECK3(EXEC_RRR, 14, glue(shl_,  OP), int_src1, int_src2, int_src3); \
+    CHECK3(EXEC_RRR, 14, glue(shr_,  OP), int_src1, int_src2, int_src3); \
+    CHECK3(EXEC_RRR, 14, glue(sar_,  OP), int_src1, int_src2, int_src3); \
 } while(0)
 
 static void test_comb(void) {
-    TEST_COMB(EXEC_RRR, 14, ands);
-    TEST_COMB(EXEC_RRR, 14, andns);
-    TEST_COMB(EXEC_RRR, 14, ors);
-    TEST_COMB(EXEC_RRR, 14, orns);
-    TEST_COMB(EXEC_RRR, 14, xors);
-    TEST_COMB(EXEC_RRR, 14, xorns);
-    TEST_COMB(EXEC_RRR, 14, rsubs);
-    TEST_COMB(EXEC_RRR, 14, adds);
-    TEST_COMB(EXEC_RRR, 14, subs);
+    TEST_COMB(ands);
+    TEST_COMB(andns);
+    TEST_COMB(ors);
+    TEST_COMB(orns);
+    TEST_COMB(xors);
+    TEST_COMB(xorns);
+    TEST_COMB(rsubs);
+    TEST_COMB(adds);
+    TEST_COMB(subs);
 
-    TEST_COMB(EXEC_RRR, 14, andd);
-    TEST_COMB(EXEC_RRR, 14, andnd);
-    TEST_COMB(EXEC_RRR, 14, ord);
-    TEST_COMB(EXEC_RRR, 14, ornd);
-    TEST_COMB(EXEC_RRR, 14, xord);
-    TEST_COMB(EXEC_RRR, 14, xornd);
-    TEST_COMB(EXEC_RRR, 14, rsubd);
-    TEST_COMB(EXEC_RRR, 14, addd);
-    TEST_COMB(EXEC_RRR, 14, subd);
+    TEST_COMB(andd);
+    TEST_COMB(andnd);
+    TEST_COMB(ord);
+    TEST_COMB(ornd);
+    TEST_COMB(xord);
+    TEST_COMB(xornd);
+    TEST_COMB(rsubd);
+    TEST_COMB(addd);
+    TEST_COMB(subd);
 
     // TODO: e2k comb getf_*
-    //
-    // getf_ands
-    // getf_andd
-    // getf_andns
-    // getf_andnd
-    // getf_ors
-    // getf_ord
-    // getf_orns
-    // getf_ornd
-    // getf_xors
-    // getf_xord
-    // getf_xorns
-    // getf_xornd
-    // getf_rsubs
-    // getf_rsubd
-    // getf_adds
-    // getf_addd
-    // getf_subs
-    // getf_subd
 
     // TODO: implemented, v1 only, no support in toolchain
     //
-    // and_merges
-    // and_merged
-    // andn_merges
-    // andn_merged
-    // or_merges
-    // or_merged
-    // orn_merges
-    // orn_merged
-    // xor_merges
-    // xor_merged
-    // xorn_merges
-    // xorn_merged
-    // merge_merges
-    // merge_merged
-    // add_merges
-    // add_merged
-    // sub_merges
-    // sub_merged
-    // scl_merges
-    // scl_merged
-    // scr_merges
-    // scr_merged
-    // shl_merges
-    // shl_merged
-    // shr_merges
-    // shr_merged
-    // sar_merges
-    // sar_merged
-    // getf_merges
-    // getf_merged
-    // and_scls
-    // and_scld
-    // andn_scls
-    // andn_scld
-    // or_scls
-    // or_scld
-    // orn_scls
-    // orn_scld
-    // xor_scls
-    // xor_scld
-    // xorn_scls
-    // xorn_scld
-    // merge_scls
-    // merge_scld
-    // add_scls
-    // add_scld
-    // sub_scls
-    // sub_scld
-    // scl_scls
-    // scl_scld
-    // scr_scls
-    // scr_scld
-    // shl_scls
-    // shl_scld
-    // shr_scls
-    // shr_scld
-    // sar_scls
-    // sar_scld
-    // getf_scls
-    // getf_scld
-    // and_scrs
-    // and_scrd
-    // andn_scrs
-    // andn_scrd
-    // or_scrs
-    // or_scrd
-    // orn_scrs
-    // orn_scrd
-    // xor_scrs
-    // xor_scrd
-    // xorn_scrs
-    // xorn_scrd
-    // merge_scrs
-    // merge_scrd
-    // add_scrs
-    // add_scrd
-    // sub_scrs
-    // sub_scrd
-    // scl_scrs
-    // scl_scrd
-    // scr_scrs
-    // scr_scrd
-    // shl_scrs
-    // shl_scrd
-    // shr_scrs
-    // shr_scrd
-    // sar_scrs
-    // sar_scrd
-    // getf_scrs
-    // getf_scrd
-    // and_shls
-    // and_shld
-    // andn_shls
-    // andn_shld
-    // or_shls
-    // or_shld
-    // orn_shls
-    // orn_shld
-    // xor_shls
-    // xor_shld
-    // xorn_shls
-    // xorn_shld
-    // merge_shls
-    // merge_shld
-    // add_shls
-    // add_shld
-    // sub_shls
-    // sub_shld
-    // scl_shls
-    // scl_shld
-    // scr_shls
-    // scr_shld
-    // shl_shls
-    // shl_shld
-    // shr_shls
-    // shr_shld
-    // sar_shls
-    // sar_shld
-    // getf_shls
-    // getf_shld
-    // and_shrs
-    // and_shrd
-    // andn_shrs
-    // andn_shrd
-    // or_shrs
-    // or_shrd
-    // orn_shrs
-    // orn_shrd
-    // xor_shrs
-    // xor_shrd
-    // xorn_shrs
-    // xorn_shrd
-    // merge_shrs
-    // merge_shrd
-    // add_shrs
-    // add_shrd
-    // sub_shrs
-    // sub_shrd
-    // scl_shrs
-    // scl_shrd
-    // scr_shrs
-    // scr_shrd
-    // shl_shrs
-    // shl_shrd
-    // shr_shrs
-    // shr_shrd
-    // sar_shrs
-    // sar_shrd
-    // getf_shrs
-    // getf_shrd
-    // and_sars
-    // and_sard
-    // andn_sars
-    // andn_sard
-    // or_sars
-    // or_sard
-    // orn_sars
-    // orn_sard
-    // xor_sars
-    // xor_sard
-    // xorn_sars
-    // xorn_sard
-    // merge_sars
-    // merge_sard
-    // add_sars
-    // add_sard
-    // sub_sars
-    // sub_sard
-    // scl_sars
-    // scl_sard
-    // scr_sars
-    // scr_sard
-    // shl_sars
-    // shl_sard
-    // shr_sars
-    // shr_sard
-    // sar_sars
-    // sar_sard
-    // getf_sars
-    // getf_sard
-    // and_getfs
-    // and_getfd
-    // andn_getfs
-    // andn_getfd
-    // or_getfs
-    // or_getfd
-    // orn_getfs
-    // orn_getfd
-    // xor_getfs
-    // xor_getfd
-    // xorn_getfs
-    // xorn_getfd
-    // merge_getfs
-    // merge_getfd
-    // add_getfs
-    // add_getfd
-    // sub_getfs
-    // sub_getfd
-    // scl_getfs
-    // scl_getfd
-    // scr_getfs
-    // scr_getfd
-    // shl_getfs
-    // shl_getfd
-    // shr_getfs
-    // shr_getfd
-    // sar_getfs
-    // sar_getfd
-    // getf_getfs
-    // getf_getfd
+    // *_merges
+    // *_merged
+    // *_scls
+    // *_scld
+    // *_scrs
+    // *_scrd
+    // *_shls
+    // *_shld
+    // *_shrs
+    // *_shrd
+    // *_sars
+    // *_sard
+    // *_getfs
+    // *_getfd
 
     // TODO: binary translation for x86
     //
-    // ands_fb
-    // andns_fb
-    // ors_fb
-    // orns_fb
-    // xors_fb
-    // xorns_fb
-    // adds_fb
-    // subs_fb
-    // scls_fb
-    // scrs_fb
-    // shls_fb
-    // shrs_fb
-    // sars_fb
-    // umulx_fb
-    // smulx_fb
-    // incs_fb
-    // decs_fb
-    // ands_fh
-    // andns_fh
-    // ors_fh
-    // orns_fh
-    // xors_fh
-    // xorns_fh
-    // adds_fh
-    // subs_fh
-    // scls_fh
-    // scrs_fh
-    // shls_fh
-    // shrs_fh
-    // sars_fh
-    // umulx_fh
-    // smulx_fh
-    // incs_fh
-    // decs_fh
-    // ands_fw
-    // andns_fw
-    // ors_fw
-    // orns_fw
-    // xors_fw
-    // xorns_fw
-    // adds_fw
-    // subs_fw
-    // scls_fw
-    // scrs_fw
-    // shls_fw
-    // shrs_fw
-    // sars_fw
-    // umulx_fw
-    // smulx_fw
-    // incs_fw
-    // decs_fw
+    // *_fb
+    // *_fh
+    // *_fw
 }
 
 static void test_packed(void) {
@@ -777,6 +514,20 @@ static void test_packed(void) {
     // TODO: pextrh
     // TODO: pinsh
 }
+
+#define TEST3_PSHIFT(INSN, SRC1, SRC2, SRC3, EXPECT, GET_EXPECT) do { \
+    ASSERT_ARRAY_LEN_EQ(SRC1, SRC2); \
+    alc_test_t test = test_start(#INSN, NULL, ALC14, HAS_SRC1234); \
+    for (int i = 0; i < ARRAY_LEN(SRC1); ++i) { \
+        EXEC_COMB_MERGE(INSN, test.result, SRC1[i], SRC2[i], SRC3, j); \
+        uint64_t expected = GET_EXPECT(&test, EXPECT, i); \
+        test_report(&test, expected, SRC1[i], SRC2[i], SRC3, j); \
+    } \
+    test_end(&test); \
+} while(0)
+
+#define CHECK3_MERGE(INSN, SRC1, SRC2, SRC3) \
+    TEST3_MERGE(INSN, SRC1, SRC2, SRC3, glue(INSN, _expect), GET_EXPECT)
 
 static void test_packed_shift(void) {
     CHECK2_CARTESIAN(EXEC_RR, 14, psrlw, shift_src1, shift_src2);

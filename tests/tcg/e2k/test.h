@@ -11,7 +11,15 @@
 #define glue(a, b) a ## b
 #define glue3(a, b, c) a ## b ## c
 
-#define ARRAY_SIZE(X) (sizeof(X) / sizeof(X[0]))
+#define ARRAY_LEN(X) (sizeof(X) / sizeof(X[0]))
+
+#define ASSERT_ARRAY_LEN_EQ(X, Y) do { \
+    if (ARRAY_LEN(X) != ARRAY_LEN(Y)) { \
+        fprintf(stderr, "%s:%d array length %s:%u != %s:%u\n", __FILE__, __LINE__, \
+                #X, (unsigned) ARRAY_LEN(X), #Y, (unsigned) ARRAY_LEN(Y)); \
+        abort(); \
+    } \
+} while(0)
 
 // Selector for getf{s,d}.
 #define FIELD(O, L, S, B) ((O) | ((L) << 6) | ((S) << 12) | ((B) << 13))
@@ -300,7 +308,7 @@ done:
 
 #define TEST1(EXEC, CHAN, INSN, SRC1, EXPECT, GET_EXPECT) do { \
     alc_test_t test = test_start(#INSN, NULL, glue(ALC, CHAN), HAS_SRC1); \
-    for (int i = 0; i < ARRAY_SIZE(SRC1); ++i) { \
+    for (int i = 0; i < ARRAY_LEN(SRC1); ++i) { \
         glue3(EXEC, _, CHAN)(INSN, test.result, SRC1[i], 0, 0, 0); \
         uint64_t expected = GET_EXPECT(&test, EXPECT, i); \
         test_report(&test, expected, SRC1[i], 0, 0, 0); \
@@ -315,9 +323,9 @@ done:
     TEST1(EXEC, CHAN, INSN, SRC1, glue(INSN, _expect), GET_EXPECT)
 
 #define TEST2(EXEC, CHAN, INSN, SRC1, SRC2, EXPECT, GET_EXPECT) do { \
-    if (ARRAY_SIZE(SRC1) != ARRAY_SIZE(SRC2)) abort(); \
+    ASSERT_ARRAY_LEN_EQ(SRC1, SRC2); \
     alc_test_t test = test_start(#INSN, NULL, glue(ALC, CHAN), HAS_SRC12); \
-    for (int i = 0; i < ARRAY_SIZE(SRC1); ++i) { \
+    for (int i = 0; i < ARRAY_LEN(SRC1); ++i) { \
         glue3(EXEC, _, CHAN)(INSN, test.result, SRC1[i], SRC2[i], 0, 0); \
         uint64_t expected = GET_EXPECT(&test, EXPECT, i); \
         test_report(&test, expected, SRC1[i], SRC2[i], 0, 0); \
@@ -333,8 +341,8 @@ done:
 
 #define TEST2_CARTESIAN(EXEC, CHAN, INSN, SRC1, SRC2, EXPECT, GET_EXPECT) do {\
     alc_test_t test = test_start(#INSN, NULL, glue(ALC, CHAN), HAS_SRC12); \
-    for (int i = 0, k = 0; i < ARRAY_SIZE(SRC1); ++i) { \
-        for (int j = 0; j < ARRAY_SIZE(SRC2); ++j, ++k) { \
+    for (int i = 0, k = 0; i < ARRAY_LEN(SRC1); ++i) { \
+        for (int j = 0; j < ARRAY_LEN(SRC2); ++j, ++k) { \
             glue3(EXEC, _, CHAN)(INSN, test.result, SRC1[i], SRC2[j], 0, 0); \
             uint64_t expected = GET_EXPECT(&test, EXPECT, k); \
             test_report(&test, expected, SRC1[i], SRC2[j], 0, 0); \
@@ -350,10 +358,10 @@ done:
     TEST2_CARTESIAN(EXEC, CHAN, INSN, SRC1, SRC2, glue(INSN, _expect), GET_EXPECT)
 
 #define TEST3(EXEC, CHAN, INSN, SRC1, SRC2, SRC3, EXPECT, GET_EXPECT) do { \
-    if (ARRAY_SIZE(SRC1) != ARRAY_SIZE(SRC2) || \
-        ARRAY_SIZE(SRC1) != ARRAY_SIZE(SRC3)) abort(); \
+    ASSERT_ARRAY_LEN_EQ(SRC1, SRC2); \
+    ASSERT_ARRAY_LEN_EQ(SRC1, SRC3); \
     alc_test_t test = test_start(#INSN, NULL, glue(ALC, CHAN), HAS_SRC123); \
-    for (int i = 0; i < ARRAY_SIZE(SRC1); ++i) { \
+    for (int i = 0; i < ARRAY_LEN(SRC1); ++i) { \
         glue3(EXEC, _, CHAN)(INSN, test.result, SRC1[i], SRC2[i], SRC3[i], 0); \
         uint64_t expected = GET_EXPECT(&test, EXPECT, i); \
         test_report(&test, expected, SRC1[i], SRC2[i], SRC3[i], 0); \
