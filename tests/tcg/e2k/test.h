@@ -63,6 +63,7 @@ typedef struct alc_test {
     alc_t channels;
     flags_t flags;
     uint64_t result[6];
+    int i;
 } alc_test_t;
 
 static alc_test_t test_start(const char *insn, const char *comment, alc_t channels, flags_t flags) {
@@ -71,6 +72,7 @@ static alc_test_t test_start(const char *insn, const char *comment, alc_t channe
     test.comment = comment;
     test.channels = channels;
     test.flags = flags;
+    test.i = 0;
     if (generate_expect) {
         if (flags & SKIP_GEN)
             return test;
@@ -90,8 +92,11 @@ static alc_test_t test_start(const char *insn, const char *comment, alc_t channe
 
 static void test_end(alc_test_t *test) {
     if (generate_expect) {
-        if (!(test->flags & SKIP_GEN))
+        if (!(test->flags & SKIP_GEN)) {
+            if (test->i != 0)
+                printf("\n");
             printf("};\n");
+        }
     } else {
         printf("\n");
     }
@@ -110,15 +115,23 @@ static void test_report(
     if (generate_expect) {
         if (test->flags & SKIP_GEN)
             goto skip;
-        printf("    0x%016" PRIx64 ", //", test->result[0]);
+        if (test->i == 0)
+            printf("   ");
+        printf(" 0x%016" PRIx64 ",", test->result[0]);
+        if (test->i >= 3) {
+            test->i = 0;
+            printf("\n");
+        } else {
+            test->i += 1;
+        }
     } else {
         printf("  %016" PRIx64 " =", test->result[0]);
+        if (test->flags & HAS_SRC1) printf(" %016" PRIx64, src1);
+        if (test->flags & HAS_SRC2) printf(" %016" PRIx64, src2);
+        if (test->flags & HAS_SRC3) printf(" %016" PRIx64, src3);
+        if (test->flags & HAS_SRC4) printf(" %016" PRIx64, src4);
+        printf("\n");
     }
-    if (test->flags & HAS_SRC1) printf(" %016" PRIx64, src1);
-    if (test->flags & HAS_SRC2) printf(" %016" PRIx64, src2);
-    if (test->flags & HAS_SRC3) printf(" %016" PRIx64, src3);
-    if (test->flags & HAS_SRC4) printf(" %016" PRIx64, src4);
-    printf("\n");
 
 skip:
     for (int i = 0, j = 0; j < 6; ++j) {
