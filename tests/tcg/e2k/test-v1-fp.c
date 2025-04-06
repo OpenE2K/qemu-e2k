@@ -1,5 +1,3 @@
-#include "test-e2k.h"
-
 // TODO: fxcmpeqsb
 // TODO: fxcmpltsb
 // TODO: fxcmplesb
@@ -217,5 +215,5 @@
 // TODO: pfsub_muld
 
 int main(int argc, char *argv[]) {
-    return is_failed();
+    return 0;
 }
