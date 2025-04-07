@@ -210,6 +210,14 @@ done:
     : [src1]"r"(SRC1) \
 )
 
+#define EXEC_R_5(INSN, RES, SRC1, SRC2, SRC3, SRC4) asm( \
+    "\t{\n" \
+    "\t    " #INSN ",5 %[src1], %0\n" \
+    "\t}" \
+    : "+r"(RES[0]) \
+    : [src1]"r"(SRC1) \
+)
+
 #define EXEC_RR_03(INSN, RES, SRC1, SRC2, SRC3, SRC4) asm( \
     "\t{\n" \
     "\t    " #INSN ",0 %[src1], %[src2], %0\n" \

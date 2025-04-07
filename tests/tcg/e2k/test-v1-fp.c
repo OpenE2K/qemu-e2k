@@ -1,5 +1,15 @@
 #include "test.h"
 
+static uint64_t int_src1[] = {
+    0x0000000012345678, 0x0000000000012341, 0x0000000000012341, 0xffffffffffffffff,
+    0xffffffffffffffff, 0xffffffffffffffff, 0xffffffffffffffff, 0x7fffffffffffffff,
+    0x7fffffffffffffff, 0x7fffffffffffffff, 0x8000000000000000, 0x8000000000000000,
+    0x8000000000000000, 0xaaaaaaaa12345678, 0xaaaaaaaa00012341, 0xaaaaaaaa00012341,
+    0xaaaaaaaaffffffff, 0xaaaaaaaaffffffff, 0xaaaaaaaaffffffff, 0xaaaaaaaaffffffff,
+    0xaaaaaaaa7fffffff, 0xaaaaaaaa7fffffff, 0xaaaaaaaa7fffffff, 0xaaaaaaaa80000000,
+    0xaaaaaaaa80000000, 0xaaaaaaaa80000000, 0x123456789abcdef0, 0x123456789abcdef0,
+};
+
 static uint64_t f32_src1[] = {
     0x447bb0acc44a6472, // 1006.76049805, -809.56945801
     0x4392fdd8c32da2c0, // 293.98315430, -173.63574219
@@ -317,10 +327,11 @@ static void test_f32(void) {
     CHECK2_CARTESIAN(EXEC_CMP, 0134, fcmpnlesb, f32_cmp_src1, f32_cmp_src1);
     CHECK2_CARTESIAN(EXEC_CMP, 0134, fcmpodsb,  f32_cmp_src1, f32_cmp_src1);
 
-    // TODO: fdivs
-    // TODO: fsqrts
-    // TODO: frcps
-    // TODO: frsqrts
+    CHECK2(EXEC_RR, 5, fdivs,  f32_src1, f32_src2);
+    CHECK1(EXEC_R, 5, fsqrts,  f32_src1);
+    // FIXME: emulated insn has better precision than real cpu
+    // CHECK1(EXEC_R, 5, frcps,   f32_src1);
+    // CHECK1(EXEC_R, 5, frsqrts, f32_src1);
 }
 
 static void test_f64(void) {
@@ -356,7 +367,7 @@ static void test_f64(void) {
     CHECK2_CARTESIAN(EXEC_CMP, 0134, fcmpnledb, f64_cmp_src1, f64_cmp_src1);
     CHECK2_CARTESIAN(EXEC_CMP, 0134, fcmpoddb,  f64_cmp_src1, f64_cmp_src1);
 
-    // TODO: fdivd
+    CHECK2(EXEC_RR, 5, fdivd, f64_src1, f64_src2);
     // TODO: fsqrtid
     // TODO: fsqrttd
 }
@@ -381,8 +392,8 @@ static void test_packed_f32(void) {
     CHECK3(EXEC_RRR, 0134, pfmul_subs,  f32_src1, f32_src2, f32_src3);
     CHECK3(EXEC_RRR, 0134, pfmul_rsubs, f32_src1, f32_src2, f32_src3);
 
-    // TODO: pfdivs
-    // TODO: pfsqrts
+    CHECK2(EXEC_RR, 5, pfdivs, f32_src1, f32_src2);
+    CHECK1(EXEC_R, 5, pfsqrts, f32_src1);
 }
 
 static void test_packed_f64(void) {
@@ -405,7 +416,7 @@ static void test_packed_f64(void) {
     CHECK3(EXEC_RRR, 0134, pfmul_subd,  f64_src1, f64_src2, f64_src3);
     CHECK3(EXEC_RRR, 0134, pfmul_rsubd, f64_src1, f64_src2, f64_src3);
 
-    // TODO: pfdivd
+    CHECK2(EXEC_RR, 5, pfdivd, f64_src1, f64_src2);
     // TODO: pfsqrttd
 }
 
@@ -500,6 +511,43 @@ static void test_f80(void) {
     // TODO: fxcmpodxf
 }
 
+static void test_converts(void) {
+    CHECK1(EXEC_R, 0134, fstofd,    f32_src1);
+    CHECK1(EXEC_R, 0134, fstois,    f32_src1);
+    CHECK1(EXEC_R, 0134, fstoistr,  f32_src1);
+    CHECK1(EXEC_R, 0134, fstoid,    f32_src1);
+    // TODO: fstofx
+
+    CHECK1(EXEC_R, 0134, fdtofs,    f64_src1);
+    CHECK1(EXEC_R, 0134, fdtois,    f64_src1);
+    CHECK1(EXEC_R, 0134, fdtoistr,  f64_src1);
+    CHECK1(EXEC_R, 0134, fdtoid,    f64_src1);
+    // TODO: fdtofx
+
+    CHECK1(EXEC_R, 0134, pfstofd,   f32_src1);
+    CHECK1(EXEC_R, 0134, pfstois,   f32_src1);
+    CHECK1(EXEC_R, 0134, pfstoistr, f32_src1);
+
+    CHECK1(EXEC_R, 0134, pfdtofs,   f32_src1);
+    CHECK1(EXEC_R, 0134, pfdtois,   f32_src1);
+    CHECK1(EXEC_R, 0134, pfdtoistr, f32_src1);
+
+    CHECK1(EXEC_R, 0134, istofs, int_src1);
+    CHECK1(EXEC_R, 0134, istofd, int_src1);
+    // TODO: istofx
+
+    CHECK1(EXEC_R, 0134, idtofs, int_src1);
+    CHECK1(EXEC_R, 0134, idtofd, int_src1);
+    // TODO: idtofx
+
+    CHECK1(EXEC_R, 0134, pistofs, int_src1);
+
+    // TODO: fxtofs
+    // TODO: fxtofd
+    // TODO: fxtois
+    // TODO: fxtoid
+}
+
 int main(int argc, char *argv[]) {
     parse_args(argc, argv);
 
@@ -510,33 +558,7 @@ int main(int argc, char *argv[]) {
 
     test_f80();
 
-// TODO: fstois
-// TODO: fstoistr
-// TODO: pfstois
-// TODO: pfstoistr
-// TODO: fstoid
-// TODO: istofs
-// TODO: fdtoid
-// TODO: fxtoid
-// TODO: idtofd
-// TODO: idtofx
-// TODO: fxtofd
-// TODO: fdtofx
-// TODO: pistofs
-// TODO: istofd
-// TODO: istofx
-// TODO: fstofd
-// TODO: fstofx
-// TODO: pfstofd
-// TODO: fdtois
-// TODO: fxtois
-// TODO: fdtoistr
-// TODO: idtofs
-// TODO: fdtofs
-// TODO: fxtofs
-// TODO: pfdtois
-// TODO: pfdtoistr
-// TODO: pfdtofs
+    test_converts();
 
     // TODO: v1 only, implemented, no support in toolchain
     //
