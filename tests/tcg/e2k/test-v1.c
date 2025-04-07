@@ -77,7 +77,9 @@ static uint64_t cmp_src[] = {
     0xdeadbeefdeadbeef, 0xffffffffffffffff,
 };
 
+#ifndef DUMP_ONLY
 #include "test-v1-expect.inc"
+#endif
 
 static void test_int(void) {
     CHECK2(EXEC_RR, 012345, ands,   int_src1, int_src2);
@@ -453,6 +455,18 @@ static void test_comb(void) {
     // *_fw
 }
 
+#define CHECK_RI_14(TEST, INSN, SRC1, SRC2, K) do { \
+    EXEC_RI_14(INSN, (TEST)->result, SRC1, SRC2, 0, 0); \
+    uint64_t expected = GET_EXPECT(TEST, glue(INSN, _expect), K); \
+    test_report(TEST, expected, SRC1, SRC2, 0, 0); \
+} while(0)
+
+#define CHECK_RRI_14(TEST, INSN, SRC1, SRC2, SRC3, K) do { \
+    EXEC_RRI_14(INSN, (TEST)->result, SRC1, SRC2, SRC3, 0); \
+    uint64_t expected = GET_EXPECT(TEST, glue(INSN, _expect), K); \
+    test_report(TEST, expected, SRC1, SRC2, SRC3, 0); \
+} while(0)
+
 static void test_packed(void) {
     CHECK2(EXEC_RR, 0134, pandd,    int_src1, int_src2);
     CHECK2(EXEC_RR, 0134, pandnd,   int_src1, int_src2);
@@ -508,85 +522,100 @@ static void test_packed(void) {
     CHECK2(EXEC_RR, 14, pmulhuh,    int_src1, int_src2);
     CHECK2(EXEC_RR, 14, psadbw,     int_src1, int_src2);
 
-#define CHECK_PSHUFW(TEST, SRC1, SRC2, SRC3, K) do { \
-    EXEC_RRI_14(pshufw, (TEST)->result, SRC1, SRC2, SRC3, 0); \
-    test_report(TEST, pshufw_expect[K++], SRC1, SRC2, SRC3, 0); \
-} while(0)
-
     do {
         alc_test_t test = test_start("pshufw", NULL, ALC14, HAS_SRC123);
         uint64_t src1 = 0x1122334455667788;
         uint64_t src2 = 0xffeeddccbbaa9900;
         int k = 0;
-        CHECK_PSHUFW(&test, src1, src2, 0x0, k);
-        CHECK_PSHUFW(&test, src1, src2, 0x1, k);
-        CHECK_PSHUFW(&test, src1, src2, 0x2, k);
-        CHECK_PSHUFW(&test, src1, src2, 0x3, k);
-        CHECK_PSHUFW(&test, src1, src2, 0x4, k);
-        CHECK_PSHUFW(&test, src1, src2, 0x5, k);
-        CHECK_PSHUFW(&test, src1, src2, 0x6, k);
-        CHECK_PSHUFW(&test, src1, src2, 0x7, k);
-        CHECK_PSHUFW(&test, src1, src2, 0x8, k);
-        CHECK_PSHUFW(&test, src1, src2, 0x9, k);
-        CHECK_PSHUFW(&test, src1, src2, 0xa, k);
-        CHECK_PSHUFW(&test, src1, src2, 0xb, k);
-        CHECK_PSHUFW(&test, src1, src2, 0xc, k);
-        CHECK_PSHUFW(&test, src1, src2, 0xd, k);
-        CHECK_PSHUFW(&test, src1, src2, 0xe, k);
-        CHECK_PSHUFW(&test, src1, src2, 0xf, k);
+        CHECK_RRI_14(&test, pshufw, src1, src2, 0x0, k); ++k;
+        CHECK_RRI_14(&test, pshufw, src1, src2, 0x1, k); ++k;
+        CHECK_RRI_14(&test, pshufw, src1, src2, 0x2, k); ++k;
+        CHECK_RRI_14(&test, pshufw, src1, src2, 0x3, k); ++k;
+        CHECK_RRI_14(&test, pshufw, src1, src2, 0x4, k); ++k;
+        CHECK_RRI_14(&test, pshufw, src1, src2, 0x5, k); ++k;
+        CHECK_RRI_14(&test, pshufw, src1, src2, 0x6, k); ++k;
+        CHECK_RRI_14(&test, pshufw, src1, src2, 0x7, k); ++k;
+        CHECK_RRI_14(&test, pshufw, src1, src2, 0x8, k); ++k;
+        CHECK_RRI_14(&test, pshufw, src1, src2, 0x9, k); ++k;
+        CHECK_RRI_14(&test, pshufw, src1, src2, 0xa, k); ++k;
+        CHECK_RRI_14(&test, pshufw, src1, src2, 0xb, k); ++k;
+        CHECK_RRI_14(&test, pshufw, src1, src2, 0xc, k); ++k;
+        CHECK_RRI_14(&test, pshufw, src1, src2, 0xd, k); ++k;
+        CHECK_RRI_14(&test, pshufw, src1, src2, 0xe, k); ++k;
+        CHECK_RRI_14(&test, pshufw, src1, src2, 0xf, k); ++k;
         test_end(&test);
     } while(0);
-
-#define CHECK_PSHUFH(TEST, SRC1, SRC2, K) do { \
-    EXEC_RI_14(pshufh, (TEST)->result, SRC1, SRC2, 0, 0); \
-    test_report(TEST, pshufh_expect[K++], SRC1, SRC2, 0, 0); \
-} while(0)
 
     do {
         alc_test_t test = test_start("pshufh", NULL, ALC14, HAS_SRC12);
         uint64_t src1 = 0x1122334455667788;
         int k = 0;
-        CHECK_PSHUFH(&test, src1, 0x00, k);
-        CHECK_PSHUFH(&test, src1, 0x01, k);
-        CHECK_PSHUFH(&test, src1, 0x02, k);
-        CHECK_PSHUFH(&test, src1, 0x03, k);
-        CHECK_PSHUFH(&test, src1, 0x04, k);
-        CHECK_PSHUFH(&test, src1, 0x05, k);
-        CHECK_PSHUFH(&test, src1, 0x06, k);
-        CHECK_PSHUFH(&test, src1, 0x07, k);
-        CHECK_PSHUFH(&test, src1, 0x08, k);
-        CHECK_PSHUFH(&test, src1, 0x09, k);
-        CHECK_PSHUFH(&test, src1, 0x0a, k);
-        CHECK_PSHUFH(&test, src1, 0x0b, k);
-        CHECK_PSHUFH(&test, src1, 0x0c, k);
-        CHECK_PSHUFH(&test, src1, 0x0d, k);
-        CHECK_PSHUFH(&test, src1, 0x0e, k);
-        CHECK_PSHUFH(&test, src1, 0x0f, k);
-        CHECK_PSHUFH(&test, src1, 0x00, k);
-        CHECK_PSHUFH(&test, src1, 0x10, k);
-        CHECK_PSHUFH(&test, src1, 0x20, k);
-        CHECK_PSHUFH(&test, src1, 0x30, k);
-        CHECK_PSHUFH(&test, src1, 0x40, k);
-        CHECK_PSHUFH(&test, src1, 0x50, k);
-        CHECK_PSHUFH(&test, src1, 0x60, k);
-        CHECK_PSHUFH(&test, src1, 0x70, k);
-        CHECK_PSHUFH(&test, src1, 0x80, k);
-        CHECK_PSHUFH(&test, src1, 0x90, k);
-        CHECK_PSHUFH(&test, src1, 0xa0, k);
-        CHECK_PSHUFH(&test, src1, 0xb0, k);
-        CHECK_PSHUFH(&test, src1, 0xc0, k);
-        CHECK_PSHUFH(&test, src1, 0xd0, k);
-        CHECK_PSHUFH(&test, src1, 0xe0, k);
-        CHECK_PSHUFH(&test, src1, 0xf0, k);
-        CHECK_PSHUFH(&test, src1, 0xf7, k);
-        CHECK_PSHUFH(&test, src1, 0x7f, k);
-        CHECK_PSHUFH(&test, src1, 0x7f, k);
-        CHECK_PSHUFH(&test, src1, 0xf7, k);
+        CHECK_RI_14(&test, pshufh, src1, 0x00, k); ++k;
+        CHECK_RI_14(&test, pshufh, src1, 0x01, k); ++k;
+        CHECK_RI_14(&test, pshufh, src1, 0x02, k); ++k;
+        CHECK_RI_14(&test, pshufh, src1, 0x03, k); ++k;
+        CHECK_RI_14(&test, pshufh, src1, 0x04, k); ++k;
+        CHECK_RI_14(&test, pshufh, src1, 0x05, k); ++k;
+        CHECK_RI_14(&test, pshufh, src1, 0x06, k); ++k;
+        CHECK_RI_14(&test, pshufh, src1, 0x07, k); ++k;
+        CHECK_RI_14(&test, pshufh, src1, 0x08, k); ++k;
+        CHECK_RI_14(&test, pshufh, src1, 0x09, k); ++k;
+        CHECK_RI_14(&test, pshufh, src1, 0x0a, k); ++k;
+        CHECK_RI_14(&test, pshufh, src1, 0x0b, k); ++k;
+        CHECK_RI_14(&test, pshufh, src1, 0x0c, k); ++k;
+        CHECK_RI_14(&test, pshufh, src1, 0x0d, k); ++k;
+        CHECK_RI_14(&test, pshufh, src1, 0x0e, k); ++k;
+        CHECK_RI_14(&test, pshufh, src1, 0x0f, k); ++k;
+        CHECK_RI_14(&test, pshufh, src1, 0x00, k); ++k;
+        CHECK_RI_14(&test, pshufh, src1, 0x10, k); ++k;
+        CHECK_RI_14(&test, pshufh, src1, 0x20, k); ++k;
+        CHECK_RI_14(&test, pshufh, src1, 0x30, k); ++k;
+        CHECK_RI_14(&test, pshufh, src1, 0x40, k); ++k;
+        CHECK_RI_14(&test, pshufh, src1, 0x50, k); ++k;
+        CHECK_RI_14(&test, pshufh, src1, 0x60, k); ++k;
+        CHECK_RI_14(&test, pshufh, src1, 0x70, k); ++k;
+        CHECK_RI_14(&test, pshufh, src1, 0x80, k); ++k;
+        CHECK_RI_14(&test, pshufh, src1, 0x90, k); ++k;
+        CHECK_RI_14(&test, pshufh, src1, 0xa0, k); ++k;
+        CHECK_RI_14(&test, pshufh, src1, 0xb0, k); ++k;
+        CHECK_RI_14(&test, pshufh, src1, 0xc0, k); ++k;
+        CHECK_RI_14(&test, pshufh, src1, 0xd0, k); ++k;
+        CHECK_RI_14(&test, pshufh, src1, 0xe0, k); ++k;
+        CHECK_RI_14(&test, pshufh, src1, 0xf0, k); ++k;
+        CHECK_RI_14(&test, pshufh, src1, 0xf7, k); ++k;
+        CHECK_RI_14(&test, pshufh, src1, 0x7f, k); ++k;
+        CHECK_RI_14(&test, pshufh, src1, 0x7f, k); ++k;
+        CHECK_RI_14(&test, pshufh, src1, 0xf7, k); ++k;
         test_end(&test);
     } while(0);
 
-    // TODO: pextrh
-    // TODO: pinsh
+    do {
+        alc_test_t test = test_start("pextrh", NULL, ALC14, HAS_SRC123);
+        uint64_t src1 = 0x1122334455667788;
+        uint64_t src2 = 0xffeeddccbbaa9900;
+        int k = 0;
+        CHECK_RRI_14(&test, pextrh, src1, src2, 0x0, k); ++k;
+        CHECK_RRI_14(&test, pextrh, src1, src2, 0x1, k); ++k;
+        CHECK_RRI_14(&test, pextrh, src1, src2, 0x2, k); ++k;
+        CHECK_RRI_14(&test, pextrh, src1, src2, 0x3, k); ++k;
+        CHECK_RRI_14(&test, pextrh, src1, src2, 0x4, k); ++k;
+        CHECK_RRI_14(&test, pextrh, src1, src2, 0x5, k); ++k;
+        CHECK_RRI_14(&test, pextrh, src1, src2, 0x6, k); ++k;
+        CHECK_RRI_14(&test, pextrh, src1, src2, 0x7, k); ++k;
+        test_end(&test);
+    } while(0);
+
+    do {
+        alc_test_t test = test_start("pinsh", NULL, ALC14, HAS_SRC123);
+        uint64_t src1 = 0x1122334455667788;
+        uint64_t src2 = 0xffeeddccbbaa9900;
+        int k = 0;
+        CHECK_RRI_14(&test, pinsh, src1, src2, 0x0, k); ++k;
+        CHECK_RRI_14(&test, pinsh, src1, src2, 0x1, k); ++k;
+        CHECK_RRI_14(&test, pinsh, src1, src2, 0x2, k); ++k;
+        CHECK_RRI_14(&test, pinsh, src1, src2, 0x3, k); ++k;
+        test_end(&test);
+    } while(0);
 }
 
 static uint64_t pshift_src1[] = {

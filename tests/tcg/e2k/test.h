@@ -328,7 +328,12 @@ done:
     test_report(&TEST, EXPECTED, SRC1, SRC2, SRC3, 0)
 
 #define DUMMY_EXPECT(TEST, EXPECT, I) (TEST)->result[0]
+
+#ifdef DUMP_ONLY
+#define GET_EXPECT DUMMY_EXPECT
+#else
 #define GET_EXPECT(TEST, EXPECT, I) (EXPECT)[I]
+#endif
 
 #define TEST1(EXEC, CHAN, INSN, SRC1, EXPECT, GET_EXPECT) do { \
     alc_test_t test = test_start(#INSN, NULL, glue(ALC, CHAN), HAS_SRC1); \
