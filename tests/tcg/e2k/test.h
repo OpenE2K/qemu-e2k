@@ -232,6 +232,17 @@ done:
       [src2]"r"(SRC2)  \
 )
 
+#define EXEC_RI_14(INSN, RES, SRC1, SRC2, SRC3, SRC4) asm( \
+    "\t{\n" \
+    "\t    " #INSN ",1 %[src1], %[src2], %0\n" \
+    "\t    " #INSN ",4 %[src1], %[src2], %1\n" \
+    "\t}" \
+    : "+r"(RES[0]), \
+      "+r"(RES[1])  \
+    : [src1]"r"(SRC1), \
+      [src2]"i"(SRC2)  \
+)
+
 #define EXEC_RR_0134(INSN, RES, SRC1, SRC2, SRC3, SRC4) asm( \
     "\t{\n" \
     "\t    " #INSN ",0 %[src1], %[src2], %0\n" \
@@ -286,6 +297,19 @@ done:
 
 #define EXEC_RR_5(INSN, RES, SRC1, SRC2, SRC3, SRC4) \
     EXEC2_5(INSN, RES, "r", SRC1, "r", SRC2)
+
+#define EXEC_RRI_14(INSN, RES, SRC1, SRC2, SRC3, SRC4) asm( \
+    "\t{\n" \
+    "\t    " #INSN ",1 %[src1], %[src2], %[src3], %0\n" \
+    "\t    " #INSN ",4 %[src1], %[src2], %[src3], %1\n" \
+    "\t}" \
+    : "+r"(RES[0]), \
+      "+r"(RES[1]) \
+    : [src1]"r"(SRC1), \
+      [src2]"r"(SRC2), \
+      [src3]"i"(SRC3) \
+    : "pred0" \
+)
 
 #define EXEC_REPORT(TEST, EXEC, INSN, SRC1, SRC2, SRC3, SRC4, EXPECTED) \
     EXEC(INSN, (TEST).result, SRC1, SRC2, SRC3, SRC4); \
