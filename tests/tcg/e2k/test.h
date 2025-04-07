@@ -258,6 +258,29 @@ done:
       [src2]"r"(SRC2)  \
 )
 
+#define EXEC_CMP_0134(INSN, RES, SRC1, SRC2, SRC3, SRC4) asm( \
+    "\t{\n" \
+    "\t    " #INSN ",0 %[src1], %[src2], %%pred0\n" \
+    "\t    " #INSN ",1 %[src1], %[src2], %%pred1\n" \
+    "\t    " #INSN ",3 %[src1], %[src2], %%pred2\n" \
+    "\t    " #INSN ",4 %[src1], %[src2], %%pred3\n" \
+    "\t}\n" \
+    "\t{\n" \
+    "\t    merged,0 0, 1, %0, %%pred0\n" \
+    "\t    merged,1 0, 1, %1, %%pred1\n" \
+    "\t    merged,3 0, 1, %2, %%pred2\n" \
+    "\t    merged,4 0, 1, %3, %%pred3\n" \
+    "\t}" \
+    : "+r"(RES[0]), \
+      "+r"(RES[1]), \
+      "+r"(RES[2]), \
+      "+r"(RES[3])  \
+    : [src1]"rI"(SRC1), \
+      [src2]"ri"(SRC2), \
+      [src3]"ri"(SRC3)  \
+    : "pred0", "pred1", "pred2", "pred3" \
+)
+
 #define EXEC2_012345(INSN, RES, C1, SRC1, C2, SRC2) asm( \
     "\t{\n" \
     "\t    " #INSN ",0 %[src1], %[src2], %0\n" \
@@ -311,6 +334,34 @@ done:
     : "pred0" \
 )
 
+#define EXEC_RRR_0134(INSN, RES, SRC1, SRC2, SRC3, SRC4) asm( \
+    "\t{\n" \
+    "\t    " #INSN ",0 %[src1], %[src2], %[src3], %0\n" \
+    "\t    " #INSN ",1 %[src1], %[src2], %[src3], %1\n" \
+    "\t    " #INSN ",3 %[src1], %[src2], %[src3], %2\n" \
+    "\t    " #INSN ",4 %[src1], %[src2], %[src3], %3\n" \
+    "\t}" \
+    : "+r"(RES[0]), \
+      "+r"(RES[1]), \
+      "+r"(RES[2]), \
+      "+r"(RES[3])  \
+    : [src1]"r"(SRC1), \
+      [src2]"r"(SRC2), \
+      [src3]"r"(SRC3)  \
+)
+
+#define EXEC_RRR_14(INSN, RES, SRC1, SRC2, SRC3, SRC4) asm( \
+    "\t{\n" \
+    "\t    " #INSN ",1 %[src1], %[src2], %[src3], %0\n" \
+    "\t    " #INSN ",4 %[src1], %[src2], %[src3], %1\n" \
+    "\t}" \
+    : "+r"(RES[0]), \
+      "+r"(RES[1])  \
+    : [src1]"r"(SRC1), \
+      [src2]"r"(SRC2), \
+      [src3]"r"(SRC3)  \
+)
+
 #define EXEC_REPORT(TEST, EXEC, INSN, SRC1, SRC2, SRC3, SRC4, EXPECTED) \
     EXEC(INSN, (TEST).result, SRC1, SRC2, SRC3, SRC4); \
     test_report(&TEST, EXPECTED, SRC1, SRC2, SRC3, SRC4)
@@ -337,10 +388,11 @@ done:
 
 #define TEST1(EXEC, CHAN, INSN, SRC1, EXPECT, GET_EXPECT) do { \
     alc_test_t test = test_start(#INSN, NULL, glue(ALC, CHAN), HAS_SRC1); \
+    const uint64_t *src1 = (const void *) (SRC1); \
     for (int i = 0; i < ARRAY_LEN(SRC1); ++i) { \
-        glue3(EXEC, _, CHAN)(INSN, test.result, SRC1[i], 0, 0, 0); \
+        glue3(EXEC, _, CHAN)(INSN, test.result, src1[i], 0, 0, 0); \
         uint64_t expected = GET_EXPECT(&test, EXPECT, i); \
-        test_report(&test, expected, SRC1[i], 0, 0, 0); \
+        test_report(&test, expected, src1[i], 0, 0, 0); \
     } \
     test_end(&test); \
 } while(0)
@@ -354,10 +406,12 @@ done:
 #define TEST2(EXEC, CHAN, INSN, SRC1, SRC2, EXPECT, GET_EXPECT) do { \
     ASSERT_ARRAY_LEN_EQ(SRC1, SRC2); \
     alc_test_t test = test_start(#INSN, NULL, glue(ALC, CHAN), HAS_SRC12); \
+    const uint64_t *src1 = (const void *) (SRC1); \
+    const uint64_t *src2 = (const void *) (SRC2); \
     for (int i = 0; i < ARRAY_LEN(SRC1); ++i) { \
-        glue3(EXEC, _, CHAN)(INSN, test.result, SRC1[i], SRC2[i], 0, 0); \
+        glue3(EXEC, _, CHAN)(INSN, test.result, src1[i], src2[i], 0, 0); \
         uint64_t expected = GET_EXPECT(&test, EXPECT, i); \
-        test_report(&test, expected, SRC1[i], SRC2[i], 0, 0); \
+        test_report(&test, expected, src1[i], src2[i], 0, 0); \
     } \
     test_end(&test); \
 } while(0)
@@ -370,11 +424,13 @@ done:
 
 #define TEST2_CARTESIAN(EXEC, CHAN, INSN, SRC1, SRC2, EXPECT, GET_EXPECT) do {\
     alc_test_t test = test_start(#INSN, NULL, glue(ALC, CHAN), HAS_SRC12); \
+    const uint64_t *src1 = (const void *) (SRC1); \
+    const uint64_t *src2 = (const void *) (SRC2); \
     for (int i = 0, k = 0; i < ARRAY_LEN(SRC1); ++i) { \
         for (int j = 0; j < ARRAY_LEN(SRC2); ++j, ++k) { \
-            glue3(EXEC, _, CHAN)(INSN, test.result, SRC1[i], SRC2[j], 0, 0); \
+            glue3(EXEC, _, CHAN)(INSN, test.result, src1[i], src2[j], 0, 0); \
             uint64_t expected = GET_EXPECT(&test, EXPECT, k); \
-            test_report(&test, expected, SRC1[i], SRC2[j], 0, 0); \
+            test_report(&test, expected, src1[i], src2[j], 0, 0); \
         } \
     } \
     test_end(&test); \
@@ -390,10 +446,13 @@ done:
     ASSERT_ARRAY_LEN_EQ(SRC1, SRC2); \
     ASSERT_ARRAY_LEN_EQ(SRC1, SRC3); \
     alc_test_t test = test_start(#INSN, NULL, glue(ALC, CHAN), HAS_SRC123); \
+    const uint64_t *src1 = (const void *) (SRC1); \
+    const uint64_t *src2 = (const void *) (SRC2); \
+    const uint64_t *src3 = (const void *) (SRC3); \
     for (int i = 0; i < ARRAY_LEN(SRC1); ++i) { \
-        glue3(EXEC, _, CHAN)(INSN, test.result, SRC1[i], SRC2[i], SRC3[i], 0); \
+        glue3(EXEC, _, CHAN)(INSN, test.result, src1[i], src2[i], src3[i], 0); \
         uint64_t expected = GET_EXPECT(&test, EXPECT, i); \
-        test_report(&test, expected, SRC1[i], SRC2[i], SRC3[i], 0); \
+        test_report(&test, expected, src1[i], src2[i], src3[i], 0); \
     } \
     test_end(&test); \
 } while(0)

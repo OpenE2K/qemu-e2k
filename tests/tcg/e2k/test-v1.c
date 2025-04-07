@@ -292,29 +292,6 @@ static void test_getf(void) {
 #endif
 }
 
-#define EXEC_CMP_0134(INSN, RES, SRC1, SRC2, SRC3, SRC4) asm( \
-    "\t{\n" \
-    "\t    " #INSN ",0 %[src1], %[src2], %%pred0\n" \
-    "\t    " #INSN ",1 %[src1], %[src2], %%pred1\n" \
-    "\t    " #INSN ",3 %[src1], %[src2], %%pred2\n" \
-    "\t    " #INSN ",4 %[src1], %[src2], %%pred3\n" \
-    "\t}\n" \
-    "\t{\n" \
-    "\t    merged,0 0, 1, %0, %%pred0\n" \
-    "\t    merged,1 0, 1, %1, %%pred1\n" \
-    "\t    merged,3 0, 1, %2, %%pred2\n" \
-    "\t    merged,4 0, 1, %3, %%pred3\n" \
-    "\t}" \
-    : "+r"(RES[0]), \
-      "+r"(RES[1]), \
-      "+r"(RES[2]), \
-      "+r"(RES[3])  \
-    : [src1]"rI"(SRC1), \
-      [src2]"ri"(SRC2), \
-      [src3]"ri"(SRC3)  \
-    : "pred0", "pred1", "pred2", "pred3" \
-)
-
 static void test_cmp(void) {
     CHECK2_CARTESIAN(EXEC_CMP, 0134, cmposb,     cmp_src, cmp_src);
     CHECK2_CARTESIAN(EXEC_CMP, 0134, cmpbsb,     cmp_src, cmp_src);
@@ -346,18 +323,6 @@ static void test_cmpand(void) {
     CHECK2_CARTESIAN(EXEC_CMP, 0134, cmpandpdb,  cmp_src, cmp_src);
     CHECK2_CARTESIAN(EXEC_CMP, 0134, cmpandledb, cmp_src, cmp_src);
 }
-
-#define EXEC_RRR_14(INSN, RES, SRC1, SRC2, SRC3, SRC4) asm( \
-    "\t{\n" \
-    "\t    " #INSN ",1 %[src1], %[src2], %[src3], %0\n" \
-    "\t    " #INSN ",4 %[src1], %[src2], %[src3], %1\n" \
-    "\t}" \
-    : "+r"(RES[0]), \
-      "+r"(RES[1])  \
-    : [src1]"r"(SRC1), \
-      [src2]"r"(SRC2), \
-      [src3]"r"(SRC3)  \
-)
 
 #define EXEC_COMB_MERGE(INSN, RES, SRC1, SRC2, SRC3, SRC4) asm( \
     "\t\tcmpesb 1, %[src4], %%pred0\n" \
@@ -635,13 +600,13 @@ static uint64_t pshift_src2[] = {
 #define CHECK3_PSHIFT_7(INSN, SRC1, SRC2) do { \
     ASSERT_ARRAY_LEN_EQ(SRC1, SRC2); \
     alc_test_t test = test_start(#INSN, NULL, ALC14, HAS_SRC123); \
-    for (int i = 0, k = 0; i < ARRAY_LEN(SRC1); ++i, k += 6) { \
-        EXEC_PSHIFT_ITER(INSN, SRC1, SRC2, 0, k + 0); \
-        EXEC_PSHIFT_ITER(INSN, SRC1, SRC2, 1, k + 1); \
-        EXEC_PSHIFT_ITER(INSN, SRC1, SRC2, 3, k + 2); \
-        EXEC_PSHIFT_ITER(INSN, SRC1, SRC2, 4, k + 3); \
-        EXEC_PSHIFT_ITER(INSN, SRC1, SRC2, 6, k + 4); \
-        EXEC_PSHIFT_ITER(INSN, SRC1, SRC2, 7, k + 5); \
+    for (int i = 0, k = 0; i < ARRAY_LEN(SRC1); ++i) { \
+        EXEC_PSHIFT_ITER(INSN, SRC1, SRC2, 0, k); ++k; \
+        EXEC_PSHIFT_ITER(INSN, SRC1, SRC2, 1, k); ++k; \
+        EXEC_PSHIFT_ITER(INSN, SRC1, SRC2, 3, k); ++k; \
+        EXEC_PSHIFT_ITER(INSN, SRC1, SRC2, 4, k); ++k; \
+        EXEC_PSHIFT_ITER(INSN, SRC1, SRC2, 6, k); ++k; \
+        EXEC_PSHIFT_ITER(INSN, SRC1, SRC2, 7, k); ++k; \
     } \
     test_end(&test); \
 } while(0)
@@ -649,13 +614,13 @@ static uint64_t pshift_src2[] = {
 #define CHECK3_PSHIFT_15(INSN, SRC1, SRC2) do { \
     ASSERT_ARRAY_LEN_EQ(SRC1, SRC2); \
     alc_test_t test = test_start(#INSN, NULL, ALC14, HAS_SRC123); \
-    for (int i = 0, k = 0; i < ARRAY_LEN(SRC1); ++i, k += 6) { \
-        EXEC_PSHIFT_ITER(INSN, SRC1, SRC2,  0, k + 0); \
-        EXEC_PSHIFT_ITER(INSN, SRC1, SRC2,  1, k + 1); \
-        EXEC_PSHIFT_ITER(INSN, SRC1, SRC2,  7, k + 2); \
-        EXEC_PSHIFT_ITER(INSN, SRC1, SRC2, 12, k + 3); \
-        EXEC_PSHIFT_ITER(INSN, SRC1, SRC2, 13, k + 4); \
-        EXEC_PSHIFT_ITER(INSN, SRC1, SRC2, 15, k + 5); \
+    for (int i = 0, k = 0; i < ARRAY_LEN(SRC1); ++i) { \
+        EXEC_PSHIFT_ITER(INSN, SRC1, SRC2,  0, k); ++k; \
+        EXEC_PSHIFT_ITER(INSN, SRC1, SRC2,  1, k); ++k; \
+        EXEC_PSHIFT_ITER(INSN, SRC1, SRC2,  7, k); ++k; \
+        EXEC_PSHIFT_ITER(INSN, SRC1, SRC2, 12, k); ++k; \
+        EXEC_PSHIFT_ITER(INSN, SRC1, SRC2, 13, k); ++k; \
+        EXEC_PSHIFT_ITER(INSN, SRC1, SRC2, 15, k); ++k; \
     } \
     test_end(&test); \
 } while(0)
