@@ -564,7 +564,7 @@ static uint64_t pshift_src2[] = {
         EXEC_PSHIFT_ITER(INSN, SRC1, SRC2,  1, k + 1); \
         EXEC_PSHIFT_ITER(INSN, SRC1, SRC2,  7, k + 2); \
         EXEC_PSHIFT_ITER(INSN, SRC1, SRC2, 12, k + 3); \
-        EXEC_PSHIFT_ITER(INSN, SRC1, SRC2, 12, k + 4); \
+        EXEC_PSHIFT_ITER(INSN, SRC1, SRC2, 13, k + 4); \
         EXEC_PSHIFT_ITER(INSN, SRC1, SRC2, 15, k + 5); \
     } \
     test_end(&test); \
