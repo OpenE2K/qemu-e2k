@@ -423,23 +423,21 @@ vec_raw(64) HELPER(pshufb)(vec_raw(64) src1, vec_raw(64) src2, vec_raw(64) src3)
     s3 = vec_from_raw(64, src3);
 
     for (int i = 0; i < vec_count(64, ub); i++) {
-        uint8_t desc = s3.ub[i];
-        int index = desc & 7;
-        uint8_t byte = desc & 8 ? s1.ub[index] : s2.ub[index];
-
-        byte = desc & 0x10 ? ~byte : byte;
-        byte = desc & 0x20 ? revbit8(byte) : byte;
-        byte = desc & 0x40 ? (byte & 0x80 ? 0xff : 0) : byte;
-
+        uint8_t byte, desc = s3.ub[i];
         if (desc & 0x80) {
-            switch ((desc & 0x70) >> 4) {
-                case 2: byte = 0x7f; break;
-                case 4: byte = 0x80; break;
-                case 6: byte = 0xff; break;
+            switch (desc & 0x70) {
+                case 0x20: byte = 0x7f; break;
+                case 0x40: byte = 0x80; break;
+                case 0x60: byte = 0xff; break;
                 default: byte = 0; break;
             }
+        } else {
+            int index = desc & 7;
+            byte = desc & 8 ? s1.ub[index] : s2.ub[index];
+            byte = desc & 0x10 ? ~byte : byte;
+            byte = desc & 0x20 ? revbit8(byte) : byte;
+            byte = desc & 0x40 ? (byte & 0x80 ? 0xff : 0) : byte;
         }
-
         dst.ub[i] = byte;
     }
 

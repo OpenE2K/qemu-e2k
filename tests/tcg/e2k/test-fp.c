@@ -295,10 +295,10 @@ static uint64_t f64_cmp_src1[] = {
 };
 
 #ifndef DUMP_ONLY
-#include "test-v1-fp-expect.inc"
+#include "test-fp-expect.inc"
 #endif
 
-static void test_f32(void) {
+static void test_v1_f32(void) {
     CHECK2(EXEC_RR, 0134, fadds, f32_src1, f32_src2);
     CHECK2(EXEC_RR, 0134, fsubs, f32_src1, f32_src2);
     CHECK2(EXEC_RR, 0134, fmins, f32_src1, f32_src2);
@@ -334,7 +334,7 @@ static void test_f32(void) {
     // CHECK1(EXEC_R, 5, frsqrts, f32_src1);
 }
 
-static void test_f64(void) {
+static void test_v1_f64(void) {
     CHECK2(EXEC_RR, 0134, faddd, f64_src1, f64_src2);
     CHECK2(EXEC_RR, 0134, fsubd, f64_src1, f64_src2);
     CHECK2(EXEC_RR, 0134, fmind, f64_src1, f64_src2);
@@ -372,7 +372,7 @@ static void test_f64(void) {
     // TODO: fsqrttd
 }
 
-static void test_packed_f32(void) {
+static void test_v1_packed_f32(void) {
     CHECK2(EXEC_RR, 0134, pfadds, f32_src1, f32_src2);
     CHECK2(EXEC_RR, 0134, pfsubs, f32_src1, f32_src2);
     CHECK2(EXEC_RR, 0134, pfmins, f32_src1, f32_src2);
@@ -396,7 +396,7 @@ static void test_packed_f32(void) {
     CHECK1(EXEC_R, 5, pfsqrts, f32_src1);
 }
 
-static void test_packed_f64(void) {
+static void test_v1_packed_f64(void) {
     CHECK2(EXEC_RR, 0134, pfaddd, f64_src1, f64_src2);
     CHECK2(EXEC_RR, 0134, pfsubd, f64_src1, f64_src2);
     CHECK2(EXEC_RR, 0134, pfmind, f64_src1, f64_src2);
@@ -420,7 +420,7 @@ static void test_packed_f64(void) {
     // TODO: pfsqrttd
 }
 
-static void test_f80(void) {
+static void test_v1_f80(void) {
     // TODO: movfi
     // TODO: movif
 
@@ -511,7 +511,7 @@ static void test_f80(void) {
     // TODO: fxcmpodxf
 }
 
-static void test_converts(void) {
+static void test_v1_converts(void) {
     CHECK1(EXEC_R, 0134, fstofd,    f32_src1);
     CHECK1(EXEC_R, 0134, fstois,    f32_src1);
     CHECK1(EXEC_R, 0134, fstoistr,  f32_src1);
@@ -548,17 +548,15 @@ static void test_converts(void) {
     // TODO: fxtoid
 }
 
-int main(int argc, char *argv[]) {
-    parse_args(argc, argv);
+static void test_v1(void) {
+    test_v1_f32();
+    test_v1_f64();
+    test_v1_packed_f32();
+    test_v1_packed_f64();
 
-    test_f32();
-    test_f64();
-    test_packed_f32();
-    test_packed_f64();
+    test_v1_f80();
 
-    test_f80();
-
-    test_converts();
+    test_v1_converts();
 
     // TODO: v1 only, implemented, no support in toolchain
     //
@@ -570,6 +568,56 @@ int main(int argc, char *argv[]) {
     // pfadd_muld
     // pfsub_muls
     // pfsub_muld
+}
+
+static void test_v2(void) {
+    CHECK3(EXEC_RRR, 0134, fadd_adds,   f32_src1, f32_src2, f32_src3);
+    CHECK3(EXEC_RRR, 0134, fsub_adds,   f32_src1, f32_src2, f32_src3);
+    CHECK3(EXEC_RRR, 0134, fadd_subs,   f32_src1, f32_src2, f32_src3);
+    CHECK3(EXEC_RRR, 0134, fsub_subs,   f32_src1, f32_src2, f32_src3);
+    CHECK3(EXEC_RRR, 0134, fadd_rsubs,  f32_src1, f32_src2, f32_src3);
+    CHECK3(EXEC_RRR, 0134, fsub_rsubs,  f32_src1, f32_src2, f32_src3);
+
+    CHECK3(EXEC_RRR, 0134, fadd_addd,   f64_src1, f64_src2, f64_src3);
+    CHECK3(EXEC_RRR, 0134, fsub_addd,   f64_src1, f64_src2, f64_src3);
+    CHECK3(EXEC_RRR, 0134, fadd_subd,   f64_src1, f64_src2, f64_src3);
+    CHECK3(EXEC_RRR, 0134, fsub_subd,   f64_src1, f64_src2, f64_src3);
+    CHECK3(EXEC_RRR, 0134, fadd_rsubd,  f64_src1, f64_src2, f64_src3);
+    CHECK3(EXEC_RRR, 0134, fsub_rsubd,  f64_src1, f64_src2, f64_src3);
+
+    CHECK3(EXEC_RRR, 0134, pfadd_adds,  f32_src1, f32_src2, f32_src3);
+    CHECK3(EXEC_RRR, 0134, pfsub_adds,  f32_src1, f32_src2, f32_src3);
+    CHECK3(EXEC_RRR, 0134, pfadd_subs,  f32_src1, f32_src2, f32_src3);
+    CHECK3(EXEC_RRR, 0134, pfsub_subs,  f32_src1, f32_src2, f32_src3);
+    CHECK3(EXEC_RRR, 0134, pfadd_rsubs, f32_src1, f32_src2, f32_src3);
+    CHECK3(EXEC_RRR, 0134, pfsub_rsubs, f32_src1, f32_src2, f32_src3);
+
+    CHECK3(EXEC_RRR, 0134, pfadd_addd,  f64_src1, f64_src2, f64_src3);
+    CHECK3(EXEC_RRR, 0134, pfsub_addd,  f64_src1, f64_src2, f64_src3);
+    CHECK3(EXEC_RRR, 0134, pfadd_subd,  f64_src1, f64_src2, f64_src3);
+    CHECK3(EXEC_RRR, 0134, pfsub_subd,  f64_src1, f64_src2, f64_src3);
+    CHECK3(EXEC_RRR, 0134, pfadd_rsubd, f64_src1, f64_src2, f64_src3);
+    CHECK3(EXEC_RRR, 0134, pfsub_rsubd, f64_src1, f64_src2, f64_src3);
+
+    CHECK1(EXEC_R, 0134, fstoidtr,    f32_src1);
+    CHECK1(EXEC_R, 0134, fdtoidtr,    f64_src1);
+    // TODO: fxtoidtr
+    // TODO: fxtoistr
+
+    // new channels
+    // TODO: movfi
+    // TODO: movif
+
+    // TODO: movx
+    // TODO: movxa
+    // TODO: movxc
+}
+
+int main(int argc, char *argv[]) {
+    parse_args(argc, argv);
+
+    test_v1();
+    test_v2();
 
     return is_failed();
 }
