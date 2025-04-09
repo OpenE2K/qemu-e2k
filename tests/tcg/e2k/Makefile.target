@@ -25,6 +25,8 @@ deps: $(E2K_SRCS)
 	@$(CC) $(CFLAGS) -MM $^ > $@
 include deps
 
+run-test-int run-test-fp run-test-vec: QEMU_OPTS += -cpu elbrus-v7
+
 %.o: %.s
 	$(CC) -c $(CFLAGS) -o $@ $<
 

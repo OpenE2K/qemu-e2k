@@ -1,3 +1,4 @@
+#include "iset.h"
 #include "test.h"
 
 static uint64_t int_src1[] = {
@@ -18,6 +19,16 @@ static uint64_t int_src2[] = {
     0xeeeeeeee00000000, 0xeeeeeeeeffffffff, 0xeeeeeeee00000001, 0xeeeeeeee00000002,
     0xeeeeeeee00000000, 0xeeeeeeee00000001, 0xeeeeeeeeffffffff, 0xeeeeeeeeffffffff,
     0xeeeeeeee00000001, 0xeeeeeeeefffffffe, 0x123456789abcdef0, 0xfedcba9876543210,
+};
+
+static uint64_t int_src3[] = {
+    0x123456789abcdef0, 0xfffffffffffedcbf, 0x0000000000012341, 0x0000000000000000,
+    0x0000000000000002, 0x0000000000000001, 0xffffffffffffffff, 0x0000000000000001,
+    0x0000000000000000, 0xffffffffffffffff, 0xfffffffffffffffe, 0xffffffffffffffff,
+    0x0000000000000001, 0xeeeeeeee00012341, 0xeeeeeeee0812fada, 0xeeeeeeeefffedcbf,
+    0x0000000000000000, 0xeeeeeeee00000002, 0xeeeeeeee00000001, 0xeeeeeeeeffffffff,
+    0xeeeeeeee00000001, 0xeeeeeeee00000000, 0xeeeeeeeeffffffff, 0xeeeeeeeefffffffe,
+    0xeeeeeeeeffffffff, 0xeeeeeeee00000001, 0xfedcba9876543210, 0x123456789abcdef0,
 };
 
 static uint64_t shift_src1[] = {
@@ -300,13 +311,19 @@ static uint64_t pmerge_src3[] = {
 };
 
 static void test_v2(void) {
+    push_iset(2);
+
     CHECK2(EXEC_RR, 14, pmulubhh, int_src1, int_src2);
 
     CHECK3(EXEC_RRR, 0134, pshufb, pshufb_src1, pshufb_src2, pshufb_src3);
     CHECK3(EXEC_RRR, 0134, pmerge, pmerge_src1, pmerge_src2, pmerge_src3);
+
+    pop_iset();
 }
 
 static void test_v3(void) {
+    push_iset(3);
+
     CHECK2(EXEC_RR, 03, pminsb,     int_src1, int_src2);
     CHECK2(EXEC_RR, 03, pminuh,     int_src1, int_src2);
     CHECK2(EXEC_RR, 03, pmaxsb,     int_src1, int_src2);
@@ -342,14 +359,177 @@ static void test_v3(void) {
     CHECK2_CARTESIAN(EXEC_RR, 03, psllw, shift_src1, shift_src2);
     CHECK2_CARTESIAN(EXEC_RR, 03, psllh, shift_src1, shift_src2);
     skip_gen(false);
+
+    pop_iset();
+}
+
+static void test_v5(void) {
+    push_iset(5);
+
+    CHECK2(EXEC_RR, 14, pmullw, int_src1, int_src2);
+    CHECK2_CARTESIAN(EXEC_RR, 0134, psrcw, shift_src1, shift_src2);
+    CHECK2_CARTESIAN(EXEC_RR, 0134, psrcd, shift_src1, shift_src2);
+
+    CHECK3(EXEC_RRR, 0134, plog_and,  int_src1, int_src2, int_src3);
+    CHECK3(EXEC_RRR, 0134, plog_xor,  int_src1, int_src2, int_src3);
+    CHECK3(EXEC_RRR, 0134, plog_sel3, int_src1, int_src2, int_src3);
+    CHECK3(EXEC_RRR, 0134, plog_mjr,  int_src1, int_src2, int_src3);
+    CHECK3(EXEC_RRR, 0134, plog_or,   int_src1, int_src2, int_src3);
+    CHECK3(EXEC_RRR, 0134, plog_0x0f, int_src1, int_src2, int_src3);
+    CHECK3(EXEC_RRR, 0134, plog_0xf0, int_src1, int_src2, int_src3);
+
+    // TODO: qpsrlw
+    // TODO: qpsrlh
+    // TODO: qpsraw
+    // TODO: qpsrah
+    // TODO: qpsllw
+    // TODO: qpsllh
+    // TODO: qpsrld
+    // TODO: qpslld
+    // TODO: qpand
+    // TODO: qpandn
+    // TODO: qpor
+    // TODO: qpxor
+    // TODO: qpsrcw
+    // TODO: qpsrcd
+    // TODO: qpmsk2sgnb
+    // TODO: qpsgn2mskb
+    // TODO: qppackdl
+    // TODO: qpswitchw
+    // TODO: qpswitchd
+    // TODO: qpminuw
+    // TODO: qpminsw
+    // TODO: qpmaxuw
+    // TODO: qpmaxsw
+    // TODO: qpcmpeqd
+    // TODO: qphaddh
+    // TODO: qphaddw
+    // TODO: qphaddsh
+    // TODO: qpcmpgtd
+    // TODO: qphsubh
+    // TODO: qphsubw
+    // TODO: qphsubsh
+    // TODO: qpsignb
+    // TODO: qpsignh
+    // TODO: qpsignw
+    // TODO: qpminub
+    // TODO: qpminsh
+    // TODO: qpmaxub
+    // TODO: qpmaxsh
+    // TODO: qpminsb
+    // TODO: qpminuh
+    // TODO: qpmaxsb
+    // TODO: qpmaxuh
+    // TODO: qpaddb
+    // TODO: qpaddh
+    // TODO: qpaddsb
+    // TODO: qpaddsh
+    // TODO: qpaddusb
+    // TODO: qpaddush
+    // TODO: qpaddw
+    // TODO: qpaddd
+    // TODO: qpsubb
+    // TODO: qpsubh
+    // TODO: qpsubsb
+    // TODO: qpsubsh
+    // TODO: qpsubusb
+    // TODO: qpsubush
+    // TODO: qpsubw
+    // TODO: qpsubd
+    // TODO: qpcmpeqb
+    // TODO: qpcmpeqh
+    // TODO: qpcmpeqw
+    // TODO: qpcmpgtb
+    // TODO: qpcmpgth
+    // TODO: qpcmpgtw
+    // TODO: qpavgusb
+    // TODO: qpavgush
+    // TODO: qpacksshb
+    // TODO: qpackushb
+    // TODO: qpacksswh
+    // TODO: qpackuswh
+    // TODO: qpmulhh
+    // TODO: qpmullh
+    // TODO: qpmaddh
+    // TODO: qpmulhuh
+    // TODO: qpsadbw
+    // TODO: qpmulubhh
+    // TODO: qpmullw
+    // TODO: qpmaddubsh
+    // TODO: qpmulhrsh
+    // TODO: qphminposuh
+    // TODO: qpmpsadbh
+    // TODO: qppermb
+    // TODO: qpshufb
+    // TODO: qpmerge
+
+    // TODO: qplog_and
+    // TODO: qplog_xor
+    // TODO: qplog_sel3
+    // TODO: qplog_mjr
+    // TODO: qplog_or
+    // TODO: qplog_0xXX
+
+    pop_iset();
+}
+
+static void test_v6(void) {
+    push_iset(6);
+
+    // TODO: pmrgp
+
+    // TODO: pcmpeqbop
+    // TODO: pcmpeqhop
+    // TODO: pcmpeqwop
+    // TODO: pcmpeqdop
+    // TODO: pcmpgtbop
+    // TODO: pcmpgthop
+    // TODO: pcmpgtwop
+    // TODO: pcmpgtdop
+    // TODO: pcmpeqbap
+    // TODO: pcmpeqhap
+    // TODO: pcmpeqwap
+    // TODO: pcmpeqdap
+    // TODO: pcmpgtbap
+    // TODO: pcmpgthap
+    // TODO: pcmpgtwap
+    // TODO: pcmpgtdap
+
+    // TODO: qpsrad
+    // TODO: qpcext_0x00
+    // TODO: qpcext_0x7f
+    // TODO: qpcext_0x80
+    // TODO: qpcext_0xff
+    // TODO: qpmrgp
+
+    // TODO: qpcmpeqbop
+    // TODO: qpcmpeqhop
+    // TODO: qpcmpeqwop
+    // TODO: qpcmpeqdop
+    // TODO: qpcmpgtbop
+    // TODO: qpcmpgthop
+    // TODO: qpcmpgtwop
+    // TODO: qpcmpgtdop
+    // TODO: qpcmpeqbap
+    // TODO: qpcmpeqhap
+    // TODO: qpcmpeqwap
+    // TODO: qpcmpeqdap
+    // TODO: qpcmpgtbap
+    // TODO: qpcmpgthap
+    // TODO: qpcmpgtwap
+    // TODO: qpcmpgtdap
+
+    pop_iset();
 }
 
 int main(int argc, char *argv[]) {
     parse_args(argc, argv);
 
     test_v1();
-    test_v2();
-    test_v3();
+    if_iset(2, "v2") test_v2();
+    if_iset(3, "v3") test_v3();
+    if_iset(5, "v5") test_v5();
+    if_iset(6, "v6") test_v6();
 
     return is_failed();
 }

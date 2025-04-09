@@ -1,3 +1,4 @@
+#include "iset.h"
 #include "test.h"
 
 static uint64_t int_src1[] = {
@@ -571,6 +572,8 @@ static void test_v1(void) {
 }
 
 static void test_v2(void) {
+    push_iset(2);
+
     CHECK3(EXEC_RRR, 0134, fadd_adds,   f32_src1, f32_src2, f32_src3);
     CHECK3(EXEC_RRR, 0134, fsub_adds,   f32_src1, f32_src2, f32_src3);
     CHECK3(EXEC_RRR, 0134, fadd_subs,   f32_src1, f32_src2, f32_src3);
@@ -611,9 +614,13 @@ static void test_v2(void) {
     // TODO: movx
     // TODO: movxa
     // TODO: movxc
+
+    pop_iset();
 }
 
 static void test_v3(void) {
+    push_iset(3);
+
     CHECK1(EXEC_R, 0134, fstoifs,   f32_src1);
     CHECK1(EXEC_R, 0134, fdtoifd,   f64_src1);
     CHECK1(EXEC_R, 0134, pfstoifs,  f32_src1);
@@ -650,9 +657,13 @@ static void test_v3(void) {
     CHECK3(EXEC_RRR, 0134, pfaddsub_hsubs,      f32_src1, f32_src2, f32_src3);
     CHECK3(EXEC_RRR, 0134, pfaddsub_rsubs,      f32_src1, f32_src2, f32_src3);
     CHECK3(EXEC_RRR, 0134, pfaddsub_addsubs,    f32_src1, f32_src2, f32_src3);
+
+    pop_iset();
 }
 
 static void test_v4(void) {
+    push_iset(4);
+
     // TODO: fscales
     // TODO: fscaled
     // TODO: fxscalesx
@@ -746,15 +757,151 @@ static void test_v4(void) {
     CHECK3(EXEC_RRR, 25, pfmul_rsubd,       f64_src1, f64_src2, f64_src3);
 
     skip_gen(false);
+    pop_iset();
+}
+
+static void test_v5(void) {
+    push_iset(5);
+
+    // TODO: qpfadds
+    // TODO: qpfaddd
+    // TODO: qpfsubs
+    // TODO: qpfsubd
+    // TODO: qpfmuls
+    // TODO: qpfmuld
+    // TODO: qpfhadds
+    // TODO: qpfhsubs
+    // TODO: qpfaddsubs
+    // TODO: qpfaddsubd
+    // TODO: qpfstois
+    // TODO: qpfstoistr
+    // TODO: qpistofs
+    // TODO: qpfstoid
+    // TODO: qpfstoidtr
+    // TODO: qpistofd
+    // TODO: qpfstofd
+    // TODO: qpfdtois
+    // TODO: qpfdtoistr
+    // TODO: qpidtofs
+    // TODO: qpfdtofs
+    // TODO: qpfdtoid
+    // TODO: qpfdtoidtr
+    // TODO: qpidtofd
+    // TODO: qpfstoifs
+    // TODO: qpfdtoifd
+    // TODO: qpfmins
+    // TODO: qpfmind
+    // TODO: qpfmaxs
+    // TODO: qpfmaxd
+    // TODO: qpfcmpeqs
+    // TODO: qpfcmplts
+    // TODO: qpfcmples
+    // TODO: qpfcmpuods
+    // TODO: qpfcmpneqs
+    // TODO: qpfcmpnlts
+    // TODO: qpfcmpnles
+    // TODO: qpfcmpods
+    // TODO: qpfcmpeqd
+    // TODO: qpfcmpltd
+    // TODO: qpfcmpled
+    // TODO: qpfcmpuodd
+    // TODO: qpfcmpneqd
+    // TODO: qpfcmpnltd
+    // TODO: qpfcmpnled
+    // TODO: qpfcmpodd
+    // TODO: qpfadd_adds
+    // TODO: qpfadd_addd
+    // TODO: qpfsub_adds
+    // TODO: qpfsub_addd
+    // TODO: qpfhadd_adds
+    // TODO: qpfhsub_adds
+    // TODO: qpfmul_adds
+    // TODO: qpfmul_addd
+    // TODO: qpfaddsub_adds
+    // TODO: qpfaddsub_addd
+    // TODO: qpfadd_subs
+    // TODO: qpfadd_subd
+    // TODO: qpfsub_subs
+    // TODO: qpfsub_subd
+    // TODO: qpfhadd_subs
+    // TODO: qpfhsub_subs
+    // TODO: qpfmul_subs
+    // TODO: qpfmul_subd
+    // TODO: qpfaddsub_subs
+    // TODO: qpfaddsub_subd
+    // TODO: qpfadd_hadds
+    // TODO: qpfsub_hadds
+    // TODO: qpfhadd_hadds
+    // TODO: qpfhsub_hadds
+    // TODO: qpfmul_hadds
+    // TODO: qpfaddsub_hadds
+    // TODO: qpfadd_hsubs
+    // TODO: qpfsub_hsubs
+    // TODO: qpfhadd_hsubs
+    // TODO: qpfhsub_hsubs
+    // TODO: qpfmul_hsubs
+    // TODO: qpfaddsub_hsubs
+    // TODO: qpfadd_rsubs
+    // TODO: qpfadd_rsubd
+    // TODO: qpfsub_rsubs
+    // TODO: qpfsub_rsubd
+    // TODO: qpfhadd_rsubs
+    // TODO: qpfhsub_rsubs
+    // TODO: qpfmul_rsubs
+    // TODO: qpfmul_rsubd
+    // TODO: qpfaddsub_rsubs
+    // TODO: qpfaddsub_rsubd
+    // TODO: qpfadd_addsubs
+    // TODO: qpfadd_addsubd
+    // TODO: qpfsub_addsubs
+    // TODO: qpfsub_addsubd
+    // TODO: qpfhadd_addsubs
+    // TODO: qpfhsub_addsubs
+    // TODO: qpfmul_addsubs
+    // TODO: qpfmul_addsubd
+    // TODO: qpfaddsub_addsubs
+    // TODO: qpfaddsub_addsubd
+
+    pop_iset();
+}
+
+static void test_v6(void) {
+    push_iset(6);
+
+    // TODO: fmas
+    // TODO: fmad
+    // TODO: fmss
+    // TODO: fmsd
+    // TODO: fnmas
+    // TODO: fnmad
+    // TODO: fnmss
+    // TODO: fnmsd
+
+    // TODO: qpfmas
+    // TODO: qpfmad
+    // TODO: qpfmss
+    // TODO: qpfmsd
+    // TODO: qpfnmas
+    // TODO: qpfnmad
+    // TODO: qpfnmss
+    // TODO: qpfnmsd
+    // TODO: qpfmass
+    // TODO: qpfmasd
+    // TODO: qpfmsas
+    // TODO: qpfmsad
+
+    pop_iset();
 }
 
 int main(int argc, char *argv[]) {
     parse_args(argc, argv);
 
     test_v1();
-    test_v2();
-    test_v3();
-    test_v4();
+    if_iset(2, "v2") test_v2();
+    if_iset(3, "v3") test_v3();
+    if_iset(4, "v4") test_v4();
+    if_iset(5, "v5") test_v5();
+    if_iset(6, "v6") test_v6();
 
     return is_failed();
 }
