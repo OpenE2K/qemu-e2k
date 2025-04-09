@@ -480,11 +480,37 @@ static void test_v2(void) {
     CHECK1(EXEC_R, 14, popcntd, bit_src1);
 }
 
+static void test_v3(void) {
+    CHECK2(EXEC_RR, 0134, umulhd, int_src1, int_src2);
+    CHECK2(EXEC_RR, 0134, smulhd, int_src1, int_src2);
+
+    // TODO: puttst
+
+    // TODO: x86 binary translation
+    //
+    // andd_fd
+    // andnd_fd
+    // ord_fd
+    // ornd_fd
+    // xord_fd
+    // xornd_fd
+    // addd_fd
+    // subd_fd
+    // scld_fd
+    // scrd_fd
+    // shld_fd
+    // shrd_fd
+    // sard_fd
+    // incd_fd
+    // decd_fd
+}
+
 int main(int argc, char *argv[]) {
     parse_args(argc, argv);
 
     test_v1();
     test_v2();
+    test_v3();
 
     return is_failed();
 }

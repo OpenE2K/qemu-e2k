@@ -613,11 +613,148 @@ static void test_v2(void) {
     // TODO: movxc
 }
 
+static void test_v3(void) {
+    CHECK1(EXEC_R, 0134, fstoifs,   f32_src1);
+    CHECK1(EXEC_R, 0134, fdtoifd,   f64_src1);
+    CHECK1(EXEC_R, 0134, pfstoifs,  f32_src1);
+    CHECK1(EXEC_R, 0134, pfdtoifd,  f64_src1);
+
+    CHECK2(EXEC_RR, 0134, pfhadds,      f32_src1, f32_src2);
+    CHECK2(EXEC_RR, 0134, pfhsubs,      f32_src1, f32_src2);
+    CHECK2(EXEC_RR, 0134, pfaddsubs,    f32_src1, f32_src2);
+
+    CHECK3(EXEC_RRR, 0134, pfadd_hadds,         f32_src1, f32_src2, f32_src3);
+    CHECK3(EXEC_RRR, 0134, pfadd_hsubs,         f32_src1, f32_src2, f32_src3);
+    CHECK3(EXEC_RRR, 0134, pfadd_addsubs,       f32_src1, f32_src2, f32_src3);
+    CHECK3(EXEC_RRR, 0134, pfsub_hadds,         f32_src1, f32_src2, f32_src3);
+    CHECK3(EXEC_RRR, 0134, pfsub_hsubs,         f32_src1, f32_src2, f32_src3);
+    CHECK3(EXEC_RRR, 0134, pfsub_addsubs,       f32_src1, f32_src2, f32_src3);
+    CHECK3(EXEC_RRR, 0134, pfmul_hadds,         f32_src1, f32_src2, f32_src3);
+    CHECK3(EXEC_RRR, 0134, pfmul_hsubs,         f32_src1, f32_src2, f32_src3);
+    CHECK3(EXEC_RRR, 0134, pfmul_addsubs,       f32_src1, f32_src2, f32_src3);
+    CHECK3(EXEC_RRR, 0134, pfhadd_adds,         f32_src1, f32_src2, f32_src3);
+    CHECK3(EXEC_RRR, 0134, pfhadd_subs,         f32_src1, f32_src2, f32_src3);
+    CHECK3(EXEC_RRR, 0134, pfhadd_hadds,        f32_src1, f32_src2, f32_src3);
+    CHECK3(EXEC_RRR, 0134, pfhadd_hsubs,        f32_src1, f32_src2, f32_src3);
+    CHECK3(EXEC_RRR, 0134, pfhadd_rsubs,        f32_src1, f32_src2, f32_src3);
+    CHECK3(EXEC_RRR, 0134, pfhadd_addsubs,      f32_src1, f32_src2, f32_src3);
+    CHECK3(EXEC_RRR, 0134, pfhsub_adds,         f32_src1, f32_src2, f32_src3);
+    CHECK3(EXEC_RRR, 0134, pfhsub_subs,         f32_src1, f32_src2, f32_src3);
+    CHECK3(EXEC_RRR, 0134, pfhsub_hadds,        f32_src1, f32_src2, f32_src3);
+    CHECK3(EXEC_RRR, 0134, pfhsub_hsubs,        f32_src1, f32_src2, f32_src3);
+    CHECK3(EXEC_RRR, 0134, pfhsub_rsubs,        f32_src1, f32_src2, f32_src3);
+    CHECK3(EXEC_RRR, 0134, pfhsub_addsubs,      f32_src1, f32_src2, f32_src3);
+    CHECK3(EXEC_RRR, 0134, pfaddsub_adds,       f32_src1, f32_src2, f32_src3);
+    CHECK3(EXEC_RRR, 0134, pfaddsub_subs,       f32_src1, f32_src2, f32_src3);
+    CHECK3(EXEC_RRR, 0134, pfaddsub_hadds,      f32_src1, f32_src2, f32_src3);
+    CHECK3(EXEC_RRR, 0134, pfaddsub_hsubs,      f32_src1, f32_src2, f32_src3);
+    CHECK3(EXEC_RRR, 0134, pfaddsub_rsubs,      f32_src1, f32_src2, f32_src3);
+    CHECK3(EXEC_RRR, 0134, pfaddsub_addsubs,    f32_src1, f32_src2, f32_src3);
+}
+
+static void test_v4(void) {
+    // TODO: fscales
+    // TODO: fscaled
+    // TODO: fxscalesx
+
+    // new channels
+    skip_gen(true);
+
+    CHECK2(EXEC_RR, 25, fadds,          f32_src1, f32_src2);
+    CHECK2(EXEC_RR, 25, fsubs,          f32_src1, f32_src2);
+    CHECK2(EXEC_RR, 25, fmuls,          f32_src1, f32_src2);
+
+    CHECK2(EXEC_RR, 25, faddd,          f64_src1, f64_src2);
+    CHECK2(EXEC_RR, 25, fsubd,          f64_src1, f64_src2);
+    CHECK2(EXEC_RR, 25, fmuld,          f64_src1, f64_src2);
+
+    CHECK2(EXEC_RR, 25, pfadds,         f32_src1, f32_src2);
+    CHECK2(EXEC_RR, 25, pfsubs,         f32_src1, f32_src2);
+    CHECK2(EXEC_RR, 25, pfmuls,         f32_src1, f32_src2);
+    CHECK2(EXEC_RR, 25, pfhadds,        f32_src1, f32_src2);
+    CHECK2(EXEC_RR, 25, pfhsubs,        f32_src1, f32_src2);
+    CHECK2(EXEC_RR, 25, pfaddsubs,      f32_src1, f32_src2);
+
+    CHECK2(EXEC_RR, 25, pfaddd,         f64_src1, f64_src2);
+    CHECK2(EXEC_RR, 25, pfsubd,         f64_src1, f64_src2);
+
+    CHECK3(EXEC_RRR, 25, fadd_adds,     f32_src1, f32_src2, f32_src3);
+    CHECK3(EXEC_RRR, 25, fadd_subs,     f32_src1, f32_src2, f32_src3);
+    CHECK3(EXEC_RRR, 25, fadd_rsubs,    f32_src1, f32_src2, f32_src3);
+    CHECK3(EXEC_RRR, 25, fsub_adds,     f32_src1, f32_src2, f32_src3);
+    CHECK3(EXEC_RRR, 25, fsub_subs,     f32_src1, f32_src2, f32_src3);
+    CHECK3(EXEC_RRR, 25, fsub_rsubs,    f32_src1, f32_src2, f32_src3);
+    CHECK3(EXEC_RRR, 25, fmul_adds,     f32_src1, f32_src2, f32_src3);
+    CHECK3(EXEC_RRR, 25, fmul_subs,     f32_src1, f32_src2, f32_src3);
+    CHECK3(EXEC_RRR, 25, fmul_rsubs,    f32_src1, f32_src2, f32_src3);
+
+    CHECK3(EXEC_RRR, 25, fadd_addd,     f64_src1, f64_src2, f64_src3);
+    CHECK3(EXEC_RRR, 25, fadd_subd,     f64_src1, f64_src2, f64_src3);
+    CHECK3(EXEC_RRR, 25, fadd_rsubd,    f64_src1, f64_src2, f64_src3);
+    CHECK3(EXEC_RRR, 25, fsub_addd,     f64_src1, f64_src2, f64_src3);
+    CHECK3(EXEC_RRR, 25, fsub_subd,     f64_src1, f64_src2, f64_src3);
+    CHECK3(EXEC_RRR, 25, fsub_rsubd,    f64_src1, f64_src2, f64_src3);
+    CHECK3(EXEC_RRR, 25, fmul_addd,     f64_src1, f64_src2, f64_src3);
+    CHECK3(EXEC_RRR, 25, fmul_subd,     f64_src1, f64_src2, f64_src3);
+    CHECK3(EXEC_RRR, 25, fmul_rsubd,    f64_src1, f64_src2, f64_src3);
+
+    CHECK3(EXEC_RRR, 25, pfadd_adds,        f32_src1, f32_src2, f32_src3);
+    CHECK3(EXEC_RRR, 25, pfadd_addsubs,     f32_src1, f32_src2, f32_src3);
+    CHECK3(EXEC_RRR, 25, pfadd_hadds,       f32_src1, f32_src2, f32_src3);
+    CHECK3(EXEC_RRR, 25, pfadd_hsubs,       f32_src1, f32_src2, f32_src3);
+    CHECK3(EXEC_RRR, 25, pfadd_rsubs,       f32_src1, f32_src2, f32_src3);
+    CHECK3(EXEC_RRR, 25, pfadd_subs,        f32_src1, f32_src2, f32_src3);
+    CHECK3(EXEC_RRR, 25, pfsub_adds,        f32_src1, f32_src2, f32_src3);
+    CHECK3(EXEC_RRR, 25, pfsub_addsubs,     f32_src1, f32_src2, f32_src3);
+    CHECK3(EXEC_RRR, 25, pfsub_hadds,       f32_src1, f32_src2, f32_src3);
+    CHECK3(EXEC_RRR, 25, pfsub_hsubs,       f32_src1, f32_src2, f32_src3);
+    CHECK3(EXEC_RRR, 25, pfsub_rsubs,       f32_src1, f32_src2, f32_src3);
+    CHECK3(EXEC_RRR, 25, pfsub_subs,        f32_src1, f32_src2, f32_src3);
+    CHECK3(EXEC_RRR, 25, pfmul_adds,        f32_src1, f32_src2, f32_src3);
+    CHECK3(EXEC_RRR, 25, pfmul_addsubs,     f32_src1, f32_src2, f32_src3);
+    CHECK3(EXEC_RRR, 25, pfmul_hadds,       f32_src1, f32_src2, f32_src3);
+    CHECK3(EXEC_RRR, 25, pfmul_hsubs,       f32_src1, f32_src2, f32_src3);
+    CHECK3(EXEC_RRR, 25, pfmul_rsubs,       f32_src1, f32_src2, f32_src3);
+    CHECK3(EXEC_RRR, 25, pfmul_subs,        f32_src1, f32_src2, f32_src3);
+    CHECK3(EXEC_RRR, 25, pfaddsub_adds,     f32_src1, f32_src2, f32_src3);
+    CHECK3(EXEC_RRR, 25, pfaddsub_addsubs,  f32_src1, f32_src2, f32_src3);
+    CHECK3(EXEC_RRR, 25, pfaddsub_hadds,    f32_src1, f32_src2, f32_src3);
+    CHECK3(EXEC_RRR, 25, pfaddsub_hsubs,    f32_src1, f32_src2, f32_src3);
+    CHECK3(EXEC_RRR, 25, pfaddsub_rsubs,    f32_src1, f32_src2, f32_src3);
+    CHECK3(EXEC_RRR, 25, pfaddsub_subs,     f32_src1, f32_src2, f32_src3);
+    CHECK3(EXEC_RRR, 25, pfhadd_adds,       f32_src1, f32_src2, f32_src3);
+    CHECK3(EXEC_RRR, 25, pfhadd_addsubs,    f32_src1, f32_src2, f32_src3);
+    CHECK3(EXEC_RRR, 25, pfhadd_hadds,      f32_src1, f32_src2, f32_src3);
+    CHECK3(EXEC_RRR, 25, pfhadd_hsubs,      f32_src1, f32_src2, f32_src3);
+    CHECK3(EXEC_RRR, 25, pfhadd_rsubs,      f32_src1, f32_src2, f32_src3);
+    CHECK3(EXEC_RRR, 25, pfhadd_subs,       f32_src1, f32_src2, f32_src3);
+    CHECK3(EXEC_RRR, 25, pfhsub_adds,       f32_src1, f32_src2, f32_src3);
+    CHECK3(EXEC_RRR, 25, pfhsub_addsubs,    f32_src1, f32_src2, f32_src3);
+    CHECK3(EXEC_RRR, 25, pfhsub_hadds,      f32_src1, f32_src2, f32_src3);
+    CHECK3(EXEC_RRR, 25, pfhsub_hsubs,      f32_src1, f32_src2, f32_src3);
+    CHECK3(EXEC_RRR, 25, pfhsub_rsubs,      f32_src1, f32_src2, f32_src3);
+    CHECK3(EXEC_RRR, 25, pfhsub_subs,       f32_src1, f32_src2, f32_src3);
+
+    CHECK3(EXEC_RRR, 25, pfadd_addd,        f64_src1, f64_src2, f64_src3);
+    CHECK3(EXEC_RRR, 25, pfsub_addd,        f64_src1, f64_src2, f64_src3);
+    CHECK3(EXEC_RRR, 25, pfmul_addd,        f64_src1, f64_src2, f64_src3);
+    CHECK3(EXEC_RRR, 25, pfadd_subd,        f64_src1, f64_src2, f64_src3);
+    CHECK3(EXEC_RRR, 25, pfsub_subd,        f64_src1, f64_src2, f64_src3);
+    CHECK3(EXEC_RRR, 25, pfmul_subd,        f64_src1, f64_src2, f64_src3);
+    CHECK3(EXEC_RRR, 25, pfadd_rsubd,       f64_src1, f64_src2, f64_src3);
+    CHECK3(EXEC_RRR, 25, pfsub_rsubd,       f64_src1, f64_src2, f64_src3);
+    CHECK3(EXEC_RRR, 25, pfmul_rsubd,       f64_src1, f64_src2, f64_src3);
+
+    skip_gen(false);
+}
+
 int main(int argc, char *argv[]) {
     parse_args(argc, argv);
 
     test_v1();
     test_v2();
+    test_v3();
+    test_v4();
 
     return is_failed();
 }

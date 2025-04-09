@@ -74,15 +74,20 @@ typedef struct alc_test {
     int i;
 } alc_test_t;
 
+static flags_t global_flags = 0;
+
+#define skip_gen(X) \
+    global_flags = (X) ? (global_flags | SKIP_GEN) : (global_flags & ~SKIP_GEN)
+
 static alc_test_t test_start(const char *insn, const char *comment, alc_t channels, flags_t flags) {
     alc_test_t test = { 0 };
     test.insn = insn;
     test.comment = comment;
     test.channels = channels;
-    test.flags = flags;
+    test.flags = global_flags | flags;
     test.i = 0;
     if (generate_expect) {
-        if (flags & SKIP_GEN)
+        if (test.flags & SKIP_GEN)
             return test;
         if (comment) {
             printf("// %s\n", comment);
@@ -240,6 +245,17 @@ done:
       [src2]"r"(SRC2)  \
 )
 
+#define EXEC_RR_25(INSN, RES, SRC1, SRC2, SRC3, SRC4) asm( \
+    "\t{\n" \
+    "\t    " #INSN ",2 %[src1], %[src2], %0\n" \
+    "\t    " #INSN ",5 %[src1], %[src2], %1\n" \
+    "\t}" \
+    : "+r"(RES[0]), \
+      "+r"(RES[1])  \
+    : [src1]"r"(SRC1), \
+      [src2]"r"(SRC2)  \
+)
+
 #define EXEC_RI_14(INSN, RES, SRC1, SRC2, SRC3, SRC4) asm( \
     "\t{\n" \
     "\t    " #INSN ",1 %[src1], %[src2], %0\n" \
@@ -362,6 +378,18 @@ done:
     "\t{\n" \
     "\t    " #INSN ",1 %[src1], %[src2], %[src3], %0\n" \
     "\t    " #INSN ",4 %[src1], %[src2], %[src3], %1\n" \
+    "\t}" \
+    : "+r"(RES[0]), \
+      "+r"(RES[1])  \
+    : [src1]"r"(SRC1), \
+      [src2]"r"(SRC2), \
+      [src3]"r"(SRC3)  \
+)
+
+#define EXEC_RRR_25(INSN, RES, SRC1, SRC2, SRC3, SRC4) asm( \
+    "\t{\n" \
+    "\t    " #INSN ",2 %[src1], %[src2], %[src3], %0\n" \
+    "\t    " #INSN ",5 %[src1], %[src2], %[src3], %1\n" \
     "\t}" \
     : "+r"(RES[0]), \
       "+r"(RES[1])  \

@@ -306,11 +306,50 @@ static void test_v2(void) {
     CHECK3(EXEC_RRR, 0134, pmerge, pmerge_src1, pmerge_src2, pmerge_src3);
 }
 
+static void test_v3(void) {
+    CHECK2(EXEC_RR, 03, pminsb,     int_src1, int_src2);
+    CHECK2(EXEC_RR, 03, pminuh,     int_src1, int_src2);
+    CHECK2(EXEC_RR, 03, pmaxsb,     int_src1, int_src2);
+    CHECK2(EXEC_RR, 03, pmaxuh,     int_src1, int_src2);
+    CHECK2(EXEC_RR, 03, pcmpeqd,    int_src1, int_src2);
+    CHECK2(EXEC_RR, 03, pcmpgtd,    int_src1, int_src2);
+    CHECK2(EXEC_RR, 03, pminuw,     int_src1, int_src2);
+    CHECK2(EXEC_RR, 03, pminsw,     int_src1, int_src2);
+    CHECK2(EXEC_RR, 03, pmaxuw,     int_src1, int_src2);
+    CHECK2(EXEC_RR, 03, pmaxsw,     int_src1, int_src2);
+    CHECK2(EXEC_RR, 03, phaddh,     int_src1, int_src2);
+    CHECK2(EXEC_RR, 03, phaddw,     int_src1, int_src2);
+    CHECK2(EXEC_RR, 03, phaddsh,    int_src1, int_src2);
+    CHECK2(EXEC_RR, 03, phsubh,     int_src1, int_src2);
+    CHECK2(EXEC_RR, 03, phsubw,     int_src1, int_src2);
+    CHECK2(EXEC_RR, 03, phsubsh,    int_src1, int_src2);
+    CHECK2(EXEC_RR, 03, psignb,     int_src1, int_src2);
+    CHECK2(EXEC_RR, 03, psignh,     int_src1, int_src2);
+    CHECK2(EXEC_RR, 03, psignw,     int_src1, int_src2);
+
+    CHECK2(EXEC_RR, 14, mpsadbh,    int_src1, int_src2);
+    CHECK2(EXEC_RR, 14, pmaddubsh,  int_src1, int_src2);
+    CHECK2(EXEC_RR, 14, pmulhrsh,   int_src1, int_src2);
+    CHECK2(EXEC_RR, 14, phminposuh, int_src1, int_src2);
+    CHECK2(EXEC_RR, 14, packuswh,   int_src1, int_src2);
+
+    // new channels
+    skip_gen(true);
+    CHECK2_CARTESIAN(EXEC_RR, 03, psrlw, shift_src1, shift_src2);
+    CHECK2_CARTESIAN(EXEC_RR, 03, psrlh, shift_src1, shift_src2);
+    CHECK2_CARTESIAN(EXEC_RR, 03, psraw, shift_src1, shift_src2);
+    CHECK2_CARTESIAN(EXEC_RR, 03, psrah, shift_src1, shift_src2);
+    CHECK2_CARTESIAN(EXEC_RR, 03, psllw, shift_src1, shift_src2);
+    CHECK2_CARTESIAN(EXEC_RR, 03, psllh, shift_src1, shift_src2);
+    skip_gen(false);
+}
+
 int main(int argc, char *argv[]) {
     parse_args(argc, argv);
 
     test_v1();
     test_v2();
+    test_v3();
 
     return is_failed();
 }
