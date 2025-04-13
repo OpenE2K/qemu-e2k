@@ -503,10 +503,11 @@ static void test_v5(void) {
 
     // TODO: getfzs
     // TODO: getfzd
-    // TODO: addcd
-    // TODO: addcd_c
-    // TODO: subcd
-    // TODO: subcd_c
+
+    CHECK3(EXEC_RRR, 14, addcd,   int_src1, int_src2, int_src3);
+    CHECK3(EXEC_RRR, 14, addcd_c, int_src1, int_src2, int_src3);
+    CHECK3(EXEC_RRR, 14, subcd,   int_src1, int_src2, int_src3);
+    CHECK3(EXEC_RRR, 14, subcd_c, int_src1, int_src2, int_src3);
 
     pop_iset();
 }

@@ -2863,29 +2863,34 @@ static void gen_lzcntd(TCGv_i64 ret, TCGv_i64 src1) {
     tcg_gen_clzi_i64(ret, src1, 64);
 }
 
-#define IMPL_GEN_OP_C(name, op, cond) \
-    static void name(TCGv_i64 ret, TCGv_i64 s1, TCGv_i64 s2, TCGv_i32 s3) \
+#define IMPL_GEN_OP_C(name, op) \
+    static void glue(name, _impl)(TCGv_i64 rl, TCGv_i64 rh, TCGv_i64 s1, \
+            TCGv_i64 s2, TCGv_i32 s3) \
     { \
+        TCGv_i64 zero = tcg_constant_i64(0); \
         TCGv_i32 t0 = tcg_temp_new_i32(); \
         TCGv_i64 t1 = tcg_temp_new_i64(); \
-        \
         tcg_gen_andi_i32(t0, s3, 1); \
+        op(rl, rh, s1, zero, s2, zero); \
         tcg_gen_extu_i32_i64(t1, t0); \
-        op(ret, s1, s2); \
-        op(ret, ret, t1); \
+        op(rl, rh, rl, rh, t1, zero); \
     } \
     \
-    static void glue(name, _c)(TCGv_i64 ret, TCGv_i64 s1, TCGv_i64 s2, \
-        TCGv_i32 s3) \
+    static void name(TCGv_i64 ret, TCGv_i64 s1, TCGv_i64 s2, TCGv_i32 s3) \
     { \
         TCGv_i64 t0 = tcg_temp_new_i64(); \
-        \
-        name(t0, s1, s2, s3); \
-        tcg_gen_setcond_i64(cond, ret, t0, s1); \
+        glue(name, _impl)(ret, t0, s1, s2, s3); \
+    } \
+    \
+    static void glue(name, _c)(TCGv_i64 ret, TCGv_i64 s1, TCGv_i64 s2, TCGv_i32 s3) \
+    { \
+        TCGv_i64 t0 = tcg_temp_new_i64(); \
+        glue(name, _impl)(t0, ret, s1, s2, s3); \
+        tcg_gen_andi_i64(ret, ret, 1); \
     }
 
-IMPL_GEN_OP_C(gen_addcd, tcg_gen_add_i64, TCG_COND_LTU)
-IMPL_GEN_OP_C(gen_subcd, tcg_gen_sub_i64, TCG_COND_GTU)
+IMPL_GEN_OP_C(gen_addcd, tcg_gen_add2_i64)
+IMPL_GEN_OP_C(gen_subcd, tcg_gen_sub2_i64)
 
 #define IMPL_GEN_PSHIFT(name, op) \
     static void name(TCGv_i64 ret, TCGv_i64 src1, TCGv_i64 src2) \
