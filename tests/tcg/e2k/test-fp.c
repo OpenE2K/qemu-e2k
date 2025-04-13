@@ -661,11 +661,24 @@ static void test_v3(void) {
     pop_iset();
 }
 
+static uint64_t fscale_src2[] = {
+    0x0000000000000000, 0x0000000000000001, 0x0000000000000002, 0x0000000000000003,
+    0x0000000000000004, 0xffffffffffffffff, 0xfffffffffffffffe, 0xfffffffffffffffc,
+    0xfffffffffffffff8, 0x000000000000003f, 0x000000000000007f, 0x00000000000000ff,
+    0x00000000000001ff, 0x00000000000003ff, 0x00000000000007ff, 0x0000000000000fff,
+    0x0000000000003fff, 0x0000000000007fff, 0x000000000000ffff, 0x000000000001ffff,
+    0xffffffffffffffc0, 0xffffffffffffffe0, 0xffffffffffffff00, 0xfffffffffffffe00,
+    0xfffffffffffffc00, 0xfffffffffffff800, 0xfffffffffffff000, 0xffffffffffffe000,
+    0x000000000000007b, 0xffffffffffffff85, 0x1234567812345678, 0x0000000000001234,
+    0x0000000000004321, 0xaaaaaaaaaaaaaaaa, 0x00000000ffffffff, 0xffffffff00000000,
+    0x8000000000000000, 0x0000000080000000, 0x8000000080000000, 0x7fffffffffffffff,
+};
+
 static void test_v4(void) {
     push_iset(4);
 
-    // TODO: fscales
-    // TODO: fscaled
+    CHECK2(EXEC_RR, 14, fscales, f32_src1, fscale_src2);
+    CHECK2(EXEC_RR, 14, fscaled, f64_src1, fscale_src2);
     // TODO: fxscalesx
 
     // new channels
