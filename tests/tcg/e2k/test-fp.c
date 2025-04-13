@@ -618,13 +618,36 @@ static void test_v2(void) {
     pop_iset();
 }
 
+#define CHECK2_FTOIF_ITER(TEST, CHAN, INSN, SRC1, SRC2, K) do { \
+    glue3(EXEC_RR, _, CHAN)(INSN, (TEST)->result, SRC1, SRC2, 0, 0); \
+    uint64_t expected = GET_EXPECT(TEST, glue(INSN, _expect), K); \
+    test_report(TEST, expected, SRC1, SRC2, 0, 0); \
+} while(0)
+
+#define CHECK2_FTOIF(CHAN, INSN, SRC2) do { \
+    alc_test_t test = test_start(#INSN, NULL, glue(ALC, CHAN), HAS_SRC12); \
+    const uint64_t *src2 = (const void *) (SRC2); \
+    for (int i = 0, k = 0; i < ARRAY_LEN(SRC2); ++i) { \
+        CHECK2_FTOIF_ITER(&test, CHAN, INSN, 0x0, src2[i], k); ++k; \
+        CHECK2_FTOIF_ITER(&test, CHAN, INSN, 0x1, src2[i], k); ++k; \
+        CHECK2_FTOIF_ITER(&test, CHAN, INSN, 0x2, src2[i], k); ++k; \
+        CHECK2_FTOIF_ITER(&test, CHAN, INSN, 0x3, src2[i], k); ++k; \
+        CHECK2_FTOIF_ITER(&test, CHAN, INSN, 0x4, src2[i], k); ++k; \
+        CHECK2_FTOIF_ITER(&test, CHAN, INSN, 0x5, src2[i], k); ++k; \
+        CHECK2_FTOIF_ITER(&test, CHAN, INSN, 0x6, src2[i], k); ++k; \
+        CHECK2_FTOIF_ITER(&test, CHAN, INSN, 0x7, src2[i], k); ++k; \
+        CHECK2_FTOIF_ITER(&test, CHAN, INSN, 0x8, src2[i], k); ++k; \
+    } \
+    test_end(&test); \
+} while(0)
+
 static void test_v3(void) {
     push_iset(3);
 
-    CHECK1(EXEC_R, 0134, fstoifs,   f32_src1);
-    CHECK1(EXEC_R, 0134, fdtoifd,   f64_src1);
-    CHECK1(EXEC_R, 0134, pfstoifs,  f32_src1);
-    CHECK1(EXEC_R, 0134, pfdtoifd,  f64_src1);
+    CHECK2_FTOIF(0134, fstoifs, f32_src2);
+    CHECK2_FTOIF(0134, fdtoifd, f64_src2);
+    CHECK2_FTOIF(0134, pfstoifs, f32_src2);
+    CHECK2_FTOIF(0134, pfdtoifd, f64_src2);
 
     CHECK2(EXEC_RR, 0134, pfhadds,      f32_src1, f32_src2);
     CHECK2(EXEC_RR, 0134, pfhsubs,      f32_src1, f32_src2);
