@@ -1,12 +1,10 @@
 #ifndef TEST_H
 #define TEST_H
 
-#include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
 #include <stdbool.h>
-#include <inttypes.h>
 
 #define glue(a, b) a ## b
 #define glue3(a, b, c) a ## b ## c
@@ -48,14 +46,19 @@ typedef enum {
     HAS_SRC123  = HAS_SRC1 | HAS_SRC2 | HAS_SRC3,
     HAS_SRC1234 = HAS_SRC1 | HAS_SRC2 | HAS_SRC3 | HAS_SRC4,
     SKIP_GEN    = 1 << 4,
+    FLAGS_X     = 1 << 5,
+    FLAGS_Q     = 1 << 6,
+    FLAGS_XQ    = FLAGS_X | FLAGS_Q,
 } flags_t;
+
+typedef uint64_t vec128 __attribute__((vector_size(16)));
 
 typedef struct alc_test {
     const char *insn;
     const char *comment;
     alc_t channels;
     flags_t flags;
-    uint64_t result[6];
+    uint64_t result[12];
     int i;
 } alc_test_t;
 
@@ -72,6 +75,14 @@ void test_report(
     uint64_t src2,
     uint64_t src3,
     uint64_t src4
+);
+void test_report_ptr(
+    alc_test_t *test,
+    const uint64_t *expected,
+    const uint64_t *src1,
+    const uint64_t *src2,
+    const uint64_t *src3,
+    const uint64_t *src4
 );
 
 #define EXEC_REPORT(TEST, EXEC, INSN, SRC1, SRC2, SRC3, SRC4, EXPECTED) \
