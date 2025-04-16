@@ -125,7 +125,7 @@ static void test_v1_int(void) {
 }
 
 #define CHECK_SXT(EXEC, CHAN, COMMENT) do { \
-    alc_test_t test = test_start("sxt", COMMENT, glue(ALC, CHAN), SKIP_GEN | HAS_SRC1 | HAS_SRC2); \
+    alc_test_t test = test_start("sxt", COMMENT, glue(ALC, CHAN), SKIP_GEN); \
     EXEC2_REPORT(test, glue3(EXEC, _, CHAN), sxt, 0, 0x7fff7f7f, 0x000000000000007f); \
     EXEC2_REPORT(test, glue3(EXEC, _, CHAN), sxt, 1, 0x7fff7f7f, 0x0000000000007f7f); \
     EXEC2_REPORT(test, glue3(EXEC, _, CHAN), sxt, 2, 0x7fff7f7f, 0x000000007fff7f7f); \
@@ -187,14 +187,14 @@ static void test_v1_shift(void) {
 
 static void test_v1_merge(void) {
     do {
-        alc_test_t test = test_start("merges", NULL, ALC012345, SKIP_GEN | HAS_SRC123);
+        alc_test_t test = test_start("merges", NULL, ALC012345, SKIP_GEN);
         EXEC_REPORT(test, EXEC_MERGE, merges, 1, -1, 0, 0, 0x00000001);
         EXEC_REPORT(test, EXEC_MERGE, merges, 1, -1, 1, 0, 0xffffffff);
         test_end(&test);
     } while(0);
 
     do {
-        alc_test_t test = test_start("merged", NULL, ALC012345, SKIP_GEN | HAS_SRC123);
+        alc_test_t test = test_start("merged", NULL, ALC012345, SKIP_GEN);
         EXEC_REPORT(test, EXEC_MERGE, merged, 1, -1ULL, 0, 0, 0x0000000000000001);
         EXEC_REPORT(test, EXEC_MERGE, merged, 1, -1ULL, 1, 0, 0xffffffffffffffff);
         test_end(&test);
@@ -202,7 +202,7 @@ static void test_v1_merge(void) {
 }
 
 #define CHECK_GETF(EXEC, INSN, COMMENT, TYPE, IS_64) do { \
-    alc_test_t test = test_start(#INSN, COMMENT, ALC012345, SKIP_GEN | HAS_SRC12); \
+    alc_test_t test = test_start(#INSN, COMMENT, ALC012345, SKIP_GEN); \
     EXEC2_REPORT(test, EXEC, INSN, 0x0000000000000000, FIELD( 0, 0, 0, 0), (TYPE) 0x0000000000000000); \
     EXEC2_REPORT(test, EXEC, INSN, 0xfedcba9786543210, FIELD( 0, 4, 0, 0), (TYPE) 0x0000000000000000); \
     EXEC2_REPORT(test, EXEC, INSN, 0xfedcba9786543210, FIELD( 4, 4, 0, 0), (TYPE) 0x0000000000000001); \
@@ -350,12 +350,12 @@ static void test_v1_cmpand(void) {
 #define TEST3_MERGE(INSN, SRC1, SRC2, SRC3, EXPECT, GET_EXPECT) do { \
     ASSERT_ARRAY_LEN_EQ(SRC1, SRC2); \
     ASSERT_ARRAY_LEN_EQ(SRC1, SRC3); \
-    alc_test_t test = test_start(#INSN, NULL, ALC14, HAS_SRC1234); \
+    alc_test_t test = test_start(#INSN, NULL, ALC14, 0); \
     for (int i = 0, k = 0; i < ARRAY_LEN(SRC1); ++i) { \
-        for (int j = 0; j < 2; ++j, ++k) { \
+        for (uint64_t j = 0; j < 2; ++j, ++k) { \
             EXEC_COMB_MERGE(INSN, test.result, SRC1[i], SRC2[i], SRC3[i], j); \
             uint64_t expected = GET_EXPECT(&test, EXPECT, k); \
-            test_report(&test, expected, SRC1[i], SRC2[i], SRC3[i], j); \
+            test_report(&test, &expected, &SRC1[i], &SRC2[i], &SRC3[i], &j); \
         } \
     } \
     test_end(&test); \

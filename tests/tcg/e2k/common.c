@@ -60,23 +60,6 @@ void test_end(alc_test_t *test) {
     }
 }
 
-void test_report(
-    alc_test_t *test,
-    uint64_t expected,
-    uint64_t src1,
-    uint64_t src2,
-    uint64_t src3,
-    uint64_t src4
-) {
-    assert(!(test->flags & FLAGS_XQ) && "use test_report_ptr");
-    test_report_ptr(test, &expected,
-        test->flags & HAS_SRC1 ? &src1 : NULL,
-        test->flags & HAS_SRC2 ? &src2 : NULL,
-        test->flags & HAS_SRC3 ? &src3 : NULL,
-        test->flags & HAS_SRC4 ? &src4 : NULL
-    );
-}
-
 static inline void print_value(FILE *out, flags_t flags, const uint64_t *x) {
     if (!x) {
         return;
@@ -90,7 +73,7 @@ static inline void print_value(FILE *out, flags_t flags, const uint64_t *x) {
     }
 }
 
-void test_report_ptr(
+void test_report(
     alc_test_t *test,
     const uint64_t *expected,
     const uint64_t *src1,

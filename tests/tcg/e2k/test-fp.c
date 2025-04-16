@@ -621,12 +621,13 @@ static void test_v2(void) {
 
 #define CHECK2_FTOIF_ITER(TEST, CHAN, INSN, SRC1, SRC2, K) do { \
     glue3(EXEC_RR, _, CHAN)(INSN, (TEST)->result, SRC1, SRC2, 0, 0); \
+    uint64_t src1 = SRC1; \
     uint64_t expected = GET_EXPECT(TEST, glue(INSN, _expect), K); \
-    test_report(TEST, expected, SRC1, SRC2, 0, 0); \
+    test_report(TEST, &expected, &src1, &SRC2, NULL, NULL); \
 } while(0)
 
 #define CHECK2_FTOIF(CHAN, INSN, SRC2) do { \
-    alc_test_t test = test_start(#INSN, NULL, glue(ALC, CHAN), HAS_SRC12); \
+    alc_test_t test = test_start(#INSN, NULL, glue(ALC, CHAN), 0); \
     const uint64_t *src2 = (const void *) (SRC2); \
     for (int i = 0, k = 0; i < ARRAY_LEN(SRC2); ++i) { \
         CHECK2_FTOIF_ITER(&test, CHAN, INSN, 0x0, src2[i], k); ++k; \

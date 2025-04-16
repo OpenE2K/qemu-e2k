@@ -58,14 +58,16 @@ static uint64_t pshift_src2[] = {
 
 #define CHECK_RI_14(TEST, INSN, SRC1, SRC2, K) do { \
     EXEC_RI_14(INSN, (TEST)->result, SRC1, SRC2, 0, 0); \
+    uint64_t src1 = SRC1, src2 = SRC2; \
     uint64_t expected = GET_EXPECT(TEST, glue(INSN, _expect), K); \
-    test_report(TEST, expected, SRC1, SRC2, 0, 0); \
+    test_report(TEST, &expected, &src1, &src2, NULL, NULL); \
 } while(0)
 
 #define CHECK_RRI_14(TEST, INSN, SRC1, SRC2, SRC3, K) do { \
     EXEC_RRI_14(INSN, (TEST)->result, SRC1, SRC2, SRC3, 0); \
+    uint64_t src1 = SRC1, src2 = SRC2, src3 = SRC3; \
     uint64_t expected = GET_EXPECT(TEST, glue(INSN, _expect), K); \
-    test_report(TEST, expected, SRC1, SRC2, SRC3, 0); \
+    test_report(TEST, &expected, &src1, &src2, &src3, 0); \
 } while(0)
 
 static void test_v1_packed(void) {
@@ -126,7 +128,7 @@ static void test_v1_packed(void) {
 
 static void test_v1_shuffle(void) {
     do {
-        alc_test_t test = test_start("pshufw", NULL, ALC14, HAS_SRC123);
+        alc_test_t test = test_start("pshufw", NULL, ALC14, 0);
         uint64_t src1 = 0x1122334455667788;
         uint64_t src2 = 0xffeeddccbbaa9900;
         int k = 0;
@@ -150,7 +152,7 @@ static void test_v1_shuffle(void) {
     } while(0);
 
     do {
-        alc_test_t test = test_start("pshufh", NULL, ALC14, HAS_SRC12);
+        alc_test_t test = test_start("pshufh", NULL, ALC14, 0);
         uint64_t src1 = 0x1122334455667788;
         int k = 0;
         CHECK_RI_14(&test, pshufh, src1, 0x00, k); ++k;
@@ -193,7 +195,7 @@ static void test_v1_shuffle(void) {
     } while(0);
 
     do {
-        alc_test_t test = test_start("pextrh", NULL, ALC14, HAS_SRC123);
+        alc_test_t test = test_start("pextrh", NULL, ALC14, 0);
         uint64_t src1 = 0x1122334455667788;
         uint64_t src2 = 0xffeeddccbbaa9900;
         int k = 0;
@@ -209,7 +211,7 @@ static void test_v1_shuffle(void) {
     } while(0);
 
     do {
-        alc_test_t test = test_start("pinsh", NULL, ALC14, HAS_SRC123);
+        alc_test_t test = test_start("pinsh", NULL, ALC14, 0);
         uint64_t src1 = 0x1122334455667788;
         uint64_t src2 = 0xffeeddccbbaa9900;
         int k = 0;
@@ -223,13 +225,14 @@ static void test_v1_shuffle(void) {
 
 #define EXEC_PSHIFT_ITER(INSN, SRC1, SRC2, SRC3, K) do { \
     EXEC_RRI_14(INSN, test.result, SRC1[i], SRC2[i], SRC3, 0); \
+    uint64_t src3 = SRC3; \
     uint64_t expected = GET_EXPECT(&test, glue(INSN, _expect), K); \
-    test_report(&test, expected, SRC1[i], SRC2[i], SRC3, 0); \
+    test_report(&test, &expected, &SRC1[i], &SRC2[i], &src3, NULL); \
 } while(0)
 
 #define CHECK3_PSHIFT_7(INSN, SRC1, SRC2) do { \
     ASSERT_ARRAY_LEN_EQ(SRC1, SRC2); \
-    alc_test_t test = test_start(#INSN, NULL, ALC14, HAS_SRC123); \
+    alc_test_t test = test_start(#INSN, NULL, ALC14, 0); \
     for (int i = 0, k = 0; i < ARRAY_LEN(SRC1); ++i) { \
         EXEC_PSHIFT_ITER(INSN, SRC1, SRC2, 0, k); ++k; \
         EXEC_PSHIFT_ITER(INSN, SRC1, SRC2, 1, k); ++k; \
@@ -243,7 +246,7 @@ static void test_v1_shuffle(void) {
 
 #define CHECK3_PSHIFT_15(INSN, SRC1, SRC2) do { \
     ASSERT_ARRAY_LEN_EQ(SRC1, SRC2); \
-    alc_test_t test = test_start(#INSN, NULL, ALC14, HAS_SRC123); \
+    alc_test_t test = test_start(#INSN, NULL, ALC14, 0); \
     for (int i = 0, k = 0; i < ARRAY_LEN(SRC1); ++i) { \
         EXEC_PSHIFT_ITER(INSN, SRC1, SRC2,  0, k); ++k; \
         EXEC_PSHIFT_ITER(INSN, SRC1, SRC2,  1, k); ++k; \
