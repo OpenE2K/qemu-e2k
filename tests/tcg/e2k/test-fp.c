@@ -620,7 +620,7 @@ static void test_v2(void) {
 }
 
 #define CHECK2_FTOIF_ITER(TEST, CHAN, INSN, SRC1, SRC2, K) do { \
-    glue3(EXEC_RR, _, CHAN)(INSN, (TEST)->result, SRC1, SRC2, 0, 0); \
+    glue3(EXEC_RR, _, CHAN)(INSN, (TEST)->result, SRC1, SRC2); \
     uint64_t src1 = SRC1; \
     uint64_t expected = GET_EXPECT(TEST, glue(INSN, _expect), K); \
     test_report(TEST, &expected, &src1, &SRC2, NULL, NULL); \

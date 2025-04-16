@@ -57,17 +57,17 @@ static uint64_t pshift_src2[] = {
 #endif
 
 #define CHECK_RI_14(TEST, INSN, SRC1, SRC2, K) do { \
-    EXEC_RI_14(INSN, (TEST)->result, SRC1, SRC2, 0, 0); \
+    EXEC_RI_14(INSN, (TEST)->result, SRC1, SRC2); \
     uint64_t src1 = SRC1, src2 = SRC2; \
     uint64_t expected = GET_EXPECT(TEST, glue(INSN, _expect), K); \
     test_report(TEST, &expected, &src1, &src2, NULL, NULL); \
 } while(0)
 
 #define CHECK_RRI_14(TEST, INSN, SRC1, SRC2, SRC3, K) do { \
-    EXEC_RRI_14(INSN, (TEST)->result, SRC1, SRC2, SRC3, 0); \
+    EXEC_RRI_14(INSN, (TEST)->result, SRC1, SRC2, SRC3); \
     uint64_t src1 = SRC1, src2 = SRC2, src3 = SRC3; \
     uint64_t expected = GET_EXPECT(TEST, glue(INSN, _expect), K); \
-    test_report(TEST, &expected, &src1, &src2, &src3, 0); \
+    test_report(TEST, &expected, &src1, &src2, &src3, NULL); \
 } while(0)
 
 static void test_v1_packed(void) {
@@ -224,7 +224,7 @@ static void test_v1_shuffle(void) {
 }
 
 #define EXEC_PSHIFT_ITER(INSN, SRC1, SRC2, SRC3, K) do { \
-    EXEC_RRI_14(INSN, test.result, SRC1[i], SRC2[i], SRC3, 0); \
+    EXEC_RRI_14(INSN, test.result, SRC1[i], SRC2[i], SRC3); \
     uint64_t src3 = SRC3; \
     uint64_t expected = GET_EXPECT(&test, glue(INSN, _expect), K); \
     test_report(&test, &expected, &SRC1[i], &SRC2[i], &src3, NULL); \

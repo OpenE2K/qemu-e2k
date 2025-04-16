@@ -71,20 +71,20 @@ void test_report(
 #define EXEC1_REPORT(TEST, EXEC, INSN, SRC1, EXPECTED) \
     uint64_t src1 = SRC1; \
     uint64_t expected = EXPECTED; \
-    EXEC(INSN, (TEST).result, SRC1, 0, 0, 0); \
+    EXEC(INSN, (TEST).result, SRC1); \
     test_report(&TEST, &expected, &src1, NULL, NULL, NULL)
 
 #define EXEC2_REPORT(TEST, EXEC, INSN, SRC1, SRC2, EXPECTED) do { \
     uint64_t src1 = SRC1, src2 = SRC2; \
     uint64_t expected = EXPECTED; \
-    EXEC(INSN, (TEST).result, SRC1, SRC2, 0, 0); \
+    EXEC(INSN, (TEST).result, SRC1, SRC2); \
     test_report(&TEST, &expected, &src1, &src2, NULL, NULL); \
 } while(0)
 
 #define EXEC3_REPORT(TEST, EXEC, INSN, SRC1, SRC2, SRC3, EXPECTED) do { \
     uint64_t src1 = SRC1, src2 = SRC2, src3 = SRC3; \
     uint64_t expected = EXPECTED; \
-    EXEC(INSN, (TEST).result, SRC1, SRC2, SRC3, 0); \
+    EXEC(INSN, (TEST).result, SRC1, SRC2, SRC3); \
     test_report(&TEST, &expected, &src1, &src2, &src3, NULL); \
 } while(0)
 
@@ -107,7 +107,7 @@ void test_report(
     alc_test_t test = test_start(#INSN, NULL, glue(ALC, CHAN), 0); \
     const uint64_t *src1 = (const void *) (SRC1); \
     for (int i = 0; i < ARRAY_LEN(SRC1); ++i) { \
-        glue3(EXEC, _, CHAN)(INSN, test.result, src1[i], 0, 0, 0); \
+        glue3(EXEC, _, CHAN)(INSN, test.result, src1[i]); \
         uint64_t expected = GET_EXPECT(&test, EXPECT, i); \
         test_report(&test, &expected, &src1[i], NULL, NULL, NULL); \
     } \
@@ -126,7 +126,7 @@ void test_report(
     const uint64_t *src1 = (const void *) (SRC1); \
     const uint64_t *src2 = (const void *) (SRC2); \
     for (int i = 0; i < ARRAY_LEN(SRC1); ++i) { \
-        glue3(EXEC, _, CHAN)(INSN, test.result, src1[i], src2[i], 0, 0); \
+        glue3(EXEC, _, CHAN)(INSN, test.result, src1[i], src2[i]); \
         uint64_t expected = GET_EXPECT(&test, EXPECT, i); \
         test_report(&test, &expected, &src1[i], &src2[i], NULL, NULL); \
     } \
@@ -145,7 +145,7 @@ void test_report(
     const uint64_t *src2 = (const void *) (SRC2); \
     for (int i = 0, k = 0; i < ARRAY_LEN(SRC1); ++i) { \
         for (int j = 0; j < ARRAY_LEN(SRC2); ++j, ++k) { \
-            glue3(EXEC, _, CHAN)(INSN, test.result, src1[i], src2[j], 0, 0); \
+            glue3(EXEC, _, CHAN)(INSN, test.result, src1[i], src2[j]); \
             uint64_t expected = GET_EXPECT(&test, EXPECT, k); \
             test_report(&test, &expected, &src1[i], &src2[j], NULL, NULL); \
         } \
@@ -167,7 +167,7 @@ void test_report(
     const uint64_t *src2 = (const void *) (SRC2); \
     const uint64_t *src3 = (const void *) (SRC3); \
     for (int i = 0; i < ARRAY_LEN(SRC1); ++i) { \
-        glue3(EXEC, _, CHAN)(INSN, test.result, src1[i], src2[i], src3[i], 0); \
+        glue3(EXEC, _, CHAN)(INSN, test.result, src1[i], src2[i], src3[i]); \
         uint64_t expected = GET_EXPECT(&test, EXPECT, i); \
         test_report(&test, &expected, &src1[i], &src2[i], &src3[i], NULL); \
     } \
