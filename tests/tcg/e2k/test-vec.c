@@ -1,5 +1,6 @@
 #include "iset.h"
 #include "test.h"
+#include "exec.h"
 
 static uint64_t int_src1[] = {
     0x0000000012345678, 0x0000000000012341, 0x0000000000012341, 0xffffffffffffffff,

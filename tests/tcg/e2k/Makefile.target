@@ -15,11 +15,15 @@ E2K_TESTS_ASM = $(E2K_SRCS_ASM:.S=)
 
 $(E2K_TESTS_ASM): LDFLAGS += -nostdlib
 
-E2K_SRCS = $(notdir $(wildcard $(E2K_SRC_PATH)/*.c))
+E2K_SRCS = $(notdir $(wildcard $(E2K_SRC_PATH)/test-*.c))
 E2K_TESTS = $(E2K_SRCS:.c=)
 
 E2K_ALL_TESTS := $(E2K_TESTS_ASM) $(E2K_TESTS)
 TESTS = $(MULTIARCH_TESTS) $(E2K_ALL_TESTS)
+
+test-int: test-int.o common.o
+test-fp: test-fp.o common.o
+test-vec: test-vec.o common.o
 
 deps: $(E2K_SRCS)
 	@$(CC) $(CFLAGS) -MM $^ > $@
@@ -34,4 +38,4 @@ run-test-int run-test-fp run-test-vec: QEMU_OPTS += -cpu elbrus-v7
 	$(CC) -c $(CFLAGS) -o $@ $<
 
 %: %.o
-	$(CC) $(LDFLAGS) -o $@ $<
+	$(CC) $(LDFLAGS) -o $@ $^
