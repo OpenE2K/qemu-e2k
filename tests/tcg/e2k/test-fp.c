@@ -56,9 +56,9 @@ static uint64_t f32_src1[] = {
 };
 
 static uint64_t f32_src2[] = {
-    0x4430c1b0c41ea85e, // 707.02636719, -634.63073730
-    0xc25f87c0441da702, // -55.88256836, 630.60949707
-    0x43d9dfe0c47a613d, // 435.74902344, -1001.51934814
+    0x447bb0acc44a6472, // 1006.76049805, -809.56945801
+    0xc25f87c0c32da2c0, // -55.88256836, -173.63574219
+    0x430c0e00c47a613d, // 140.05468750, -1001.51934814
     0x4452fa70c48a4ccf, // 843.91308594, -1106.40026855
     0x44237708c3fdcbd4, // 653.85986328, -507.59240723
     0x44614434c3979980, // 901.06567383, -303.19921875
@@ -185,12 +185,12 @@ static uint64_t f64_src1[] = {
 };
 
 static uint64_t f64_src2[] = {
-    0xc0807e79e2240705, // -527.80951336
-    0x40659e803d4abd90, // 172.95315423
-    0xc0833e775c97b31a, // -615.80828208
+    0x407731940f5e4e3c, // 371.09864747
+    0xc08faec8af10aae5, // -1013.84799016
+    0x4083f3f83c0425c4, // 638.49620822
     0x4071591b4b6106ac, // 277.56916368
     0x409061a63917650c, // 1048.41232716
-    0xc08114fed85f3c97, // -546.62443613
+    0xc0807b9cad4eb9ef, // -527.45150243
     0xc08c44f85be5abe0, // -904.62126903
     0x40930b5b5afee86c, // 1218.83921431
     0x408a47da282038ec, // 840.98152185
@@ -622,8 +622,8 @@ static void test_v2(void) {
 #define CHECK2_FTOIF_ITER(TEST, CHAN, INSN, SRC1, SRC2, K) do { \
     glue3(EXEC_RR, _, CHAN)(INSN, (TEST)->result, SRC1, SRC2); \
     uint64_t src1 = SRC1; \
-    uint64_t expected = GET_EXPECT(TEST, glue(INSN, _expect), K); \
-    test_report(TEST, &expected, &src1, &SRC2, NULL, NULL); \
+    const uint64_t *expected = GET_EXPECT(TEST, glue(INSN, _expect), K); \
+    test_report(TEST, expected, &src1, &SRC2, NULL, NULL); \
 } while(0)
 
 #define CHECK2_FTOIF(CHAN, INSN, SRC2) do { \
@@ -801,104 +801,114 @@ static void test_v4(void) {
 static void test_v5(void) {
     push_iset(5);
 
-    // TODO: qpfadds
-    // TODO: qpfaddd
-    // TODO: qpfsubs
-    // TODO: qpfsubd
-    // TODO: qpfmuls
-    // TODO: qpfmuld
-    // TODO: qpfhadds
-    // TODO: qpfhsubs
-    // TODO: qpfaddsubs
-    // TODO: qpfaddsubd
-    // TODO: qpfstois
-    // TODO: qpfstoistr
-    // TODO: qpistofs
-    // TODO: qpfstoid
-    // TODO: qpfstoidtr
-    // TODO: qpistofd
-    // TODO: qpfstofd
-    // TODO: qpfdtois
-    // TODO: qpfdtoistr
-    // TODO: qpidtofs
-    // TODO: qpfdtofs
-    // TODO: qpfdtoid
-    // TODO: qpfdtoidtr
-    // TODO: qpidtofd
+    CHECK2Q(EXEC_QQQ, 012345, qpfadds,      f32_src1, f32_src2);
+    CHECK2Q(EXEC_QQQ, 012345, qpfsubs,      f32_src1, f32_src2);
+    CHECK2Q(EXEC_QQQ, 012345, qpfmuls,      f32_src1, f32_src2);
+    CHECK2Q(EXEC_QQQ, 012345, qpfhadds,     f32_src1, f32_src2);
+    CHECK2Q(EXEC_QQQ, 012345, qpfhsubs,     f32_src1, f32_src2);
+    CHECK2Q(EXEC_QQQ, 012345, qpfaddsubs,   f32_src1, f32_src2);
+
+    CHECK2Q(EXEC_QQQ, 012345, qpfaddd,      f64_src1, f64_src2);
+    CHECK2Q(EXEC_QQQ, 012345, qpfsubd,      f64_src1, f64_src2);
+    CHECK2Q(EXEC_QQQ, 012345, qpfmuld,      f64_src1, f64_src2);
+    CHECK2Q(EXEC_QQQ, 012345, qpfaddsubd,   f64_src1, f64_src2);
+
+    CHECK2Q(EXEC_QQQ, 0134, qpfmins,        f32_src1, f32_src2);
+    CHECK2Q(EXEC_QQQ, 0134, qpfmaxs,        f32_src1, f32_src2);
+    CHECK2Q(EXEC_QQQ, 0134, qpfcmpeqs,      f32_src1, f32_src2);
+    CHECK2Q(EXEC_QQQ, 0134, qpfcmplts,      f32_src1, f32_src2);
+    CHECK2Q(EXEC_QQQ, 0134, qpfcmples,      f32_src1, f32_src2);
+    CHECK2Q(EXEC_QQQ, 0134, qpfcmpuods,     f32_src1, f32_src2);
+    CHECK2Q(EXEC_QQQ, 0134, qpfcmpneqs,     f32_src1, f32_src2);
+    CHECK2Q(EXEC_QQQ, 0134, qpfcmpnlts,     f32_src1, f32_src2);
+    CHECK2Q(EXEC_QQQ, 0134, qpfcmpnles,     f32_src1, f32_src2);
+    CHECK2Q(EXEC_QQQ, 0134, qpfcmpods,      f32_src1, f32_src2);
+
+    CHECK2Q(EXEC_QQQ, 0134, qpfmind,        f64_src1, f64_src2);
+    CHECK2Q(EXEC_QQQ, 0134, qpfmaxd,        f64_src1, f64_src2);
+    CHECK2Q(EXEC_QQQ, 0134, qpfcmpeqd,      f64_src1, f64_src2);
+    CHECK2Q(EXEC_QQQ, 0134, qpfcmpltd,      f64_src1, f64_src2);
+    CHECK2Q(EXEC_QQQ, 0134, qpfcmpled,      f64_src1, f64_src2);
+    CHECK2Q(EXEC_QQQ, 0134, qpfcmpuodd,     f64_src1, f64_src2);
+    CHECK2Q(EXEC_QQQ, 0134, qpfcmpneqd,     f64_src1, f64_src2);
+    CHECK2Q(EXEC_QQQ, 0134, qpfcmpnltd,     f64_src1, f64_src2);
+    CHECK2Q(EXEC_QQQ, 0134, qpfcmpnled,     f64_src1, f64_src2);
+    CHECK2Q(EXEC_QQQ, 0134, qpfcmpodd,      f64_src1, f64_src2);
+
+    CHECK3Q(EXEC_QQQQ, 012345, qpfadd_adds,         f32_src1, f32_src2, f32_src3);
+    CHECK3Q(EXEC_QQQQ, 012345, qpfsub_adds,         f32_src1, f32_src2, f32_src3);
+    CHECK3Q(EXEC_QQQQ, 012345, qpfhadd_adds,        f32_src1, f32_src2, f32_src3);
+    CHECK3Q(EXEC_QQQQ, 012345, qpfhsub_adds,        f32_src1, f32_src2, f32_src3);
+    CHECK3Q(EXEC_QQQQ, 012345, qpfmul_adds,         f32_src1, f32_src2, f32_src3);
+    CHECK3Q(EXEC_QQQQ, 012345, qpfaddsub_adds,      f32_src1, f32_src2, f32_src3);
+    CHECK3Q(EXEC_QQQQ, 012345, qpfadd_subs,         f32_src1, f32_src2, f32_src3);
+    CHECK3Q(EXEC_QQQQ, 012345, qpfsub_subs,         f32_src1, f32_src2, f32_src3);
+    CHECK3Q(EXEC_QQQQ, 012345, qpfhadd_subs,        f32_src1, f32_src2, f32_src3);
+    CHECK3Q(EXEC_QQQQ, 012345, qpfmul_subs,         f32_src1, f32_src2, f32_src3);
+    CHECK3Q(EXEC_QQQQ, 012345, qpfhsub_subs,        f32_src1, f32_src2, f32_src3);
+    CHECK3Q(EXEC_QQQQ, 012345, qpfaddsub_subs,      f32_src1, f32_src2, f32_src3);
+    CHECK3Q(EXEC_QQQQ, 012345, qpfadd_hadds,        f32_src1, f32_src2, f32_src3);
+    CHECK3Q(EXEC_QQQQ, 012345, qpfsub_hadds,        f32_src1, f32_src2, f32_src3);
+    CHECK3Q(EXEC_QQQQ, 012345, qpfhadd_hadds,       f32_src1, f32_src2, f32_src3);
+    CHECK3Q(EXEC_QQQQ, 012345, qpfhsub_hadds,       f32_src1, f32_src2, f32_src3);
+    CHECK3Q(EXEC_QQQQ, 012345, qpfmul_hadds,        f32_src1, f32_src2, f32_src3);
+    CHECK3Q(EXEC_QQQQ, 012345, qpfaddsub_hadds,     f32_src1, f32_src2, f32_src3);
+    CHECK3Q(EXEC_QQQQ, 012345, qpfadd_hsubs,        f32_src1, f32_src2, f32_src3);
+    CHECK3Q(EXEC_QQQQ, 012345, qpfsub_hsubs,        f32_src1, f32_src2, f32_src3);
+    CHECK3Q(EXEC_QQQQ, 012345, qpfhadd_hsubs,       f32_src1, f32_src2, f32_src3);
+    CHECK3Q(EXEC_QQQQ, 012345, qpfhsub_hsubs,       f32_src1, f32_src2, f32_src3);
+    CHECK3Q(EXEC_QQQQ, 012345, qpfmul_hsubs,        f32_src1, f32_src2, f32_src3);
+    CHECK3Q(EXEC_QQQQ, 012345, qpfaddsub_hsubs,     f32_src1, f32_src2, f32_src3);
+    CHECK3Q(EXEC_QQQQ, 012345, qpfadd_rsubs,        f32_src1, f32_src2, f32_src3);
+    CHECK3Q(EXEC_QQQQ, 012345, qpfsub_rsubs,        f32_src1, f32_src2, f32_src3);
+    CHECK3Q(EXEC_QQQQ, 012345, qpfhadd_rsubs,       f32_src1, f32_src2, f32_src3);
+    CHECK3Q(EXEC_QQQQ, 012345, qpfhsub_rsubs,       f32_src1, f32_src2, f32_src3);
+    CHECK3Q(EXEC_QQQQ, 012345, qpfmul_rsubs,        f32_src1, f32_src2, f32_src3);
+    CHECK3Q(EXEC_QQQQ, 012345, qpfaddsub_rsubs,     f32_src1, f32_src2, f32_src3);
+    CHECK3Q(EXEC_QQQQ, 012345, qpfadd_addsubs,      f32_src1, f32_src2, f32_src3);
+    CHECK3Q(EXEC_QQQQ, 012345, qpfsub_addsubs,      f32_src1, f32_src2, f32_src3);
+    CHECK3Q(EXEC_QQQQ, 012345, qpfhadd_addsubs,     f32_src1, f32_src2, f32_src3);
+    CHECK3Q(EXEC_QQQQ, 012345, qpfhsub_addsubs,     f32_src1, f32_src2, f32_src3);
+    CHECK3Q(EXEC_QQQQ, 012345, qpfmul_addsubs,      f32_src1, f32_src2, f32_src3);
+    CHECK3Q(EXEC_QQQQ, 012345, qpfaddsub_addsubs,   f32_src1, f32_src2, f32_src3);
+
+    CHECK3Q(EXEC_QQQQ, 012345, qpfadd_addd,         f64_src1, f64_src2, f64_src3);
+    CHECK3Q(EXEC_QQQQ, 012345, qpfsub_addd,         f64_src1, f64_src2, f64_src3);
+    CHECK3Q(EXEC_QQQQ, 012345, qpfmul_addd,         f64_src1, f64_src2, f64_src3);
+    CHECK3Q(EXEC_QQQQ, 012345, qpfaddsub_addd,      f64_src1, f64_src2, f64_src3);
+    CHECK3Q(EXEC_QQQQ, 012345, qpfadd_subd,         f64_src1, f64_src2, f64_src3);
+    CHECK3Q(EXEC_QQQQ, 012345, qpfsub_subd,         f64_src1, f64_src2, f64_src3);
+    CHECK3Q(EXEC_QQQQ, 012345, qpfmul_subd,         f64_src1, f64_src2, f64_src3);
+    CHECK3Q(EXEC_QQQQ, 012345, qpfaddsub_subd,      f64_src1, f64_src2, f64_src3);
+    CHECK3Q(EXEC_QQQQ, 012345, qpfadd_rsubd,        f64_src1, f64_src2, f64_src3);
+    CHECK3Q(EXEC_QQQQ, 012345, qpfsub_rsubd,        f64_src1, f64_src2, f64_src3);
+    CHECK3Q(EXEC_QQQQ, 012345, qpfmul_rsubd,        f64_src1, f64_src2, f64_src3);
+    CHECK3Q(EXEC_QQQQ, 012345, qpfaddsub_rsubd,     f64_src1, f64_src2, f64_src3);
+    CHECK3Q(EXEC_QQQQ, 012345, qpfadd_addsubd,      f64_src1, f64_src2, f64_src3);
+    CHECK3Q(EXEC_QQQQ, 012345, qpfsub_addsubd,      f64_src1, f64_src2, f64_src3);
+    CHECK3Q(EXEC_QQQQ, 012345, qpfmul_addsubd,      f64_src1, f64_src2, f64_src3);
+    CHECK3Q(EXEC_QQQQ, 012345, qpfaddsub_addsubd,   f64_src1, f64_src2, f64_src3);
+
+    CHECK1Q(EXEC_QQ, 0134, qpfstofd, f32_src1);
+    CHECK1Q(EXEC_QQ, 0134, qpfstois, f32_src1);
+    CHECK1Q(EXEC_QQ, 0134, qpfstoistr, f32_src1);
+    CHECK1Q(EXEC_QQ, 0134, qpfstoid, f32_src1);
+    CHECK1Q(EXEC_QQ, 0134, qpfstoidtr, f32_src1);
+
+    CHECK1Q(EXEC_DQ, 0134, qpfdtofs, f64_src1);
+    CHECK1Q(EXEC_DQ, 0134, qpfdtois, f64_src1);
+    CHECK1Q(EXEC_DQ, 0134, qpfdtoistr, f64_src1);
+    CHECK1Q(EXEC_QQ, 0134, qpfdtoid, f64_src1);
+    CHECK1Q(EXEC_QQ, 0134, qpfdtoidtr, f64_src1);
+
+    CHECK1Q(EXEC_QQ, 0134, qpistofs, int_src1);
+    CHECK1Q(EXEC_QQ, 0134, qpistofd, int_src1);
+
+    CHECK1Q(EXEC_DQ, 0134, qpidtofs, int_src1);
+    CHECK1Q(EXEC_QQ, 0134, qpidtofd, int_src1);
+
     // TODO: qpfstoifs
     // TODO: qpfdtoifd
-    // TODO: qpfmins
-    // TODO: qpfmind
-    // TODO: qpfmaxs
-    // TODO: qpfmaxd
-    // TODO: qpfcmpeqs
-    // TODO: qpfcmplts
-    // TODO: qpfcmples
-    // TODO: qpfcmpuods
-    // TODO: qpfcmpneqs
-    // TODO: qpfcmpnlts
-    // TODO: qpfcmpnles
-    // TODO: qpfcmpods
-    // TODO: qpfcmpeqd
-    // TODO: qpfcmpltd
-    // TODO: qpfcmpled
-    // TODO: qpfcmpuodd
-    // TODO: qpfcmpneqd
-    // TODO: qpfcmpnltd
-    // TODO: qpfcmpnled
-    // TODO: qpfcmpodd
-    // TODO: qpfadd_adds
-    // TODO: qpfadd_addd
-    // TODO: qpfsub_adds
-    // TODO: qpfsub_addd
-    // TODO: qpfhadd_adds
-    // TODO: qpfhsub_adds
-    // TODO: qpfmul_adds
-    // TODO: qpfmul_addd
-    // TODO: qpfaddsub_adds
-    // TODO: qpfaddsub_addd
-    // TODO: qpfadd_subs
-    // TODO: qpfadd_subd
-    // TODO: qpfsub_subs
-    // TODO: qpfsub_subd
-    // TODO: qpfhadd_subs
-    // TODO: qpfhsub_subs
-    // TODO: qpfmul_subs
-    // TODO: qpfmul_subd
-    // TODO: qpfaddsub_subs
-    // TODO: qpfaddsub_subd
-    // TODO: qpfadd_hadds
-    // TODO: qpfsub_hadds
-    // TODO: qpfhadd_hadds
-    // TODO: qpfhsub_hadds
-    // TODO: qpfmul_hadds
-    // TODO: qpfaddsub_hadds
-    // TODO: qpfadd_hsubs
-    // TODO: qpfsub_hsubs
-    // TODO: qpfhadd_hsubs
-    // TODO: qpfhsub_hsubs
-    // TODO: qpfmul_hsubs
-    // TODO: qpfaddsub_hsubs
-    // TODO: qpfadd_rsubs
-    // TODO: qpfadd_rsubd
-    // TODO: qpfsub_rsubs
-    // TODO: qpfsub_rsubd
-    // TODO: qpfhadd_rsubs
-    // TODO: qpfhsub_rsubs
-    // TODO: qpfmul_rsubs
-    // TODO: qpfmul_rsubd
-    // TODO: qpfaddsub_rsubs
-    // TODO: qpfaddsub_rsubd
-    // TODO: qpfadd_addsubs
-    // TODO: qpfadd_addsubd
-    // TODO: qpfsub_addsubs
-    // TODO: qpfsub_addsubd
-    // TODO: qpfhadd_addsubs
-    // TODO: qpfhsub_addsubs
-    // TODO: qpfmul_addsubs
-    // TODO: qpfmul_addsubd
-    // TODO: qpfaddsub_addsubs
-    // TODO: qpfaddsub_addsubd
 
     pop_iset();
 }

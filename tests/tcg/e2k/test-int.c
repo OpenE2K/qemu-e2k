@@ -354,8 +354,8 @@ static void test_v1_cmpand(void) {
     for (int i = 0, k = 0; i < ARRAY_LEN(SRC1); ++i) { \
         for (uint64_t j = 0; j < 2; ++j, ++k) { \
             EXEC_COMB_MERGE(INSN, test.result, SRC1[i], SRC2[i], SRC3[i], j); \
-            uint64_t expected = GET_EXPECT(&test, EXPECT, k); \
-            test_report(&test, &expected, &SRC1[i], &SRC2[i], &SRC3[i], &j); \
+            const uint64_t *expected = GET_EXPECT(&test, EXPECT, k); \
+            test_report(&test, expected, &SRC1[i], &SRC2[i], &SRC3[i], &j); \
         } \
     } \
     test_end(&test); \

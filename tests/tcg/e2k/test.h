@@ -95,21 +95,25 @@ void test_report(
     test_report(&TEST, &expected, &src1, &src2, &src3, &src4); \
 } while(0)
 
-#define DUMMY_EXPECT(TEST, EXPECT, I) (TEST)->result[0]
+#define DUMMY_EXPECT(TEST, EXPECT, I) (TEST)->result
 
 #ifdef DUMP_ONLY
 #define GET_EXPECT DUMMY_EXPECT
 #else
-#define GET_EXPECT(TEST, EXPECT, I) (EXPECT)[I]
+#define GET_EXPECT(TEST, EXPECT, I) &(EXPECT)[I]
 #endif
+
+/*****************************************************************************/
+/* Test wrappers for 64-bit registers */
+/*****************************************************************************/
 
 #define TEST1(EXEC, CHAN, INSN, SRC1, EXPECT, GET_EXPECT) do { \
     alc_test_t test = test_start(#INSN, NULL, glue(ALC, CHAN), 0); \
     const uint64_t *src1 = (const void *) (SRC1); \
     for (int i = 0; i < ARRAY_LEN(SRC1); ++i) { \
         glue3(EXEC, _, CHAN)(INSN, test.result, src1[i]); \
-        uint64_t expected = GET_EXPECT(&test, EXPECT, i); \
-        test_report(&test, &expected, &src1[i], NULL, NULL, NULL); \
+        const uint64_t *expected = GET_EXPECT(&test, EXPECT, i); \
+        test_report(&test, expected, &src1[i], NULL, NULL, NULL); \
     } \
     test_end(&test); \
 } while(0)
@@ -127,8 +131,8 @@ void test_report(
     const uint64_t *src2 = (const void *) (SRC2); \
     for (int i = 0; i < ARRAY_LEN(SRC1); ++i) { \
         glue3(EXEC, _, CHAN)(INSN, test.result, src1[i], src2[i]); \
-        uint64_t expected = GET_EXPECT(&test, EXPECT, i); \
-        test_report(&test, &expected, &src1[i], &src2[i], NULL, NULL); \
+        const uint64_t *expected = GET_EXPECT(&test, EXPECT, i); \
+        test_report(&test, expected, &src1[i], &src2[i], NULL, NULL); \
     } \
     test_end(&test); \
 } while(0)
@@ -146,8 +150,8 @@ void test_report(
     for (int i = 0, k = 0; i < ARRAY_LEN(SRC1); ++i) { \
         for (int j = 0; j < ARRAY_LEN(SRC2); ++j, ++k) { \
             glue3(EXEC, _, CHAN)(INSN, test.result, src1[i], src2[j]); \
-            uint64_t expected = GET_EXPECT(&test, EXPECT, k); \
-            test_report(&test, &expected, &src1[i], &src2[j], NULL, NULL); \
+            const uint64_t *expected = GET_EXPECT(&test, EXPECT, k); \
+            test_report(&test, expected, &src1[i], &src2[j], NULL, NULL); \
         } \
     } \
     test_end(&test); \
@@ -168,8 +172,8 @@ void test_report(
     const uint64_t *src3 = (const void *) (SRC3); \
     for (int i = 0; i < ARRAY_LEN(SRC1); ++i) { \
         glue3(EXEC, _, CHAN)(INSN, test.result, src1[i], src2[i], src3[i]); \
-        uint64_t expected = GET_EXPECT(&test, EXPECT, i); \
-        test_report(&test, &expected, &src1[i], &src2[i], &src3[i], NULL); \
+        const uint64_t *expected = GET_EXPECT(&test, EXPECT, i); \
+        test_report(&test, expected, &src1[i], &src2[i], &src3[i], NULL); \
     } \
     test_end(&test); \
 } while(0)
@@ -179,5 +183,84 @@ void test_report(
 
 #define CHECK3(EXEC, CHAN, INSN, SRC1, SRC2, SRC3) \
     TEST3(EXEC, CHAN, INSN, SRC1, SRC2, SRC3, glue(INSN, _expect), GET_EXPECT)
+
+/*****************************************************************************/
+/* Test wrappers for 80/128-bit registers */
+/*****************************************************************************/
+
+#define TEST1Q(EXEC, CHAN, INSN, SRC1, EXPECT, GET_EXPECT, FLAGS) do { \
+    alc_test_t test = test_start(#INSN, NULL, glue(ALC, CHAN), FLAGS); \
+    const uint64_t *src1 = SRC1; \
+    for (int i = 0; i < ARRAY_LEN(SRC1); i += 2) { \
+        glue3(EXEC, _, CHAN)(INSN, test.result, &src1[i]); \
+        const uint64_t *expected = GET_EXPECT(&test, EXPECT, i); \
+        test_report(&test, expected, &src1[i], NULL, NULL, NULL); \
+    } \
+    test_end(&test); \
+} while(0)
+
+#define DUMP1X(EXEC, CHAN, INSN, SRC1) \
+    TEST1Q(EXEC, CHAN, INSN, SRC1, NULL, DUMMY_EXPECT, FLAGS_X)
+
+#define CHECK1X(EXEC, CHAN, INSN, SRC1) \
+    TEST1Q(EXEC, CHAN, INSN, SRC1, glue(INSN, _expect), GET_EXPECT, FLAGS_X)
+
+#define DUMP1Q(EXEC, CHAN, INSN, SRC1) \
+    TEST1Q(EXEC, CHAN, INSN, SRC1, NULL, DUMMY_EXPECT, FLAGS_Q)
+
+#define CHECK1Q(EXEC, CHAN, INSN, SRC1) \
+    TEST1Q(EXEC, CHAN, INSN, SRC1, glue(INSN, _expect), GET_EXPECT, FLAGS_Q)
+
+#define TEST2Q(EXEC, CHAN, INSN, SRC1, SRC2, EXPECT, GET_EXPECT, FLAGS) do { \
+    ASSERT_ARRAY_LEN_EQ(SRC1, SRC2); \
+    alc_test_t test = test_start(#INSN, NULL, glue(ALC, CHAN), FLAGS); \
+    const uint64_t *src1 = SRC1; \
+    const uint64_t *src2 = SRC2; \
+    for (int i = 0; i < ARRAY_LEN(SRC1); i += 2) { \
+        glue3(EXEC, _, CHAN)(INSN, test.result, &src1[i], &src2[i]); \
+        const uint64_t *expected = GET_EXPECT(&test, EXPECT, i); \
+        test_report(&test, expected, &src1[i], &src2[i], NULL, NULL); \
+    } \
+    test_end(&test); \
+} while(0)
+
+#define DUMP2X(EXEC, CHAN, INSN, SRC1, SRC2) \
+    TEST2Q(EXEC, CHAN, INSN, SRC1, SRC2, NULL, DUMMY_EXPECT, FLAGS_X)
+
+#define CHECK2X(EXEC, CHAN, INSN, SRC1, SRC2) \
+    TEST2Q(EXEC, CHAN, INSN, SRC1, SRC2, glue(INSN, _expect), GET_EXPECT, FLAGS_X)
+
+#define DUMP2Q(EXEC, CHAN, INSN, SRC1, SRC2) \
+    TEST2Q(EXEC, CHAN, INSN, SRC1, SRC2, NULL, DUMMY_EXPECT, FLAGS_Q)
+
+#define CHECK2Q(EXEC, CHAN, INSN, SRC1, SRC2) \
+    TEST2Q(EXEC, CHAN, INSN, SRC1, SRC2, glue(INSN, _expect), GET_EXPECT, FLAGS_Q)
+
+#define TEST3Q(EXEC, CHAN, INSN, SRC1, SRC2, SRC3, EXPECT, GET_EXPECT, FLAGS) do { \
+    ASSERT_ARRAY_LEN_EQ(SRC1, SRC2); \
+    ASSERT_ARRAY_LEN_EQ(SRC1, SRC3); \
+    alc_test_t test = test_start(#INSN, NULL, glue(ALC, CHAN), FLAGS); \
+    const uint64_t *src1 = SRC1; \
+    const uint64_t *src2 = SRC2; \
+    const uint64_t *src3 = SRC3; \
+    for (int i = 0; i < ARRAY_LEN(SRC1); i += 2) { \
+        glue3(EXEC, _, CHAN)(INSN, test.result, &src1[i], &src2[i], &src3[i]); \
+        const uint64_t *expected = GET_EXPECT(&test, EXPECT, i); \
+        test_report(&test, expected, &src1[i], &src2[i], &src3[i], NULL); \
+    } \
+    test_end(&test); \
+} while(0)
+
+#define DUMP3X(EXEC, CHAN, INSN, SRC1, SRC2, SRC3) \
+    TEST3Q(EXEC, CHAN, INSN, SRC1, SRC2, SRC3, NULL, DUMMY_EXPECT, FLAGS_X)
+
+#define CHECK3X(EXEC, CHAN, INSN, SRC1, SRC2, SRC3) \
+    TEST3Q(EXEC, CHAN, INSN, SRC1, SRC2, SRC3, glue(INSN, _expect), GET_EXPECT, FLAGS_X)
+
+#define DUMP3Q(EXEC, CHAN, INSN, SRC1, SRC2, SRC3) \
+    TEST3Q(EXEC, CHAN, INSN, SRC1, SRC2, SRC3, NULL, DUMMY_EXPECT, FLAGS_Q)
+
+#define CHECK3Q(EXEC, CHAN, INSN, SRC1, SRC2, SRC3) \
+    TEST3Q(EXEC, CHAN, INSN, SRC1, SRC2, SRC3, glue(INSN, _expect), GET_EXPECT, FLAGS_Q)
 
 #endif /* TEST_H */
