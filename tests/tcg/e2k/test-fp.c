@@ -973,27 +973,31 @@ static void test_v5(void) {
 static void test_v6(void) {
     push_iset(6);
 
-    // TODO: fmas
-    // TODO: fmad
-    // TODO: fmss
-    // TODO: fmsd
-    // TODO: fnmas
-    // TODO: fnmad
-    // TODO: fnmss
-    // TODO: fnmsd
+    // TODO: @numas13: I don't have access to elbrus-v6 to generate the expect data.
 
-    // TODO: qpfmas
-    // TODO: qpfmad
-    // TODO: qpfmss
-    // TODO: qpfmsd
-    // TODO: qpfnmas
-    // TODO: qpfnmad
-    // TODO: qpfnmss
-    // TODO: qpfnmsd
-    // TODO: qpfmass
-    // TODO: qpfmasd
-    // TODO: qpfmsas
-    // TODO: qpfmsad
+    DUMP3(EXEC_RRR, 012345, fmas,   f32_src1, f32_src2, f32_src3);
+    DUMP3(EXEC_RRR, 012345, fmss,   f32_src1, f32_src2, f32_src3);
+    DUMP3(EXEC_RRR, 012345, fnmas,  f32_src1, f32_src2, f32_src3);
+    DUMP3(EXEC_RRR, 012345, fnmss,  f32_src1, f32_src2, f32_src3);
+
+    DUMP3(EXEC_RRR, 012345, fmad,   f64_src1, f64_src2, f64_src3);
+    DUMP3(EXEC_RRR, 012345, fmsd,   f64_src1, f64_src2, f64_src3);
+    DUMP3(EXEC_RRR, 012345, fnmad,  f64_src1, f64_src2, f64_src3);
+    DUMP3(EXEC_RRR, 012345, fnmsd,  f64_src1, f64_src2, f64_src3);
+
+    DUMP3Q(EXEC_QQQQ, 012345, qpfmas,   f32_src1, f32_src2, f32_src3);
+    DUMP3Q(EXEC_QQQQ, 012345, qpfmss,   f32_src1, f32_src2, f32_src3);
+    DUMP3Q(EXEC_QQQQ, 012345, qpfnmas,  f32_src1, f32_src2, f32_src3);
+    DUMP3Q(EXEC_QQQQ, 012345, qpfnmss,  f32_src1, f32_src2, f32_src3);
+    DUMP3Q(EXEC_QQQQ, 012345, qpfmass,  f32_src1, f32_src2, f32_src3);
+    DUMP3Q(EXEC_QQQQ, 012345, qpfmsas,  f32_src1, f32_src2, f32_src3);
+
+    DUMP3Q(EXEC_QQQQ, 012345, qpfmad,   f64_src1, f64_src2, f64_src3);
+    DUMP3Q(EXEC_QQQQ, 012345, qpfmsd,   f64_src1, f64_src2, f64_src3);
+    DUMP3Q(EXEC_QQQQ, 012345, qpfnmad,  f64_src1, f64_src2, f64_src3);
+    DUMP3Q(EXEC_QQQQ, 012345, qpfnmsd,  f64_src1, f64_src2, f64_src3);
+    DUMP3Q(EXEC_QQQQ, 012345, qpfmasd,  f64_src1, f64_src2, f64_src3);
+    DUMP3Q(EXEC_QQQQ, 012345, qpfmsad,  f64_src1, f64_src2, f64_src3);
 
     pop_iset();
 }

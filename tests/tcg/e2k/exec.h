@@ -96,6 +96,22 @@
       [src2]"r"(SRC2)  \
 )
 
+#define EXEC_CMP_03(INSN, RES, SRC1, SRC2) asm( \
+    "\t{\n" \
+    "\t    " #INSN ",0 %[src1], %[src2], %%pred0\n" \
+    "\t    " #INSN ",3 %[src1], %[src2], %%pred1\n" \
+    "\t}\n" \
+    "\t{\n" \
+    "\t    merged,0 0, 1, %0, %%pred0\n" \
+    "\t    merged,3 0, 1, %1, %%pred1\n" \
+    "\t}" \
+    : "+r"(RES[0]), \
+      "+r"(RES[1])  \
+    : [src1]"rI"(SRC1), \
+      [src2]"ri"(SRC2)  \
+    : "pred0", "pred1" \
+)
+
 #define EXEC_CMP_0134(INSN, RES, SRC1, SRC2) asm( \
     "\t{\n" \
     "\t    " #INSN ",0 %[src1], %[src2], %%pred0\n" \
@@ -206,6 +222,26 @@
     "\t}" \
     : "+r"(RES[0]), \
       "+r"(RES[1])  \
+    : [src1]"r"(SRC1), \
+      [src2]"r"(SRC2), \
+      [src3]"r"(SRC3)  \
+)
+
+#define EXEC_RRR_012345(INSN, RES, SRC1, SRC2, SRC3) asm( \
+    "\t{\n" \
+    "\t    " #INSN ",0 %[src1], %[src2], %[src3], %0\n" \
+    "\t    " #INSN ",1 %[src1], %[src2], %[src3], %1\n" \
+    "\t    " #INSN ",2 %[src1], %[src2], %[src3], %2\n" \
+    "\t    " #INSN ",3 %[src1], %[src2], %[src3], %3\n" \
+    "\t    " #INSN ",4 %[src1], %[src2], %[src3], %4\n" \
+    "\t    " #INSN ",5 %[src1], %[src2], %[src3], %5\n" \
+    "\t}" \
+    : "+r"(RES[0]), \
+      "+r"(RES[1]), \
+      "+r"(RES[2]), \
+      "+r"(RES[3]), \
+      "+r"(RES[4]), \
+      "+r"(RES[5])  \
     : [src1]"r"(SRC1), \
       [src2]"r"(SRC2), \
       [src3]"r"(SRC3)  \
@@ -795,7 +831,7 @@
           [src2_h]"r"((SRC2)[1]), \
           [src3_l]"r"((SRC3)[0]), \
           [src3_h]"r"((SRC3)[1])  \
-        : "g16", "g17" \
+        : "g16", "g17", "g18" \
     ); \
 } while (0)
 
@@ -843,7 +879,7 @@
           [src2_h]"r"((SRC2)[1]), \
           [src3_l]"r"((SRC3)[0]), \
           [src3_h]"r"((SRC3)[1])  \
-        : "g16", "g17" \
+        : "g16", "g17", "g18" \
     ); \
 } while (0)
 

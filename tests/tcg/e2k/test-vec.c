@@ -468,7 +468,7 @@ static void test_v5(void) {
 
     // TODO: qppermb
     // TODO: qpshufb
-    // TODO: qpmerge
+    CHECK3Q(EXEC_QQQQ, 0134, qpmerge,       int_src1, int_src2, int_src3);
 
     CHECK3Q(EXEC_QQQQ, 0134, qplog_and,     int_src1, int_src2, int_src3);
     CHECK3Q(EXEC_QQQQ, 0134, qplog_xor,     int_src1, int_src2, int_src3);
@@ -477,8 +477,8 @@ static void test_v5(void) {
     CHECK3Q(EXEC_QQQQ, 0134, qplog_or,      int_src1, int_src2, int_src3);
     // CHECK3Q(EXEC_QQQQ, 0134, qplog_0xXX,    int_src1, int_src2, int_src3);
 
-    // TODO: qpmsk2sgnb
-    // TODO: qpsgn2mskb
+    CHECK2Q(EXEC_QQQ, 0134, qpmsk2sgnb, int_src1, int_src2);
+    CHECK1Q(EXEC_DQ,  0134, qpsgn2mskb, int_src1);
 
     pop_iset();
 }
@@ -486,31 +486,34 @@ static void test_v5(void) {
 static void test_v6(void) {
     push_iset(6);
 
-    // TODO: pmrgp
+    // TODO: @numas13: I don't have access to elbrus-v6 to generate the expect data.
 
-    // TODO: pcmpeqbop
-    // TODO: pcmpeqhop
-    // TODO: pcmpeqwop
-    // TODO: pcmpeqdop
-    // TODO: pcmpgtbop
-    // TODO: pcmpgthop
-    // TODO: pcmpgtwop
-    // TODO: pcmpgtdop
-    // TODO: pcmpeqbap
-    // TODO: pcmpeqhap
-    // TODO: pcmpeqwap
-    // TODO: pcmpeqdap
-    // TODO: pcmpgtbap
-    // TODO: pcmpgthap
-    // TODO: pcmpgtwap
-    // TODO: pcmpgtdap
+    DUMP1Q(EXEC_QQ, 0134, qpcext_0x00, int_src1);
+    DUMP1Q(EXEC_QQ, 0134, qpcext_0x7f, int_src1);
+    DUMP1Q(EXEC_QQ, 0134, qpcext_0x80, int_src1);
+    DUMP1Q(EXEC_QQ, 0134, qpcext_0xff, int_src1);
 
     // TODO: qpsrad
-    // TODO: qpcext_0x00
-    // TODO: qpcext_0x7f
-    // TODO: qpcext_0x80
-    // TODO: qpcext_0xff
+
+    // TODO: pmrgp
     // TODO: qpmrgp
+
+    DUMP2(EXEC_CMP, 03, pcmpeqbop, int_src1, int_src2);
+    DUMP2(EXEC_CMP, 03, pcmpeqhop, int_src1, int_src2);
+    DUMP2(EXEC_CMP, 03, pcmpeqwop, int_src1, int_src2);
+    DUMP2(EXEC_CMP, 03, pcmpeqdop, int_src1, int_src2);
+    DUMP2(EXEC_CMP, 03, pcmpgtbop, int_src1, int_src2);
+    DUMP2(EXEC_CMP, 03, pcmpgthop, int_src1, int_src2);
+    DUMP2(EXEC_CMP, 03, pcmpgtwop, int_src1, int_src2);
+    DUMP2(EXEC_CMP, 03, pcmpgtdop, int_src1, int_src2);
+    DUMP2(EXEC_CMP, 03, pcmpeqbap, int_src1, int_src2);
+    DUMP2(EXEC_CMP, 03, pcmpeqhap, int_src1, int_src2);
+    DUMP2(EXEC_CMP, 03, pcmpeqwap, int_src1, int_src2);
+    DUMP2(EXEC_CMP, 03, pcmpeqdap, int_src1, int_src2);
+    DUMP2(EXEC_CMP, 03, pcmpgtbap, int_src1, int_src2);
+    DUMP2(EXEC_CMP, 03, pcmpgthap, int_src1, int_src2);
+    DUMP2(EXEC_CMP, 03, pcmpgtwap, int_src1, int_src2);
+    DUMP2(EXEC_CMP, 03, pcmpgtdap, int_src1, int_src2);
 
     // TODO: qpcmpeqbop
     // TODO: qpcmpeqhop

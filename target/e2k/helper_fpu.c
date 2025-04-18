@@ -60,6 +60,10 @@ static inline int save_exception_flags(float_status *s)
 void e2k_cpu_init_fp_statuses(CPUE2KState *env)
 {
     set_float_2nan_prop_rule(float_2nan_prop_x87, &env->fp_status);
+    // TODO: @numas13: I don't have access to elbrus-v6 to check.
+    // Set it to the same value as for x86 because it should match
+    // for binary translation.
+    set_float_3nan_prop_rule(float_3nan_prop_abc, &env->fp_status);
     set_float_2nan_prop_rule(float_2nan_prop_x87, &env->fx_status);
     set_float_default_nan_pattern(0b11000000, &env->fp_status);
     set_float_default_nan_pattern(0b11000000, &env->fx_status);

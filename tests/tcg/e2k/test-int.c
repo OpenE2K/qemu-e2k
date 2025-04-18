@@ -516,8 +516,11 @@ static void test_v5(void) {
 static void test_v6(void) {
     push_iset(6);
 
-    // TODO: clmull
-    // TODO: clmulh
+    // TODO: @numas13: I don't have access to elbrus-v6 to generate the expect data.
+
+    DUMP2(EXEC_RR, 0134, clmull, int_src1, int_src2);
+    DUMP2(EXEC_RR, 0134, clmulh, int_src1, int_src2);
+
     // TODO: ibranchd
     // TODO: icalld
 
