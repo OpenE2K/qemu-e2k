@@ -215,7 +215,252 @@
 /* Wrappers for 80-bit registers */
 /*****************************************************************************/
 
-#define EXECX_RR_0134(INSN, RES, SRC1, SRC2) do { \
+#define EXEC_DX_03(INSN, RES, SRC1) do { \
+    asm( \
+        "\t{\n" \
+        "\t    movif,0 %[src1_l], %[src1_h], %%g16\n" \
+        "\t    nop 1\n" \
+        "\t}\n" \
+        "\t{\n" \
+        "\t    " #INSN ",0 %%g16, %0\n" \
+        "\t    " #INSN ",3 %%g16, %2\n" \
+        "\t}\n" \
+        "\t{\n" \
+        "\t    addd,0 0, 0, %1\n" \
+        "\t    addd,1 0, 0, %3\n" \
+        "\t}\n" \
+        : "+r"((RES)[0]), \
+          "+r"((RES)[1]), \
+          "+r"((RES)[2]), \
+          "+r"((RES)[3])  \
+        : [src1_l]"r"((SRC1)[0]), \
+          [src1_h]"r"((SRC1)[1])  \
+        : "g16" \
+    ); \
+} while (0)
+
+#define EXEC_DX_14(INSN, RES, SRC1) do { \
+    asm( \
+        "\t{\n" \
+        "\t    movif,0 %[src1_l], %[src1_h], %%g16\n" \
+        "\t    nop 1\n" \
+        "\t}\n" \
+        "\t{\n" \
+        "\t    " #INSN ",1 %%g16, %0\n" \
+        "\t    " #INSN ",4 %%g16, %2\n" \
+        "\t}\n" \
+        "\t{\n" \
+        "\t    addd,0 0, 0, %1\n" \
+        "\t    addd,1 0, 0, %3\n" \
+        "\t}\n" \
+        : "+r"((RES)[0]), \
+          "+r"((RES)[1]), \
+          "+r"((RES)[2]), \
+          "+r"((RES)[3])  \
+        : [src1_l]"r"((SRC1)[0]), \
+          [src1_h]"r"((SRC1)[1])  \
+        : "g16" \
+    ); \
+} while (0)
+
+#define EXEC_DX_0134(INSN, RES, SRC1) do { \
+    asm( \
+        "\t{\n" \
+        "\t    movif,0 %[src1_l], %[src1_h], %%g16\n" \
+        "\t    nop 1\n" \
+        "\t}\n" \
+        "\t{\n" \
+        "\t    " #INSN ",0 %%g16, %0\n" \
+        "\t    " #INSN ",1 %%g16, %2\n" \
+        "\t    " #INSN ",3 %%g16, %4\n" \
+        "\t    " #INSN ",4 %%g16, %6\n" \
+        "\t}\n" \
+        "\t{\n" \
+        "\t    addd,0 0, 0, %1\n" \
+        "\t    addd,1 0, 0, %3\n" \
+        "\t    addd,2 0, 0, %5\n" \
+        "\t    addd,3 0, 0, %7\n" \
+        "\t}" \
+        : "+r"((RES)[0]), \
+          "+r"((RES)[1]), \
+          "+r"((RES)[2]), \
+          "+r"((RES)[3]), \
+          "+r"((RES)[4]), \
+          "+r"((RES)[5]), \
+          "+r"((RES)[6]), \
+          "+r"((RES)[7])  \
+        : [src1_l]"r"((SRC1)[0]), \
+          [src1_h]"r"((SRC1)[1])  \
+        : "g16" \
+    ); \
+} while (0)
+
+#define EXEC_XX_0134(INSN, RES, SRC1) do { \
+    asm( \
+        "\t{\n" \
+        "\t    movif,0 %[src1_l], %[src1_h], %%g16\n" \
+        "\t    nop 1\n" \
+        "\t}\n" \
+        "\t{\n" \
+        "\t    " #INSN ",0 %%g16, %0\n" \
+        "\t    " #INSN ",1 %%g16, %2\n" \
+        "\t    " #INSN ",3 %%g16, %4\n" \
+        "\t    " #INSN ",4 %%g16, %6\n" \
+        "\t}\n" \
+        "\t{\n" \
+        "\t    movfi,1 %0, %1\n" \
+        "\t    movfi,4 %2, %3\n" \
+        "\t}\n" \
+        "\t{\n" \
+        "\t    movfi,1 %4, %5\n" \
+        "\t    movfi,4 %6, %7\n" \
+        "\t}" \
+        : "+r"((RES)[0]), \
+          "+r"((RES)[1]), \
+          "+r"((RES)[2]), \
+          "+r"((RES)[3]), \
+          "+r"((RES)[4]), \
+          "+r"((RES)[5]), \
+          "+r"((RES)[6]), \
+          "+r"((RES)[7])  \
+        : [src1_l]"r"((SRC1)[0]), \
+          [src1_h]"r"((SRC1)[1])  \
+        : "g16" \
+    ); \
+} while (0)
+
+#define EXEC_DXX_5(INSN, RES, SRC1, SRC2) do { \
+    asm( \
+        "\t{\n" \
+        "\t    movif,0 %[src1_l], %[src1_h], %%g16\n" \
+        "\t    movif,1 %[src2_l], %[src2_h], %%g17\n" \
+        "\t    nop 1\n" \
+        "\t}\n" \
+        "\t{\n" \
+        "\t    " #INSN ",5 %%g16, %%g17, %0\n" \
+        "\t}\n" \
+        "\t    addd,0 0, 0, %1\n" \
+        : "+r"((RES)[0]), \
+          "+r"((RES)[1])  \
+        : [src1_l]"r"((SRC1)[0]), \
+          [src1_h]"r"((SRC1)[1]), \
+          [src2_l]"r"((SRC2)[0]), \
+          [src2_h]"r"((SRC2)[1])  \
+        : "g16", "g17" \
+    ); \
+} while (0)
+
+#define EXEC_XXX_5(INSN, RES, SRC1, SRC2) do { \
+    asm( \
+        "\t{\n" \
+        "\t    movif,0 %[src1_l], %[src1_h], %%g16\n" \
+        "\t    movif,1 %[src2_l], %[src2_h], %%g17\n" \
+        "\t    nop 1\n" \
+        "\t}\n" \
+        "\t{\n" \
+        "\t    " #INSN ",5 %%g16, %%g17, %0\n" \
+        "\t}\n" \
+        "\t    movfi,1 %0, %1\n" \
+        : "+r"((RES)[0]), \
+          "+r"((RES)[1])  \
+        : [src1_l]"r"((SRC1)[0]), \
+          [src1_h]"r"((SRC1)[1]), \
+          [src2_l]"r"((SRC2)[0]), \
+          [src2_h]"r"((SRC2)[1])  \
+        : "g16", "g17" \
+    ); \
+} while (0)
+
+#define EXEC_DXX_0134(INSN, RES, SRC1, SRC2) do { \
+    asm( \
+        "\t{\n" \
+        "\t    movif,0 %[src1_l], %[src1_h], %%g16\n" \
+        "\t    movif,1 %[src2_l], %[src2_h], %%g17\n" \
+        "\t    nop 1\n" \
+        "\t}\n" \
+        "\t{\n" \
+        "\t    " #INSN ",0 %%g16, %%g17, %0\n" \
+        "\t    " #INSN ",1 %%g16, %%g17, %2\n" \
+        "\t    " #INSN ",3 %%g16, %%g17, %4\n" \
+        "\t    " #INSN ",4 %%g16, %%g17, %6\n" \
+        "\t}\n" \
+        "\t{\n" \
+        "\t    addd,0 0, 0, %1\n" \
+        "\t    addd,1 0, 0, %3\n" \
+        "\t    addd,2 0, 0, %5\n" \
+        "\t    addd,3 0, 0, %7\n" \
+        "\t}\n" \
+        : "+r"((RES)[0]), \
+          "+r"((RES)[1]), \
+          "+r"((RES)[2]), \
+          "+r"((RES)[3]), \
+          "+r"((RES)[4]), \
+          "+r"((RES)[5]), \
+          "+r"((RES)[6]), \
+          "+r"((RES)[7])  \
+        : [src1_l]"r"((SRC1)[0]), \
+          [src1_h]"r"((SRC1)[1]), \
+          [src2_l]"r"((SRC2)[0]), \
+          [src2_h]"r"((SRC2)[1])  \
+        : "g16", "g17" \
+    ); \
+} while (0)
+
+#define EXEC_XXX_03(INSN, RES, SRC1, SRC2) do { \
+    asm( \
+        "\t{\n" \
+        "\t    movif,0 %[src1_l], %[src1_h], %%g16\n" \
+        "\t    movif,1 %[src2_l], %[src2_h], %%g17\n" \
+        "\t    nop 1\n" \
+        "\t}\n" \
+        "\t{\n" \
+        "\t    " #INSN ",0 %%g16, %%g17, %0\n" \
+        "\t    " #INSN ",3 %%g16, %%g17, %2\n" \
+        "\t}\n" \
+        "\t{\n" \
+        "\t    movfi,1 %0, %1\n" \
+        "\t    movfi,4 %2, %3\n" \
+        "\t}\n" \
+        : "+r"((RES)[0]), \
+          "+r"((RES)[1]), \
+          "+r"((RES)[2]), \
+          "+r"((RES)[3])  \
+        : [src1_l]"r"((SRC1)[0]), \
+          [src1_h]"r"((SRC1)[1]), \
+          [src2_l]"r"((SRC2)[0]), \
+          [src2_h]"r"((SRC2)[1])  \
+        : "g16", "g17" \
+    ); \
+} while (0)
+
+#define EXEC_XXX_14(INSN, RES, SRC1, SRC2) do { \
+    asm( \
+        "\t{\n" \
+        "\t    movif,0 %[src1_l], %[src1_h], %%g16\n" \
+        "\t    movif,1 %[src2_l], %[src2_h], %%g17\n" \
+        "\t    nop 1\n" \
+        "\t}\n" \
+        "\t{\n" \
+        "\t    " #INSN ",1 %%g16, %%g17, %0\n" \
+        "\t    " #INSN ",4 %%g16, %%g17, %2\n" \
+        "\t}\n" \
+        "\t{\n" \
+        "\t    movfi,1 %0, %1\n" \
+        "\t    movfi,4 %2, %3\n" \
+        "\t}\n" \
+        : "+r"((RES)[0]), \
+          "+r"((RES)[1]), \
+          "+r"((RES)[2]), \
+          "+r"((RES)[3])  \
+        : [src1_l]"r"((SRC1)[0]), \
+          [src1_h]"r"((SRC1)[1]), \
+          [src2_l]"r"((SRC2)[0]), \
+          [src2_h]"r"((SRC2)[1])  \
+        : "g16", "g17" \
+    ); \
+} while (0)
+
+#define EXEC_XXX_0134(INSN, RES, SRC1, SRC2) do { \
     asm( \
         "\t{\n" \
         "\t    movif,0 %[src1_l], %[src1_h], %%g16\n" \

@@ -12,6 +12,16 @@ static uint64_t int_src1[] = {
     0xaaaaaaaa80000000, 0xaaaaaaaa80000000, 0x123456789abcdef0, 0x123456789abcdef0,
 };
 
+static uint64_t int_src2[] = {
+    0x000000000812fada, 0x0000000000012341, 0xfffffffffffedcbf, 0x0000000000000000,
+    0xffffffffffffffff, 0x0000000000000001, 0x0000000000000002, 0x0000000000000000,
+    0x0000000000000001, 0xffffffffffffffff, 0xffffffffffffffff, 0x0000000000000001,
+    0xfffffffffffffffe, 0xeeeeeeee0812fada, 0xeeeeeeee00012341, 0xeeeeeeeefffedcbf,
+    0xeeeeeeee00000000, 0xeeeeeeeeffffffff, 0xeeeeeeee00000001, 0xeeeeeeee00000002,
+    0xeeeeeeee00000000, 0xeeeeeeee00000001, 0xeeeeeeeeffffffff, 0xeeeeeeeeffffffff,
+    0xeeeeeeee00000001, 0xeeeeeeeefffffffe, 0x123456789abcdef0, 0xfedcba9876543210,
+};
+
 static uint64_t f32_src1[] = {
     0x447bb0acc44a6472, // 1006.76049805, -809.56945801
     0x4392fdd8c32da2c0, // 293.98315430, -173.63574219
@@ -52,7 +62,7 @@ static uint64_t f32_src1[] = {
     0xc490880a445ca838, // -1156.25122070, 882.62841797
     0xc3a02c40c437dcd4, // -320.34570312, -735.45043945
     0x44001b00c43f1345, // 512.42187500, -764.30108643
-    0x7fc000007fc00000, // NaN, NaN
+    0x7fc000007fc00000, // nan, nan
 };
 
 static uint64_t f32_src2[] = {
@@ -76,7 +86,7 @@ static uint64_t f32_src2[] = {
     0x42b076a0c32f9c20, // 88.23168945, -175.60986328
     0xc40c8e51c3bcc890, // -562.22369385, -377.56689453
     0x447040a4c4403dc0, // 961.01000977, -768.96484375
-    0x7fc000007fc00000, // NaN, NaN
+    0x7fc000007fc00000, // nan, nan
     0x445f9868423b6680, // 894.38134766, 46.85009766
     0xc3a936c2c2e9b680, // -338.42779541, -116.85644531
     0xc48e6b4fc2820420, // -1139.35339355, -65.00805664
@@ -126,7 +136,7 @@ static uint64_t f32_src3[] = {
     0xc3839a8e448cfae2, // -263.20745850, 1127.84008789
     0xc48e895844633be4, // -1140.29199219, 908.93579102
     0xc34192184447f960, // -193.57067871, 799.89648438
-    0x7fc000007fc00000, // NaN, NaN
+    0x7fc000007fc00000, // nan, nan
     0x40f8270043ab471c, // 7.75476074, 342.55554199
     0x448d9a40449697e2, // 1132.82031250, 1204.74633789
     0x43122928c48acf92, // 146.16076660, -1110.48657227
@@ -168,7 +178,7 @@ static uint64_t f64_src1[] = {
     0x40779dd5a1b4b32c, // 377.86465617
     0xc0829f4eb2b76d1b, // -595.91342681
     0x408e54b2f87878f8, // 970.58738798
-    0x7ff8000000000000, // NaN
+    0x7ff8000000000000, // nan
     0x407ccdf599688364, // 460.87246075
     0x409239a0c34b8b86, // 1166.40699499
     0xc080126044cc5d83, // -514.29700622
@@ -196,7 +206,7 @@ static uint64_t f64_src2[] = {
     0x408a47da282038ec, // 840.98152185
     0xc081dcc8e47388cf, // -571.59809199
     0xc0900d1863f121d1, // -1027.27381875
-    0x7ff8000000000000, // NaN
+    0x7ff8000000000000, // nan
     0xc087858841240236, // -752.69153050
     0x4092c4a23f540a46, // 1201.15844470
     0x40868515e995879a, // 720.63569943
@@ -263,7 +273,7 @@ static uint64_t f64_src3[] = {
     0xc08bcc5885e977f0, // -889.54322417
     0x408c81266b493ee8, // 912.14375932
     0x408e3b2f5ca74594, // 967.39812594
-    0x7ff8000000000000, // NaN
+    0x7ff8000000000000, // nan
     0xc08e213f3c3634fa, // -964.15587656
     0xc0835c994f33afc7, // -619.57485810
     0x408927b828a80210, // 804.96492130
@@ -280,7 +290,7 @@ static uint64_t f32_cmp_src1[] = {
     0xc47957dc43cd6bec, // -997.37280273, 410.84313965
     0xc3a89b90444c17ac, // -337.21533203, 816.36987305
     0xc34944d8c40fbfae, // -201.26892090, -574.99499512
-    0x7fc000007fc00000, // NaN, NaN
+    0x7fc000007fc00000, // nan, nan
 };
 
 static uint64_t f64_cmp_src1[] = {
@@ -293,7 +303,53 @@ static uint64_t f64_cmp_src1[] = {
     0x40929c74dcc7e800, // 1191.11412346
     0xc07c9b3cb2d0eeb2, // -457.70231897
     0x4048b8581bef27a0, // 49.44018888
-    0x7ff8000000000000, // NaN
+    0x7ff8000000000000, // nan
+};
+
+static uint64_t f80_src1[] = {
+    0x921584d9cc461d1b, 0x4005, // 73.042029
+    0x89a2430000000000, 0xc009, // -1101.070679
+    0x830d31c8bb286000, 0x4009, // 1048.412327
+    0x8584872faa2f90f7, 0xc007, // -267.035376
+    0xee5e4bb3369bb23e, 0xc007, // -476.736685
+    0xb4a43e6daa041e7c, 0x4008, // 722.566310
+    0xe8dedcb8c7b1d4ee, 0xc007, // -465.741111
+    0xc90fdaa22168c235, 0x4001, // 6.283185
+    0x96675c0c47fddd47, 0xc008, // -601.614993
+    0x826047c521a9edee, 0xc006, // -130.376095
+    0x8584872faa2f90f7, 0x4006, // 133.517688
+    0xc000000000000000, 0x7fff, // nan
+    0x89d65e6225e75123, 0x4007, // 275.674755
+    0xbd15a8dbf8eb44a3, 0xc008, // -756.338431
+    0x8000000000000000, 0x7fff, // inf
+    0x914c74ff2a24b458, 0xc008, // -581.194641
+    0x9539c44454cbc023, 0xc006, // -149.225651
+    0xeff06b687ade83c2, 0xc007, // -479.878278
+    0x80ce280fdd671c6a, 0x4008, // 515.221195
+    0x96fe27f04196ebd8, 0xc008, // -603.971188
+};
+
+static uint64_t f80_src2[] = {
+    0x921584d9cc461d1b, 0x4005, // 73.042029
+    0x9602d41ef6ed28e6, 0x4007, // 300.022098
+    0x9c190efd5f7014c7, 0xc008, // -624.391540
+    0x88a8c69a32b53400, 0x4007, // 273.318561
+    0xb56d4e484c25873e, 0xc006, // -181.426976
+    0x8000000000000000, 0xffff, // -inf
+    0xc846cac77f475973, 0x4007, // 400.553063
+    0xeec2d3a087ac669f, 0xc004, // -59.690260
+    0xd9299fa41d15a5c2, 0x4007, // 434.325184
+    0xcdc639c1ee3136c2, 0xc005, // -102.887159
+    0xe231d5f66595da7c, 0x4004, // 56.548668
+    0x914c74ff2a24b458, 0xc007, // -290.597320
+    0xc32be3ba616e3084, 0xc008, // -780.685774
+    0xeb3a0c48ae160f35, 0x4007, // 470.453500
+    0xdf0d968bdd103773, 0xc005, // -111.526539
+    0xc007a44fd8e88d7c, 0xc008, // -768.119404
+    0xc000000000000000, 0x7fff, // nan
+    0xc90fdaa22168c235, 0x4003, // 25.132741
+    0x9b82431965d70635, 0xc006, // -155.508836
+    0xd4734084504d3135, 0x4007, // 424.900406
 };
 
 #ifndef DUMP_ONLY
@@ -423,57 +479,57 @@ static void test_v1_packed_f64(void) {
 }
 
 static void test_v1_f80(void) {
-    // TODO: movfi
-    // TODO: movif
+    CHECK2X(EXEC_XXX, 14, movif, int_src1, int_src2);
+    CHECK1X(EXEC_DX, 14, movfi, f80_src1);
 
-    // TODO: fxaddss
-    // TODO: fxsubss
-    // TODO: fxmulss
-    // TODO: fxrsubss
-    // TODO: fxdivss
+    CHECK2X(EXEC_DXX, 0134, fxaddss, f80_src1, f32_src2);
+    CHECK2X(EXEC_DXX, 0134, fxsubss, f80_src1, f32_src2);
+    CHECK2X(EXEC_DXX, 0134, fxmulss, f80_src1, f32_src2);
+    CHECK2X(EXEC_DXX, 0134, fxrsubss, f80_src1, f32_src2);
+    CHECK2X(EXEC_DXX, 5,    fxdivss, f80_src1, f32_src2);
     // TODO: fxdivtss
 
-    // TODO: fxadddd
-    // TODO: fxsubdd
-    // TODO: fxmuldd
-    // TODO: fxrsubdd
-    // TODO: fxdivdd
+    CHECK2X(EXEC_DXX, 0134, fxadddd, f80_src1, f64_src2);
+    CHECK2X(EXEC_DXX, 0134, fxsubdd, f80_src1, f64_src2);
+    CHECK2X(EXEC_DXX, 0134, fxmuldd, f80_src1, f64_src2);
+    CHECK2X(EXEC_DXX, 0134, fxrsubdd, f80_src1, f64_src2);
+    CHECK2X(EXEC_DXX, 5,    fxdivdd, f80_src1, f64_src2);
     // TODO: fxdivtdd
 
-    // TODO: fxaddsx
-    // TODO: fxsubsx
-    // TODO: fxmulsx
-    // TODO: fxrsubsx
-    // TODO: fxdivsx
+    CHECK2X(EXEC_XXX, 0134, fxaddsx, f80_src1, f32_src2);
+    CHECK2X(EXEC_XXX, 0134, fxsubsx, f80_src1, f32_src2);
+    CHECK2X(EXEC_XXX, 0134, fxmulsx, f80_src1, f32_src2);
+    CHECK2X(EXEC_XXX, 0134, fxrsubsx, f80_src1, f32_src2);
+    CHECK2X(EXEC_XXX, 5,    fxdivsx, f80_src1, f32_src2);
+    // TODO: fxdivtsx
     // TODO: fxsqrtisx
     // TODO: fxsqrtusx
     // TODO: fxsqrttsx
-    // TODO: fxdivtsx
 
-    // TODO: fxadddx
-    // TODO: fxsubdx
-    // TODO: fxmuldx
-    // TODO: fxrsubdx
-    // TODO: fxdivdx
+    CHECK2X(EXEC_XXX, 0134, fxadddx, f80_src1, f64_src2);
+    CHECK2X(EXEC_XXX, 0134, fxsubdx, f80_src1, f64_src2);
+    CHECK2X(EXEC_XXX, 0134, fxmuldx, f80_src1, f64_src2);
+    CHECK2X(EXEC_XXX, 0134, fxrsubdx, f80_src1, f64_src2);
+    CHECK2X(EXEC_XXX, 5,    fxdivdx, f80_src1, f64_src2);
     // TODO: fxdivtdx
     // TODO: fxsqrtidx
     // TODO: fxsqrtudx
     // TODO: fxsqrttdx
 
-    // TODO: fxaddxs
-    // TODO: fxsubxs
-    // TODO: fxmulxs
-    // TODO: fxdivxs
+    CHECK2X(EXEC_DXX, 0134, fxaddxs, f80_src1, f80_src2);
+    CHECK2X(EXEC_DXX, 0134, fxsubxs, f80_src1, f80_src2);
+    CHECK2X(EXEC_DXX, 0134, fxmulxs, f80_src1, f80_src2);
+    CHECK2X(EXEC_DXX, 5,    fxdivxs, f80_src1, f80_src2);
 
-    // TODO: fxaddxd
-    // TODO: fxsubxd
-    // TODO: fxmulxd
-    // TODO: fxdivxd
+    CHECK2X(EXEC_DXX, 0134, fxaddxd, f80_src1, f80_src2);
+    CHECK2X(EXEC_DXX, 0134, fxsubxd, f80_src1, f80_src2);
+    CHECK2X(EXEC_DXX, 0134, fxmulxd, f80_src1, f80_src2);
+    CHECK2X(EXEC_DXX, 5,    fxdivxd, f80_src1, f80_src2);
 
-    // TODO: fxaddxx
-    // TODO: fxsubxx
-    // TODO: fxmulxx
-    // TODO: fxdivxx
+    CHECK2X(EXEC_XXX, 0134, fxaddxx, f80_src1, f80_src2);
+    CHECK2X(EXEC_XXX, 0134, fxsubxx, f80_src1, f80_src2);
+    CHECK2X(EXEC_XXX, 0134, fxmulxx, f80_src1, f80_src2);
+    CHECK2X(EXEC_XXX, 5,    fxdivxx, f80_src1, f80_src2);
     // TODO: fxsqrtixx
     // TODO: fxsqrtuxx
     // TODO: fxsqrttxx
@@ -505,12 +561,12 @@ static void test_v1_f80(void) {
     // TODO: fxcmpnlexb
     // TODO: fxcmpodxb
 
-    // TODO: fxcmpudsf
-    // TODO: fxcmpodsf
-    // TODO: fxcmpuddf
-    // TODO: fxcmpoddf
-    // TODO: fxcmpudxf
-    // TODO: fxcmpodxf
+    CHECK2X(EXEC_DXX, 0134, fxcmpudsf, f80_src1, f32_src2);
+    CHECK2X(EXEC_DXX, 0134, fxcmpodsf, f80_src1, f32_src2);
+    CHECK2X(EXEC_DXX, 0134, fxcmpuddf, f80_src1, f64_src2);
+    CHECK2X(EXEC_DXX, 0134, fxcmpoddf, f80_src1, f64_src2);
+    CHECK2X(EXEC_DXX, 0134, fxcmpudxf, f80_src1, f80_src2);
+    CHECK2X(EXEC_DXX, 0134, fxcmpodxf, f80_src1, f80_src2);
 }
 
 static void test_v1_converts(void) {
@@ -518,13 +574,13 @@ static void test_v1_converts(void) {
     CHECK1(EXEC_R, 0134, fstois,    f32_src1);
     CHECK1(EXEC_R, 0134, fstoistr,  f32_src1);
     CHECK1(EXEC_R, 0134, fstoid,    f32_src1);
-    // TODO: fstofx
+    CHECK1X(EXEC_XX, 0134, fstofx,  f32_src1);
 
     CHECK1(EXEC_R, 0134, fdtofs,    f64_src1);
     CHECK1(EXEC_R, 0134, fdtois,    f64_src1);
     CHECK1(EXEC_R, 0134, fdtoistr,  f64_src1);
     CHECK1(EXEC_R, 0134, fdtoid,    f64_src1);
-    // TODO: fdtofx
+    CHECK1X(EXEC_XX, 0134, fdtofx,  f64_src1);
 
     CHECK1(EXEC_R, 0134, pfstofd,   f32_src1);
     CHECK1(EXEC_R, 0134, pfstois,   f32_src1);
@@ -534,20 +590,20 @@ static void test_v1_converts(void) {
     CHECK1(EXEC_R, 0134, pfdtois,   f32_src1);
     CHECK1(EXEC_R, 0134, pfdtoistr, f32_src1);
 
-    CHECK1(EXEC_R, 0134, istofs, int_src1);
-    CHECK1(EXEC_R, 0134, istofd, int_src1);
-    // TODO: istofx
+    CHECK1(EXEC_R, 0134, istofs,    int_src1);
+    CHECK1(EXEC_R, 0134, istofd,    int_src1);
+    CHECK1X(EXEC_XX, 0134, istofx,  int_src1);
 
-    CHECK1(EXEC_R, 0134, idtofs, int_src1);
-    CHECK1(EXEC_R, 0134, idtofd, int_src1);
-    // TODO: idtofx
+    CHECK1(EXEC_R, 0134, idtofs,    int_src1);
+    CHECK1(EXEC_R, 0134, idtofd,    int_src1);
+    CHECK1X(EXEC_XX, 0134, idtofx,  int_src1);
 
-    CHECK1(EXEC_R, 0134, pistofs, int_src1);
+    CHECK1(EXEC_R, 0134, pistofs,   int_src1);
 
-    // TODO: fxtofs
-    // TODO: fxtofd
-    // TODO: fxtois
-    // TODO: fxtoid
+    CHECK1X(EXEC_DX, 0134, fxtofs, f80_src1);
+    CHECK1X(EXEC_DX, 0134, fxtofd, f80_src1);
+    CHECK1X(EXEC_DX, 0134, fxtois, f80_src1);
+    CHECK1X(EXEC_DX, 0134, fxtoid, f80_src1);
 }
 
 static void test_v1(void) {
@@ -605,16 +661,17 @@ static void test_v2(void) {
 
     CHECK1(EXEC_R, 0134, fstoidtr,    f32_src1);
     CHECK1(EXEC_R, 0134, fdtoidtr,    f64_src1);
-    // TODO: fxtoidtr
-    // TODO: fxtoistr
+    CHECK1X(EXEC_DX, 0134, fxtoidtr,  f80_src1);
+    CHECK1X(EXEC_DX, 0134, fxtoistr,  f80_src1);
 
-    // new channels
-    // TODO: movfi
-    // TODO: movif
+    skip_gen(true);
+    CHECK2X(EXEC_XXX, 03, movif, int_src1, int_src2);
+    CHECK1X(EXEC_DX, 03, movfi, f80_src1);
+    skip_gen(false);
 
-    // TODO: movx
-    // TODO: movxa
-    // TODO: movxc
+    CHECK1X(EXEC_XX, 0134, movx, f80_src1);
+    CHECK1X(EXEC_XX, 0134, movxa, f80_src1);
+    CHECK1X(EXEC_XX, 0134, movxc, f80_src1);
 
     pop_iset();
 }
@@ -704,7 +761,7 @@ static void test_v4(void) {
 
     CHECK2(EXEC_RR, 14, fscales, f32_src1, fscale_src2);
     CHECK2(EXEC_RR, 14, fscaled, f64_src1, fscale_src2);
-    // TODO: fxscalesx
+    CHECK2X(EXEC_XXX, 14, fxscalesx, f80_src1, fscale_src2);
 
     // new channels
     skip_gen(true);
