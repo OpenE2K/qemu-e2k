@@ -2764,64 +2764,16 @@ IMPL_GEN_OPN(gen_orn_i64,  d, tcg_gen_or_i64)
 IMPL_GEN_OPN(gen_xorn_i32, s, tcg_gen_xor_i32)
 IMPL_GEN_OPN(gen_xorn_i64, d, tcg_gen_xor_i64)
 
-#define IMPL_GEN_MASK(S, T, L) \
-    static inline void glue(gen_mask_, S)(T ret, T size) \
-    { \
-        T t0 = glue(tcg_constant_, S)(1); \
-        T t1 = glue(tcg_temp_new_, S)(); \
-        glue(tcg_gen_shl_, S)(t1, t0, size); \
-        glue(tcg_gen_subi_, S)(ret, t1, 1); \
-    } \
-
-IMPL_GEN_MASK(i64, TCGv_i64, 64)
-IMPL_GEN_MASK(i32, TCGv_i32, 32)
+static inline void gen_mask_i64(TCGv_i64 ret, TCGv_i64 size)
+{
+    TCGv_i64 t0 = tcg_constant_i64(1);
+    TCGv_i64 t1 = tcg_temp_new_i64();
+    tcg_gen_shl_i64(t1, t0, size);
+    tcg_gen_subi_i64(ret, t1, 1);
+}
 
 #define gen_getf_i64 gen_helper_getfd
 #define gen_getf_i32 gen_helper_getfs
-
-#define IMPL_GEN_EXTRACT_SIGN(name, S, LEN) \
-    static void name(temp(S) ret, temp(S) val, temp(S) len) \
-    { \
-        temp(S) t0 = temp_new(S); \
-        temp(S) t1 = temp_new(S); \
-        \
-        call(S, tcg_gen_rotr, t0, val, len); \
-        call(S, tcg_gen_sari, t1, t0, LEN); \
-        call(S, tcg_gen_shl, ret, t1, len); \
-    }
-
-IMPL_GEN_EXTRACT_SIGN(gen_extract_sign_i32, s, 31)
-IMPL_GEN_EXTRACT_SIGN(gen_extract_sign_i64, d, 63)
-
-#define IMPL_GEN_GETFZ(name, S, OFFSET, LEN) \
-    static void name(temp(S) ret, temp(S) s1, temp(S) s2) \
-    { \
-        temp(S) z = call(S, tcg_constant, 0); \
-        temp(S) off = temp_new(S); \
-        temp(S) len = temp_new(S); \
-        temp(S) sign = temp_new(S); \
-        temp(S) zlen = temp_new(S); \
-        temp(S) t0 = temp_new(S); \
-        temp(S) t1 = temp_new(S); \
-        temp(S) t2 = temp_new(S); \
-        \
-        call(S, tcg_gen_extract, off, s2, 0, OFFSET); \
-        call(S, tcg_gen_extract, len, s2, 6, LEN); \
-        call(S, tcg_gen_extract, sign, s2, 12, 1); \
-        call(S, tcg_gen_extract, zlen, s2, 13, 3); \
-        \
-        call(S, tcg_gen_rotr, t0, s1, off); \
-        call(S, gen_mask, t1, len); \
-        call(S, tcg_gen_and, t1, t0, t1); \
-        call(S, gen_extract_sign, t2, t0, len); \
-        call(S, tcg_gen_or, t2, t1, t2); \
-        call(S, tcg_gen_movcond, TCG_COND_NE, ret, sign, z, t2, t1); \
-        call(S, tcg_gen_shr, ret, ret, zlen); \
-        call(S, tcg_gen_shl, ret, ret, zlen); \
-    }
-
-IMPL_GEN_GETFZ(gen_getfzs, s, 5, 5)
-IMPL_GEN_GETFZ(gen_getfzd, d, 6, 6)
 
 #define IMPL_GEN_BSWAP8_PARTIAL(name, S) \
     static void name(temp(S) ret, temp(S) arg, int n) \

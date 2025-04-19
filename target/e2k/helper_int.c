@@ -97,6 +97,18 @@ uint64_t HELPER(getfd_v5)(uint64_t src1, uint64_t src2)
     return ret;
 }
 
+uint32_t HELPER(getfzs)(uint32_t src1, uint32_t src2)
+{
+    int zlen = extract16(src2, 13, 3);
+    return (helper_getfs_v5(src1, src2) >> zlen) << zlen;
+}
+
+uint64_t HELPER(getfzd)(uint64_t src1, uint64_t src2)
+{
+    int zlen = extract16(src2, 13, 3);
+    return (helper_getfd_v5(src1, src2) >> zlen) << zlen;
+}
+
 static uint64_t cr_read(CPUE2KState *env, size_t offset)
 {
     target_ulong addr = env->pcsp.base + env->pcsp.index + offset;
