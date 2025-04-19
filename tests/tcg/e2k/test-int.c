@@ -124,30 +124,34 @@ static void test_v1_int(void) {
     CHECK2(EXEC_RR, 5, smodx, sdivx_src1, sdivx_src2);
 }
 
-#define CHECK_SXT(EXEC, CHAN, COMMENT) do { \
-    alc_test_t test = test_start("sxt", COMMENT, glue(ALC, CHAN), SKIP_GEN); \
-    EXEC2_REPORT(test, glue3(EXEC, _, CHAN), sxt, 0, 0x7fff7f7f, 0x000000000000007f); \
-    EXEC2_REPORT(test, glue3(EXEC, _, CHAN), sxt, 1, 0x7fff7f7f, 0x0000000000007f7f); \
-    EXEC2_REPORT(test, glue3(EXEC, _, CHAN), sxt, 2, 0x7fff7f7f, 0x000000007fff7f7f); \
-    EXEC2_REPORT(test, glue3(EXEC, _, CHAN), sxt, 3, 0x7fff7f7f, 0x000000007fff7f7f); \
-    EXEC2_REPORT(test, glue3(EXEC, _, CHAN), sxt, 4, 0x7fff7f7f, 0x000000000000007f); \
-    EXEC2_REPORT(test, glue3(EXEC, _, CHAN), sxt, 5, 0x7fff7f7f, 0x0000000000007f7f); \
-    EXEC2_REPORT(test, glue3(EXEC, _, CHAN), sxt, 6, 0x7fff7f7f, 0x000000007fff7f7f); \
-    EXEC2_REPORT(test, glue3(EXEC, _, CHAN), sxt, 7, 0x7fff7f7f, 0x000000007fff7f7f); \
-    EXEC2_REPORT(test, glue3(EXEC, _, CHAN), sxt, 0, 0x80008080, 0xffffffffffffff80); \
-    EXEC2_REPORT(test, glue3(EXEC, _, CHAN), sxt, 1, 0x80008080, 0xffffffffffff8080); \
-    EXEC2_REPORT(test, glue3(EXEC, _, CHAN), sxt, 2, 0x80008080, 0xffffffff80008080); \
-    EXEC2_REPORT(test, glue3(EXEC, _, CHAN), sxt, 3, 0x80008080, 0xffffffff80008080); \
-    EXEC2_REPORT(test, glue3(EXEC, _, CHAN), sxt, 4, 0x80008080, 0x0000000000000080); \
-    EXEC2_REPORT(test, glue3(EXEC, _, CHAN), sxt, 5, 0x80008080, 0x0000000000008080); \
-    EXEC2_REPORT(test, glue3(EXEC, _, CHAN), sxt, 6, 0x80008080, 0x0000000080008080); \
-    EXEC2_REPORT(test, glue3(EXEC, _, CHAN), sxt, 7, 0x80008080, 0x0000000080008080); \
+#define CHECK2_INSN(TEST, EXEC, CHAN, INSN, SRC1, SRC2, K) \
+    EXEC2_REPORT(TEST, glue3(EXEC, _, CHAN), INSN, SRC1, SRC2, GET_EXPECT(TEST, glue(INSN, _expect), K))
+
+#define CHECK_SXT(EXEC, CHAN, COMMENT, FLAGS) do { \
+    alc_test_t test = test_start("sxt", COMMENT, glue(ALC, CHAN), FLAGS); \
+    int k = 0; \
+    CHECK2_INSN(&test, EXEC, CHAN, sxt, 0, 0x7fff7f7f, k); ++k; \
+    CHECK2_INSN(&test, EXEC, CHAN, sxt, 1, 0x7fff7f7f, k); ++k; \
+    CHECK2_INSN(&test, EXEC, CHAN, sxt, 2, 0x7fff7f7f, k); ++k; \
+    CHECK2_INSN(&test, EXEC, CHAN, sxt, 3, 0x7fff7f7f, k); ++k; \
+    CHECK2_INSN(&test, EXEC, CHAN, sxt, 4, 0x7fff7f7f, k); ++k; \
+    CHECK2_INSN(&test, EXEC, CHAN, sxt, 5, 0x7fff7f7f, k); ++k; \
+    CHECK2_INSN(&test, EXEC, CHAN, sxt, 6, 0x7fff7f7f, k); ++k; \
+    CHECK2_INSN(&test, EXEC, CHAN, sxt, 7, 0x7fff7f7f, k); ++k; \
+    CHECK2_INSN(&test, EXEC, CHAN, sxt, 0, 0x80008080, k); ++k; \
+    CHECK2_INSN(&test, EXEC, CHAN, sxt, 1, 0x80008080, k); ++k; \
+    CHECK2_INSN(&test, EXEC, CHAN, sxt, 2, 0x80008080, k); ++k; \
+    CHECK2_INSN(&test, EXEC, CHAN, sxt, 3, 0x80008080, k); ++k; \
+    CHECK2_INSN(&test, EXEC, CHAN, sxt, 4, 0x80008080, k); ++k; \
+    CHECK2_INSN(&test, EXEC, CHAN, sxt, 5, 0x80008080, k); ++k; \
+    CHECK2_INSN(&test, EXEC, CHAN, sxt, 6, 0x80008080, k); ++k; \
+    CHECK2_INSN(&test, EXEC, CHAN, sxt, 7, 0x80008080, k); ++k; \
     test_end(&test); \
 } while(0)
 
 static void test_v1_sxt(void) {
-    CHECK_SXT(EXEC_IR, 012345, "imm"); // specialized for imm
-    CHECK_SXT(EXEC_RR, 012345, "reg"); // helper
+    CHECK_SXT(EXEC_RR, 012345, "reg", 0); // helper
+    CHECK_SXT(EXEC_IR, 012345, "imm", SKIP_GEN); // specialized for imm
 }
 
 static void test_v1_shift(void) {
@@ -187,91 +191,91 @@ static void test_v1_shift(void) {
 
 static void test_v1_merge(void) {
     do {
-        alc_test_t test = test_start("merges", NULL, ALC012345, SKIP_GEN);
-        EXEC_REPORT(test, EXEC_MERGE, merges, 1, -1, 0, 0, 0x00000001);
-        EXEC_REPORT(test, EXEC_MERGE, merges, 1, -1, 1, 0, 0xffffffff);
+        alc_test_t test = test_start("merges", NULL, ALC012345, 0);
+        EXEC_REPORT(&test, EXEC_MERGE, merges, 1, -1, 0, 0, GET_EXPECT(&test, merges_expect, 0));
+        EXEC_REPORT(&test, EXEC_MERGE, merges, 1, -1, 1, 0, GET_EXPECT(&test, merges_expect, 1));
         test_end(&test);
     } while(0);
 
     do {
-        alc_test_t test = test_start("merged", NULL, ALC012345, SKIP_GEN);
-        EXEC_REPORT(test, EXEC_MERGE, merged, 1, -1ULL, 0, 0, 0x0000000000000001);
-        EXEC_REPORT(test, EXEC_MERGE, merged, 1, -1ULL, 1, 0, 0xffffffffffffffff);
+        alc_test_t test = test_start("merged", NULL, ALC012345, 0);
+        EXEC_REPORT(&test, EXEC_MERGE, merged, 1, -1ULL, 0, 0, GET_EXPECT(&test, merged_expect, 0));
+        EXEC_REPORT(&test, EXEC_MERGE, merged, 1, -1ULL, 1, 0, GET_EXPECT(&test, merged_expect, 1));
         test_end(&test);
     } while(0);
 }
 
-#define CHECK_GETF(EXEC, INSN, COMMENT, TYPE, IS_64) do { \
-    alc_test_t test = test_start(#INSN, COMMENT, ALC012345, SKIP_GEN); \
-    EXEC2_REPORT(test, EXEC, INSN, 0x0000000000000000, FIELD( 0, 0, 0, 0), (TYPE) 0x0000000000000000); \
-    EXEC2_REPORT(test, EXEC, INSN, 0xfedcba9786543210, FIELD( 0, 4, 0, 0), (TYPE) 0x0000000000000000); \
-    EXEC2_REPORT(test, EXEC, INSN, 0xfedcba9786543210, FIELD( 4, 4, 0, 0), (TYPE) 0x0000000000000001); \
-    EXEC2_REPORT(test, EXEC, INSN, 0xfedcba9786543210, FIELD( 8, 4, 0, 0), (TYPE) 0x0000000000000002); \
-    EXEC2_REPORT(test, EXEC, INSN, 0xfedcba9786543210, FIELD(12, 4, 0, 0), (TYPE) 0x0000000000000003); \
-    EXEC2_REPORT(test, EXEC, INSN, 0xfedcba9786543210, FIELD(16, 4, 0, 0), (TYPE) 0x0000000000000004); \
-    EXEC2_REPORT(test, EXEC, INSN, 0xfedcba9786543210, FIELD(20, 4, 0, 0), (TYPE) 0x0000000000000005); \
-    EXEC2_REPORT(test, EXEC, INSN, 0xfedcba9786543210, FIELD(24, 4, 0, 0), (TYPE) 0x0000000000000006); \
-    EXEC2_REPORT(test, EXEC, INSN, 0xfedcba9786543210, FIELD(28, 4, 0, 0), (TYPE) 0x0000000000000008); \
-    EXEC2_REPORT(test, EXEC, INSN, 0xfedcba9786543210, FIELD( 0, 4, 1, 0), (TYPE) 0x0000000000000000); \
-    EXEC2_REPORT(test, EXEC, INSN, 0xfedcba9786543210, FIELD( 4, 4, 1, 0), (TYPE) 0x0000000000000001); \
-    EXEC2_REPORT(test, EXEC, INSN, 0xfedcba9786543210, FIELD( 8, 4, 1, 1), (TYPE) 0x0000000000000002); \
-    EXEC2_REPORT(test, EXEC, INSN, 0xfedcba9786543210, FIELD(12, 4, 1, 1), (TYPE) 0x0000000000000003); \
-    EXEC2_REPORT(test, EXEC, INSN, 0xfedcba9786543210, FIELD(16, 4, 1, 2), (TYPE) 0x0000000000000004); \
-    EXEC2_REPORT(test, EXEC, INSN, 0xfedcba9786543210, FIELD(20, 4, 1, 2), (TYPE) 0x0000000000000005); \
-    EXEC2_REPORT(test, EXEC, INSN, 0xfedcba9786543210, FIELD(24, 4, 1, 3), (TYPE) 0x0000000000000006); \
-    EXEC2_REPORT(test, EXEC, INSN, 0xfedcba9786543210, FIELD(28, 4, 1, 3), (TYPE) 0xfffffffffffffff8); \
-    EXEC2_REPORT(test, EXEC, INSN, 0xfedcba9786543210, FIELD( 0, 8, 0, 0), (TYPE) 0x0000000000000010); \
-    EXEC2_REPORT(test, EXEC, INSN, 0xfedcba9786543210, FIELD( 8, 8, 0, 0), (TYPE) 0x0000000000000032); \
-    EXEC2_REPORT(test, EXEC, INSN, 0xfedcba9786543210, FIELD(16, 8, 0, 0), (TYPE) 0x0000000000000054); \
-    EXEC2_REPORT(test, EXEC, INSN, 0xfedcba9786543210, FIELD(24, 8, 0, 0), (TYPE) 0x0000000000000086); \
-    EXEC2_REPORT(test, EXEC, INSN, 0xfedcba9786543210, FIELD( 0, 8, 1, 0), (TYPE) 0x0000000000000010); \
-    EXEC2_REPORT(test, EXEC, INSN, 0xfedcba9786543210, FIELD( 8, 8, 1, 1), (TYPE) 0x0000000000000032); \
-    EXEC2_REPORT(test, EXEC, INSN, 0xfedcba9786543210, FIELD(16, 8, 1, 2), (TYPE) 0x0000000000000054); \
-    EXEC2_REPORT(test, EXEC, INSN, 0xfedcba9786543210, FIELD(24, 8, 1, 3), (TYPE) 0xffffffffffffff86); \
-    EXEC2_REPORT(test, EXEC, INSN, 0xfedcba9786543210, FIELD( 0,16, 0, 0), (TYPE) 0x0000000000003210); \
-    EXEC2_REPORT(test, EXEC, INSN, 0xfedcba9786543210, FIELD(16,16, 0, 0), (TYPE) 0x0000000000008654); \
-    EXEC2_REPORT(test, EXEC, INSN, 0xfedcba9786543210, FIELD( 0,16, 1, 0), (TYPE) 0x0000000000003210); \
-    EXEC2_REPORT(test, EXEC, INSN, 0xfedcba9786543210, FIELD(16,16, 1, 3), (TYPE) 0xffffffffffff8654); \
-    if (IS_64) { \
-    EXEC2_REPORT(test, EXEC, INSN, 0xfedcba9786543210, FIELD(32, 4, 0, 0), (TYPE) 0x0000000000000007); \
-    EXEC2_REPORT(test, EXEC, INSN, 0xfedcba9786543210, FIELD(36, 4, 0, 0), (TYPE) 0x0000000000000009); \
-    EXEC2_REPORT(test, EXEC, INSN, 0xfedcba9786543210, FIELD(40, 4, 0, 0), (TYPE) 0x000000000000000a); \
-    EXEC2_REPORT(test, EXEC, INSN, 0xfedcba9786543210, FIELD(44, 4, 0, 0), (TYPE) 0x000000000000000b); \
-    EXEC2_REPORT(test, EXEC, INSN, 0xfedcba9786543210, FIELD(48, 4, 0, 0), (TYPE) 0x000000000000000c); \
-    EXEC2_REPORT(test, EXEC, INSN, 0xfedcba9786543210, FIELD(52, 4, 0, 0), (TYPE) 0x000000000000000d); \
-    EXEC2_REPORT(test, EXEC, INSN, 0xfedcba9786543210, FIELD(56, 4, 0, 0), (TYPE) 0x000000000000000e); \
-    EXEC2_REPORT(test, EXEC, INSN, 0xfedcba9786543210, FIELD(60, 4, 0, 0), (TYPE) 0x000000000000000f); \
-    EXEC2_REPORT(test, EXEC, INSN, 0xfedcba9786543210, FIELD(32, 4, 1, 4), (TYPE) 0x0000000000000007); \
-    EXEC2_REPORT(test, EXEC, INSN, 0xfedcba9786543210, FIELD(36, 4, 1, 4), (TYPE) 0xfffffffffffffff9); \
-    EXEC2_REPORT(test, EXEC, INSN, 0xfedcba9786543210, FIELD(40, 4, 1, 5), (TYPE) 0xfffffffffffffffa); \
-    EXEC2_REPORT(test, EXEC, INSN, 0xfedcba9786543210, FIELD(44, 4, 1, 5), (TYPE) 0xfffffffffffffffb); \
-    EXEC2_REPORT(test, EXEC, INSN, 0xfedcba9786543210, FIELD(48, 4, 1, 6), (TYPE) 0xfffffffffffffffc); \
-    EXEC2_REPORT(test, EXEC, INSN, 0xfedcba9786543210, FIELD(52, 4, 1, 6), (TYPE) 0xfffffffffffffffd); \
-    EXEC2_REPORT(test, EXEC, INSN, 0xfedcba9786543210, FIELD(56, 4, 1, 7), (TYPE) 0xfffffffffffffffe); \
-    EXEC2_REPORT(test, EXEC, INSN, 0xfedcba9786543210, FIELD(60, 4, 1, 7), (TYPE) 0xffffffffffffffff); \
-    EXEC2_REPORT(test, EXEC, INSN, 0xfedcba9786543210, FIELD(32, 8, 0, 0), (TYPE) 0x0000000000000097); \
-    EXEC2_REPORT(test, EXEC, INSN, 0xfedcba9786543210, FIELD(40, 8, 0, 0), (TYPE) 0x00000000000000ba); \
-    EXEC2_REPORT(test, EXEC, INSN, 0xfedcba9786543210, FIELD(48, 8, 0, 0), (TYPE) 0x00000000000000dc); \
-    EXEC2_REPORT(test, EXEC, INSN, 0xfedcba9786543210, FIELD(56, 8, 0, 0), (TYPE) 0x00000000000000fe); \
-    EXEC2_REPORT(test, EXEC, INSN, 0xfedcba9786543210, FIELD(32, 8, 1, 4), (TYPE) 0xffffffffffffff97); \
-    EXEC2_REPORT(test, EXEC, INSN, 0xfedcba9786543210, FIELD(40, 8, 1, 5), (TYPE) 0xffffffffffffffba); \
-    EXEC2_REPORT(test, EXEC, INSN, 0xfedcba9786543210, FIELD(48, 8, 1, 6), (TYPE) 0xffffffffffffffdc); \
-    EXEC2_REPORT(test, EXEC, INSN, 0xfedcba9786543210, FIELD(56, 8, 1, 7), (TYPE) 0xfffffffffffffffe); \
-    EXEC2_REPORT(test, EXEC, INSN, 0xfedcba9786543210, FIELD(32,16, 0, 0), (TYPE) 0x000000000000ba97); \
-    EXEC2_REPORT(test, EXEC, INSN, 0xfedcba9786543210, FIELD(48,16, 0, 0), (TYPE) 0x000000000000fedc); \
-    EXEC2_REPORT(test, EXEC, INSN, 0xfedcba9786543210, FIELD(32,16, 1, 4), (TYPE) 0xffffffffffffba97); \
-    EXEC2_REPORT(test, EXEC, INSN, 0xfedcba9786543210, FIELD(48,16, 1, 6), (TYPE) 0xfffffffffffffedc); \
-    } \
+#define CHECK_GETF(EXEC, CHAN, INSN, COMMENT, FLAGS) do { \
+    alc_test_t test = test_start(#INSN, COMMENT, glue(ALC, CHAN), FLAGS); \
+    int k = 0; \
+    CHECK2_INSN(&test, EXEC, CHAN, INSN, 0x0000000000000000, FIELD( 0, 0, 0, 0), k); ++k; \
+    CHECK2_INSN(&test, EXEC, CHAN, INSN, 0xfedcba9786543210, FIELD( 0, 4, 0, 0), k); ++k; \
+    CHECK2_INSN(&test, EXEC, CHAN, INSN, 0xfedcba9786543210, FIELD( 4, 4, 0, 0), k); ++k; \
+    CHECK2_INSN(&test, EXEC, CHAN, INSN, 0xfedcba9786543210, FIELD( 8, 4, 0, 0), k); ++k; \
+    CHECK2_INSN(&test, EXEC, CHAN, INSN, 0xfedcba9786543210, FIELD(12, 4, 0, 0), k); ++k; \
+    CHECK2_INSN(&test, EXEC, CHAN, INSN, 0xfedcba9786543210, FIELD(16, 4, 0, 0), k); ++k; \
+    CHECK2_INSN(&test, EXEC, CHAN, INSN, 0xfedcba9786543210, FIELD(20, 4, 0, 0), k); ++k; \
+    CHECK2_INSN(&test, EXEC, CHAN, INSN, 0xfedcba9786543210, FIELD(24, 4, 0, 0), k); ++k; \
+    CHECK2_INSN(&test, EXEC, CHAN, INSN, 0xfedcba9786543210, FIELD(28, 4, 0, 0), k); ++k; \
+    CHECK2_INSN(&test, EXEC, CHAN, INSN, 0xfedcba9786543210, FIELD( 0, 4, 1, 0), k); ++k; \
+    CHECK2_INSN(&test, EXEC, CHAN, INSN, 0xfedcba9786543210, FIELD( 4, 4, 1, 0), k); ++k; \
+    CHECK2_INSN(&test, EXEC, CHAN, INSN, 0xfedcba9786543210, FIELD( 8, 4, 1, 1), k); ++k; \
+    CHECK2_INSN(&test, EXEC, CHAN, INSN, 0xfedcba9786543210, FIELD(12, 4, 1, 1), k); ++k; \
+    CHECK2_INSN(&test, EXEC, CHAN, INSN, 0xfedcba9786543210, FIELD(16, 4, 1, 2), k); ++k; \
+    CHECK2_INSN(&test, EXEC, CHAN, INSN, 0xfedcba9786543210, FIELD(20, 4, 1, 2), k); ++k; \
+    CHECK2_INSN(&test, EXEC, CHAN, INSN, 0xfedcba9786543210, FIELD(24, 4, 1, 3), k); ++k; \
+    CHECK2_INSN(&test, EXEC, CHAN, INSN, 0xfedcba9786543210, FIELD(28, 4, 1, 3), k); ++k; \
+    CHECK2_INSN(&test, EXEC, CHAN, INSN, 0xfedcba9786543210, FIELD( 0, 8, 0, 0), k); ++k; \
+    CHECK2_INSN(&test, EXEC, CHAN, INSN, 0xfedcba9786543210, FIELD( 8, 8, 0, 0), k); ++k; \
+    CHECK2_INSN(&test, EXEC, CHAN, INSN, 0xfedcba9786543210, FIELD(16, 8, 0, 0), k); ++k; \
+    CHECK2_INSN(&test, EXEC, CHAN, INSN, 0xfedcba9786543210, FIELD(24, 8, 0, 0), k); ++k; \
+    CHECK2_INSN(&test, EXEC, CHAN, INSN, 0xfedcba9786543210, FIELD( 0, 8, 1, 0), k); ++k; \
+    CHECK2_INSN(&test, EXEC, CHAN, INSN, 0xfedcba9786543210, FIELD( 8, 8, 1, 1), k); ++k; \
+    CHECK2_INSN(&test, EXEC, CHAN, INSN, 0xfedcba9786543210, FIELD(16, 8, 1, 2), k); ++k; \
+    CHECK2_INSN(&test, EXEC, CHAN, INSN, 0xfedcba9786543210, FIELD(24, 8, 1, 3), k); ++k; \
+    CHECK2_INSN(&test, EXEC, CHAN, INSN, 0xfedcba9786543210, FIELD( 0,16, 0, 0), k); ++k; \
+    CHECK2_INSN(&test, EXEC, CHAN, INSN, 0xfedcba9786543210, FIELD(16,16, 0, 0), k); ++k; \
+    CHECK2_INSN(&test, EXEC, CHAN, INSN, 0xfedcba9786543210, FIELD( 0,16, 1, 0), k); ++k; \
+    CHECK2_INSN(&test, EXEC, CHAN, INSN, 0xfedcba9786543210, FIELD(16,16, 1, 3), k); ++k; \
+    CHECK2_INSN(&test, EXEC, CHAN, INSN, 0xfedcba9786543210, FIELD(32, 4, 0, 0), k); ++k; \
+    CHECK2_INSN(&test, EXEC, CHAN, INSN, 0xfedcba9786543210, FIELD(36, 4, 0, 0), k); ++k; \
+    CHECK2_INSN(&test, EXEC, CHAN, INSN, 0xfedcba9786543210, FIELD(40, 4, 0, 0), k); ++k; \
+    CHECK2_INSN(&test, EXEC, CHAN, INSN, 0xfedcba9786543210, FIELD(44, 4, 0, 0), k); ++k; \
+    CHECK2_INSN(&test, EXEC, CHAN, INSN, 0xfedcba9786543210, FIELD(48, 4, 0, 0), k); ++k; \
+    CHECK2_INSN(&test, EXEC, CHAN, INSN, 0xfedcba9786543210, FIELD(52, 4, 0, 0), k); ++k; \
+    CHECK2_INSN(&test, EXEC, CHAN, INSN, 0xfedcba9786543210, FIELD(56, 4, 0, 0), k); ++k; \
+    CHECK2_INSN(&test, EXEC, CHAN, INSN, 0xfedcba9786543210, FIELD(60, 4, 0, 0), k); ++k; \
+    CHECK2_INSN(&test, EXEC, CHAN, INSN, 0xfedcba9786543210, FIELD(32, 4, 1, 4), k); ++k; \
+    CHECK2_INSN(&test, EXEC, CHAN, INSN, 0xfedcba9786543210, FIELD(36, 4, 1, 4), k); ++k; \
+    CHECK2_INSN(&test, EXEC, CHAN, INSN, 0xfedcba9786543210, FIELD(40, 4, 1, 5), k); ++k; \
+    CHECK2_INSN(&test, EXEC, CHAN, INSN, 0xfedcba9786543210, FIELD(44, 4, 1, 5), k); ++k; \
+    CHECK2_INSN(&test, EXEC, CHAN, INSN, 0xfedcba9786543210, FIELD(48, 4, 1, 6), k); ++k; \
+    CHECK2_INSN(&test, EXEC, CHAN, INSN, 0xfedcba9786543210, FIELD(52, 4, 1, 6), k); ++k; \
+    CHECK2_INSN(&test, EXEC, CHAN, INSN, 0xfedcba9786543210, FIELD(56, 4, 1, 7), k); ++k; \
+    CHECK2_INSN(&test, EXEC, CHAN, INSN, 0xfedcba9786543210, FIELD(60, 4, 1, 7), k); ++k; \
+    CHECK2_INSN(&test, EXEC, CHAN, INSN, 0xfedcba9786543210, FIELD(32, 8, 0, 0), k); ++k; \
+    CHECK2_INSN(&test, EXEC, CHAN, INSN, 0xfedcba9786543210, FIELD(40, 8, 0, 0), k); ++k; \
+    CHECK2_INSN(&test, EXEC, CHAN, INSN, 0xfedcba9786543210, FIELD(48, 8, 0, 0), k); ++k; \
+    CHECK2_INSN(&test, EXEC, CHAN, INSN, 0xfedcba9786543210, FIELD(56, 8, 0, 0), k); ++k; \
+    CHECK2_INSN(&test, EXEC, CHAN, INSN, 0xfedcba9786543210, FIELD(32, 8, 1, 4), k); ++k; \
+    CHECK2_INSN(&test, EXEC, CHAN, INSN, 0xfedcba9786543210, FIELD(40, 8, 1, 5), k); ++k; \
+    CHECK2_INSN(&test, EXEC, CHAN, INSN, 0xfedcba9786543210, FIELD(48, 8, 1, 6), k); ++k; \
+    CHECK2_INSN(&test, EXEC, CHAN, INSN, 0xfedcba9786543210, FIELD(56, 8, 1, 7), k); ++k; \
+    CHECK2_INSN(&test, EXEC, CHAN, INSN, 0xfedcba9786543210, FIELD(32,16, 0, 0), k); ++k; \
+    CHECK2_INSN(&test, EXEC, CHAN, INSN, 0xfedcba9786543210, FIELD(48,16, 0, 0), k); ++k; \
+    CHECK2_INSN(&test, EXEC, CHAN, INSN, 0xfedcba9786543210, FIELD(32,16, 1, 4), k); ++k; \
+    CHECK2_INSN(&test, EXEC, CHAN, INSN, 0xfedcba9786543210, FIELD(48,16, 1, 6), k); ++k; \
     test_end(&test); \
 } while(0)
 
 static void test_v1_getf(void) {
-    // specialized for literal
-    CHECK_GETF(EXEC_RI_012345, getfs, "imm", uint32_t, 0);
-    CHECK_GETF(EXEC_RI_012345, getfd, "imm", uint64_t, 1);
     // helper
-    CHECK_GETF(EXEC_RR_012345, getfs, "reg", uint32_t, 0);
-    CHECK_GETF(EXEC_RR_012345, getfd, "reg", uint64_t, 1);
+    CHECK_GETF(EXEC_RR, 012345, getfs, "reg", 0);
+    CHECK_GETF(EXEC_RR, 012345, getfd, "reg", 0);
+
+    // specialized for literal
+    CHECK_GETF(EXEC_RI, 012345, getfs, "imm", SKIP_GEN);
+    CHECK_GETF(EXEC_RI, 012345, getfd, "imm", SKIP_GEN);
 
 #if 0
 // TODO: e2k getfs/getfd forward compatibility issue
@@ -502,8 +506,8 @@ static void test_v3(void) {
 static void test_v5(void) {
     push_iset(5);
 
-    // TODO: getfzs
-    // TODO: getfzd
+    CHECK_GETF(EXEC_RR, 012345, getfzs, NULL, 0);
+    CHECK_GETF(EXEC_RR, 012345, getfzd, NULL, 0);
 
     CHECK3(EXEC_RRR, 14, addcd,   int_src1, int_src2, int_src3);
     CHECK3(EXEC_RRR, 14, addcd_c, int_src1, int_src2, int_src3);

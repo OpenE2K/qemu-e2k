@@ -70,29 +70,29 @@ void test_report(
 
 #define EXEC1_REPORT(TEST, EXEC, INSN, SRC1, EXPECTED) \
     uint64_t src1 = SRC1; \
-    uint64_t expected = EXPECTED; \
-    EXEC(INSN, (TEST).result, SRC1); \
-    test_report(&TEST, &expected, &src1, NULL, NULL, NULL)
+    EXEC(INSN, (TEST)->result, SRC1); \
+    const uint64_t *expected = EXPECTED; \
+    test_report(TEST, expected, &src1, NULL, NULL, NULL)
 
 #define EXEC2_REPORT(TEST, EXEC, INSN, SRC1, SRC2, EXPECTED) do { \
     uint64_t src1 = SRC1, src2 = SRC2; \
-    uint64_t expected = EXPECTED; \
-    EXEC(INSN, (TEST).result, SRC1, SRC2); \
-    test_report(&TEST, &expected, &src1, &src2, NULL, NULL); \
+    EXEC(INSN, (TEST)->result, SRC1, SRC2); \
+    const uint64_t *expected = EXPECTED; \
+    test_report(TEST, expected, &src1, &src2, NULL, NULL); \
 } while(0)
 
 #define EXEC3_REPORT(TEST, EXEC, INSN, SRC1, SRC2, SRC3, EXPECTED) do { \
     uint64_t src1 = SRC1, src2 = SRC2, src3 = SRC3; \
-    uint64_t expected = EXPECTED; \
-    EXEC(INSN, (TEST).result, SRC1, SRC2, SRC3); \
-    test_report(&TEST, &expected, &src1, &src2, &src3, NULL); \
+    EXEC(INSN, (TEST)->result, SRC1, SRC2, SRC3); \
+    const uint64_t *expected = EXPECTED; \
+    test_report(TEST, expected, &src1, &src2, &src3, NULL); \
 } while(0)
 
 #define EXEC_REPORT(TEST, EXEC, INSN, SRC1, SRC2, SRC3, SRC4, EXPECTED) do { \
     uint64_t src1 = SRC1, src2 = SRC2, src3 = SRC3, src4 = SRC4; \
-    uint64_t expected = EXPECTED; \
-    EXEC(INSN, (TEST).result, SRC1, SRC2, SRC3, SRC4); \
-    test_report(&TEST, &expected, &src1, &src2, &src3, &src4); \
+    EXEC(INSN, (TEST)->result, SRC1, SRC2, SRC3, SRC4); \
+    const uint64_t *expected = EXPECTED; \
+    test_report(TEST, expected, &src1, &src2, &src3, &src4); \
 } while(0)
 
 #define DUMMY_EXPECT(TEST, EXPECT, I) (TEST)->result
